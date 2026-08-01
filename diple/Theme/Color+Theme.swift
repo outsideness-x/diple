@@ -1,4 +1,10 @@
 import SwiftUI
+import UIKit
+
+public extension UIColor {
+    /// Premium brand accent color (#DF9BE1 - Lilac), for the UIKit layers of the reader.
+    static let dipleAccent = UIColor(red: 223 / 255.0, green: 155 / 255.0, blue: 225 / 255.0, alpha: 1)
+}
 
 public extension Color {
     /// Premium brand accent color (#DF9BE1 - Lilac)

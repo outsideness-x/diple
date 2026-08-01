@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import WebKit
 import ReadiumShared
 import ReadiumNavigator
 
@@ -9,6 +10,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let targetLink: ReadiumShared.Link?
     public let targetLocator: Locator?
     public let highlights: [Highlight]
+    public let tableOfContents: [ReadiumShared.Link]
     public let preferences: EPUBPreferences
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
@@ -22,6 +24,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         targetLink: ReadiumShared.Link? = nil,
         targetLocator: Locator? = nil,
         highlights: [Highlight] = [],
+        tableOfContents: [ReadiumShared.Link] = [],
         preferences: EPUBPreferences,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
@@ -34,6 +37,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.targetLink = targetLink
         self.targetLocator = targetLocator
         self.highlights = highlights
+        self.tableOfContents = tableOfContents
         self.preferences = preferences
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
@@ -48,7 +52,11 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
     public func makeUIViewController(context: Context) -> EPUBNavigatorViewController {
         let config = EPUBNavigatorViewController.Configuration(
-            preferences: preferences
+            preferences: preferences,
+            // In continuous scroll mode reading is vertical, so a horizontal swipe silently
+            // skipping a chapter is never what the reader meant. Chapters are changed by
+            // pulling past the end of the text instead (see ChapterPullTransitionController).
+            disablePageTurnsWhileScrolling: true
         )
 
         do {
@@ -61,7 +69,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.navigator = navigator
             context.coordinator.lastPreferences = preferences
             context.coordinator.lastHighlights = highlights
-            context.coordinator.setupScrollObserver(for: navigator)
+            context.coordinator.syncScrollTransition(for: navigator)
             applyDecorations(highlights: highlights, to: navigator)
             return navigator
         } catch {
@@ -77,7 +85,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             uiViewController.submitPreferences(preferences)
         }
         
-        context.coordinator.setupScrollObserver(for: uiViewController)
+        context.coordinator.syncScrollTransition(for: uiViewController)
         context.coordinator.navigate(to: targetLink, or: targetLocator, in: uiViewController)
 
         if context.coordinator.lastHighlights != highlights {
@@ -110,9 +118,24 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
         var lastHighlights: [Highlight]? = nil
-        private var scrollObserver: NSKeyValueObservation?
-        private var hasTriggeredChapterTransition = false
+        private var pullTransition: ChapterPullTransitionController? = nil
         private var inFlightTarget: NavigationTarget? = nil
+
+        /// Reading-order resources rarely carry a title; the table of contents does. Its
+        /// entries often point at a fragment inside the resource, so they are keyed by the
+        /// bare resource URL.
+        private lazy var chapterTitles: [AnyURL: String] = {
+            func flatten(_ links: [ReadiumShared.Link]) -> [AnyURL: String] {
+                links.reduce(into: [AnyURL: String]()) { result, link in
+                    if let title = link.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !title.isEmpty {
+                        result[link.url().removingQuery().removingFragment()] = title
+                    }
+                    result.merge(flatten(link.children)) { existing, _ in existing }
+                }
+            }
+            return flatten(parent.tableOfContents)
+        }()
 
         private enum NavigationTarget: Equatable {
             case link(ReadiumShared.Link)
@@ -155,54 +178,30 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             }
         }
 
-        func setupScrollObserver(for navigator: EPUBNavigatorViewController) {
-            scrollObserver?.invalidate()
-            scrollObserver = nil
+        func syncScrollTransition(for navigator: EPUBNavigatorViewController) {
+            let controller = pullTransition ?? {
+                let controller = ChapterPullTransitionController(navigator: navigator)
+                pullTransition = controller
+                return controller
+            }()
 
-            guard parent.preferences.scroll == true,
-                  let scrollView = findScrollView(in: navigator.view) else { return }
-
-            scrollObserver = scrollView.observe(\.contentOffset, options: [.new]) { [weak self] sv, _ in
-                guard let self = self, let nav = self.navigator else { return }
-                let currentOffsetY = sv.contentOffset.y
-                let maxOffsetY = max(0, sv.contentSize.height - sv.bounds.height)
-
-                if currentOffsetY > maxOffsetY + 55 {
-                    if !self.hasTriggeredChapterTransition {
-                        self.hasTriggeredChapterTransition = true
-                        HapticManager.shared.chapterChanged()
-                        Task { @MainActor in
-                            _ = await nav.goForward(options: NavigatorGoOptions(animated: true))
-                        }
-                    }
-                } else if currentOffsetY < -55 {
-                    if !self.hasTriggeredChapterTransition {
-                        self.hasTriggeredChapterTransition = true
-                        HapticManager.shared.chapterChanged()
-                        Task { @MainActor in
-                            _ = await nav.goBackward(options: NavigatorGoOptions(animated: true))
-                        }
-                    }
-                } else if currentOffsetY >= -10 && currentOffsetY <= maxOffsetY + 10 {
-                    self.hasTriggeredChapterTransition = false
-                }
+            controller.chapterTitleProvider = { [weak self] href in
+                self?.chapterTitles[href]
             }
-        }
-
-        private func findScrollView(in view: UIView) -> UIScrollView? {
-            if let sv = view as? UIScrollView {
-                return sv
-            }
-            for subview in view.subviews {
-                if let sv = findScrollView(in: subview) {
-                    return sv
-                }
-            }
-            return nil
+            controller.setEnabled(parent.preferences.scroll == true)
+            controller.refreshAttachments()
         }
 
         public func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
             print("Readium navigator error: \(error)")
+        }
+
+        public func navigator(_ navigator: EPUBNavigatorViewController, setupUserScripts userContentController: WKUserContentController) {
+            // Called while a new spread web view is being built. It is not in the view
+            // hierarchy yet, so pick it up on the next runloop turn.
+            DispatchQueue.main.async { [weak self] in
+                self?.pullTransition?.refreshAttachments()
+            }
         }
 
         /// - Important: The parameter type must be `Navigator`, not `VisualNavigator`.
@@ -210,8 +209,14 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         ///   narrower type silently creates an unrelated method and Readium keeps calling
         ///   the empty default implementation, so no location is ever reported.
         public func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
-            if let previousHref = lastHref, previousHref != locator.href {
+            // In scroll mode the chapter haptic fires the moment the pull is released, which
+            // is both earlier and more precise than reacting to the resulting href change.
+            if parent.preferences.scroll != true,
+               let previousHref = lastHref, previousHref != locator.href {
                 HapticManager.shared.chapterChanged()
+            }
+            if lastHref != locator.href {
+                pullTransition?.refreshAttachments()
             }
             lastHref = locator.href
             parent.onLocationChanged(locator)

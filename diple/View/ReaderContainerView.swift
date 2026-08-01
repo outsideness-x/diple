@@ -79,6 +79,7 @@ public struct ReaderContainerView: View {
                         targetLink: viewModel.targetLink,
                         targetLocator: viewModel.targetLocator,
                         highlights: viewModel.highlights,
+                        tableOfContents: viewModel.tableOfContents,
                         preferences: viewModel.settings.epubPreferences,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
