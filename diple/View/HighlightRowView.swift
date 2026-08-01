@@ -55,8 +55,7 @@ public struct HighlightRowView: View {
             .buttonStyle(.plain)
         }
         .padding(DipleSpace.m)
-        .background(DipleColor.surface)
-        .cornerRadius(DipleRadius.m)
+        .craftSurface()
         .overlay(
             RoundedRectangle(cornerRadius: DipleRadius.m)
                 .stroke(displayColor.opacity(0.3), lineWidth: 1)

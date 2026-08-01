@@ -168,7 +168,8 @@ public struct BookOutlineSheetView: View {
                 }
             }
         }
-        .background(DipleColor.canvas.ignoresSafeArea())
+        .background(DipleColor.canvas.opacity(0.6).ignoresSafeArea())
+        .presentationBackground(.regularMaterial)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .animation(.easeInOut(duration: 0.18), value: selectedTab)

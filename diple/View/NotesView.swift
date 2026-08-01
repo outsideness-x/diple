@@ -162,13 +162,12 @@ public struct NotesView: View {
             Spacer()
 
             ZStack {
-                Circle()
-                    .fill(DipleColor.accent.opacity(0.12))
-                    .frame(width: 80, height: 80)
+                AccentWash()
 
                 Image(systemName: "square.grid.2x2")
                     .dipleIcon(30, weight: .thin)
                     .foregroundStyle(DipleColor.accent)
+                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
             }
 
             VStack(spacing: DipleSpace.s) {
@@ -193,6 +192,7 @@ public struct NotesView: View {
                 .foregroundStyle(DipleColor.textOnAccent)
                 .diplePadding(.buttonLarge)
                 .background(DipleColor.accent, in: Capsule())
+                .craftGlow(radius: 16)
             }
             .buttonStyle(.plain)
             .padding(.top, DipleSpace.s)

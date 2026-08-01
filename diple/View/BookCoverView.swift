@@ -68,10 +68,17 @@ public struct BookCoverView: View {
                     }
                     .padding(isCompact ? 0 : DipleSpace.m)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
+                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: DipleRadius.s)
-                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                    RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [DipleColor.insetHighlight, DipleColor.hairline],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: DipleStroke.hairline
+                        )
                 )
             }
         }

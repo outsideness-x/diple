@@ -109,6 +109,7 @@ public struct AddBookmarkSheetView: View {
                 }
             }
         }
+        .presentationBackground(.regularMaterial)
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }

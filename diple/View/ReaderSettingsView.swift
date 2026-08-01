@@ -14,7 +14,8 @@ public struct ReaderSettingsView: View {
             settingsContent
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background(DipleColor.canvas.ignoresSafeArea())
+        .background(DipleColor.canvas.opacity(0.6).ignoresSafeArea())
+        .presentationBackground(.regularMaterial)
         // A fixed height clips the controls as soon as the text size grows, so let the
         // sheet size itself instead.
         .presentationDetents([.medium, .large])

@@ -107,7 +107,6 @@ public struct BookTagPickerView: View {
             }
         }
         .padding(DipleSpace.m)
-        .background(DipleColor.surface)
-        .cornerRadius(DipleRadius.m)
+        .craftSurface()
     }
 }

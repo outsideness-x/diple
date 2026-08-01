@@ -39,7 +39,7 @@ public struct QuoteCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(DipleSpace.m)
-        .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+        .craftSurface()
         .contextMenu {
             Button {
                 UIPasteboard.general.string = quote.text

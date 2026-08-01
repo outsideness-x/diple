@@ -94,12 +94,7 @@ public struct NoteCardView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DipleSpace.m)
-        .background(DipleColor.surface)
-        .cornerRadius(DipleRadius.m)
-        .overlay(
-            RoundedRectangle(cornerRadius: DipleRadius.m)
-                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-        )
+        .craftSurface()
     }
 }
 

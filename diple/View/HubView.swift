@@ -63,13 +63,12 @@ public struct HubView: View {
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
             ZStack {
-                Circle()
-                    .fill(DipleColor.accent.opacity(0.12))
-                    .frame(width: 80, height: 80)
+                AccentWash()
 
                 Image(systemName: "quote.opening")
                     .dipleIcon(30, weight: .thin)
                     .foregroundStyle(DipleColor.accent)
+                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
             }
 
             VStack(spacing: DipleSpace.s) {
@@ -134,6 +133,6 @@ public struct HubBookRowView: View {
                 .foregroundStyle(DipleColor.textQuaternary)
         }
         .padding(DipleSpace.m)
-        .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+        .craftSurface()
     }
 }

@@ -12,13 +12,12 @@ public struct EmptyLibraryView: View {
             Spacer()
 
             ZStack {
-                Circle()
-                    .fill(DipleColor.accentSoft)
-                    .frame(width: 80, height: 80)
+                AccentWash()
 
                 Image(systemName: "book")
                     .dipleIcon(32, weight: .thin)
                     .foregroundStyle(DipleColor.accent)
+                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
             }
 
             VStack(spacing: DipleSpace.s) {
@@ -46,6 +45,7 @@ public struct EmptyLibraryView: View {
                 .foregroundStyle(DipleColor.textOnAccent)
                 .diplePadding(.buttonLarge)
                 .background(DipleColor.accent, in: Capsule())
+                .craftGlow(radius: 16)
             }
             .buttonStyle(.readerControl)
             .padding(.top, DipleSpace.s)

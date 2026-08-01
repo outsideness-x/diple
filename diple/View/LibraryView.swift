@@ -56,11 +56,7 @@ public struct LibraryView: View {
                                 .foregroundStyle(DipleColor.textPrimary)
                         }
                         .padding(DipleSpace.xxl)
-                        .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DipleRadius.m)
-                                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-                        )
+                        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
                     }
                 }
             }
