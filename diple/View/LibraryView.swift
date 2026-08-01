@@ -123,8 +123,8 @@ public struct LibraryView: View {
                 AppSettingsView()
             }
             .sheet(item: $viewModel.bookToEdit) { book in
-                EditBookMetadataView(book: book) { newTitle, newAuthor in
-                    viewModel.updateMetadata(for: book.id, title: newTitle, author: newAuthor)
+                EditBookMetadataView(book: book) { newTitle, newAuthor, coverData in
+                    viewModel.updateMetadata(for: book.id, title: newTitle, author: newAuthor, coverData: coverData)
                 }
             }
         }

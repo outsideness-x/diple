@@ -95,12 +95,15 @@ public final class AppDatabase: Sendable {
         }
     }
 
-    public func updateBookMetadata(id: String, title: String, author: String?) throws {
+    public func updateBookMetadata(id: String, title: String, author: String?, coverPath: String? = nil) throws {
         try writer.write { db in
             if var book = try Book.filter(Column("id") == id).fetchOne(db) {
                 book.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedAuthor = author?.trimmingCharacters(in: .whitespacesAndNewlines)
                 book.author = (trimmedAuthor?.isEmpty ?? true) ? nil : trimmedAuthor
+                if let coverPath = coverPath {
+                    book.coverPath = coverPath
+                }
                 try book.update(db)
             }
         }
