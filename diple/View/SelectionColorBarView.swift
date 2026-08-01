@@ -37,20 +37,24 @@ public struct SelectionColorBarView: View {
                                 Circle()
                                     .stroke(Color.white.opacity(0.3), lineWidth: 1)
                             )
+                            .contentShape(Circle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.readerControl)
+                    .accessibilityLabel(item.name)
                 }
             }
 
             Button {
+                HapticManager.shared.impact(.light)
                 onCancel()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
                     .padding(6)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.readerControl)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

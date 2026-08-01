@@ -139,12 +139,14 @@ public struct ReaderContainerView: View {
                         // Top Bar Overlay
                         HStack(spacing: 16) {
                             Button {
+                                HapticManager.shared.impact(.light)
                                 dismiss()
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 18, weight: .semibold))
                                     .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
                             }
+                            .buttonStyle(.readerControl)
 
                             Text(viewModel.book.title)
                                 .font(.system(size: 15, weight: .semibold))
@@ -166,8 +168,10 @@ public struct ReaderContainerView: View {
                                             : Color(red: 0.92, green: 0.92, blue: 0.92)
                                     )
                             }
+                            .buttonStyle(.readerControl)
                             .disabled(!viewModel.canAddBookmark)
                             .opacity(viewModel.canAddBookmark ? 1 : 0.35)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isCurrentPositionBookmarked)
 
                             Button {
                                 HapticManager.shared.selection()
@@ -177,36 +181,43 @@ public struct ReaderContainerView: View {
                                     .font(.system(size: 18, weight: .regular))
                                     .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
                             }
+                            .buttonStyle(.readerControl)
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
-                        .background(Color.black.opacity(0.85))
+                        .background(.thinMaterial)
+                        .environment(\.colorScheme, .dark)
+                        .transition(.move(edge: .top).combined(with: .opacity))
 
                         Spacer()
 
                         // Bottom Bar Overlay
                         VStack(spacing: 10) {
-                            // Visual progress bar line
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.18))
-                                        .frame(height: 3)
+                            ReadingProgressSlider(
+                                progress: viewModel.currentProgress,
+                                isEnabled: viewModel.canSeek,
+                                onSeek: { viewModel.seek(toProgress: $0) }
+                            )
 
-                                    Capsule()
-                                        .fill(Color.dipleAccent)
-                                        .frame(width: geo.size.width * CGFloat(min(max(viewModel.currentProgress, 0.0), 1.0)), height: 3)
+                            HStack(spacing: 12) {
+                                let percentage = Int((viewModel.currentProgress * 100).rounded())
+                                Text("\(percentage)%")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(Color.dipleAccent)
+                                    .monospacedDigit()
+                                    .contentTransition(.numericText())
+                                    .animation(.easeOut(duration: 0.2), value: percentage)
+
+                                if let chapter = viewModel.currentLocator?.title,
+                                   !chapter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Text(chapter)
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.74))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
                                 }
-                            }
-                            .frame(height: 3)
 
-                            HStack {
-                                let percentage = Int(viewModel.currentProgress * 100)
-                                Text("\(percentage)% Progress")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundColor(Color(red: 0.75, green: 0.75, blue: 0.78))
-
-                                Spacer()
+                                Spacer(minLength: 0)
 
                                 Button {
                                     HapticManager.shared.selection()
@@ -216,13 +227,25 @@ public struct ReaderContainerView: View {
                                         .font(.system(size: 18, weight: .regular))
                                         .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
                                 }
+                                .buttonStyle(.readerControl)
                             }
                         }
                         .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
-                        .background(Color.black.opacity(0.85))
+                        .padding(.top, 10)
+                        .padding(.bottom, 14)
+                        .background(.thinMaterial)
+                        .environment(\.colorScheme, .dark)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .transition(.opacity)
+                }
+
+                if let toast = viewModel.toast {
+                    VStack {
+                        Spacer()
+                        ReaderToastView(message: toast)
+                            .padding(.bottom, viewModel.isOverlayVisible ? 110 : 44)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
                 // Selection Floating Color Bar Overlay
@@ -240,6 +263,8 @@ public struct ReaderContainerView: View {
                 }
             }
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: viewModel.toast)
+        .animation(.easeInOut(duration: 0.18), value: viewModel.currentSelection?.locator)
         .task {
             await viewModel.openBook()
         }

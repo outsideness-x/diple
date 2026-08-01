@@ -10,6 +10,18 @@ public struct ReaderSettingsView: View {
     }
 
     public var body: some View {
+        ScrollView {
+            settingsContent
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(Color.black.ignoresSafeArea())
+        // A fixed height clips the controls as soon as the text size grows, so let the
+        // sheet size itself instead.
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var settingsContent: some View {
         VStack(spacing: 24) {
             // Header
             HStack {
@@ -18,6 +30,7 @@ public struct ReaderSettingsView: View {
                     .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
                 Spacer()
                 Button("Done") {
+                    HapticManager.shared.selection()
                     dismiss()
                 }
                 .font(.system(size: 15, weight: .medium))
@@ -47,6 +60,7 @@ public struct ReaderSettingsView: View {
                 HStack {
                     Button {
                         if settings.fontSizeStep > 0 {
+                            HapticManager.shared.impact(.light)
                             settings.fontSizeStep -= 1
                         }
                     } label: {
@@ -67,13 +81,16 @@ public struct ReaderSettingsView: View {
                             Circle()
                                 .fill(step == settings.fontSizeStep ? Color.dipleAccent : Color(red: 0.25, green: 0.25, blue: 0.28))
                                 .frame(width: 8, height: 8)
+                                .scaleEffect(step == settings.fontSizeStep ? 1.35 : 1)
                         }
                     }
+                    .animation(.spring(response: 0.3, dampingFraction: 0.65), value: settings.fontSizeStep)
 
                     Spacer()
 
                     Button {
                         if settings.fontSizeStep < 4 {
+                            HapticManager.shared.impact(.light)
                             settings.fontSizeStep += 1
                         }
                     } label: {
@@ -126,11 +143,10 @@ public struct ReaderSettingsView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 24)
         }
         .padding(.horizontal, 24)
-        .background(Color.black.ignoresSafeArea())
-        .presentationDetents([.height(420)])
+        .animation(.easeInOut(duration: 0.2), value: settings)
     }
 
     private func themeButton(title: String, theme: Theme, bg: SwiftUI.Color, fg: SwiftUI.Color) -> some View {

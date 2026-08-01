@@ -64,13 +64,16 @@ public struct AddBookmarkSheetView: View {
                                             .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
                                     )
                                     .scaleEffect(isSelected ? 1.15 : 1.0)
+                                    .contentShape(Circle())
                                     .onTapGesture {
                                         HapticManager.shared.selection()
                                         selectedColorHex = colorOption.hex
                                     }
+                                    .accessibilityLabel(colorOption.name)
                             }
                         }
                         .padding(.vertical, 8)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedColorHex)
                     }
 
                     Spacer()
@@ -107,6 +110,7 @@ public struct AddBookmarkSheetView: View {
                 }
             }
         }
-        .presentationDetents([.height(280)])
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 }

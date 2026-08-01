@@ -33,7 +33,10 @@ public struct LibraryView: View {
                                         viewModel.confirmDelete(book)
                                     })
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.bookCard)
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    HapticManager.shared.impact(.light)
+                                })
                             }
                         }
                         .padding(.horizontal, 20)

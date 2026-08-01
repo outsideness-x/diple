@@ -55,6 +55,9 @@ public struct BookOutlineSheetView: View {
                 }
                 .pickerStyle(.segmented)
                 .tint(Color.dipleAccent)
+                .onChange(of: selectedTab) { _, _ in
+                    HapticManager.shared.selection()
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
@@ -166,6 +169,11 @@ public struct BookOutlineSheetView: View {
             }
         }
         .background(Color.black.ignoresSafeArea())
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .animation(.easeInOut(duration: 0.18), value: selectedTab)
+        .animation(.easeInOut(duration: 0.2), value: bookmarks)
+        .animation(.easeInOut(duration: 0.2), value: highlights)
     }
 }
 

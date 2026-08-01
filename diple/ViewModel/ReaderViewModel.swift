@@ -31,8 +31,13 @@ public final class ReaderViewModel: ObservableObject {
     }
     @Published public var isLoading: Bool = true
     @Published public var errorMessage: String? = nil
+    /// Short confirmation shown over the page, e.g. after saving a bookmark.
+    @Published public var toast: String? = nil
+    /// Flat position list, used to turn a progress-bar drag into a real location.
+    @Published public private(set) var positions: [Locator] = []
 
     private var persistTask: Task<Void, Never>? = nil
+    private var toastTask: Task<Void, Never>? = nil
 
     private let httpClient = DefaultHTTPClient()
     private lazy var assetRetriever = AssetRetriever(httpClient: httpClient)
@@ -104,6 +109,10 @@ public final class ReaderViewModel: ObservableObject {
                 self.currentProgress = progress(for: savedLocator)
             }
             self.isLoading = false
+
+            // Computing positions can take a moment on large books; the reader is usable
+            // without them, only the progress bar cannot be dragged yet.
+            self.positions = (try? await pub.positions().get()) ?? []
         } catch {
             self.errorMessage = "Failed to open book: \(error.localizedDescription)"
             self.isLoading = false
@@ -204,6 +213,40 @@ public final class ReaderViewModel: ObservableObject {
         self.targetLink = link
     }
 
+    /// Whether the progress bar can be dragged to jump through the book.
+    public var canSeek: Bool {
+        !positions.isEmpty || (publication.map { $0.readingOrder.count > 1 } ?? false)
+    }
+
+    /// Jumps to a fraction of the whole publication, as picked on the progress bar.
+    public func seek(toProgress target: Double) {
+        let clamped = min(max(target, 0), 1)
+
+        let nearest = positions.min { lhs, rhs in
+            abs((lhs.locations.totalProgression ?? 0) - clamped)
+                < abs((rhs.locations.totalProgression ?? 0) - clamped)
+        }
+        if let nearest {
+            self.targetLocator = nearest
+            return
+        }
+
+        // No position list: fall back to the resource containing that fraction.
+        guard let pub = publication, !pub.readingOrder.isEmpty else { return }
+        let index = min(Int(clamped * Double(pub.readingOrder.count)), pub.readingOrder.count - 1)
+        self.targetLink = pub.readingOrder[index]
+    }
+
+    public func showToast(_ message: String) {
+        toast = message
+        toastTask?.cancel()
+        toastTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            guard !Task.isCancelled else { return }
+            self?.toast = nil
+        }
+    }
+
     public func navigateToLocator(_ locator: Locator) {
         self.targetLocator = locator
     }
@@ -255,8 +298,10 @@ public final class ReaderViewModel: ObservableObject {
             try AppDatabase.shared.saveBookmark(bookmark)
             loadBookmarks()
             HapticManager.shared.impact(.medium)
+            showToast("Bookmark saved")
         } catch {
             print("Failed to save bookmark: \(error)")
+            showToast("Could not save bookmark")
         }
     }
 
@@ -286,8 +331,11 @@ public final class ReaderViewModel: ObservableObject {
         do {
             try AppDatabase.shared.saveHighlight(highlight)
             loadHighlights()
+            HapticManager.shared.impact(.light)
+            showToast("Quote saved")
         } catch {
             print("Failed to save highlight: \(error)")
+            showToast("Could not save quote")
         }
 
         self.currentSelection = nil
