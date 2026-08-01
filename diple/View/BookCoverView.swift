@@ -5,10 +5,16 @@ public struct BookCoverView: View {
     public let title: String
     public let author: String?
 
-    public init(coverPath: String?, title: String, author: String?) {
+    /// The placeholder spells the title and author out, which needs more room than a list
+    /// thumbnail has — at that size it would push past its own frame. Compact draws the
+    /// glyph alone.
+    public let isCompact: Bool
+
+    public init(coverPath: String?, title: String, author: String?, isCompact: Bool = false) {
         self.coverPath = coverPath
         self.title = title
         self.author = author
+        self.isCompact = isCompact
     }
 
     private var loadedImage: UIImage? {
@@ -36,25 +42,31 @@ public struct BookCoverView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         Image(systemName: "book.closed")
-                            .font(.system(size: 20, weight: .light))
+                            .font(.system(size: isCompact ? 14 : 20, weight: .light))
                             .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                            .frame(
+                                maxWidth: isCompact ? .infinity : nil,
+                                maxHeight: isCompact ? .infinity : nil
+                            )
 
-                        Spacer()
+                        if !isCompact {
+                            Spacer()
 
-                        Text(title)
-                            .font(.system(size: 13, weight: .semibold, design: .serif))
-                            .foregroundColor(Color(red: 0.9, green: 0.9, blue: 0.92))
-                            .lineLimit(3)
-                            .multilineTextAlignment(.leading)
+                            Text(title)
+                                .font(.system(size: 13, weight: .semibold, design: .serif))
+                                .foregroundColor(Color(red: 0.9, green: 0.9, blue: 0.92))
+                                .lineLimit(3)
+                                .multilineTextAlignment(.leading)
 
-                        if let author = author, !author.isEmpty {
-                            Text(author)
-                                .font(.system(size: 11, weight: .regular))
-                                .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.6))
-                                .lineLimit(1)
+                            if let author = author, !author.isEmpty {
+                                Text(author)
+                                    .font(.system(size: 11, weight: .regular))
+                                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.6))
+                                    .lineLimit(1)
+                            }
                         }
                     }
-                    .padding(12)
+                    .padding(isCompact ? 0 : 12)
                 }
                 .cornerRadius(6)
                 .overlay(

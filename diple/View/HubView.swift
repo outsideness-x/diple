@@ -91,6 +91,10 @@ public struct HubView: View {
 public struct HubBookRowView: View {
     public let summary: BookQuoteSummary
 
+    /// The thumbnail grows with the text beside it, so the row keeps its proportions under
+    /// Dynamic Type instead of leaving a stamp next to giant titles.
+    @ScaledMetric(relativeTo: .subheadline) private var thumbnailWidth: CGFloat = 44
+
     public init(summary: BookQuoteSummary) {
         self.summary = summary
     }
@@ -100,9 +104,10 @@ public struct HubBookRowView: View {
             BookCoverView(
                 coverPath: summary.book.coverPath,
                 title: summary.book.title,
-                author: summary.book.author
+                author: summary.book.author,
+                isCompact: true
             )
-            .frame(width: 44)
+            .frame(width: thumbnailWidth, height: thumbnailWidth * 1.5)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(summary.book.title)
