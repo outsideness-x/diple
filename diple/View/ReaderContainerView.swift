@@ -52,10 +52,15 @@ public struct ReaderContainerView: View {
                     publication: publication,
                     initialLocation: viewModel.initialLocator,
                     targetLink: viewModel.targetLink,
+                    targetLocator: viewModel.targetLocator,
+                    highlights: viewModel.highlights,
                     preferences: viewModel.settings.epubPreferences,
                     onLocationChanged: { locator in
                         viewModel.saveLocation(locator)
                         onReadingUpdated()
+                    },
+                    onSelectionChanged: { selection in
+                        viewModel.currentSelection = selection
                     },
                     onCenterTap: {
                         viewModel.toggleOverlay()
@@ -85,7 +90,7 @@ public struct ReaderContainerView: View {
                             Spacer()
 
                             Button {
-                                viewModel.isTOCPresented = true
+                                viewModel.isOutlinePresented = true
                             } label: {
                                 Image(systemName: "list.bullet")
                                     .font(.system(size: 18, weight: .regular))
@@ -121,6 +126,20 @@ public struct ReaderContainerView: View {
                     }
                     .transition(.opacity)
                 }
+
+                // Selection Floating Color Bar Overlay
+                if viewModel.currentSelection != nil {
+                    VStack {
+                        Spacer()
+                        SelectionColorBarView { hexColor in
+                            viewModel.createHighlight(colorHex: hexColor)
+                        } onCancel: {
+                            viewModel.currentSelection = nil
+                        }
+                        .padding(.bottom, 40)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
         }
         .task {
@@ -132,10 +151,22 @@ public struct ReaderContainerView: View {
         .sheet(isPresented: $viewModel.isSettingsPresented) {
             ReaderSettingsView(settings: $viewModel.settings)
         }
-        .sheet(isPresented: $viewModel.isTOCPresented) {
-            TOCView(tableOfContents: viewModel.tableOfContents) { link in
-                viewModel.navigateToLink(link)
-            }
+        .sheet(isPresented: $viewModel.isOutlinePresented) {
+            BookOutlineSheetView(
+                tableOfContents: viewModel.tableOfContents,
+                highlights: viewModel.highlights,
+                onSelectLink: { link in
+                    viewModel.navigateToLink(link)
+                },
+                onSelectHighlight: { highlight in
+                    if let locator = highlight.parsedLocator {
+                        viewModel.navigateToLocator(locator)
+                    }
+                },
+                onDeleteHighlight: { highlight in
+                    viewModel.deleteHighlight(highlight)
+                }
+            )
         }
     }
 }

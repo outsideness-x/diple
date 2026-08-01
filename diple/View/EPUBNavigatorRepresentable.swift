@@ -7,23 +7,32 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let publication: Publication
     public let initialLocation: Locator?
     public let targetLink: ReadiumShared.Link?
+    public let targetLocator: Locator?
+    public let highlights: [Highlight]
     public let preferences: EPUBPreferences
     public let onLocationChanged: (Locator) -> Void
+    public let onSelectionChanged: (Selection?) -> Void
     public let onCenterTap: () -> Void
 
     public init(
         publication: Publication,
         initialLocation: Locator?,
         targetLink: ReadiumShared.Link? = nil,
+        targetLocator: Locator? = nil,
+        highlights: [Highlight] = [],
         preferences: EPUBPreferences,
         onLocationChanged: @escaping (Locator) -> Void,
+        onSelectionChanged: @escaping (Selection?) -> Void,
         onCenterTap: @escaping () -> Void
     ) {
         self.publication = publication
         self.initialLocation = initialLocation
         self.targetLink = targetLink
+        self.targetLocator = targetLocator
+        self.highlights = highlights
         self.preferences = preferences
         self.onLocationChanged = onLocationChanged
+        self.onSelectionChanged = onSelectionChanged
         self.onCenterTap = onCenterTap
     }
 
@@ -44,6 +53,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             )
             navigator.delegate = context.coordinator
             context.coordinator.navigator = navigator
+            applyDecorations(highlights: highlights, to: navigator)
             return navigator
         } catch {
             fatalError("Failed to initialize EPUBNavigatorViewController: \(error)")
@@ -60,12 +70,40 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                 _ = await uiViewController.go(to: link)
             }
         }
+
+        if let locator = targetLocator, context.coordinator.lastHandledLocator != locator {
+            context.coordinator.lastHandledLocator = locator
+            Task {
+                _ = await uiViewController.go(to: locator)
+            }
+        }
+
+        applyDecorations(highlights: highlights, to: uiViewController)
     }
 
-    public class Coordinator: NSObject, EPUBNavigatorDelegate {
+    private func applyDecorations(highlights: [Highlight], to navigator: EPUBNavigatorViewController) {
+        let decorations = highlights.compactMap { h -> Decoration? in
+            guard let locator = h.parsedLocator else { return nil }
+            let uiColor: UIColor
+            if let readiumColor = ReadiumNavigator.Color(hex: h.colorHex) {
+                uiColor = readiumColor.uiColor
+            } else {
+                uiColor = .yellow
+            }
+            return Decoration(
+                id: h.id,
+                locator: locator,
+                style: .highlight(tint: uiColor)
+            )
+        }
+        navigator.apply(decorations: decorations, in: "highlights")
+    }
+
+    public class Coordinator: NSObject, EPUBNavigatorDelegate, SelectableNavigatorDelegate {
         var parent: EPUBNavigatorRepresentable
         weak var navigator: EPUBNavigatorViewController?
         var lastHandledLink: ReadiumShared.Link? = nil
+        var lastHandledLocator: Locator? = nil
 
         init(_ parent: EPUBNavigatorRepresentable) {
             self.parent = parent
@@ -79,24 +117,27 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             parent.onLocationChanged(locator)
         }
 
+        public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
+            parent.onSelectionChanged(selection)
+            return true
+        }
+
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+            parent.onSelectionChanged(nil)
             guard let view = navigator.view else { return }
             let width = view.bounds.width
             guard width > 0 else { return }
 
             let fraction = point.x / width
             if fraction < 0.33 {
-                // Left third -> Go back
                 Task {
                     _ = await navigator.goBackward()
                 }
             } else if fraction > 0.66 {
-                // Right third -> Go forward
                 Task {
                     _ = await navigator.goForward()
                 }
             } else {
-                // Center third -> Toggle UI
                 parent.onCenterTap()
             }
         }

@@ -13,9 +13,12 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var currentProgress: Double = 0.0
     @Published public var isOverlayVisible: Bool = false
     @Published public var isSettingsPresented: Bool = false
-    @Published public var isTOCPresented: Bool = false
+    @Published public var isOutlinePresented: Bool = false
     @Published public var targetLink: ReadiumShared.Link? = nil
+    @Published public var targetLocator: Locator? = nil
     @Published public var tableOfContents: [ReadiumShared.Link] = []
+    @Published public var highlights: [Highlight] = []
+    @Published public var currentSelection: Selection? = nil
     @Published public var settings: ReaderSettings = ReaderSettings()
     @Published public var isLoading: Bool = true
     @Published public var errorMessage: String? = nil
@@ -33,6 +36,15 @@ public final class ReaderViewModel: ObservableObject {
     public init(book: Book) {
         self.book = book
         self.currentProgress = book.progress
+        loadHighlights()
+    }
+
+    public func loadHighlights() {
+        do {
+            self.highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
+        } catch {
+            print("Failed to fetch highlights: \(error)")
+        }
     }
 
     public func openBook() async {
@@ -83,6 +95,43 @@ public final class ReaderViewModel: ObservableObject {
 
     public func navigateToLink(_ link: ReadiumShared.Link) {
         self.targetLink = link
+    }
+
+    public func navigateToLocator(_ locator: Locator) {
+        self.targetLocator = locator
+    }
+
+    public func createHighlight(colorHex: String) {
+        guard let selection = currentSelection else { return }
+        let text = selection.locator.text.highlight ?? ""
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let locatorJson = try? selection.locator.jsonString() else { return }
+
+        let highlight = Highlight(
+            bookId: book.id,
+            locator: locatorJson,
+            text: text,
+            colorHex: colorHex,
+            createdAt: Date()
+        )
+
+        do {
+            try AppDatabase.shared.saveHighlight(highlight)
+            loadHighlights()
+        } catch {
+            print("Failed to save highlight: \(error)")
+        }
+
+        self.currentSelection = nil
+    }
+
+    public func deleteHighlight(_ highlight: Highlight) {
+        do {
+            try AppDatabase.shared.deleteHighlight(id: highlight.id)
+            loadHighlights()
+        } catch {
+            print("Failed to delete highlight: \(error)")
+        }
     }
 
     public func toggleOverlay() {

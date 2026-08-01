@@ -50,6 +50,17 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v2_createHighlightTable") { db in
+            try db.create(table: "highlight") { t in
+                t.column("id", .text).primaryKey()
+                t.column("bookId", .text).notNull().indexed()
+                t.column("locator", .text).notNull()
+                t.column("text", .text).notNull()
+                t.column("colorHex", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 
@@ -86,7 +97,28 @@ public final class AppDatabase: Sendable {
 
     public func deleteBook(id: String) throws {
         try writer.write { db in
+            _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
             _ = try Book.filter(Column("id") == id).deleteAll(db)
+        }
+    }
+
+    // MARK: - Highlight CRUD
+
+    public func saveHighlight(_ highlight: Highlight) throws {
+        try writer.write { db in
+            try highlight.save(db)
+        }
+    }
+
+    public func fetchHighlights(forBookId bookId: String) throws -> [Highlight] {
+        try writer.read { db in
+            try Highlight.filter(Column("bookId") == bookId).order(Column("createdAt").desc).fetchAll(db)
+        }
+    }
+
+    public func deleteHighlight(id: String) throws {
+        try writer.write { db in
+            _ = try Highlight.filter(Column("id") == id).deleteAll(db)
         }
     }
 }
