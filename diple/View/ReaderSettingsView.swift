@@ -88,15 +88,16 @@ public struct ReaderSettingsView: View {
                 }
             }
 
-            // Font Family selector (Serif / Sans)
+            // Font Family selector (Serif / San Francisco)
             VStack(alignment: .leading, spacing: 10) {
                 Text("TYPOGRAPHY")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
 
                 HStack(spacing: 12) {
-                    fontFamilyButton(title: "Serif", isSerif: true)
-                    fontFamilyButton(title: "Sans-Serif", isSerif: false)
+                    ForEach(ReaderFont.allCases) { readerFont in
+                        fontFamilyButton(fontOption: readerFont)
+                    }
                 }
             }
 
@@ -130,16 +131,17 @@ public struct ReaderSettingsView: View {
         }
     }
 
-    private func fontFamilyButton(title: String, isSerif: Bool) -> some View {
-        Button {
-            settings.isSerif = isSerif
+    private func fontFamilyButton(fontOption: ReaderFont) -> some View {
+        let isSelected = settings.font == fontOption
+        return Button {
+            settings.font = fontOption
         } label: {
-            Text(title)
-                .font(isSerif ? .system(size: 15, weight: .medium, design: .serif) : .system(size: 15, weight: .medium, design: .default))
-                .foregroundColor(settings.isSerif == isSerif ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
+            Text(fontOption.rawValue)
+                .font(fontOption == .serif ? .system(size: 15, weight: .medium, design: .serif) : .system(size: 15, weight: .medium, design: .default))
+                .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(settings.isSerif == isSerif ? Color(red: 0.92, green: 0.92, blue: 0.92) : Color(red: 0.12, green: 0.12, blue: 0.14))
+                .background(isSelected ? Color(red: 0.92, green: 0.92, blue: 0.92) : Color(red: 0.12, green: 0.12, blue: 0.14))
                 .cornerRadius(10)
         }
     }
