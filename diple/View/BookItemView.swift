@@ -26,11 +26,8 @@ public struct BookItemView: View {
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
 
-            // Author (gray)
-            Text(book.author ?? "Unknown Author")
-                .dipleType(.caption)
-                .foregroundStyle(DipleColor.textTertiary)
-                .lineLimit(1)
+            // Byline, or where the article was saved from
+            BookSubtitleView(book: book)
 
             // Minimalist reading progress bar, with the percentage once reading has started
             HStack(spacing: DipleSpace.s) {

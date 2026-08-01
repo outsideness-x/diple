@@ -51,4 +51,14 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
         guard let sourceURL, let host = URL(string: sourceURL)?.host else { return nil }
         return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
+
+    /// The single line of metadata printed under a title in the library and the hub.
+    ///
+    /// For an article the site is part of the identity — two saved links with similar
+    /// headlines are told apart by where they came from — so it is always present, after the
+    /// byline when the page named one.
+    public var subtitle: String {
+        guard let sourceHost else { return author ?? "Unknown Author" }
+        return [author, sourceHost].compactMap { $0 }.joined(separator: " · ")
+    }
 }

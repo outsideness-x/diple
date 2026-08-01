@@ -42,6 +42,21 @@ public final class BookStorageService {
         return (targetFileURL, relativePath)
     }
 
+    /// Writes a generated publication into Documents/Books/<uuid>/<fileName>.
+    /// Returns local file URL and relative path, matching `importEPUB(from:bookId:)` so that a
+    /// synthesised article and a copied file are indistinguishable to everything downstream.
+    public func writeEPUB(_ data: Data, bookId: String, fileName: String = "article.epub") throws -> (fileURL: URL, relativePath: String) {
+        let targetFolder = try bookDirectory(id: bookId)
+        let targetFileURL = targetFolder.appendingPathComponent(fileName)
+
+        if fileManager.fileExists(atPath: targetFileURL.path) {
+            try fileManager.removeItem(at: targetFileURL)
+        }
+
+        try data.write(to: targetFileURL, options: .atomic)
+        return (targetFileURL, "Books/\(bookId)/\(fileName)")
+    }
+
     /// Saves extracted cover image data to Documents/Books/<uuid>/cover.<ext>
     /// Returns relative cover path (e.g. "Books/<uuid>/cover.png")
     public func saveCoverData(_ data: Data, bookId: String, extension ext: String = "png") throws -> String {

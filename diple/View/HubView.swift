@@ -112,10 +112,7 @@ public struct HubBookRowView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                Text(summary.book.author ?? "Unknown Author")
-                    .dipleType(.caption)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .lineLimit(1)
+                BookSubtitleView(book: summary.book)
             }
 
             Spacer(minLength: 8)

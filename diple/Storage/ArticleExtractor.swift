@@ -79,6 +79,24 @@ public nonisolated final class ArticleExtractor {
         "prose", "story", "text"
     ]
 
+    /// Non-whitelisted tags that stand for a block of the page, and so become a paragraph
+    /// rather than being unwrapped into the text around them.
+    private static let promotableToParagraph: Set<String> = [
+        "div", "section", "article", "main", "center", "details", "summary"
+    ]
+
+    /// Only these tags may be deleted for matching a negative hint.
+    ///
+    /// Without this restriction the hint list reaches inside sentences. Towards Data Science
+    /// wraps phrases in `<mdspan class="mdspan-comment">`, which matches `comment` — the first
+    /// import of the sample article silently lost "It's likely that" and "heard about" from its
+    /// opening line, and read as though the author had written it that way. A class name is a
+    /// statement about a *block* of the page; on a run of inline text it is a coincidence.
+    private static let removableByHint: Set<String> = [
+        "div", "section", "aside", "nav", "header", "footer", "form", "ul", "ol", "dl",
+        "table", "figure", "p", "h1", "h2", "h3", "h4", "h5", "h6"
+    ]
+
     /// Containers that state outright what they hold. Checked before the scoring result and
     /// preferred when they carry nearly as much text, because a hand-authored wrapper reliably
     /// includes the figures and pull quotes that scoring tends to leave behind.
@@ -147,22 +165,25 @@ public nonisolated final class ArticleExtractor {
         }
         self.root = candidate
 
-        let collectedImages = try Self.normalizeImages(in: candidate, leadImageURL: head.leadImageURL)
+        self.images = try Self.normalizeImages(in: candidate, leadImageURL: head.leadImageURL)
         try Self.pruneToWhitelist(in: candidate)
         try Self.stripAttributes(in: candidate)
         try Self.removeEmptyElements(in: candidate)
-        self.sections = try Self.markSections(in: candidate)
-        self.images = collectedImages
 
         let text = try candidate.text()
         guard text.count >= 200 else { throw ArticleExtractionError.noReadableContent }
 
         var metadata = head
         if metadata.title.isEmpty {
-            metadata.title = (try? candidate.select("h1").first()?.text()) ?? url.absoluteString
+            metadata.title = try candidate.select("h1").first()?.text() ?? url.absoluteString
         }
         metadata.wordCount = text.split(whereSeparator: { $0 == " " || $0.isNewline }).count
         self.metadata = metadata
+
+        // The page usually opens with its own headline. The EPUB prints the title in a header
+        // block of its own, so leaving that one in place would show the title twice.
+        try Self.removeLeadingTitleHeading(in: candidate, matching: metadata.title)
+        self.sections = try Self.markSections(in: candidate)
     }
 
     // MARK: - Rendering
@@ -338,6 +359,7 @@ public nonisolated final class ArticleExtractor {
         // Class- and id-based removal runs before scoring, so a sidebar full of teaser
         // paragraphs cannot out-score the article it sits next to.
         for element in try body.select("*") where element.parent() != nil {
+            guard removableByHint.contains(element.tagNameNormal()) else { continue }
             let hint = hints(for: element)
             guard containsAny(hint, negativeHints), !containsAny(hint, positiveHints) else { continue }
             try element.remove()
@@ -481,7 +503,7 @@ public nonisolated final class ArticleExtractor {
         var seen: Set<String> = []
         // The lead image is rendered in the title block; keeping the page's own copy as well
         // would open every article with the same picture twice.
-        if let leadImageURL { seen.insert(leadImageURL.absoluteString) }
+        if let leadImageURL { seen.insert(imageIdentity(of: leadImageURL)) }
 
         for image in try root.select("img") where image.parent() != nil {
             guard let url = try resolvedImageURL(for: image) else {
@@ -489,7 +511,7 @@ public nonisolated final class ArticleExtractor {
                 continue
             }
 
-            guard seen.insert(url.absoluteString).inserted else {
+            guard seen.insert(imageIdentity(of: url)).inserted else {
                 try (enclosingFigure(of: image) ?? image).remove()
                 continue
             }
@@ -501,6 +523,34 @@ public nonisolated final class ArticleExtractor {
         }
 
         return slots
+    }
+
+    /// A key that is equal for two URLs pointing at the same picture in different renditions.
+    ///
+    /// The sample article is the ordinary case: `og:image` is
+    /// `…_1472x986-copy.jpg` on the site's own host, while the body carries
+    /// `…_1472x986-1024x686.webp` from the CDN. Comparing URLs finds nothing in common and the
+    /// piece opens with its lead picture printed twice. Stripping the rendition suffixes that
+    /// WordPress and its imitators append leaves the same stem for both.
+    ///
+    /// Short stems (`image`, `cover`, `1`) are too generic to be identity, so those fall back
+    /// to the full URL — a false merge silently deletes a real figure, which is much worse than
+    /// a duplicate.
+    static func imageIdentity(of url: URL) -> String {
+        var stem = url.deletingPathExtension().lastPathComponent.lowercased()
+
+        // Two passes: a name can carry both a rendition and a marker, in either order.
+        for _ in 0..<2 {
+            if let range = stem.range(of: "-[0-9]{2,5}x[0-9]{2,5}$", options: .regularExpression) {
+                stem.removeSubrange(range)
+            }
+            for suffix in ["-copy", "-scaled", "-thumbnail", "-large", "-medium", "-small"]
+            where stem.hasSuffix(suffix) {
+                stem.removeLast(suffix.count)
+            }
+        }
+
+        return stem.count >= 12 ? stem : url.absoluteString.lowercased()
     }
 
     private static func resolvedImageURL(for image: Element) throws -> URL? {
@@ -546,7 +596,13 @@ public nonisolated final class ArticleExtractor {
 
             // A bare div of running text is a paragraph that was never marked up as one;
             // unwrapping it would merge it into whatever came before.
-            if try isInlineOnlyBlock(element), !element.text().isEmpty {
+            //
+            // Only a block-level container earns that promotion. Doing it for any unknown tag
+            // puts a `<p>` inside a `<p>`: Towards Data Science wraps phrases in `<mdspan>`,
+            // and promoting those split the opening sentence into three paragraphs.
+            if promotableToParagraph.contains(tag),
+               try isInlineOnlyBlock(element),
+               try !element.text().isEmpty {
                 _ = try element.tagName("p")
                 continue
             }
@@ -588,6 +644,24 @@ public nonisolated final class ArticleExtractor {
                 try element.remove()
             }
         }
+    }
+
+    /// Drops the article's own headline when it opens the body and repeats the title. Only the
+    /// first heading is considered: a later section that happens to be named after the piece
+    /// is a real section and has to stay.
+    private static func removeLeadingTitleHeading(in root: Element, matching title: String) throws {
+        guard let heading = try root.select("h1, h2").first() else { return }
+        let normalizedTitle = normalizedForComparison(title)
+        guard !normalizedTitle.isEmpty,
+              normalizedForComparison(try heading.text()) == normalizedTitle
+        else { return }
+        try heading.remove()
+    }
+
+    private static func normalizedForComparison(_ value: String) -> String {
+        value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .components(separatedBy: .alphanumerics.inverted)
+            .joined()
     }
 
     /// Gives every heading an anchor and reports them, so the EPUB navigation document can

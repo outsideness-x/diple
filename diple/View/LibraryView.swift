@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 public struct LibraryView: View {
     @StateObject private var viewModel = LibraryViewModel()
     @State private var isFileImporterPresented = false
+    @State private var isLinkImporterPresented = false
 
     @State private var isAppSettingsPresented = false
 
@@ -19,9 +20,10 @@ public struct LibraryView: View {
                 DipleColor.canvas.ignoresSafeArea()
 
                 if viewModel.books.isEmpty {
-                    EmptyLibraryView {
-                        isFileImporterPresented = true
-                    }
+                    EmptyLibraryView(
+                        onImportFile: { isFileImporterPresented = true },
+                        onSaveLink: { isLinkImporterPresented = true }
+                    )
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 24) {
@@ -75,15 +77,27 @@ public struct LibraryView: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        HapticManager.shared.selection()
-                        isFileImporterPresented = true
+                    Menu {
+                        Button {
+                            isLinkImporterPresented = true
+                        } label: {
+                            Label("Save a Link", systemImage: "link")
+                        }
+
+                        Button {
+                            isFileImporterPresented = true
+                        } label: {
+                            Label("Import a File", systemImage: "folder")
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .dipleIcon(16)
                             .foregroundStyle(DipleColor.accent)
                     }
                     .buttonStyle(.readerControl)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        HapticManager.shared.selection()
+                    })
                 }
             }
             .fileImporter(
@@ -122,6 +136,11 @@ public struct LibraryView: View {
             }
             .sheet(isPresented: $isAppSettingsPresented) {
                 AppSettingsView()
+            }
+            .sheet(isPresented: $isLinkImporterPresented) {
+                ImportLinkSheetView { _ in
+                    viewModel.loadBooks()
+                }
             }
             .sheet(item: $viewModel.bookToEdit) { book in
                 EditBookMetadataView(book: book) { newTitle, newAuthor, coverData in

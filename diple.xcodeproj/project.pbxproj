@@ -11,6 +11,7 @@
 		D071D70B301DE80000A3309A /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = D071D707301DE80000A3309A /* ReadiumStreamer */; };
 		D071D70C301DE80000A3309A /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = D071D708301DE80000A3309A /* ReadiumNavigator */; };
 		D071D70D301DE80000A3309A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D071D709301DE80000A3309A /* GRDB */; };
+		D0A17C01301E0A0000A3309A /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = D0A17C00301E0A0000A3309A /* SwiftSoup */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,6 +64,7 @@
 				D071D70B301DE80000A3309A /* ReadiumStreamer in Frameworks */,
 				D071D70C301DE80000A3309A /* ReadiumNavigator in Frameworks */,
 				D071D70D301DE80000A3309A /* GRDB in Frameworks */,
+				D0A17C01301E0A0000A3309A /* SwiftSoup in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,6 +129,7 @@
 				D071D707301DE80000A3309A /* ReadiumStreamer */,
 				D071D708301DE80000A3309A /* ReadiumNavigator */,
 				D071D709301DE80000A3309A /* GRDB */,
+				D0A17C00301E0A0000A3309A /* SwiftSoup */,
 			);
 			productName = diple;
 			productReference = D071D6DA301DE6DB00A3309A /* diple.app */;
@@ -639,6 +642,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D071D705301DE78800A3309A /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
+		};
+		D0A17C00301E0A0000A3309A /* SwiftSoup */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftSoup;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
