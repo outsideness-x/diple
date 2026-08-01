@@ -8,53 +8,51 @@ public struct EmptyLibraryView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DipleSpace.xxl) {
             Spacer()
 
             ZStack {
                 Circle()
-                    .fill(Color.dipleAccent.opacity(0.12))
+                    .fill(DipleColor.accentSoft)
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "book")
-                    .font(.system(size: 32, weight: .thin))
-                    .foregroundColor(Color.dipleAccent)
+                    .dipleIcon(32, weight: .thin)
+                    .foregroundStyle(DipleColor.accent)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DipleSpace.s) {
                 Text("Library is Empty")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.title)
+                    .foregroundStyle(DipleColor.textPrimary)
 
                 Text("Import your EPUB or PDF books to start reading in a distraction-free environment.")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.callout)
+                    .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, DipleSpace.xxxl)
             }
 
             Button {
                 HapticManager.shared.impact(.light)
                 onImportTap()
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: DipleSpace.s) {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
+                        .dipleIcon(14, weight: .semibold)
                     Text("Import a Book")
-                        .font(.system(size: 15, weight: .semibold))
+                        .dipleType(.body, weight: .semibold)
                 }
-                .foregroundColor(.black)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 24)
-                .background(Color.dipleAccent)
-                .cornerRadius(20)
+                .foregroundStyle(DipleColor.textOnAccent)
+                .diplePadding(.buttonLarge)
+                .background(DipleColor.accent, in: Capsule())
             }
             .buttonStyle(.readerControl)
-            .padding(.top, 8)
+            .padding(.top, DipleSpace.s)
 
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
+        .background(DipleColor.canvas.ignoresSafeArea())
     }
 }

@@ -30,20 +30,20 @@ public struct BookCoverView: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
-                    .cornerRadius(6)
+                    .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
             } else {
                 // High quality minimalist placeholder
                 ZStack {
                     LinearGradient(
-                        colors: [Color(red: 0.12, green: 0.12, blue: 0.14), Color(red: 0.07, green: 0.07, blue: 0.08)],
+                        colors: [DipleColor.surfaceRaised, DipleColor.surface],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DipleSpace.s) {
                         Image(systemName: "book.closed")
-                            .font(.system(size: isCompact ? 14 : 20, weight: .light))
-                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                            .dipleIcon(isCompact ? 14 : 20, weight: .light)
+                            .foregroundStyle(DipleColor.textTertiary)
                             .frame(
                                 maxWidth: isCompact ? .infinity : nil,
                                 maxHeight: isCompact ? .infinity : nil
@@ -53,25 +53,25 @@ public struct BookCoverView: View {
                             Spacer()
 
                             Text(title)
-                                .font(.system(size: 13, weight: .semibold, design: .serif))
-                                .foregroundColor(Color(red: 0.9, green: 0.9, blue: 0.92))
+                                .dipleType(.readingCaption, weight: .semibold)
+                                .foregroundStyle(DipleColor.textPrimary)
                                 .lineLimit(3)
                                 .multilineTextAlignment(.leading)
 
                             if let author = author, !author.isEmpty {
                                 Text(author)
-                                    .font(.system(size: 11, weight: .regular))
-                                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.6))
+                                    .dipleType(.micro, weight: .regular)
+                                    .foregroundStyle(DipleColor.textTertiary)
                                     .lineLimit(1)
                             }
                         }
                     }
-                    .padding(isCompact ? 0 : 12)
+                    .padding(isCompact ? 0 : DipleSpace.m)
                 }
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: DipleRadius.s)
+                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
                 )
             }
         }

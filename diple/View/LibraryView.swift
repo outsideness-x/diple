@@ -16,7 +16,7 @@ public struct LibraryView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 if viewModel.books.isEmpty {
                     EmptyLibraryView {
@@ -39,31 +39,34 @@ public struct LibraryView: View {
                                 })
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                        .padding(.bottom, 40)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.top, DipleSpace.l)
+                        .padding(.bottom, DipleSpace.scrollBottom)
                     }
                 }
 
                 if viewModel.isImporting {
                     ZStack {
-                        Color.black.opacity(0.75).ignoresSafeArea()
-                        VStack(spacing: 12) {
+                        DipleColor.canvas.opacity(0.75).ignoresSafeArea()
+                        VStack(spacing: DipleSpace.m) {
                             ProgressView()
-                                .tint(Color.dipleAccent)
+                                .tint(DipleColor.accent)
                             Text("Importing book...")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color(red: 0.9, green: 0.9, blue: 0.9))
+                                .dipleType(.callout, weight: .medium)
+                                .foregroundStyle(DipleColor.textPrimary)
                         }
-                        .padding(24)
-                        .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-                        .cornerRadius(12)
+                        .padding(DipleSpace.xxl)
+                        .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DipleRadius.m)
+                                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                        )
                     }
                 }
             }
             .navigationTitle("diple")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -72,9 +75,10 @@ public struct LibraryView: View {
                         isAppSettingsPresented = true
                     } label: {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(Color(red: 0.8, green: 0.8, blue: 0.82))
+                            .dipleIcon(16)
+                            .foregroundStyle(DipleColor.textSecondary)
                     }
+                    .buttonStyle(.readerControl)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -83,9 +87,10 @@ public struct LibraryView: View {
                         isFileImporterPresented = true
                     } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(Color.dipleAccent)
+                            .dipleIcon(16)
+                            .foregroundStyle(DipleColor.accent)
                     }
+                    .buttonStyle(.readerControl)
                 }
             }
             .fileImporter(
