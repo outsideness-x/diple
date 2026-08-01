@@ -11,7 +11,7 @@ import SwiftUI
 struct dipleApp: App {
     var body: some Scene {
         WindowGroup {
-            LibraryView()
+            RootTabView()
                 .preferredColorScheme(.dark)
         }
     }
