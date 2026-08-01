@@ -109,6 +109,16 @@ public struct ReaderContainerView: View {
                             Spacer()
 
                             Button {
+                                HapticManager.shared.selection()
+                                viewModel.isAddBookmarkPresented = true
+                            } label: {
+                                Image(systemName: "bookmark")
+                                    .font(.system(size: 18, weight: .regular))
+                                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            }
+
+                            Button {
+                                HapticManager.shared.selection()
                                 viewModel.isOutlinePresented = true
                             } label: {
                                 Image(systemName: "list.bullet")
@@ -132,6 +142,7 @@ public struct ReaderContainerView: View {
                             Spacer()
 
                             Button {
+                                HapticManager.shared.selection()
                                 viewModel.isSettingsPresented = true
                             } label: {
                                 Image(systemName: "gearshape")
@@ -170,10 +181,17 @@ public struct ReaderContainerView: View {
         .sheet(isPresented: $viewModel.isSettingsPresented) {
             ReaderSettingsView(settings: $viewModel.settings)
         }
+        .sheet(isPresented: $viewModel.isAddBookmarkPresented) {
+            let chapterTitle = viewModel.currentLocator?.title ?? "Page \(Int(viewModel.currentProgress * 100))%"
+            AddBookmarkSheetView(defaultName: chapterTitle) { name, colorHex in
+                viewModel.addBookmark(name: name, colorHex: colorHex)
+            }
+        }
         .sheet(isPresented: $viewModel.isOutlinePresented) {
             BookOutlineSheetView(
                 tableOfContents: viewModel.tableOfContents,
                 highlights: viewModel.highlights,
+                bookmarks: viewModel.bookmarks,
                 onSelectLink: { link in
                     viewModel.navigateToLink(link)
                 },
@@ -184,6 +202,14 @@ public struct ReaderContainerView: View {
                 },
                 onDeleteHighlight: { highlight in
                     viewModel.deleteHighlight(highlight)
+                },
+                onSelectBookmark: { bookmark in
+                    if let locator = bookmark.parsedLocator {
+                        viewModel.navigateToLocator(locator)
+                    }
+                },
+                onDeleteBookmark: { bookmark in
+                    viewModel.deleteBookmark(bookmark)
                 }
             )
         }

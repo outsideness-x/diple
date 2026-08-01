@@ -61,6 +61,17 @@ public final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v3_createBookmarkTable") { db in
+            try db.create(table: "bookmark") { t in
+                t.column("id", .text).primaryKey()
+                t.column("bookId", .text).notNull().indexed()
+                t.column("locator", .text).notNull()
+                t.column("name", .text).notNull()
+                t.column("colorHex", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 
@@ -111,6 +122,7 @@ public final class AppDatabase: Sendable {
 
     public func deleteBook(id: String) throws {
         try writer.write { db in
+            _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
             _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
             _ = try Book.filter(Column("id") == id).deleteAll(db)
         }
@@ -133,6 +145,26 @@ public final class AppDatabase: Sendable {
     public func deleteHighlight(id: String) throws {
         try writer.write { db in
             _ = try Highlight.filter(Column("id") == id).deleteAll(db)
+        }
+    }
+
+    // MARK: - Bookmark CRUD
+
+    public func saveBookmark(_ bookmark: Bookmark) throws {
+        try writer.write { db in
+            try bookmark.save(db)
+        }
+    }
+
+    public func fetchBookmarks(forBookId bookId: String) throws -> [Bookmark] {
+        try writer.read { db in
+            try Bookmark.filter(Column("bookId") == bookId).order(Column("createdAt").desc).fetchAll(db)
+        }
+    }
+
+    public func deleteBookmark(id: String) throws {
+        try writer.write { db in
+            _ = try Bookmark.filter(Column("id") == id).deleteAll(db)
         }
     }
 }

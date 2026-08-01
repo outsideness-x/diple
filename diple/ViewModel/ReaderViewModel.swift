@@ -18,7 +18,10 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var targetLocator: Locator? = nil
     @Published public var tableOfContents: [ReadiumShared.Link] = []
     @Published public var highlights: [Highlight] = []
+    @Published public var bookmarks: [Bookmark] = []
     @Published public var currentSelection: Selection? = nil
+    @Published public var currentLocator: Locator? = nil
+    @Published public var isAddBookmarkPresented: Bool = false
     @Published public var settings: ReaderSettings = ReaderSettings()
     @Published public var isLoading: Bool = true
     @Published public var errorMessage: String? = nil
@@ -39,6 +42,7 @@ public final class ReaderViewModel: ObservableObject {
         let defaultMode: ReadingMode = AppSettingsManager.shared.settings.defaultScrollReadingMode ? .scroll : .paginated
         self.settings = ReaderSettings(readingMode: defaultMode)
         loadHighlights()
+        loadBookmarks()
     }
 
     public func loadHighlights() {
@@ -46,6 +50,14 @@ public final class ReaderViewModel: ObservableObject {
             self.highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
         } catch {
             print("Failed to fetch highlights: \(error)")
+        }
+    }
+
+    public func loadBookmarks() {
+        do {
+            self.bookmarks = try AppDatabase.shared.fetchBookmarks(forBookId: book.id)
+        } catch {
+            print("Failed to fetch bookmarks: \(error)")
         }
     }
 
@@ -72,6 +84,7 @@ public final class ReaderViewModel: ObservableObject {
             self.publication = pub
             self.tableOfContents = toc
             self.initialLocator = savedLocator
+            self.currentLocator = savedLocator
             self.isLoading = false
         } catch {
             self.errorMessage = "Failed to open book: \(error.localizedDescription)"
@@ -80,6 +93,7 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     public func saveLocation(_ locator: Locator) {
+        self.currentLocator = locator
         let progression = locator.locations.totalProgression ?? locator.locations.progression ?? self.currentProgress
         self.currentProgress = progression
 
@@ -101,6 +115,35 @@ public final class ReaderViewModel: ObservableObject {
 
     public func navigateToLocator(_ locator: Locator) {
         self.targetLocator = locator
+    }
+
+    public func addBookmark(name: String, colorHex: String) {
+        guard let locator = currentLocator ?? initialLocator,
+              let locatorJson = try? locator.jsonString() else { return }
+
+        let bookmark = Bookmark(
+            bookId: book.id,
+            locator: locatorJson,
+            name: name,
+            colorHex: colorHex,
+            createdAt: Date()
+        )
+
+        do {
+            try AppDatabase.shared.saveBookmark(bookmark)
+            loadBookmarks()
+        } catch {
+            print("Failed to save bookmark: \(error)")
+        }
+    }
+
+    public func deleteBookmark(_ bookmark: Bookmark) {
+        do {
+            try AppDatabase.shared.deleteBookmark(id: bookmark.id)
+            loadBookmarks()
+        } catch {
+            print("Failed to delete bookmark: \(error)")
+        }
     }
 
     public func createHighlight(colorHex: String) {
