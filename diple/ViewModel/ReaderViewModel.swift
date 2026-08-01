@@ -22,7 +22,12 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var currentSelection: Selection? = nil
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
-    @Published public var settings: ReaderSettings = ReaderSettings()
+    @Published public var settings: ReaderSettings {
+        didSet {
+            AppSettingsManager.shared.settings.readerSettings = settings
+            AppSettingsManager.shared.settings.defaultScrollReadingMode = (settings.readingMode == .scroll)
+        }
+    }
     @Published public var isLoading: Bool = true
     @Published public var errorMessage: String? = nil
 
@@ -39,8 +44,7 @@ public final class ReaderViewModel: ObservableObject {
     public init(book: Book) {
         self.book = book
         self.currentProgress = book.progress
-        let defaultMode: ReadingMode = AppSettingsManager.shared.settings.defaultScrollReadingMode ? .scroll : .paginated
-        self.settings = ReaderSettings(readingMode: defaultMode)
+        self.settings = AppSettingsManager.shared.settings.readerSettings
         loadHighlights()
         loadBookmarks()
     }

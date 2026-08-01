@@ -128,6 +128,7 @@ public struct AppSettingsView: View {
                                         get: { settingsManager.settings.defaultScrollReadingMode },
                                         set: { newValue in
                                             settingsManager.settings.defaultScrollReadingMode = newValue
+                                            settingsManager.settings.readerSettings.readingMode = newValue ? .scroll : .paginated
                                             HapticManager.shared.selection()
                                         }
                                     ))

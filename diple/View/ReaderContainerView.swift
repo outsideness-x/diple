@@ -53,6 +53,7 @@ public struct ReaderContainerView: View {
                         initialLocation: viewModel.initialLocator,
                         targetLink: viewModel.targetLink,
                         targetLocator: viewModel.targetLocator,
+                        preferences: viewModel.settings.pdfPreferences,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
                             onReadingUpdated()

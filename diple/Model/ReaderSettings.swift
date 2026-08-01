@@ -24,7 +24,7 @@ public enum ReadingMode: String, CaseIterable, Identifiable, Codable {
     public var id: String { rawValue }
 }
 
-public struct ReaderSettings: Equatable {
+public struct ReaderSettings: Codable, Equatable {
     public var fontSizeStep: Int = 2 // 0: 0.8, 1: 0.9, 2: 1.0, 3: 1.15, 4: 1.3
     public var font: ReaderFont = .sanFrancisco
     public var theme: Theme = .dark
@@ -53,6 +53,12 @@ public struct ReaderSettings: Equatable {
         prefs.fontSize = currentFontSize
         prefs.fontFamily = font.fontFamily
         prefs.theme = theme
+        prefs.scroll = (readingMode == .scroll)
+        return prefs
+    }
+
+    public var pdfPreferences: PDFPreferences {
+        var prefs = PDFPreferences()
         prefs.scroll = (readingMode == .scroll)
         return prefs
     }
