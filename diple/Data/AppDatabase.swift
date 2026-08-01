@@ -1,7 +1,10 @@
 import Foundation
 import GRDB
 
-public final class AppDatabase: Sendable {
+/// - Important: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` would otherwise pin every query
+///   to the main thread, which is exactly where reading-position writes must not happen.
+///   GRDB's `DatabaseQueue` serializes access itself, so this type opts out of that default.
+public nonisolated final class AppDatabase: Sendable {
     public static let shared: AppDatabase = {
         do {
             let fileManager = FileManager.default

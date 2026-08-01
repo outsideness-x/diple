@@ -269,7 +269,8 @@ public final class ReaderViewModel: ObservableObject {
     public var isCurrentPositionBookmarked: Bool {
         guard let current = (currentLocator ?? initialLocator) else { return false }
         return bookmarks.contains { bookmark in
-            guard let locator = bookmark.parsedLocator, locator.href == current.href else { return false }
+            guard let locator = bookmark.parsedLocator,
+                  locator.href.isEquivalentTo(current.href) else { return false }
             let saved = locator.locations.progression ?? 0
             let now = current.locations.progression ?? 0
             return abs(saved - now) < 0.005
