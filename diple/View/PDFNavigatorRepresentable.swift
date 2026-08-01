@@ -12,6 +12,8 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
     public let onCenterTap: () -> Void
+    public let onLinkJump: (Locator) -> Void
+    public let onTargetHandled: () -> Void
 
     public init(
         publication: Publication,
@@ -21,7 +23,9 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         preferences: PDFPreferences = PDFPreferences(),
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
-        onCenterTap: @escaping () -> Void
+        onCenterTap: @escaping () -> Void,
+        onLinkJump: @escaping (Locator) -> Void = { _ in },
+        onTargetHandled: @escaping () -> Void = {}
     ) {
         self.publication = publication
         self.initialLocation = initialLocation
@@ -31,6 +35,8 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
         self.onCenterTap = onCenterTap
+        self.onLinkJump = onLinkJump
+        self.onTargetHandled = onTargetHandled
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -60,17 +66,21 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         context.coordinator.parent = self
         uiViewController.submitPreferences(preferences)
 
-        if let link = targetLink, context.coordinator.lastHandledLink != link {
-            context.coordinator.lastHandledLink = link
+        if let link = targetLink {
             Task {
-                _ = await uiViewController.go(to: link)
+                _ = await uiViewController.go(to: link, options: NavigatorGoOptions(animated: true))
+                await MainActor.run {
+                    onTargetHandled()
+                }
             }
         }
 
-        if let locator = targetLocator, context.coordinator.lastHandledLocator != locator {
-            context.coordinator.lastHandledLocator = locator
+        if let locator = targetLocator {
             Task {
-                _ = await uiViewController.go(to: locator)
+                _ = await uiViewController.go(to: locator, options: NavigatorGoOptions(animated: true))
+                await MainActor.run {
+                    onTargetHandled()
+                }
             }
         }
     }
@@ -78,8 +88,6 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public class Coordinator: NSObject, PDFNavigatorDelegate {
         var parent: PDFNavigatorRepresentable
         weak var navigator: PDFNavigatorViewController?
-        var lastHandledLink: ReadiumShared.Link? = nil
-        var lastHandledLocator: Locator? = nil
         var lastHref: AnyURL? = nil
 
         init(_ parent: PDFNavigatorRepresentable) {
@@ -98,6 +106,13 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             parent.onLocationChanged(locator)
         }
 
+        public func navigator(_ navigator: VisualNavigator, shouldNavigateToLink link: ReadiumShared.Link) -> Bool {
+            if let current = navigator.currentLocation {
+                parent.onLinkJump(current)
+            }
+            return true
+        }
+
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
             HapticManager.shared.selection()
             parent.onSelectionChanged(selection)
@@ -106,6 +121,12 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
 
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
             parent.onSelectionChanged(nil)
+
+            if parent.preferences.scroll == true {
+                parent.onCenterTap()
+                return
+            }
+
             guard let view = navigator.view else { return }
             let width = view.bounds.width
             guard width > 0 else { return }

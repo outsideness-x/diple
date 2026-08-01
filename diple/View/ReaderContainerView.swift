@@ -63,6 +63,13 @@ public struct ReaderContainerView: View {
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
+                        },
+                        onLinkJump: { originLocator in
+                            viewModel.pushBackLocation(originLocator)
+                        },
+                        onTargetHandled: {
+                            viewModel.clearTargetLocator()
+                            viewModel.clearTargetLink()
                         }
                     )
                     .ignoresSafeArea()
@@ -83,9 +90,48 @@ public struct ReaderContainerView: View {
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
+                        },
+                        onLinkJump: { originLocator in
+                            viewModel.pushBackLocation(originLocator)
+                        },
+                        onTargetHandled: {
+                            viewModel.clearTargetLocator()
+                            viewModel.clearTargetLink()
                         }
                     )
                     .ignoresSafeArea()
+                }
+
+                // Floating Return-from-Link Back Button
+                if !viewModel.backLocationStack.isEmpty {
+                    VStack {
+                        HStack {
+                            Button {
+                                HapticManager.shared.impact(.light)
+                                viewModel.goBackInHistory()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text("Return to text")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Color.dipleAccent)
+                                .cornerRadius(20)
+                                .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
+                            }
+                            Spacer()
+                        }
+                        .padding(.leading, 20)
+                        .padding(.top, viewModel.isOverlayVisible ? 70 : 50)
+
+                        Spacer()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.2), value: viewModel.backLocationStack.count)
                 }
 
                 // Overlay Controls (Top & Bottom bars)

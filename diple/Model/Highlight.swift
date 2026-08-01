@@ -27,6 +27,9 @@ public struct Highlight: Codable, FetchableRecord, PersistableRecord, Identifiab
     }
 
     public var parsedLocator: Locator? {
-        try? Locator(jsonString: locator)
+        if let loc = try? Locator(jsonString: locator) {
+            return loc
+        }
+        return try? Locator(legacyJSONString: locator)
     }
 }

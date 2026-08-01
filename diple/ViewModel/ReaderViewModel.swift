@@ -22,6 +22,7 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var currentSelection: Selection? = nil
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
+    @Published public var backLocationStack: [Locator] = []
     @Published public var settings: ReaderSettings {
         didSet {
             AppSettingsManager.shared.settings.readerSettings = settings
@@ -80,7 +81,7 @@ public final class ReaderViewModel: ObservableObject {
 
             var savedLocator: Locator? = nil
             if let locatorStr = book.locator, !locatorStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                savedLocator = try? Locator(jsonString: locatorStr)
+                savedLocator = (try? Locator(jsonString: locatorStr)) ?? (try? Locator(legacyJSONString: locatorStr))
             }
 
             let toc = (try? await pub.tableOfContents().get()) ?? pub.manifest.tableOfContents
@@ -127,6 +128,15 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
 
+    public func pushBackLocation(_ locator: Locator) {
+        self.backLocationStack.append(locator)
+    }
+
+    public func goBackInHistory() {
+        guard let previousLocator = backLocationStack.popLast() else { return }
+        self.targetLocator = previousLocator
+    }
+
     public func navigateToLink(_ link: ReadiumShared.Link) {
         self.targetLink = link
     }
@@ -135,14 +145,28 @@ public final class ReaderViewModel: ObservableObject {
         self.targetLocator = locator
     }
 
+    public func clearTargetLocator() {
+        self.targetLocator = nil
+    }
+
+    public func clearTargetLink() {
+        self.targetLink = nil
+    }
+
     public func addBookmark(name: String, colorHex: String) {
-        guard let locator = currentLocator ?? initialLocator,
-              let locatorJson = try? locator.jsonString() else { return }
+        guard let locator = currentLocator ?? initialLocator else {
+            print("Cannot add bookmark: no current locator")
+            return
+        }
+        guard let locatorJson = (try? locator.jsonString()) else {
+            print("Cannot add bookmark: failed to serialize locator")
+            return
+        }
 
         let bookmark = Bookmark(
             bookId: book.id,
             locator: locatorJson,
-            name: name,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Bookmark" : name,
             colorHex: colorHex,
             createdAt: Date()
         )
@@ -150,6 +174,7 @@ public final class ReaderViewModel: ObservableObject {
         do {
             try AppDatabase.shared.saveBookmark(bookmark)
             loadBookmarks()
+            HapticManager.shared.impact(.medium)
         } catch {
             print("Failed to save bookmark: \(error)")
         }

@@ -94,15 +94,16 @@ public struct AddBookmarkSheetView: View {
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Add") {
-                        let finalName = bookmarkName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !finalName.isEmpty else { return }
+                        var finalName = bookmarkName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if finalName.isEmpty {
+                            finalName = defaultName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Bookmark" : defaultName
+                        }
                         HapticManager.shared.notification(.success)
                         onAdd(finalName, selectedColorHex)
                         dismiss()
                     }
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(bookmarkName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : Color.dipleAccent)
-                    .disabled(bookmarkName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .foregroundColor(Color.dipleAccent)
                 }
             }
         }
