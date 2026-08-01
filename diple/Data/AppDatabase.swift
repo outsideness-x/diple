@@ -145,6 +145,19 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Number of quotes per book id, for the hub's book list. Counting in SQL keeps the
+    /// whole highlight table out of memory just to render a badge.
+    public func fetchHighlightCountsByBook() throws -> [String: Int] {
+        try writer.read { db in
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT bookId, COUNT(*) AS count FROM highlight GROUP BY bookId
+                """)
+            return rows.reduce(into: [String: Int]()) { result, row in
+                result[row["bookId"]] = row["count"]
+            }
+        }
+    }
+
     public func deleteHighlight(id: String) throws {
         try writer.write { db in
             _ = try Highlight.filter(Column("id") == id).deleteAll(db)
