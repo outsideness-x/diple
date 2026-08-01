@@ -5,6 +5,8 @@ public struct LibraryView: View {
     @StateObject private var viewModel = LibraryViewModel()
     @State private var isFileImporterPresented = false
 
+    @State private var isAppSettingsPresented = false
+
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)
     ]
@@ -59,8 +61,20 @@ public struct LibraryView: View {
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        HapticManager.shared.selection()
+                        isAppSettingsPresented = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Color(red: 0.8, green: 0.8, blue: 0.82))
+                    }
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
+                        HapticManager.shared.selection()
                         isFileImporterPresented = true
                     } label: {
                         Image(systemName: "plus")
@@ -102,6 +116,9 @@ public struct LibraryView: View {
                 ReaderContainerView(book: book, onReadingUpdated: {
                     viewModel.loadBooks()
                 })
+            }
+            .sheet(isPresented: $isAppSettingsPresented) {
+                AppSettingsView()
             }
         }
     }
