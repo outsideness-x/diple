@@ -20,27 +20,26 @@ public struct QuoteCardView: View {
     }
 
     public var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            RoundedRectangle(cornerRadius: 1.5)
+        HStack(alignment: .top, spacing: DipleSpace.m) {
+            Capsule()
                 .fill(accentColor)
                 .frame(width: 3)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text(quote.text)
-                    .font(.system(size: 15, weight: .regular, design: .serif))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.readingBody)
+                    .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(formattedDate)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(red: 0.45, green: 0.45, blue: 0.5))
+                    .dipleType(.micro)
+                    .foregroundStyle(DipleColor.textQuaternary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.1))
-        .cornerRadius(12)
+        .padding(DipleSpace.m)
+        .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
         .contextMenu {
             Button {
                 UIPasteboard.general.string = quote.text

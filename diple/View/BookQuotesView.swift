@@ -13,24 +13,24 @@ public struct BookQuotesView: View {
 
     public var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            DipleColor.canvas.ignoresSafeArea()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: DipleSpace.m) {
                     header
 
                     ForEach(viewModel.quotes) { quote in
                         QuoteCardView(quote: quote)
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                .padding(.horizontal, DipleSpace.xl)
+                .padding(.top, DipleSpace.s)
+                .padding(.bottom, DipleSpace.xxxl)
             }
         }
         .navigationTitle(book.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.black, for: .navigationBar)
+        .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("Error", isPresented: $viewModel.showErrorAlert) {
             Button("OK", role: .cancel) {}
@@ -43,22 +43,22 @@ public struct BookQuotesView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DipleSpace.xs) {
             Text(book.title)
-                .font(.system(size: 22, weight: .semibold, design: .serif))
-                .foregroundColor(Color(red: 0.94, green: 0.94, blue: 0.95))
+                .dipleType(.readingTitle)
+                .foregroundStyle(DipleColor.textPrimary)
 
             if let author = book.author, !author.isEmpty {
                 Text(author)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.footnote, weight: .regular)
+                    .foregroundStyle(DipleColor.textTertiary)
             }
 
             Text("\(viewModel.quotes.count) \(viewModel.quotes.count == 1 ? "quote" : "quotes")")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Color.dipleAccent)
-                .padding(.top, 4)
+                .dipleType(.caption, weight: .medium)
+                .foregroundStyle(DipleColor.accent)
+                .padding(.top, DipleSpace.xs)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, DipleSpace.s)
     }
 }

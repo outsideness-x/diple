@@ -9,13 +9,13 @@ public struct HubView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 if viewModel.summaries.isEmpty {
                     emptyState
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 10) {
+                        LazyVStack(spacing: DipleSpace.s) {
                             ForEach(viewModel.summaries) { summary in
                                 NavigationLink(value: summary.book) {
                                     HubBookRowView(summary: summary)
@@ -26,22 +26,22 @@ public struct HubView: View {
                                 })
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 32)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.top, DipleSpace.m)
+                        .padding(.bottom, DipleSpace.xxxl)
                     }
                 }
             }
             .navigationTitle("Hub")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 if viewModel.totalQuoteCount > 0 {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Text("\(viewModel.totalQuoteCount)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                            .dipleType(.footnote, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
                             .monospacedDigit()
                     }
                 }
@@ -61,27 +61,27 @@ public struct HubView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DipleSpace.xl) {
             ZStack {
                 Circle()
-                    .fill(Color.dipleAccent.opacity(0.12))
+                    .fill(DipleColor.accent.opacity(0.12))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "quote.opening")
-                    .font(.system(size: 30, weight: .thin))
-                    .foregroundColor(Color.dipleAccent)
+                    .dipleIcon(30, weight: .thin)
+                    .foregroundStyle(DipleColor.accent)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DipleSpace.s) {
                 Text("No Quotes Yet")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.title)
+                    .foregroundStyle(DipleColor.textPrimary)
 
                 Text("Highlight a passage while reading and it will show up here, grouped by book.")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.callout)
+                    .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, DipleSpace.xxxl)
             }
         }
     }
@@ -100,7 +100,7 @@ public struct HubBookRowView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: DipleSpace.m) {
             BookCoverView(
                 coverPath: summary.book.coverPath,
                 title: summary.book.title,
@@ -109,32 +109,31 @@ public struct HubBookRowView: View {
             )
             .frame(width: thumbnailWidth, height: thumbnailWidth * 1.5)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(summary.book.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.body, weight: .semibold)
+                    .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 Text(summary.book.author ?? "Unknown Author")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.caption)
+                    .foregroundStyle(DipleColor.textTertiary)
                     .lineLimit(1)
             }
 
             Spacer(minLength: 8)
 
             Text("\(summary.quoteCount)")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Color.dipleAccent)
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.accent)
                 .monospacedDigit()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.4))
+                .dipleIcon(12, weight: .semibold)
+                .foregroundStyle(DipleColor.textQuaternary)
         }
-        .padding(12)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.1))
-        .cornerRadius(12)
+        .padding(DipleSpace.m)
+        .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
     }
 }
