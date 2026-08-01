@@ -85,6 +85,34 @@ public struct ReadingProgressSlider: View {
     }
 }
 
+/// Background for the reader's top and bottom bars.
+///
+/// A bare material takes its tone from the page behind it, so over the light and sepia
+/// reader themes the bars turn pale and the light-grey controls on them stop being legible.
+/// A dark tint on top of the material keeps the chrome readable whatever the book looks like,
+/// while retaining a hint of the blur.
+public struct ReaderBarBackground: ViewModifier {
+    public init() {}
+
+    public func body(content: Content) -> some View {
+        content
+            .background {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    Rectangle().fill(Color.black.opacity(0.74))
+                }
+                .environment(\.colorScheme, .dark)
+                .ignoresSafeArea(edges: .horizontal)
+            }
+    }
+}
+
+public extension View {
+    func readerBarBackground() -> some View {
+        modifier(ReaderBarBackground())
+    }
+}
+
 /// Brief confirmation pill shown over the page after an action such as saving a bookmark.
 public struct ReaderToastView: View {
     public let message: String

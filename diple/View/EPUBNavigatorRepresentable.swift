@@ -17,6 +17,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let onCenterTap: () -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
+    public let onOpenFailed: (String) -> Void
 
     public init(
         publication: Publication,
@@ -30,7 +31,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         onSelectionChanged: @escaping (Selection?) -> Void,
         onCenterTap: @escaping () -> Void,
         onLinkJump: @escaping (Locator) -> Void = { _ in },
-        onTargetHandled: @escaping () -> Void = {}
+        onTargetHandled: @escaping () -> Void = {},
+        onOpenFailed: @escaping (String) -> Void = { _ in }
     ) {
         self.publication = publication
         self.initialLocation = initialLocation
@@ -44,13 +46,14 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.onCenterTap = onCenterTap
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
+        self.onOpenFailed = onOpenFailed
     }
 
     public func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    public func makeUIViewController(context: Context) -> EPUBNavigatorViewController {
+    public func makeUIViewController(context: Context) -> UIViewController {
         let config = EPUBNavigatorViewController.Configuration(
             preferences: preferences,
             // In continuous scroll mode reading is vertical, so a horizontal swipe silently
@@ -73,13 +76,20 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             applyDecorations(highlights: highlights, to: navigator)
             return navigator
         } catch {
-            fatalError("Failed to initialize EPUBNavigatorViewController: \(error)")
+            // Trapping here would crash the app on a book it simply cannot render.
+            // `ReaderViewModel` already rejects restricted publications, so this is a
+            // last resort: hand back an empty controller and surface the failure.
+            Task { @MainActor in
+                onOpenFailed("Failed to open this book: \(error.localizedDescription)")
+            }
+            return UIViewController()
         }
     }
 
-    public func updateUIViewController(_ uiViewController: EPUBNavigatorViewController, context: Context) {
+    public func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        guard let uiViewController = uiViewController as? EPUBNavigatorViewController else { return }
         context.coordinator.parent = self
-        
+
         if context.coordinator.lastPreferences != preferences {
             context.coordinator.lastPreferences = preferences
             uiViewController.submitPreferences(preferences)

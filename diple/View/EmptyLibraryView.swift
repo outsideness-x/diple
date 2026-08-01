@@ -26,18 +26,21 @@ public struct EmptyLibraryView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
 
-                Text("Import your EPUB books to start reading in a distraction-free environment.")
+                Text("Import your EPUB or PDF books to start reading in a distraction-free environment.")
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
 
-            Button(action: onImportTap) {
+            Button {
+                HapticManager.shared.impact(.light)
+                onImportTap()
+            } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .semibold))
-                    Text("Import EPUB")
+                    Text("Import a Book")
                         .font(.system(size: 15, weight: .semibold))
                 }
                 .foregroundColor(.black)
@@ -46,6 +49,7 @@ public struct EmptyLibraryView: View {
                 .background(Color.dipleAccent)
                 .cornerRadius(20)
             }
+            .buttonStyle(.readerControl)
             .padding(.top, 8)
 
             Spacer()

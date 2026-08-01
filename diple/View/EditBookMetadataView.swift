@@ -152,15 +152,13 @@ public struct EditBookMetadataView: View {
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
-            .onChange(of: selectedPhotoItem) { newItem in
-                Task {
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                Task { @MainActor in
                     if let data = try? await newItem?.loadTransferable(type: Data.self),
                        let uiImage = UIImage(data: data) {
-                        await MainActor.run {
-                            self.selectedImageData = data
-                            self.previewUIImage = uiImage
-                            HapticManager.shared.selection()
-                        }
+                        self.selectedImageData = data
+                        self.previewUIImage = uiImage
+                        HapticManager.shared.selection()
                     }
                 }
             }

@@ -13,8 +13,7 @@ public struct BookCoverView: View {
 
     private var loadedImage: UIImage? {
         guard let coverPath = coverPath else { return nil }
-        let url = BookStorageService.shared.absoluteURL(for: coverPath)
-        return UIImage(contentsOfFile: url.path)
+        return CoverImageCache.shared.image(atRelativePath: coverPath)
     }
 
     public var body: some View {
@@ -65,5 +64,34 @@ public struct BookCoverView: View {
             }
         }
         .aspectRatio(1 / 1.5, contentMode: .fit)
+    }
+}
+
+/// Covers are read inside `body`, which SwiftUI re-evaluates constantly while the library
+/// grid scrolls. Decoding a JPEG from disk on every pass makes the grid stutter, so results
+/// are kept in memory and dropped under pressure.
+final class CoverImageCache: @unchecked Sendable {
+    static let shared = CoverImageCache()
+
+    private let cache = NSCache<NSString, UIImage>()
+
+    private init() {
+        cache.countLimit = 120
+    }
+
+    func image(atRelativePath relativePath: String) -> UIImage? {
+        let key = relativePath as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+        let url = BookStorageService.shared.absoluteURL(for: relativePath)
+        guard let image = UIImage(contentsOfFile: url.path) else { return nil }
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
+    /// Called when a cover is replaced so the grid stops showing the previous artwork.
+    func invalidate(relativePath: String) {
+        cache.removeObject(forKey: relativePath as NSString)
     }
 }

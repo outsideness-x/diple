@@ -69,6 +69,9 @@ public struct ReaderContainerView: View {
                         onTargetHandled: {
                             viewModel.clearTargetLocator()
                             viewModel.clearTargetLink()
+                        },
+                        onOpenFailed: { message in
+                            viewModel.errorMessage = message
                         }
                     )
                     .ignoresSafeArea()
@@ -96,6 +99,9 @@ public struct ReaderContainerView: View {
                         onTargetHandled: {
                             viewModel.clearTargetLocator()
                             viewModel.clearTargetLink()
+                        },
+                        onOpenFailed: { message in
+                            viewModel.errorMessage = message
                         }
                     )
                     .ignoresSafeArea()
@@ -185,8 +191,7 @@ public struct ReaderContainerView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
-                        .background(.thinMaterial)
-                        .environment(\.colorScheme, .dark)
+                        .readerBarBackground()
                         .transition(.move(edge: .top).combined(with: .opacity))
 
                         Spacer()
@@ -233,8 +238,7 @@ public struct ReaderContainerView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         .padding(.bottom, 14)
-                        .background(.thinMaterial)
-                        .environment(\.colorScheme, .dark)
+                        .readerBarBackground()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }

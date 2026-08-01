@@ -35,7 +35,7 @@ public final class LibraryViewModel: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = "Failed to import EPUB: \(error.localizedDescription)"
+                    self.errorMessage = "Failed to import book: \(error.localizedDescription)"
                     self.showErrorAlert = true
                     self.isImporting = false
                 }
@@ -50,6 +50,11 @@ public final class LibraryViewModel: ObservableObject {
             var coverPath: String? = nil
             if let data = coverData {
                 coverPath = try BookStorageService.shared.saveCoverData(data, bookId: bookId)
+                if let coverPath {
+                    // The path is stable across replacements, so the old artwork would
+                    // otherwise stay cached.
+                    CoverImageCache.shared.invalidate(relativePath: coverPath)
+                }
             }
             try AppDatabase.shared.updateBookMetadata(id: bookId, title: title, author: author, coverPath: coverPath)
             loadBooks()

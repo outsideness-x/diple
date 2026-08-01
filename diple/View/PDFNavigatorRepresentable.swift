@@ -14,6 +14,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public let onCenterTap: () -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
+    public let onOpenFailed: (String) -> Void
 
     public init(
         publication: Publication,
@@ -25,7 +26,8 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         onSelectionChanged: @escaping (Selection?) -> Void,
         onCenterTap: @escaping () -> Void,
         onLinkJump: @escaping (Locator) -> Void = { _ in },
-        onTargetHandled: @escaping () -> Void = {}
+        onTargetHandled: @escaping () -> Void = {},
+        onOpenFailed: @escaping (String) -> Void = { _ in }
     ) {
         self.publication = publication
         self.initialLocation = initialLocation
@@ -37,13 +39,14 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         self.onCenterTap = onCenterTap
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
+        self.onOpenFailed = onOpenFailed
     }
 
     public func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    public func makeUIViewController(context: Context) -> PDFNavigatorViewController {
+    public func makeUIViewController(context: Context) -> UIViewController {
         let config = PDFNavigatorViewController.Configuration(
             preferences: preferences
         )
@@ -59,11 +62,17 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.lastPreferences = preferences
             return navigator
         } catch {
-            fatalError("Failed to initialize PDFNavigatorViewController: \(error)")
+            // See the note in `EPUBNavigatorRepresentable`: a book we cannot render must
+            // not take the app down with it.
+            Task { @MainActor in
+                onOpenFailed("Failed to open this book: \(error.localizedDescription)")
+            }
+            return UIViewController()
         }
     }
 
-    public func updateUIViewController(_ uiViewController: PDFNavigatorViewController, context: Context) {
+    public func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        guard let uiViewController = uiViewController as? PDFNavigatorViewController else { return }
         context.coordinator.parent = self
         
         if context.coordinator.lastPreferences != preferences {
