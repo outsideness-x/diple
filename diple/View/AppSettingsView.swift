@@ -9,27 +9,27 @@ public struct AppSettingsView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 ScrollView {
                     VStack(spacing: 28) {
                         // HAPTICS SECTION
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
                             Text("HAPTICS & VIBRATION")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                                .padding(.horizontal, 4)
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
 
                             VStack(spacing: 1) {
                                 // Enable Haptics Toggle
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Enable Haptics")
-                                            .font(.system(size: 15, weight: .medium))
+                                            .dipleType(.body, weight: .medium)
                                             .foregroundColor(.white)
                                         Text("Vibrate on interactions and events")
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: Binding(
@@ -41,20 +41,20 @@ public struct AppSettingsView: View {
                                             }
                                         }
                                     ))
-                                    .tint(Color.dipleAccent)
+                                    .tint(DipleColor.accent)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
 
                                 if settingsManager.settings.isHapticsEnabled {
                                     // Intensity Selector
-                                    VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: DipleSpace.m) {
                                         Text("Haptic Intensity")
-                                            .font(.system(size: 14, weight: .medium))
+                                            .dipleType(.callout, weight: .medium)
                                             .foregroundColor(.white)
 
-                                        HStack(spacing: 10) {
+                                        HStack(spacing: DipleSpace.m) {
                                             ForEach(HapticIntensity.allCases) { intensity in
                                                 let isSelected = settingsManager.settings.hapticIntensity == intensity
                                                 Button {
@@ -64,29 +64,29 @@ public struct AppSettingsView: View {
                                                     )
                                                 } label: {
                                                     Text(intensity.rawValue)
-                                                        .font(.system(size: 13, weight: .medium))
-                                                        .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
+                                                        .dipleType(.footnote)
+                                                        .foregroundColor(isSelected ? .black : DipleColor.textSecondary)
                                                         .frame(maxWidth: .infinity)
-                                                        .padding(.vertical, 10)
-                                                        .background(isSelected ? Color.dipleAccent : Color(red: 0.18, green: 0.18, blue: 0.20))
-                                                        .cornerRadius(8)
+                                                        .padding(.vertical, DipleSpace.m)
+                                                        .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
+                                                        .cornerRadius(DipleRadius.s)
                                                 }
                                             }
                                         }
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                    .padding(.horizontal, DipleSpace.l)
+                                    .padding(.vertical, DipleSpace.m)
+                                    .background(DipleColor.surfaceRaised)
 
                                     // Chapter Transition Vibration Toggle
                                     HStack {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("Chapter Transition Vibration")
-                                                .font(.system(size: 15, weight: .medium))
+                                                .dipleType(.body, weight: .medium)
                                                 .foregroundColor(.white)
                                             Text("Vibrate when moving to next chapter (Readwise Reader style)")
-                                                .font(.system(size: 12, weight: .regular))
-                                                .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                                .dipleType(.caption)
+                                                .foregroundStyle(DipleColor.textTertiary)
                                         }
                                         Spacer()
                                         Toggle("", isOn: Binding(
@@ -96,32 +96,32 @@ public struct AppSettingsView: View {
                                                 HapticManager.shared.selection()
                                             }
                                         ))
-                                        .tint(Color.dipleAccent)
+                                        .tint(DipleColor.accent)
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                    .padding(.horizontal, DipleSpace.l)
+                                    .padding(.vertical, DipleSpace.m)
+                                    .background(DipleColor.surfaceRaised)
                                 }
                             }
-                            .cornerRadius(12)
+                            .cornerRadius(DipleRadius.m)
                         }
 
                         // READER DEFAULTS SECTION
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
                             Text("READER DEFAULTS")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                                .padding(.horizontal, 4)
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
 
                             VStack(spacing: 1) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Default Continuous Scroll")
-                                            .font(.system(size: 15, weight: .medium))
+                                            .dipleType(.body, weight: .medium)
                                             .foregroundColor(.white)
                                         Text("Open books in continuous vertical scrolling mode")
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: Binding(
@@ -132,24 +132,24 @@ public struct AppSettingsView: View {
                                             HapticManager.shared.selection()
                                         }
                                     ))
-                                    .tint(Color.dipleAccent)
+                                    .tint(DipleColor.accent)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
-                                .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
                             }
-                            .cornerRadius(12)
+                            .cornerRadius(DipleRadius.m)
                         }
 
                         Spacer()
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
+                    .padding(.horizontal, DipleSpace.xl)
+                    .padding(.top, DipleSpace.xl)
                 }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -157,8 +157,8 @@ public struct AppSettingsView: View {
                         HapticManager.shared.selection()
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color.dipleAccent)
+                    .dipleType(.body, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
                 }
             }
         }

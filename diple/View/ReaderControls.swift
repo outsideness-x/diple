@@ -40,11 +40,11 @@ public struct ReadingProgressSlider: View {
                     .frame(height: height)
 
                 Capsule()
-                    .fill(Color.dipleAccent)
+                    .fill(DipleColor.accent)
                     .frame(width: filled, height: height)
 
                 Circle()
-                    .fill(Color.dipleAccent)
+                    .fill(DipleColor.accent)
                     .frame(width: Self.handleSize, height: Self.handleSize)
                     .shadow(color: Color.black.opacity(0.5), radius: 4, y: 1)
                     .offset(x: filled - Self.handleSize / 2)
@@ -123,10 +123,10 @@ public struct ReaderToastView: View {
 
     public var body: some View {
         Text(message)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(Color(red: 0.95, green: 0.95, blue: 0.96))
+            .dipleType(.footnote, weight: .semibold)
+            .foregroundStyle(DipleColor.textPrimary)
             .padding(.horizontal, 18)
-            .padding(.vertical, 10)
+            .padding(.vertical, DipleSpace.m)
             .background(.thinMaterial, in: Capsule())
             .environment(\.colorScheme, .dark)
             .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))

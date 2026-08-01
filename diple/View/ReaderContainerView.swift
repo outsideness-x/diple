@@ -15,36 +15,36 @@ public struct ReaderContainerView: View {
     public var body: some View {
         ZStack {
             // True Black background for reader container
-            Color.black.ignoresSafeArea()
+            DipleColor.canvas.ignoresSafeArea()
 
             if viewModel.isLoading {
-                VStack(spacing: 12) {
+                VStack(spacing: DipleSpace.m) {
                     ProgressView()
                         .tint(.white)
                     Text("Loading book...")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.7))
+                        .dipleType(.callout, weight: .medium)
+                        .foregroundStyle(DipleColor.textSecondary)
                 }
             } else if let errorMessage = viewModel.errorMessage {
-                VStack(spacing: 16) {
+                VStack(spacing: DipleSpace.l) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 32))
+                        .dipleIcon(32)
                         .foregroundColor(.red)
 
                     Text(errorMessage)
-                        .font(.system(size: 14, weight: .medium))
+                        .dipleType(.callout, weight: .medium)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+                        .padding(.horizontal, DipleSpace.xxxl)
 
                     Button("Close") {
                         dismiss()
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DipleSpace.xl)
+                    .padding(.vertical, DipleSpace.s)
                     .background(Color.white.opacity(0.2))
-                    .cornerRadius(8)
+                    .cornerRadius(DipleRadius.s)
                 }
             } else if let publication = viewModel.publication {
                 if viewModel.book.filePath.lowercased().hasSuffix(".pdf") {
@@ -115,22 +115,20 @@ public struct ReaderContainerView: View {
                                 HapticManager.shared.impact(.light)
                                 viewModel.goBackInHistory()
                             } label: {
-                                HStack(spacing: 6) {
+                                HStack(spacing: DipleSpace.s) {
                                     Image(systemName: "arrow.uturn.backward")
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .dipleIcon(13, weight: .semibold)
                                     Text("Return to text")
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .dipleType(.footnote, weight: .semibold)
                                 }
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(Color.dipleAccent)
-                                .cornerRadius(20)
+                                .foregroundStyle(DipleColor.textOnAccent)
+                                .diplePadding(.button)
+                                .background(DipleColor.accent, in: Capsule())
                                 .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
                             }
                             Spacer()
                         }
-                        .padding(.leading, 20)
+                        .padding(.leading, DipleSpace.xl)
                         .padding(.top, viewModel.isOverlayVisible ? 70 : 50)
 
                         Spacer()
@@ -143,20 +141,20 @@ public struct ReaderContainerView: View {
                 if viewModel.isOverlayVisible {
                     VStack {
                         // Top Bar Overlay
-                        HStack(spacing: 16) {
+                        HStack(spacing: DipleSpace.l) {
                             Button {
                                 HapticManager.shared.impact(.light)
                                 dismiss()
                             } label: {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                                    .dipleIcon(16)
+                                    .foregroundStyle(DipleColor.textPrimary)
                             }
                             .buttonStyle(.readerControl)
 
                             Text(viewModel.book.title)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                                .dipleType(.body, weight: .semibold)
+                                .foregroundStyle(DipleColor.textPrimary)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
 
@@ -167,11 +165,11 @@ public struct ReaderContainerView: View {
                                 viewModel.isAddBookmarkPresented = true
                             } label: {
                                 Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
-                                    .font(.system(size: 18, weight: .regular))
+                                    .dipleIcon(16, weight: .regular)
                                     .foregroundColor(
                                         viewModel.isCurrentPositionBookmarked
-                                            ? Color.dipleAccent
-                                            : Color(red: 0.92, green: 0.92, blue: 0.92)
+                                            ? DipleColor.accent
+                                            : DipleColor.textPrimary
                                     )
                             }
                             .buttonStyle(.readerControl)
@@ -184,31 +182,31 @@ public struct ReaderContainerView: View {
                                 viewModel.isOutlinePresented = true
                             } label: {
                                 Image(systemName: "list.bullet")
-                                    .font(.system(size: 18, weight: .regular))
-                                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                                    .dipleIcon(16, weight: .regular)
+                                    .foregroundStyle(DipleColor.textPrimary)
                             }
                             .buttonStyle(.readerControl)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.vertical, DipleSpace.m)
                         .readerBarBackground()
                         .transition(.move(edge: .top).combined(with: .opacity))
 
                         Spacer()
 
                         // Bottom Bar Overlay
-                        VStack(spacing: 10) {
+                        VStack(spacing: DipleSpace.m) {
                             ReadingProgressSlider(
                                 progress: viewModel.currentProgress,
                                 isEnabled: viewModel.canSeek,
                                 onSeek: { viewModel.seek(toProgress: $0) }
                             )
 
-                            HStack(spacing: 12) {
+                            HStack(spacing: DipleSpace.m) {
                                 let percentage = Int((viewModel.currentProgress * 100).rounded())
                                 Text("\(percentage)%")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(Color.dipleAccent)
+                                    .dipleType(.footnote, weight: .semibold)
+                                    .foregroundStyle(DipleColor.accent)
                                     .monospacedDigit()
                                     .contentTransition(.numericText())
                                     .animation(.easeOut(duration: 0.2), value: percentage)
@@ -216,8 +214,8 @@ public struct ReaderContainerView: View {
                                 if let chapter = viewModel.currentLocator?.title,
                                    !chapter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     Text(chapter)
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.74))
+                                        .dipleType(.footnote, weight: .regular)
+                                        .foregroundStyle(DipleColor.textSecondary)
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
@@ -229,15 +227,15 @@ public struct ReaderContainerView: View {
                                     viewModel.isSettingsPresented = true
                                 } label: {
                                     Image(systemName: "gearshape")
-                                        .font(.system(size: 18, weight: .regular))
-                                        .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                                        .dipleIcon(16, weight: .regular)
+                                        .foregroundStyle(DipleColor.textPrimary)
                                 }
                                 .buttonStyle(.readerControl)
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                        .padding(.bottom, 14)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.top, DipleSpace.m)
+                        .padding(.bottom, DipleSpace.m)
                         .readerBarBackground()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -261,7 +259,7 @@ public struct ReaderContainerView: View {
                         } onCancel: {
                             viewModel.currentSelection = nil
                         }
-                        .padding(.bottom, 40)
+                        .padding(.bottom, DipleSpace.scrollBottom)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }

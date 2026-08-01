@@ -14,7 +14,7 @@ public struct ReaderSettingsView: View {
             settingsContent
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background(Color.black.ignoresSafeArea())
+        .background(DipleColor.canvas.ignoresSafeArea())
         // A fixed height clips the controls as soon as the text size grows, so let the
         // sheet size itself instead.
         .presentationDetents([.medium, .large])
@@ -22,40 +22,40 @@ public struct ReaderSettingsView: View {
     }
 
     private var settingsContent: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DipleSpace.xxl) {
             // Header
             HStack {
                 Text("Reader Settings")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.headline)
+                    .foregroundStyle(DipleColor.textPrimary)
                 Spacer()
                 Button("Done") {
                     HapticManager.shared.selection()
                     dismiss()
                 }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                .dipleType(.body, weight: .medium)
+                .foregroundStyle(DipleColor.textPrimary)
             }
-            .padding(.top, 16)
+            .padding(.top, DipleSpace.l)
 
             // Theme selector
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DipleSpace.m) {
                 Text("THEME")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
 
-                HStack(spacing: 12) {
+                HStack(spacing: DipleSpace.m) {
                     themeButton(title: "Light", theme: .light, bg: Color.white, fg: Color.black)
-                    themeButton(title: "Sepia", theme: .sepia, bg: Color(red: 0.98, green: 0.95, blue: 0.90), fg: Color(red: 0.2, green: 0.15, blue: 0.1))
-                    themeButton(title: "Dark", theme: .dark, bg: Color(red: 0.12, green: 0.12, blue: 0.14), fg: Color.white)
+                    themeButton(title: "Sepia", theme: .sepia, bg: DipleColor.Page.sepiaBackground, fg: DipleColor.Page.sepiaText)
+                    themeButton(title: "Dark", theme: .dark, bg: DipleColor.surfaceRaised, fg: Color.white)
                 }
             }
 
-            // Font size selector (5 steps)
-            VStack(alignment: .leading, spacing: 10) {
+            // Font size selector
+            VStack(alignment: .leading, spacing: DipleSpace.m) {
                 Text("FONT SIZE")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
 
                 HStack {
                     fontSizeButton(glyphSize: 14, isEnabled: settings.canDecreaseFontSize) {
@@ -82,12 +82,12 @@ public struct ReaderSettingsView: View {
             }
 
             // Font Family selector (Serif / San Francisco)
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DipleSpace.m) {
                 Text("TYPOGRAPHY")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
 
-                HStack(spacing: 12) {
+                HStack(spacing: DipleSpace.m) {
                     ForEach(ReaderFont.allCases) { readerFont in
                         fontFamilyButton(fontOption: readerFont)
                     }
@@ -95,12 +95,12 @@ public struct ReaderSettingsView: View {
             }
 
             // Reading Mode selector (Paginated vs Continuous Scroll)
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DipleSpace.m) {
                 Text("READING MODE")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
 
-                HStack(spacing: 12) {
+                HStack(spacing: DipleSpace.m) {
                     ForEach(ReadingMode.allCases) { mode in
                         let isSelected = settings.readingMode == mode
                         Button {
@@ -108,12 +108,12 @@ public struct ReaderSettingsView: View {
                             settings.readingMode = mode
                         } label: {
                             Text(mode.rawValue)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
+                                .dipleType(.callout, weight: .medium)
+                                .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(isSelected ? Color.dipleAccent : Color(red: 0.12, green: 0.12, blue: 0.14))
-                                .cornerRadius(10)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
+                                .cornerRadius(DipleRadius.m)
                         }
                     }
                 }
@@ -121,7 +121,7 @@ public struct ReaderSettingsView: View {
 
             Spacer(minLength: 24)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, DipleSpace.xxl)
         .animation(.easeInOut(duration: 0.2), value: settings)
     }
 
@@ -147,21 +147,21 @@ public struct ReaderSettingsView: View {
             HapticManager.shared.selection()
             settings.theme = theme
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: DipleSpace.s) {
                 Circle()
                     .fill(fg)
                     .frame(width: 10, height: 10)
                 Text(title)
-                    .font(.system(size: 14, weight: .medium))
+                    .dipleType(.callout, weight: .medium)
                     .foregroundColor(fg)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, DipleSpace.m)
             .background(bg)
-            .cornerRadius(10)
+            .cornerRadius(DipleRadius.m)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(settings.theme == theme ? Color.dipleAccent : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: DipleRadius.m)
+                    .stroke(settings.theme == theme ? DipleColor.accent : Color.clear, lineWidth: 2)
             )
         }
     }
@@ -174,11 +174,11 @@ public struct ReaderSettingsView: View {
         } label: {
             Text(fontOption.title)
                 .dipleType(fontOption == .serif ? .readingBody : .body, weight: .medium)
-                .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
+                .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(isSelected ? Color.dipleAccent : Color(red: 0.12, green: 0.12, blue: 0.14))
-                .cornerRadius(10)
+                .padding(.vertical, DipleSpace.m)
+                .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
+                .cornerRadius(DipleRadius.m)
         }
     }
 }

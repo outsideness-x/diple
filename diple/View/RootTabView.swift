@@ -32,8 +32,8 @@ public struct RootTabView: View {
                 }
                 .tag(Tab.notes)
         }
-        .tint(Color.dipleAccent)
-        .toolbarBackground(Color.black, for: .tabBar)
+        .tint(DipleColor.accent)
+        .toolbarBackground(DipleColor.canvas, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
         .onChange(of: selection) { _, _ in

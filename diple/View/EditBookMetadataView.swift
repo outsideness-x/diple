@@ -24,19 +24,19 @@ public struct EditBookMetadataView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: DipleSpace.xxl) {
                         // Cover Preview & Custom Cover Buttons
-                        VStack(spacing: 14) {
+                        VStack(spacing: DipleSpace.m) {
                             ZStack {
                                 if let uiImage = previewUIImage {
                                     Image(uiImage: uiImage)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
                                         .frame(width: 90, height: 135)
-                                        .cornerRadius(8)
+                                        .cornerRadius(DipleRadius.s)
                                         .clipped()
                                 } else {
                                     BookCoverView(coverPath: book.coverPath, title: title, author: author)
@@ -44,89 +44,87 @@ public struct EditBookMetadataView: View {
                                 }
                             }
 
-                            HStack(spacing: 12) {
+                            HStack(spacing: DipleSpace.m) {
                                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                                    HStack(spacing: 6) {
+                                    HStack(spacing: DipleSpace.s) {
                                         Image(systemName: "photo")
-                                            .font(.system(size: 13))
+                                            .dipleIcon(13)
                                         Text("Photos")
-                                            .font(.system(size: 13, weight: .medium))
+                                            .dipleType(.footnote)
                                     }
-                                    .foregroundColor(Color.dipleAccent)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(Color(red: 0.14, green: 0.14, blue: 0.16))
-                                    .cornerRadius(8)
+                                    .foregroundStyle(DipleColor.accent)
+                                    .padding(.horizontal, DipleSpace.m)
+                                    .padding(.vertical, DipleSpace.s)
+                                    .background(DipleColor.surfaceOverlay)
+                                    .cornerRadius(DipleRadius.s)
                                 }
 
                                 Button {
                                     HapticManager.shared.selection()
                                     isFileImporterPresented = true
                                 } label: {
-                                    HStack(spacing: 6) {
+                                    HStack(spacing: DipleSpace.s) {
                                         Image(systemName: "folder")
-                                            .font(.system(size: 13))
+                                            .dipleIcon(13)
                                         Text("Files")
-                                            .font(.system(size: 13, weight: .medium))
+                                            .dipleType(.footnote)
                                     }
-                                    .foregroundColor(Color(red: 0.85, green: 0.85, blue: 0.88))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(Color(red: 0.14, green: 0.14, blue: 0.16))
-                                    .cornerRadius(8)
+                                    .foregroundStyle(DipleColor.textSecondary)
+                                    .padding(.horizontal, DipleSpace.m)
+                                    .padding(.vertical, DipleSpace.s)
+                                    .background(DipleColor.surfaceOverlay)
+                                    .cornerRadius(DipleRadius.s)
                                 }
                             }
                         }
-                        .padding(.top, 12)
+                        .padding(.top, DipleSpace.m)
 
                         // METADATA SECTION
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
                             Text("BOOK METADATA")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                                .padding(.horizontal, 4)
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
 
-                            VStack(spacing: 12) {
+                            VStack(spacing: DipleSpace.m) {
                                 // Title field
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: DipleSpace.s) {
                                     Text("Title")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.75))
+                                        .dipleType(.footnote)
+                                        .foregroundStyle(DipleColor.textSecondary)
 
                                     TextField("Enter book title", text: $title)
-                                        .font(.system(size: 15, weight: .regular))
+                                        .dipleType(.body)
                                         .foregroundColor(.white)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 12)
-                                        .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                        .cornerRadius(10)
+                                        .diplePadding(.field)
+                                        .background(DipleColor.surfaceRaised)
+                                        .cornerRadius(DipleRadius.m)
                                 }
 
                                 // Author field
-                                VStack(alignment: .leading, spacing: 6) {
+                                VStack(alignment: .leading, spacing: DipleSpace.s) {
                                     Text("Author")
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.75))
+                                        .dipleType(.footnote)
+                                        .foregroundStyle(DipleColor.textSecondary)
 
                                     TextField("Enter author name", text: $author)
-                                        .font(.system(size: 15, weight: .regular))
+                                        .dipleType(.body)
                                         .foregroundColor(.white)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 12)
-                                        .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-                                        .cornerRadius(10)
+                                        .diplePadding(.field)
+                                        .background(DipleColor.surfaceRaised)
+                                        .cornerRadius(DipleRadius.m)
                                 }
                             }
                         }
 
                         Spacer()
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, DipleSpace.xxl)
                 }
             }
             .navigationTitle("Edit Metadata")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -134,8 +132,8 @@ public struct EditBookMetadataView: View {
                         HapticManager.shared.selection()
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.75))
+                    .dipleType(.body)
+                    .foregroundStyle(DipleColor.textSecondary)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -147,8 +145,8 @@ public struct EditBookMetadataView: View {
                         onSave(trimmedTitle, trimmedAuthor.isEmpty ? nil : trimmedAuthor, selectedImageData)
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : Color.dipleAccent)
+                    .dipleType(.body, weight: .semibold)
+                    .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : DipleColor.accent)
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }

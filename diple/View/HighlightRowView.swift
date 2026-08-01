@@ -21,15 +21,15 @@ public struct HighlightRowView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            HStack(spacing: DipleSpace.s) {
                 Circle()
                     .fill(displayColor)
                     .frame(width: 10, height: 10)
 
                 Text(formattedDate)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.micro)
+                    .foregroundStyle(DipleColor.textTertiary)
 
                 Spacer()
 
@@ -37,8 +37,8 @@ public struct HighlightRowView: View {
                     onDelete()
                 } label: {
                     Image(systemName: "trash")
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                        .dipleIcon(12)
+                        .foregroundStyle(DipleColor.textTertiary)
                 }
             }
 
@@ -46,19 +46,19 @@ public struct HighlightRowView: View {
                 onSelect()
             } label: {
                 Text("“\(highlight.text)”")
-                    .font(.system(size: 14, weight: .regular, design: .serif))
+                    .dipleType(.readingBody)
                     .italic()
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(5)
             }
             .buttonStyle(.plain)
         }
-        .padding(14)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.1))
-        .cornerRadius(10)
+        .padding(DipleSpace.m)
+        .background(DipleColor.surface)
+        .cornerRadius(DipleRadius.m)
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: DipleRadius.m)
                 .stroke(displayColor.opacity(0.3), lineWidth: 1)
         )
     }

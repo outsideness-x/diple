@@ -27,33 +27,32 @@ public struct AddBookmarkSheetView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
-                VStack(spacing: 24) {
+                VStack(spacing: DipleSpace.xxl) {
                     // Bookmark Name field
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DipleSpace.s) {
                         Text("BOOKMARK NAME")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                            .padding(.horizontal, 4)
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
 
                         TextField("Enter bookmark title", text: $bookmarkName)
-                            .font(.system(size: 15, weight: .regular))
+                            .dipleType(.body)
                             .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-                            .cornerRadius(10)
+                            .diplePadding(.field)
+                            .background(DipleColor.surfaceRaised)
+                            .cornerRadius(DipleRadius.m)
                     }
 
                     // Color Selector
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: DipleSpace.m) {
                         Text("COLOR TAG")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-                            .padding(.horizontal, 4)
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
 
-                        HStack(spacing: 16) {
+                        HStack(spacing: DipleSpace.l) {
                             ForEach(Self.availableColors, id: \.hex) { colorOption in
                                 let isSelected = selectedColorHex == colorOption.hex
                                 Circle()
@@ -72,18 +71,18 @@ public struct AddBookmarkSheetView: View {
                                     .accessibilityLabel(colorOption.name)
                             }
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, DipleSpace.s)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedColorHex)
                     }
 
                     Spacer()
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
+                .padding(.horizontal, DipleSpace.xxl)
+                .padding(.top, DipleSpace.xxl)
             }
             .navigationTitle("Add Bookmark")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -91,8 +90,8 @@ public struct AddBookmarkSheetView: View {
                         HapticManager.shared.selection()
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .regular))
-                    .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.75))
+                    .dipleType(.body)
+                    .foregroundStyle(DipleColor.textSecondary)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -105,8 +104,8 @@ public struct AddBookmarkSheetView: View {
                         onAdd(finalName, selectedColorHex)
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color.dipleAccent)
+                    .dipleType(.body, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
                 }
             }
         }

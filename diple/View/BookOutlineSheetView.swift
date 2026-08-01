@@ -37,15 +37,15 @@ public struct BookOutlineSheetView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Header & Tab Segmented Control
-            VStack(spacing: 14) {
+            VStack(spacing: DipleSpace.m) {
                 HStack {
                     Spacer()
                     Button("Done") {
                         HapticManager.shared.selection()
                         dismiss()
                     }
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.body, weight: .medium)
+                    .foregroundStyle(DipleColor.textPrimary)
                 }
 
                 Picker("Section", selection: $selectedTab) {
@@ -54,28 +54,28 @@ public struct BookOutlineSheetView: View {
                     Text("Bookmarks (\(bookmarks.count))").tag(2)
                 }
                 .pickerStyle(.segmented)
-                .tint(Color.dipleAccent)
+                .tint(DipleColor.accent)
                 .onChange(of: selectedTab) { _, _ in
                     HapticManager.shared.selection()
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.top, DipleSpace.l)
+            .padding(.bottom, DipleSpace.m)
 
             Divider()
-                .background(Color(red: 0.16, green: 0.16, blue: 0.18))
+                .background(DipleColor.surfaceOverlay)
 
             if selectedTab == 0 {
                 if tableOfContents.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: DipleSpace.m) {
                         Spacer()
                         Image(systemName: "list.bullet.indent")
-                            .font(.system(size: 32, weight: .thin))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                            .dipleIcon(32, weight: .thin)
+                            .foregroundStyle(DipleColor.textTertiary)
                         Text("No Table of Contents")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                            .dipleType(.body, weight: .medium)
+                            .foregroundStyle(DipleColor.textTertiary)
                         Spacer()
                     }
                 } else {
@@ -88,29 +88,29 @@ public struct BookOutlineSheetView: View {
                                 }
                             }
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, DipleSpace.s)
                     }
                 }
             } else if selectedTab == 1 {
                 if highlights.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: DipleSpace.m) {
                         Spacer()
                         Image(systemName: "quote.bubble")
-                            .font(.system(size: 32, weight: .thin))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                            .dipleIcon(32, weight: .thin)
+                            .foregroundStyle(DipleColor.textTertiary)
                         Text("No Quotes Saved")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            .dipleType(.body, weight: .semibold)
+                            .foregroundStyle(DipleColor.textPrimary)
                         Text("Select text in the book to save quotes with your favorite colors.")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                            .dipleType(.footnote, weight: .regular)
+                            .foregroundStyle(DipleColor.textTertiary)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
+                            .padding(.horizontal, DipleSpace.xxxl)
                         Spacer()
                     }
                 } else {
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        LazyVStack(alignment: .leading, spacing: DipleSpace.m) {
                             ForEach(highlights) { highlight in
                                 HighlightRowView(
                                     highlight: highlight,
@@ -124,31 +124,31 @@ public struct BookOutlineSheetView: View {
                                 )
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 16)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.vertical, DipleSpace.l)
                     }
                 }
             } else {
                 // Bookmarks Tab
                 if bookmarks.isEmpty {
-                    VStack(spacing: 12) {
+                    VStack(spacing: DipleSpace.m) {
                         Spacer()
                         Image(systemName: "bookmark")
-                            .font(.system(size: 32, weight: .thin))
-                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+                            .dipleIcon(32, weight: .thin)
+                            .foregroundStyle(DipleColor.textTertiary)
                         Text("No Bookmarks Saved")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            .dipleType(.body, weight: .semibold)
+                            .foregroundStyle(DipleColor.textPrimary)
                         Text("Tap the bookmark icon in the reading controls overlay to save bookmarks with custom titles and color tags.")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                            .dipleType(.footnote, weight: .regular)
+                            .foregroundStyle(DipleColor.textTertiary)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
+                            .padding(.horizontal, DipleSpace.xxxl)
                         Spacer()
                     }
                 } else {
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        LazyVStack(alignment: .leading, spacing: DipleSpace.m) {
                             ForEach(bookmarks) { bookmark in
                                 BookmarkRowView(
                                     bookmark: bookmark,
@@ -162,13 +162,13 @@ public struct BookOutlineSheetView: View {
                                 )
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 16)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.vertical, DipleSpace.l)
                     }
                 }
             }
         }
-        .background(Color.black.ignoresSafeArea())
+        .background(DipleColor.canvas.ignoresSafeArea())
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .animation(.easeInOut(duration: 0.18), value: selectedTab)
@@ -204,28 +204,28 @@ public struct BookmarkRowView: View {
         // The delete button must be a sibling of the tappable row, not nested inside
         // another Button's label — a Button inside a Button label never receives taps,
         // so tapping the trash icon used to navigate to the bookmark instead.
-        HStack(spacing: 14) {
+        HStack(spacing: DipleSpace.m) {
             Button {
                 HapticManager.shared.selection()
                 onSelect()
             } label: {
-                HStack(spacing: 14) {
+                HStack(spacing: DipleSpace.m) {
                     // Color Tag Circle
                     Circle()
                         .fill(Color(hex: bookmark.colorHex))
                         .frame(width: 12, height: 12)
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DipleSpace.xs) {
                         Text(bookmark.name)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            .dipleType(.body, weight: .semibold)
+                            .foregroundStyle(DipleColor.textPrimary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
 
                         if let subtitle {
                             Text(subtitle)
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                .dipleType(.caption)
+                                .foregroundStyle(DipleColor.textTertiary)
                                 .lineLimit(1)
                         }
                     }
@@ -241,16 +241,16 @@ public struct BookmarkRowView: View {
                 onDelete()
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 14))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
-                    .padding(8)
+                    .dipleIcon(14)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .padding(DipleSpace.s)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
-        .padding(14)
-        .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-        .cornerRadius(10)
+        .padding(DipleSpace.m)
+        .background(DipleColor.surfaceRaised)
+        .cornerRadius(DipleRadius.m)
     }
 }
 

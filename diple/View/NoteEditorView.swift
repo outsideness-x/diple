@@ -137,7 +137,7 @@ public struct NoteEditorView: View {
                 } label: {
                     Image(systemName: "plus")
                         .dipleIcon(14, weight: .semibold)
-                        .foregroundColor(.black)
+                        .foregroundStyle(DipleColor.textOnAccent)
                         .padding(DipleSpace.m)
                         .background(DipleColor.accent)
                         .clipShape(Circle())
