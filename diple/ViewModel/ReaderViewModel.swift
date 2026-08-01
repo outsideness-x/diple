@@ -216,6 +216,23 @@ public final class ReaderViewModel: ObservableObject {
         self.targetLink = nil
     }
 
+    /// A bookmark can only be anchored once the navigator has reported a position.
+    public var canAddBookmark: Bool {
+        (currentLocator ?? initialLocator) != nil
+    }
+
+    /// True when a bookmark already exists within ~0.5% of the current position, so the
+    /// reader can show a filled bookmark icon instead of an outline.
+    public var isCurrentPositionBookmarked: Bool {
+        guard let current = (currentLocator ?? initialLocator) else { return false }
+        return bookmarks.contains { bookmark in
+            guard let locator = bookmark.parsedLocator, locator.href == current.href else { return false }
+            let saved = locator.locations.progression ?? 0
+            let now = current.locations.progression ?? 0
+            return abs(saved - now) < 0.005
+        }
+    }
+
     public func addBookmark(name: String, colorHex: String) {
         guard let locator = currentLocator ?? initialLocator else {
             print("Cannot add bookmark: no current locator")

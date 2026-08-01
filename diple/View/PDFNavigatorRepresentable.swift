@@ -56,6 +56,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
                 delegate: context.coordinator
             )
             context.coordinator.navigator = navigator
+            context.coordinator.lastPreferences = preferences
             return navigator
         } catch {
             fatalError("Failed to initialize PDFNavigatorViewController: \(error)")
@@ -70,23 +71,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             uiViewController.submitPreferences(preferences)
         }
 
-        if let link = targetLink {
-            Task {
-                _ = await uiViewController.go(to: link, options: NavigatorGoOptions(animated: true))
-                await MainActor.run {
-                    onTargetHandled()
-                }
-            }
-        }
-
-        if let locator = targetLocator {
-            Task {
-                _ = await uiViewController.go(to: locator, options: NavigatorGoOptions(animated: true))
-                await MainActor.run {
-                    onTargetHandled()
-                }
-            }
-        }
+        context.coordinator.navigate(to: targetLink, or: targetLocator, in: uiViewController)
     }
 
     public class Coordinator: NSObject, PDFNavigatorDelegate {
@@ -94,9 +79,45 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         weak var navigator: PDFNavigatorViewController?
         var lastHref: AnyURL? = nil
         var lastPreferences: PDFPreferences? = nil
+        private var inFlightTarget: NavigationTarget? = nil
+
+        private enum NavigationTarget: Equatable {
+            case link(ReadiumShared.Link)
+            case locator(Locator)
+        }
 
         init(_ parent: PDFNavigatorRepresentable) {
             self.parent = parent
+        }
+
+        /// See the note in `EPUBNavigatorRepresentable.Coordinator.navigate(to:or:in:)`.
+        func navigate(
+            to link: ReadiumShared.Link?,
+            or locator: Locator?,
+            in navigator: PDFNavigatorViewController
+        ) {
+            let target: NavigationTarget?
+            if let link {
+                target = .link(link)
+            } else if let locator {
+                target = .locator(locator)
+            } else {
+                target = nil
+            }
+
+            guard let target, target != inFlightTarget else { return }
+            inFlightTarget = target
+
+            Task { @MainActor [weak self] in
+                switch target {
+                case let .link(link):
+                    _ = await navigator.go(to: link, options: NavigatorGoOptions(animated: true))
+                case let .locator(locator):
+                    _ = await navigator.go(to: locator, options: NavigatorGoOptions(animated: true))
+                }
+                self?.inFlightTarget = nil
+                self?.parent.onTargetHandled()
+            }
         }
 
         public func navigator(_ navigator: Navigator, presentError error: NavigatorError) {

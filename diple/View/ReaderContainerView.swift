@@ -157,10 +157,16 @@ public struct ReaderContainerView: View {
                                 HapticManager.shared.selection()
                                 viewModel.isAddBookmarkPresented = true
                             } label: {
-                                Image(systemName: "bookmark")
+                                Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
                                     .font(.system(size: 18, weight: .regular))
-                                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                                    .foregroundColor(
+                                        viewModel.isCurrentPositionBookmarked
+                                            ? Color.dipleAccent
+                                            : Color(red: 0.92, green: 0.92, blue: 0.92)
+                                    )
                             }
+                            .disabled(!viewModel.canAddBookmark)
+                            .opacity(viewModel.canAddBookmark ? 1 : 0.35)
 
                             Button {
                                 HapticManager.shared.selection()

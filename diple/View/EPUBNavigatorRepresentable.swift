@@ -59,6 +59,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             )
             navigator.delegate = context.coordinator
             context.coordinator.navigator = navigator
+            context.coordinator.lastPreferences = preferences
+            context.coordinator.lastHighlights = highlights
             context.coordinator.setupScrollObserver(for: navigator)
             applyDecorations(highlights: highlights, to: navigator)
             return navigator
@@ -76,26 +78,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         }
         
         context.coordinator.setupScrollObserver(for: uiViewController)
+        context.coordinator.navigate(to: targetLink, or: targetLocator, in: uiViewController)
 
-        if let link = targetLink {
-            Task {
-                _ = await uiViewController.go(to: link, options: NavigatorGoOptions(animated: true))
-                await MainActor.run {
-                    onTargetHandled()
-                }
-            }
+        if context.coordinator.lastHighlights != highlights {
+            context.coordinator.lastHighlights = highlights
+            applyDecorations(highlights: highlights, to: uiViewController)
         }
-
-        if let locator = targetLocator {
-            Task {
-                _ = await uiViewController.go(to: locator, options: NavigatorGoOptions(animated: true))
-                await MainActor.run {
-                    onTargetHandled()
-                }
-            }
-        }
-
-        applyDecorations(highlights: highlights, to: uiViewController)
     }
 
     private func applyDecorations(highlights: [Highlight], to navigator: EPUBNavigatorViewController) {
@@ -121,11 +109,50 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         weak var navigator: EPUBNavigatorViewController?
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
+        var lastHighlights: [Highlight]? = nil
         private var scrollObserver: NSKeyValueObservation?
         private var hasTriggeredChapterTransition = false
+        private var inFlightTarget: NavigationTarget? = nil
+
+        private enum NavigationTarget: Equatable {
+            case link(ReadiumShared.Link)
+            case locator(Locator)
+        }
 
         init(_ parent: EPUBNavigatorRepresentable) {
             self.parent = parent
+        }
+
+        /// `updateUIViewController` runs on every SwiftUI update — including the ones caused
+        /// by reading progress ticking forward — so an unguarded `go(to:)` here would restart
+        /// the same jump dozens of times and fight the user's scrolling.
+        func navigate(
+            to link: ReadiumShared.Link?,
+            or locator: Locator?,
+            in navigator: EPUBNavigatorViewController
+        ) {
+            let target: NavigationTarget?
+            if let link {
+                target = .link(link)
+            } else if let locator {
+                target = .locator(locator)
+            } else {
+                target = nil
+            }
+
+            guard let target, target != inFlightTarget else { return }
+            inFlightTarget = target
+
+            Task { @MainActor [weak self] in
+                switch target {
+                case let .link(link):
+                    _ = await navigator.go(to: link, options: NavigatorGoOptions(animated: true))
+                case let .locator(locator):
+                    _ = await navigator.go(to: locator, options: NavigatorGoOptions(animated: true))
+                }
+                self?.inFlightTarget = nil
+                self?.parent.onTargetHandled()
+            }
         }
 
         func setupScrollObserver(for navigator: EPUBNavigatorViewController) {

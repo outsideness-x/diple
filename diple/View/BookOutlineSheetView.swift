@@ -180,48 +180,74 @@ public struct BookmarkRowView: View {
         self.onDelete = onDelete
     }
 
+    private var subtitle: String? {
+        guard let locator = bookmark.parsedLocator else { return nil }
+        let chapter = locator.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let position = locator.locations.totalProgression
+            .map { "\(Int((min(max($0, 0), 1)) * 100))%" }
+
+        return [chapter?.isEmpty == false ? chapter : nil, position]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+            .nilIfEmpty
+    }
+
     public var body: some View {
-        Button {
-            HapticManager.shared.selection()
-            onSelect()
-        } label: {
-            HStack(spacing: 14) {
-                // Color Tag Circle
-                Circle()
-                    .fill(Color(hex: bookmark.colorHex))
-                    .frame(width: 12, height: 12)
+        // The delete button must be a sibling of the tappable row, not nested inside
+        // another Button's label — a Button inside a Button label never receives taps,
+        // so tapping the trash icon used to navigate to the bookmark instead.
+        HStack(spacing: 14) {
+            Button {
+                HapticManager.shared.selection()
+                onSelect()
+            } label: {
+                HStack(spacing: 14) {
+                    // Color Tag Circle
+                    Circle()
+                        .fill(Color(hex: bookmark.colorHex))
+                        .frame(width: 12, height: 12)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(bookmark.name)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(bookmark.name)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
 
-                    if let title = bookmark.parsedLocator?.title, !title.isEmpty {
-                        Text(title)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
-                            .lineLimit(1)
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                                .lineLimit(1)
+                        }
                     }
-                }
 
-                Spacer()
-
-                Button {
-                    HapticManager.shared.impact(.light)
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
-                        .padding(8)
+                    Spacer(minLength: 0)
                 }
+                .contentShape(Rectangle())
             }
-            .padding(14)
-            .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-            .cornerRadius(10)
+            .buttonStyle(.plain)
+
+            Button {
+                HapticManager.shared.impact(.light)
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .padding(8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .background(Color(red: 0.12, green: 0.12, blue: 0.14))
+        .cornerRadius(10)
+    }
+}
+
+extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
