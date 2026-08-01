@@ -1,4 +1,63 @@
 import SwiftUI
+import ReadiumNavigator
+
+/// The reader chrome's palette, derived from the page the reader is looking at.
+///
+/// The bars used to be a fixed dark slab whatever the book looked like, because a bare
+/// material takes its tone from the page and light-grey controls on it stop being legible
+/// over a light or sepia page. Tinting the material black solved the legibility and created
+/// a worse problem: two hard black bands clamped onto a warm paper page, which is the one
+/// thing in the app that looks stuck on rather than built in.
+///
+/// The fix is to stop fighting the page. Chrome takes the page's own tone — bright over
+/// paper, dark over night — and the controls invert with it, so contrast is correct in every
+/// theme without a slab anywhere.
+public struct ReaderChrome: Equatable {
+    /// Drives the material's own light/dark rendering.
+    public let colorScheme: ColorScheme
+    /// Laid under the material to pull it towards the page and hold contrast steady.
+    public let tint: SwiftUI.Color
+    /// Icons and the title.
+    public let control: SwiftUI.Color
+    /// Chapter name, and anything subordinate to the title.
+    public let secondary: SwiftUI.Color
+    /// The single hairline where chrome meets page.
+    public let separator: SwiftUI.Color
+    /// Unfilled part of the progress track.
+    public let track: SwiftUI.Color
+
+    public static func forTheme(_ theme: ReadiumNavigator.Theme) -> ReaderChrome {
+        switch theme {
+        case .dark:
+            return ReaderChrome(
+                colorScheme: .dark,
+                tint: DipleColor.canvas.opacity(0.55),
+                control: DipleColor.textPrimary,
+                secondary: DipleColor.textSecondary,
+                separator: SwiftUI.Color.white.opacity(0.10),
+                track: SwiftUI.Color.white.opacity(0.18)
+            )
+        case .light:
+            return ReaderChrome(
+                colorScheme: .light,
+                tint: SwiftUI.Color.white.opacity(0.55),
+                control: SwiftUI.Color.black.opacity(0.85),
+                secondary: SwiftUI.Color.black.opacity(0.5),
+                separator: SwiftUI.Color.black.opacity(0.10),
+                track: SwiftUI.Color.black.opacity(0.14)
+            )
+        case .sepia:
+            return ReaderChrome(
+                colorScheme: .light,
+                tint: DipleColor.Page.sepiaBackground.opacity(0.6),
+                control: DipleColor.Page.sepiaText.opacity(0.9),
+                secondary: DipleColor.Page.sepiaText.opacity(0.6),
+                separator: DipleColor.Page.sepiaText.opacity(0.15),
+                track: DipleColor.Page.sepiaText.opacity(0.18)
+            )
+        }
+    }
+}
 
 /// Draggable reading-progress bar.
 ///
@@ -9,6 +68,7 @@ import SwiftUI
 public struct ReadingProgressSlider: View {
     public let progress: Double
     public let isEnabled: Bool
+    public let chrome: ReaderChrome
     public let onSeek: (Double) -> Void
 
     @State private var isScrubbing = false
@@ -19,9 +79,15 @@ public struct ReadingProgressSlider: View {
     private static let activeTrackHeight: CGFloat = 6
     private static let handleSize: CGFloat = 14
 
-    public init(progress: Double, isEnabled: Bool, onSeek: @escaping (Double) -> Void) {
+    public init(
+        progress: Double,
+        isEnabled: Bool,
+        chrome: ReaderChrome,
+        onSeek: @escaping (Double) -> Void
+    ) {
         self.progress = progress
         self.isEnabled = isEnabled
+        self.chrome = chrome
         self.onSeek = onSeek
     }
 
@@ -36,7 +102,7 @@ public struct ReadingProgressSlider: View {
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(0.18))
+                    .fill(chrome.track)
                     .frame(height: height)
 
                 Capsule()
@@ -87,29 +153,41 @@ public struct ReadingProgressSlider: View {
 
 /// Background for the reader's top and bottom bars.
 ///
-/// A bare material takes its tone from the page behind it, so over the light and sepia
-/// reader themes the bars turn pale and the light-grey controls on them stop being legible.
-/// A dark tint on top of the material keeps the chrome readable whatever the book looks like,
-/// while retaining a hint of the blur.
+/// Glass rather than paint: the page stays faintly visible through the blur, so the chrome
+/// reads as a layer above the book instead of a lid on top of it. The tint under the material
+/// is the page's own tone (see `ReaderChrome`), which is what keeps contrast honest without
+/// resorting to a flat slab.
+///
+/// A single hairline marks where chrome ends and page begins. Depth here comes from that edge
+/// and from the blur, never from a drop shadow.
 public struct ReaderBarBackground: ViewModifier {
-    public init() {}
+    let chrome: ReaderChrome
+    /// Which screen edge the bar is pinned to. The hairline goes on the opposite side — the
+    /// one that actually faces the text.
+    let edge: VerticalEdge
 
     public func body(content: Content) -> some View {
         content
             .background {
                 ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                    Rectangle().fill(Color.black.opacity(0.74))
+                    Rectangle().fill(.regularMaterial)
+                    Rectangle().fill(chrome.tint)
                 }
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, chrome.colorScheme)
                 .ignoresSafeArea(edges: .horizontal)
+            }
+            .overlay(alignment: edge == .top ? .bottom : .top) {
+                Rectangle()
+                    .fill(chrome.separator)
+                    .frame(height: DipleStroke.hairline)
+                    .ignoresSafeArea(edges: .horizontal)
             }
     }
 }
 
 public extension View {
-    func readerBarBackground() -> some View {
-        modifier(ReaderBarBackground())
+    func readerBarBackground(_ chrome: ReaderChrome, edge: VerticalEdge) -> some View {
+        modifier(ReaderBarBackground(chrome: chrome, edge: edge))
     }
 }
 

@@ -12,9 +12,14 @@ public struct ReaderContainerView: View {
         self.onReadingUpdated = onReadingUpdated
     }
 
+    /// The chrome follows the page: changing the reader theme re-tints the bars and flips the
+    /// controls in the same gesture.
+    private var chrome: ReaderChrome {
+        ReaderChrome.forTheme(viewModel.settings.theme)
+    }
+
     public var body: some View {
         ZStack {
-            // True Black background for reader container
             DipleColor.canvas.ignoresSafeArea()
 
             if viewModel.isLoading {
@@ -148,13 +153,13 @@ public struct ReaderContainerView: View {
                             } label: {
                                 Image(systemName: "chevron.left")
                                     .dipleIcon(16)
-                                    .foregroundStyle(DipleColor.textPrimary)
+                                    .foregroundStyle(chrome.control)
                             }
                             .buttonStyle(.readerControl)
 
                             Text(viewModel.book.title)
                                 .dipleType(.body, weight: .semibold)
-                                .foregroundStyle(DipleColor.textPrimary)
+                                .foregroundStyle(chrome.control)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
 
@@ -166,10 +171,10 @@ public struct ReaderContainerView: View {
                             } label: {
                                 Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
                                     .dipleIcon(16, weight: .regular)
-                                    .foregroundColor(
+                                    .foregroundStyle(
                                         viewModel.isCurrentPositionBookmarked
                                             ? DipleColor.accent
-                                            : DipleColor.textPrimary
+                                            : chrome.control
                                     )
                             }
                             .buttonStyle(.readerControl)
@@ -183,13 +188,13 @@ public struct ReaderContainerView: View {
                             } label: {
                                 Image(systemName: "list.bullet")
                                     .dipleIcon(16, weight: .regular)
-                                    .foregroundStyle(DipleColor.textPrimary)
+                                    .foregroundStyle(chrome.control)
                             }
                             .buttonStyle(.readerControl)
                         }
                         .padding(.horizontal, DipleSpace.xl)
                         .padding(.vertical, DipleSpace.m)
-                        .readerBarBackground()
+                        .readerBarBackground(chrome, edge: .top)
                         .transition(.move(edge: .top).combined(with: .opacity))
 
                         Spacer()
@@ -199,6 +204,7 @@ public struct ReaderContainerView: View {
                             ReadingProgressSlider(
                                 progress: viewModel.currentProgress,
                                 isEnabled: viewModel.canSeek,
+                                chrome: chrome,
                                 onSeek: { viewModel.seek(toProgress: $0) }
                             )
 
@@ -215,7 +221,7 @@ public struct ReaderContainerView: View {
                                    !chapter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     Text(chapter)
                                         .dipleType(.footnote, weight: .regular)
-                                        .foregroundStyle(DipleColor.textSecondary)
+                                        .foregroundStyle(chrome.secondary)
                                         .lineLimit(1)
                                         .truncationMode(.tail)
                                 }
@@ -228,7 +234,7 @@ public struct ReaderContainerView: View {
                                 } label: {
                                     Image(systemName: "gearshape")
                                         .dipleIcon(16, weight: .regular)
-                                        .foregroundStyle(DipleColor.textPrimary)
+                                        .foregroundStyle(chrome.control)
                                 }
                                 .buttonStyle(.readerControl)
                             }
@@ -236,7 +242,7 @@ public struct ReaderContainerView: View {
                         .padding(.horizontal, DipleSpace.xl)
                         .padding(.top, DipleSpace.m)
                         .padding(.bottom, DipleSpace.m)
-                        .readerBarBackground()
+                        .readerBarBackground(chrome, edge: .bottom)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
