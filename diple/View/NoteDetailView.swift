@@ -128,7 +128,7 @@ public struct NoteDetailView: View {
         } message: {
             Text("This note and its tags will be removed.")
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: isEditing)
+        .animation(DipleMotion.standard, value: isEditing)
     }
 
     // MARK: - Toolbar

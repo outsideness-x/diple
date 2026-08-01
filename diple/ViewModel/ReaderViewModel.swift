@@ -352,7 +352,7 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     public func toggleOverlay() {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(DipleMotion.standard) {
             isOverlayVisible.toggle()
         }
     }

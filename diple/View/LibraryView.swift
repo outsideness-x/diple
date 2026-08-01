@@ -34,9 +34,6 @@ public struct LibraryView: View {
                                     })
                                 }
                                 .buttonStyle(.bookCard)
-                                .simultaneousGesture(TapGesture().onEnded {
-                                    HapticManager.shared.impact(.light)
-                                })
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)

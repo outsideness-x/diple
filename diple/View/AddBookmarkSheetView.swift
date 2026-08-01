@@ -72,7 +72,7 @@ public struct AddBookmarkSheetView: View {
                             }
                         }
                         .padding(.vertical, DipleSpace.s)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selectedColorHex)
+                        .animation(DipleMotion.snappy, value: selectedColorHex)
                     }
 
                     Spacer()

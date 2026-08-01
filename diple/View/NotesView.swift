@@ -42,9 +42,7 @@ public struct NotesView: View {
                             .dipleIcon(16, weight: .medium)
                             .foregroundStyle(DipleColor.accent)
                     }
-                    .simultaneousGesture(TapGesture().onEnded {
-                        HapticManager.shared.selection()
-                    })
+                    .buttonStyle(.readerControl)
                 }
             }
             .navigationDestination(for: NoteRoute.self) { route in
@@ -139,9 +137,6 @@ public struct NotesView: View {
                     }
                     .buttonStyle(.bookCard)
                     .matchedTransitionSource(id: item.id, in: cardNamespace)
-                    .simultaneousGesture(TapGesture().onEnded {
-                        HapticManager.shared.impact(.light)
-                    })
                     .contextMenu {
                         Button(role: .destructive) {
                             viewModel.confirmDelete(item)

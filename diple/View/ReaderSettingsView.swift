@@ -123,7 +123,7 @@ public struct ReaderSettingsView: View {
             Spacer(minLength: 24)
         }
         .padding(.horizontal, DipleSpace.xxl)
-        .animation(.easeInOut(duration: 0.2), value: settings)
+        .animation(DipleMotion.standard, value: settings)
     }
 
     private func fontSizeButton(glyphSize: CGFloat, isEnabled: Bool, action: @escaping () -> Void) -> some View {

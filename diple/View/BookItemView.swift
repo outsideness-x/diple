@@ -57,7 +57,7 @@ public struct BookItemView: View {
                 }
             }
             .padding(.top, DipleSpace.hair)
-            .animation(.easeOut(duration: 0.25), value: clampedProgress)
+            .animation(DipleMotion.standard, value: clampedProgress)
         }
         .contextMenu {
             Button {

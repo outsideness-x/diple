@@ -119,7 +119,7 @@ public struct ReadingProgressSlider: View {
             }
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
-            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: isScrubbing)
+            .animation(DipleMotion.snappy, value: isScrubbing)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
@@ -214,6 +214,11 @@ public struct ReaderToastView: View {
 
 /// Gives the reader's icon buttons a tactile press response — SwiftUI's plain buttons
 /// have none, which makes the overlay feel dead on a dark background.
+///
+/// The haptic fires on `isPressed`, which is touch-down. Hanging it off the tap instead
+/// delays the only immediate confirmation the reader gets until the finger lifts, and a
+/// response that waits for the end of a gesture is the difference between an interface that
+/// answers and one that catches up.
 public struct ReaderControlButtonStyle: ButtonStyle {
     public init() {}
 
@@ -221,7 +226,10 @@ public struct ReaderControlButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.86 : 1)
             .opacity(configuration.isPressed ? 0.6 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+            .animation(DipleMotion.snappy, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed { HapticManager.shared.impact(.light) }
+            }
     }
 }
 
@@ -231,6 +239,9 @@ public extension ButtonStyle where Self == ReaderControlButtonStyle {
 
 /// Press feedback for the library grid. `.plain` leaves the cards completely inert, which
 /// makes a tap feel like it was lost until the reader finishes opening.
+///
+/// Scale, fade and haptic all key off `isPressed` — touch-down — so the card answers under
+/// the finger rather than when it lifts.
 public struct BookCardButtonStyle: ButtonStyle {
     public init() {}
 
@@ -238,7 +249,10 @@ public struct BookCardButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.75 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+            .animation(DipleMotion.snappy, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed { HapticManager.shared.impact(.light) }
+            }
     }
 }
 

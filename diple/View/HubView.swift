@@ -20,10 +20,7 @@ public struct HubView: View {
                                 NavigationLink(value: summary.book) {
                                     HubBookRowView(summary: summary)
                                 }
-                                .buttonStyle(.plain)
-                                .simultaneousGesture(TapGesture().onEnded {
-                                    HapticManager.shared.impact(.light)
-                                })
+                                .buttonStyle(.bookCard)
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)

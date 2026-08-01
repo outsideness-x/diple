@@ -172,9 +172,9 @@ public struct BookOutlineSheetView: View {
         .presentationBackground(.regularMaterial)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .animation(.easeInOut(duration: 0.18), value: selectedTab)
-        .animation(.easeInOut(duration: 0.2), value: bookmarks)
-        .animation(.easeInOut(duration: 0.2), value: highlights)
+        .animation(DipleMotion.standard, value: selectedTab)
+        .animation(DipleMotion.standard, value: bookmarks)
+        .animation(DipleMotion.standard, value: highlights)
     }
 }
 

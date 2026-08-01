@@ -139,7 +139,7 @@ public struct ReaderContainerView: View {
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.backLocationStack.count)
+                    .animation(DipleMotion.gentle, value: viewModel.backLocationStack.count)
                 }
 
                 // Overlay Controls (Top & Bottom bars)
@@ -180,7 +180,7 @@ public struct ReaderContainerView: View {
                             .buttonStyle(.readerControl)
                             .disabled(!viewModel.canAddBookmark)
                             .opacity(viewModel.canAddBookmark ? 1 : 0.35)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: viewModel.isCurrentPositionBookmarked)
+                            .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
 
                             Button {
                                 HapticManager.shared.selection()
@@ -215,7 +215,7 @@ public struct ReaderContainerView: View {
                                     .foregroundStyle(DipleColor.accent)
                                     .monospacedDigit()
                                     .contentTransition(.numericText())
-                                    .animation(.easeOut(duration: 0.2), value: percentage)
+                                    .animation(DipleMotion.standard, value: percentage)
 
                                 if let chapter = viewModel.currentLocator?.title,
                                    !chapter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -271,8 +271,8 @@ public struct ReaderContainerView: View {
                 }
             }
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.8), value: viewModel.toast)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.currentSelection?.locator)
+        .animation(DipleMotion.gentle, value: viewModel.toast)
+        .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .task {
             await viewModel.openBook()
         }
