@@ -13,6 +13,9 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var currentProgress: Double = 0.0
     @Published public var isOverlayVisible: Bool = false
     @Published public var isSettingsPresented: Bool = false
+    @Published public var isTOCPresented: Bool = false
+    @Published public var targetLink: ReadiumShared.Link? = nil
+    @Published public var tableOfContents: [ReadiumShared.Link] = []
     @Published public var settings: ReaderSettings = ReaderSettings()
     @Published public var isLoading: Bool = true
     @Published public var errorMessage: String? = nil
@@ -50,7 +53,10 @@ public final class ReaderViewModel: ObservableObject {
                 savedLocator = try? Locator(jsonString: locatorStr)
             }
 
+            let toc = (try? await pub.tableOfContents().get()) ?? pub.manifest.tableOfContents
+
             self.publication = pub
+            self.tableOfContents = toc
             self.initialLocator = savedLocator
             self.isLoading = false
         } catch {
@@ -73,6 +79,10 @@ public final class ReaderViewModel: ObservableObject {
         } catch {
             print("Failed to save reading progress: \(error)")
         }
+    }
+
+    public func navigateToLink(_ link: ReadiumShared.Link) {
+        self.targetLink = link
     }
 
     public func toggleOverlay() {

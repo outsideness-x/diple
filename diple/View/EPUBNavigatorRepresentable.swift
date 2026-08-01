@@ -6,6 +6,7 @@ import ReadiumNavigator
 public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let publication: Publication
     public let initialLocation: Locator?
+    public let targetLink: ReadiumShared.Link?
     public let preferences: EPUBPreferences
     public let onLocationChanged: (Locator) -> Void
     public let onCenterTap: () -> Void
@@ -13,12 +14,14 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public init(
         publication: Publication,
         initialLocation: Locator?,
+        targetLink: ReadiumShared.Link? = nil,
         preferences: EPUBPreferences,
         onLocationChanged: @escaping (Locator) -> Void,
         onCenterTap: @escaping () -> Void
     ) {
         self.publication = publication
         self.initialLocation = initialLocation
+        self.targetLink = targetLink
         self.preferences = preferences
         self.onLocationChanged = onLocationChanged
         self.onCenterTap = onCenterTap
@@ -50,11 +53,19 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public func updateUIViewController(_ uiViewController: EPUBNavigatorViewController, context: Context) {
         context.coordinator.parent = self
         uiViewController.submitPreferences(preferences)
+
+        if let link = targetLink, context.coordinator.lastHandledLink != link {
+            context.coordinator.lastHandledLink = link
+            Task {
+                _ = await uiViewController.go(to: link)
+            }
+        }
     }
 
     public class Coordinator: NSObject, EPUBNavigatorDelegate {
         var parent: EPUBNavigatorRepresentable
         weak var navigator: EPUBNavigatorViewController?
+        var lastHandledLink: ReadiumShared.Link? = nil
 
         init(_ parent: EPUBNavigatorRepresentable) {
             self.parent = parent

@@ -51,6 +51,7 @@ public struct ReaderContainerView: View {
                 EPUBNavigatorRepresentable(
                     publication: publication,
                     initialLocation: viewModel.initialLocator,
+                    targetLink: viewModel.targetLink,
                     preferences: viewModel.settings.epubPreferences,
                     onLocationChanged: { locator in
                         viewModel.saveLocation(locator)
@@ -82,6 +83,14 @@ public struct ReaderContainerView: View {
                                 .truncationMode(.tail)
 
                             Spacer()
+
+                            Button {
+                                viewModel.isTOCPresented = true
+                            } label: {
+                                Image(systemName: "list.bullet")
+                                    .font(.system(size: 18, weight: .regular))
+                                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            }
                         }
                         .padding(.horizontal, 20)
                         .padding(.vertical, 14)
@@ -122,6 +131,11 @@ public struct ReaderContainerView: View {
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $viewModel.isSettingsPresented) {
             ReaderSettingsView(settings: $viewModel.settings)
+        }
+        .sheet(isPresented: $viewModel.isTOCPresented) {
+            TOCView(tableOfContents: viewModel.tableOfContents) { link in
+                viewModel.navigateToLink(link)
+            }
         }
     }
 }
