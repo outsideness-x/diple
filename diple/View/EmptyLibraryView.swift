@@ -13,12 +13,12 @@ public struct EmptyLibraryView: View {
 
             ZStack {
                 Circle()
-                    .fill(Color(red: 0.1, green: 0.1, blue: 0.12))
+                    .fill(Color.dipleAccent.opacity(0.12))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "book")
                     .font(.system(size: 32, weight: .thin))
-                    .foregroundColor(Color(red: 0.8, green: 0.8, blue: 0.82))
+                    .foregroundColor(Color.dipleAccent)
             }
 
             VStack(spacing: 8) {
@@ -43,7 +43,7 @@ public struct EmptyLibraryView: View {
                 .foregroundColor(.black)
                 .padding(.vertical, 12)
                 .padding(.horizontal, 24)
-                .background(Color(red: 0.92, green: 0.92, blue: 0.92))
+                .background(Color.dipleAccent)
                 .cornerRadius(20)
             }
             .padding(.top, 8)

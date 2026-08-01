@@ -34,7 +34,7 @@ public struct BookItemView: View {
                         .frame(height: 2)
 
                     RoundedRectangle(cornerRadius: 1)
-                        .fill(Color(red: 0.85, green: 0.85, blue: 0.88))
+                        .fill(Color.dipleAccent)
                         .frame(width: geo.size.width * CGFloat(min(max(book.progress, 0.0), 1.0)), height: 2)
                 }
             }

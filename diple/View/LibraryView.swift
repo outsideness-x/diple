@@ -43,7 +43,7 @@ public struct LibraryView: View {
                         Color.black.opacity(0.75).ignoresSafeArea()
                         VStack(spacing: 12) {
                             ProgressView()
-                                .tint(.white)
+                                .tint(Color.dipleAccent)
                             Text("Importing EPUB...")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(red: 0.9, green: 0.9, blue: 0.9))
@@ -65,7 +65,7 @@ public struct LibraryView: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            .foregroundColor(Color.dipleAccent)
                     }
                 }
             }

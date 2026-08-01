@@ -5,6 +5,7 @@ public struct SelectionColorBarView: View {
     public let onCancel: () -> Void
 
     private let colors: [(name: String, hex: String, color: Color)] = [
+        ("Lilac", "#DF9BE1", Color.dipleAccent),
         ("Yellow", "#FFD60A", Color(red: 1.0, green: 0.84, blue: 0.04)),
         ("Green", "#30D158", Color(red: 0.19, green: 0.82, blue: 0.35)),
         ("Pink", "#FF375F", Color(red: 1.0, green: 0.22, blue: 0.37)),
@@ -17,10 +18,10 @@ public struct SelectionColorBarView: View {
     }
 
     public var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             Text("Highlight Quote")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Color(red: 0.8, green: 0.8, blue: 0.82))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Color.dipleAccent)
 
             Spacer()
 

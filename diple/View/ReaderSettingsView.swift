@@ -65,7 +65,7 @@ public struct ReaderSettingsView: View {
                     HStack(spacing: 8) {
                         ForEach(0..<5) { step in
                             Circle()
-                                .fill(step == settings.fontSizeStep ? Color(red: 0.92, green: 0.92, blue: 0.92) : Color(red: 0.25, green: 0.25, blue: 0.28))
+                                .fill(step == settings.fontSizeStep ? Color.dipleAccent : Color(red: 0.25, green: 0.25, blue: 0.28))
                                 .frame(width: 8, height: 8)
                         }
                     }
@@ -126,7 +126,7 @@ public struct ReaderSettingsView: View {
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(settings.theme == theme ? Color.white : Color.clear, lineWidth: 2)
+                    .stroke(settings.theme == theme ? Color.dipleAccent : Color.clear, lineWidth: 2)
             )
         }
     }
@@ -141,7 +141,7 @@ public struct ReaderSettingsView: View {
                 .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(isSelected ? Color(red: 0.92, green: 0.92, blue: 0.92) : Color(red: 0.12, green: 0.12, blue: 0.14))
+                .background(isSelected ? Color.dipleAccent : Color(red: 0.12, green: 0.12, blue: 0.14))
                 .cornerRadius(10)
         }
     }

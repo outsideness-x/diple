@@ -43,6 +43,7 @@ public struct BookOutlineSheetView: View {
                     Text("Quotes (\(highlights.count))").tag(1)
                 }
                 .pickerStyle(.segmented)
+                .tint(Color.dipleAccent)
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
