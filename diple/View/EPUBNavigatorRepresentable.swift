@@ -69,7 +69,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
     public func updateUIViewController(_ uiViewController: EPUBNavigatorViewController, context: Context) {
         context.coordinator.parent = self
-        uiViewController.submitPreferences(preferences)
+        
+        if context.coordinator.lastPreferences != preferences {
+            context.coordinator.lastPreferences = preferences
+            uiViewController.submitPreferences(preferences)
+        }
+        
         context.coordinator.setupScrollObserver(for: uiViewController)
 
         if let link = targetLink {
@@ -115,6 +120,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         var parent: EPUBNavigatorRepresentable
         weak var navigator: EPUBNavigatorViewController?
         var lastHref: AnyURL? = nil
+        var lastPreferences: EPUBPreferences? = nil
         private var scrollObserver: NSKeyValueObservation?
         private var hasTriggeredChapterTransition = false
 

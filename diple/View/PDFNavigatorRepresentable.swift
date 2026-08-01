@@ -64,7 +64,11 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
 
     public func updateUIViewController(_ uiViewController: PDFNavigatorViewController, context: Context) {
         context.coordinator.parent = self
-        uiViewController.submitPreferences(preferences)
+        
+        if context.coordinator.lastPreferences != preferences {
+            context.coordinator.lastPreferences = preferences
+            uiViewController.submitPreferences(preferences)
+        }
 
         if let link = targetLink {
             Task {
@@ -89,6 +93,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         var parent: PDFNavigatorRepresentable
         weak var navigator: PDFNavigatorViewController?
         var lastHref: AnyURL? = nil
+        var lastPreferences: PDFPreferences? = nil
 
         init(_ parent: PDFNavigatorRepresentable) {
             self.parent = parent

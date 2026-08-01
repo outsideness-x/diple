@@ -80,8 +80,8 @@ public final class ReaderViewModel: ObservableObject {
             let pub = try await publicationOpener.open(asset: asset, allowUserInteraction: true).get()
 
             var savedLocator: Locator? = nil
-            if let locatorStr = book.locator, !locatorStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                savedLocator = (try? Locator(jsonString: locatorStr)) ?? (try? Locator(legacyJSONString: locatorStr))
+            if let locatorStr = book.locator {
+                savedLocator = Locator.from(jsonString: locatorStr)
             }
 
             let toc = (try? await pub.tableOfContents().get()) ?? pub.manifest.tableOfContents

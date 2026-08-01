@@ -27,9 +27,6 @@ public struct Bookmark: Codable, FetchableRecord, PersistableRecord, Identifiabl
     }
 
     public var parsedLocator: Locator? {
-        if let loc = try? Locator(jsonString: locator) {
-            return loc
-        }
-        return try? Locator(legacyJSONString: locator)
+        Locator.from(jsonString: locator)
     }
 }
