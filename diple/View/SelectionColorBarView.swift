@@ -29,7 +29,7 @@ public struct SelectionColorBarView: View {
                             .frame(width: 26, height: 26)
                             .overlay(
                                 Circle()
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                                    .stroke(DipleColor.hairlineStrong, lineWidth: DipleStroke.regular)
                             )
                             .contentShape(Circle())
                     }
@@ -56,7 +56,7 @@ public struct SelectionColorBarView: View {
         .cornerRadius(24)
         .overlay(
             RoundedRectangle(cornerRadius: 24)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(DipleColor.hairlineStrong, lineWidth: DipleStroke.hairline)
         )
         .shadow(color: Color.black.opacity(0.5), radius: 10, x: 0, y: 4)
         .padding(.horizontal, DipleSpace.xxl)

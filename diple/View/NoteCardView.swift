@@ -98,13 +98,19 @@ public struct NoteCardView: View {
         .cornerRadius(DipleRadius.m)
         .overlay(
             RoundedRectangle(cornerRadius: DipleRadius.m)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
         )
     }
 }
 
 /// Wraps its children onto as many lines as they need. Tags are user-written, so their
 /// widths cannot be assumed to fit a fixed row — and an `HStack` would clip them.
+///
+/// Children are measured against the available width rather than asked for their ideal size.
+/// A book tag carries a whole title, which unconstrained is routinely wider than the card:
+/// measured with `.unspecified` it was placed at that width and hung over the card's right
+/// padding, so the note appeared to have a wide inset on the left and almost none on the
+/// right. Proposing the row width instead lets the tag truncate itself and stay inside.
 public struct FlowLayout: Layout {
     public let spacing: CGFloat
 
@@ -125,20 +131,24 @@ public struct FlowLayout: Layout {
         var y = bounds.minY
         for row in rows {
             var x = bounds.minX
-            for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
-                subviews[index].place(
+            for item in row.items {
+                subviews[item.index].place(
                     at: CGPoint(x: x, y: y),
-                    proposal: ProposedViewSize(size)
+                    proposal: ProposedViewSize(item.size)
                 )
-                x += size.width + spacing
+                x += item.size.width + spacing
             }
             y += row.height + spacing
         }
     }
 
+    private struct Item {
+        let index: Int
+        let size: CGSize
+    }
+
     private struct Row {
-        var indices: [Int] = []
+        var items: [Item] = []
         var width: CGFloat = 0
         var height: CGFloat = 0
     }
@@ -148,19 +158,22 @@ public struct FlowLayout: Layout {
         var current = Row()
 
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let widthWithSpacing = current.indices.isEmpty ? size.width : current.width + spacing + size.width
-            if !current.indices.isEmpty && widthWithSpacing > maxWidth {
+            // Capped at the row width, so nothing can be placed wider than the container.
+            let size = subviews[index].sizeThatFits(
+                ProposedViewSize(width: maxWidth, height: nil)
+            )
+            let widthWithSpacing = current.items.isEmpty ? size.width : current.width + spacing + size.width
+            if !current.items.isEmpty && widthWithSpacing > maxWidth {
                 rows.append(current)
-                current = Row(indices: [index], width: size.width, height: size.height)
+                current = Row(items: [Item(index: index, size: size)], width: size.width, height: size.height)
             } else {
-                current.indices.append(index)
+                current.items.append(Item(index: index, size: size))
                 current.width = widthWithSpacing
                 current.height = max(current.height, size.height)
             }
         }
 
-        if !current.indices.isEmpty {
+        if !current.items.isEmpty {
             rows.append(current)
         }
         return rows

@@ -207,7 +207,7 @@ public struct ReaderToastView: View {
             .padding(.vertical, DipleSpace.m)
             .background(.thinMaterial, in: Capsule())
             .environment(\.colorScheme, .dark)
-            .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            .overlay(Capsule().stroke(DipleColor.hairlineStrong, lineWidth: DipleStroke.hairline))
             .shadow(color: Color.black.opacity(0.45), radius: 10, y: 4)
     }
 }
