@@ -261,7 +261,7 @@ public struct NoteDetailView: View {
             TextEditor(text: $body_)
                 .dipleType(.readingBody)
                 .foregroundStyle(DipleColor.textPrimary)
-                .lineSpacing(DipleSpace.s)
+                .lineSpacing(ReaderScript.detect(in: body_).swiftUILineSpacing)
                 .scrollContentBackground(.hidden)
                 .scrollDisabled(true)
                 .focused($isBodyFocused)

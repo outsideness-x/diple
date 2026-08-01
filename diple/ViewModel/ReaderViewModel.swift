@@ -127,6 +127,22 @@ public final class ReaderViewModel: ObservableObject {
 
     /// Reading progress in `0...1` for the given locator.
     ///
+    /// The script the book is set in, resolved once the publication is open. Metadata is the
+    /// reliable signal; the title is the fallback for the many EPUBs that declare no language
+    /// or declare the wrong one.
+    public var script: ReaderScript {
+        ReaderScript.detect(
+            languages: publication?.metadata.languages ?? [],
+            sample: book.title
+        )
+    }
+
+    /// Preferences with the book's own script folded in. Views read this rather than
+    /// `settings.epubPreferences`, which cannot see the publication.
+    public var epubPreferences: EPUBPreferences {
+        settings.epubPreferences(for: script)
+    }
+
     /// `totalProgression` is only present when the publication exposes a position list.
     /// Otherwise we approximate it from the resource index inside the reading order.
     private func progress(for locator: Locator) -> Double {

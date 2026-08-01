@@ -28,6 +28,7 @@ public struct QuoteCardView: View {
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text(quote.text)
                     .dipleType(.readingBody)
+                    .readingLineSpacing(for: quote.text)
                     .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)

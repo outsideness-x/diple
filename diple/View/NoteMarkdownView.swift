@@ -199,6 +199,12 @@ public struct NoteMarkdownView: View {
         NoteMarkdown.parse(markdown)
     }
 
+    /// Hangul is denser than Latin and closes up at Latin leading, so the whole note is set
+    /// from the script it is actually written in.
+    private var script: ReaderScript {
+        ReaderScript.detect(in: markdown)
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: DipleSpace.l) {
             ForEach(blocks) { block in
@@ -221,7 +227,7 @@ public struct NoteMarkdownView: View {
             Text(NoteMarkdown.inline(text))
                 .dipleType(.readingBody)
                 .foregroundStyle(DipleColor.textPrimary)
-                .lineSpacing(DipleSpace.s)
+                .lineSpacing(script.swiftUILineSpacing)
 
         case .bulleted(let items):
             VStack(alignment: .leading, spacing: DipleSpace.s) {
@@ -246,7 +252,7 @@ public struct NoteMarkdownView: View {
                 Text(NoteMarkdown.inline(text))
                     .dipleType(.readingBody)
                     .foregroundStyle(DipleColor.textSecondary)
-                    .lineSpacing(DipleSpace.s)
+                    .lineSpacing(script.swiftUILineSpacing)
             }
             .fixedSize(horizontal: false, vertical: true)
 
@@ -283,7 +289,7 @@ public struct NoteMarkdownView: View {
             Text(NoteMarkdown.inline(text))
                 .dipleType(.readingBody)
                 .foregroundStyle(DipleColor.textPrimary)
-                .lineSpacing(DipleSpace.s)
+                .lineSpacing(script.swiftUILineSpacing)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

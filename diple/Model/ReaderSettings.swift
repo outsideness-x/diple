@@ -149,12 +149,27 @@ public struct ReaderSettings: Codable, Equatable {
 
     // MARK: - Readium
 
-    public var epubPreferences: EPUBPreferences {
+    /// Vertical metrics depend on the script the book is set in, which the settings struct
+    /// cannot know on its own — the publication does. `ReaderViewModel` supplies it.
+    ///
+    /// Readium only honours `lineHeight` and `paragraphSpacing` when advanced settings are on,
+    /// which is `publisherStyles == false`. Set the leading without clearing publisher styles
+    /// and nothing happens at all. Publisher styles are therefore dropped only for CJK, where
+    /// the publisher's own leading is the thing being corrected; a Latin book keeps the
+    /// typography its designer chose.
+    public func epubPreferences(for script: ReaderScript) -> EPUBPreferences {
         var prefs = EPUBPreferences()
         prefs.fontSize = currentFontSize
         prefs.fontFamily = font.fontFamily
         prefs.theme = theme
         prefs.scroll = (readingMode == .scroll)
+
+        if script == .cjk {
+            prefs.publisherStyles = false
+            prefs.lineHeight = script.lineHeight
+            prefs.paragraphSpacing = script.paragraphSpacing
+        }
+
         return prefs
     }
 

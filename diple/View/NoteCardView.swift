@@ -72,6 +72,7 @@ public struct NoteCardView: View {
 
             Text(item.note.body)
                 .dipleType(.footnote, weight: .regular)
+                .readingLineSpacing(for: item.note.body)
                 .foregroundStyle(DipleColor.textSecondary)
                 .multilineTextAlignment(.leading)
                 .lineLimit(8)
