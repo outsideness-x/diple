@@ -54,13 +54,24 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     }
 
     public func makeUIViewController(context: Context) -> UIViewController {
-        let config = EPUBNavigatorViewController.Configuration(
+        var config = EPUBNavigatorViewController.Configuration(
             preferences: preferences,
             // In continuous scroll mode reading is vertical, so a horizontal swipe silently
             // skipping a chapter is never what the reader meant. Chapters are changed by
             // pulling past the end of the text instead (see ChapterPullTransitionController).
             disablePageTurnsWhileScrolling: true
         )
+
+        // `-apple-system` is a keyword, not a family the web view can enumerate, so a book
+        // whose text needs a glyph outside it has nothing to fall back to. Declaring the
+        // alternate puts `sans-serif` behind it in the stack — which is what keeps Korean
+        // and Cyrillic rendering when the system face comes up short.
+        config.fontFamilyDeclarations = [
+            CSSFontFamilyDeclaration(
+                fontFamily: .appleSystem,
+                alternates: [.sansSerif]
+            ).eraseToAnyHTMLFontFamilyDeclaration()
+        ]
 
         do {
             let navigator = try EPUBNavigatorViewController(

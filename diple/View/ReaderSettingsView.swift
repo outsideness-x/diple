@@ -58,50 +58,26 @@ public struct ReaderSettingsView: View {
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
 
                 HStack {
-                    Button {
-                        if settings.fontSizeStep > 0 {
-                            HapticManager.shared.impact(.light)
-                            settings.fontSizeStep -= 1
-                        }
-                    } label: {
-                        Text("A")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(settings.fontSizeStep > 0 ? Color(red: 0.92, green: 0.92, blue: 0.92) : Color.gray.opacity(0.4))
-                            .frame(width: 44, height: 44)
-                            .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-                            .cornerRadius(8)
+                    fontSizeButton(glyphSize: 14, isEnabled: settings.canDecreaseFontSize) {
+                        settings.fontSizeStep -= 1
                     }
-                    .disabled(settings.fontSizeStep <= 0)
 
                     Spacer()
 
-                    // Step indicators
-                    HStack(spacing: 8) {
-                        ForEach(0..<5) { step in
-                            Circle()
-                                .fill(step == settings.fontSizeStep ? Color.dipleAccent : Color(red: 0.25, green: 0.25, blue: 0.28))
-                                .frame(width: 8, height: 8)
-                                .scaleEffect(step == settings.fontSizeStep ? 1.35 : 1)
-                        }
-                    }
-                    .animation(.spring(response: 0.3, dampingFraction: 0.65), value: settings.fontSizeStep)
+                    // A row of dots stopped scaling once the ladder grew past a handful of
+                    // rungs. The percentage says more in less room — set in tabular figures
+                    // so the readout does not jitter as the digits change.
+                    Text("\(settings.fontSizePercentage)%")
+                        .dipleType(.footnote, weight: .semibold)
+                        .monospacedDigit()
+                        .foregroundStyle(DipleColor.textPrimary)
+                        .contentTransition(.numericText())
 
                     Spacer()
 
-                    Button {
-                        if settings.fontSizeStep < 4 {
-                            HapticManager.shared.impact(.light)
-                            settings.fontSizeStep += 1
-                        }
-                    } label: {
-                        Text("A")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(settings.fontSizeStep < 4 ? Color(red: 0.92, green: 0.92, blue: 0.92) : Color.gray.opacity(0.4))
-                            .frame(width: 44, height: 44)
-                            .background(Color(red: 0.12, green: 0.12, blue: 0.14))
-                            .cornerRadius(8)
+                    fontSizeButton(glyphSize: 20, isEnabled: settings.canIncreaseFontSize) {
+                        settings.fontSizeStep += 1
                     }
-                    .disabled(settings.fontSizeStep >= 4)
                 }
             }
 
@@ -149,6 +125,23 @@ public struct ReaderSettingsView: View {
         .animation(.easeInOut(duration: 0.2), value: settings)
     }
 
+    private func fontSizeButton(glyphSize: CGFloat, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            guard isEnabled else { return }
+            HapticManager.shared.impact(.light)
+            action()
+        } label: {
+            Text("A")
+                .dipleIcon(glyphSize, weight: glyphSize > 16 ? .bold : .medium)
+                .foregroundStyle(isEnabled ? DipleColor.textPrimary : DipleColor.textQuaternary)
+                .frame(width: 44, height: 44)
+                .background(DipleColor.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
+        }
+        .buttonStyle(.readerControl)
+        .disabled(!isEnabled)
+    }
+
     private func themeButton(title: String, theme: Theme, bg: SwiftUI.Color, fg: SwiftUI.Color) -> some View {
         Button {
             HapticManager.shared.selection()
@@ -179,8 +172,8 @@ public struct ReaderSettingsView: View {
             HapticManager.shared.selection()
             settings.font = fontOption
         } label: {
-            Text(fontOption.rawValue)
-                .font(fontOption == .serif ? .system(size: 15, weight: .medium, design: .serif) : .system(size: 15, weight: .medium, design: .default))
+            Text(fontOption.title)
+                .dipleType(fontOption == .serif ? .readingBody : .body, weight: .medium)
                 .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
