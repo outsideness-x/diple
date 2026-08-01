@@ -1,17 +1,15 @@
 import Foundation
 import ReadiumNavigator
 
-public extension FontFamily {
-    /// The real system font.
-    ///
-    /// `FontFamily.sansSerif` is the CSS generic `sans-serif`, which a web view resolves to
-    /// Helvetica — so the reader's "San Francisco" option never actually rendered San
-    /// Francisco. `-apple-system` is the keyword that resolves to the platform UI font.
-    ///
-    /// Readium quotes a font name only when it contains a space or a quote, so this reaches
-    /// the stylesheet bare, which is what CSS requires of the keyword.
-    static let appleSystem: FontFamily = "-apple-system"
-}
+/// Why the sans option is the CSS generic rather than San Francisco itself.
+///
+/// `FontFamily.sansSerif` resolves to Helvetica in the web view, so this option has never
+/// literally been San Francisco. Routing it through the `-apple-system` / `system-ui`
+/// keywords does select SF — and drops every Hangul glyph in the book to tofu. Declaring
+/// alternates behind the keyword does not rescue them: an explicit `Apple SD Gothic Neo`
+/// fallback was tried and the glyphs stayed missing, so Readium's alternates never reach the
+/// effective stack. Korean has to render, so the generic stays until an SF-class face is
+/// shipped as a real `fontFaces` declaration.
 
 public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     // Raw values are the persisted representation and must not be renamed.
@@ -25,7 +23,7 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     public var title: String {
         switch self {
         case .serif: return "Serif"
-        case .sanFrancisco: return "SF"
+        case .sanFrancisco: return "Sans"
         }
     }
 
@@ -34,7 +32,7 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
         case .serif:
             return .serif
         case .sanFrancisco:
-            return .appleSystem
+            return .sansSerif
         }
     }
 }
