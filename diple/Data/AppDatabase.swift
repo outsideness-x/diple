@@ -95,6 +95,17 @@ public final class AppDatabase: Sendable {
         }
     }
 
+    public func updateBookMetadata(id: String, title: String, author: String?) throws {
+        try writer.write { db in
+            if var book = try Book.filter(Column("id") == id).fetchOne(db) {
+                book.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedAuthor = author?.trimmingCharacters(in: .whitespacesAndNewlines)
+                book.author = (trimmedAuthor?.isEmpty ?? true) ? nil : trimmedAuthor
+                try book.update(db)
+            }
+        }
+    }
+
     public func deleteBook(id: String) throws {
         try writer.write { db in
             _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)

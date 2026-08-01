@@ -27,9 +27,11 @@ public struct LibraryView: View {
                         LazyVGrid(columns: columns, spacing: 24) {
                             ForEach(viewModel.books) { book in
                                 NavigationLink(value: book) {
-                                    BookItemView(book: book) {
+                                    BookItemView(book: book, onEdit: {
+                                        viewModel.bookToEdit = book
+                                    }, onDelete: {
                                         viewModel.confirmDelete(book)
-                                    }
+                                    })
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -119,6 +121,11 @@ public struct LibraryView: View {
             }
             .sheet(isPresented: $isAppSettingsPresented) {
                 AppSettingsView()
+            }
+            .sheet(item: $viewModel.bookToEdit) { book in
+                EditBookMetadataView(book: book) { newTitle, newAuthor in
+                    viewModel.updateMetadata(for: book.id, title: newTitle, author: newAuthor)
+                }
             }
         }
     }

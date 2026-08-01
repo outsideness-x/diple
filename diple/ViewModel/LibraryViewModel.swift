@@ -43,6 +43,18 @@ public final class LibraryViewModel: ObservableObject {
         }
     }
 
+    @Published public var bookToEdit: Book? = nil
+
+    public func updateMetadata(for bookId: String, title: String, author: String?) {
+        do {
+            try AppDatabase.shared.updateBookMetadata(id: bookId, title: title, author: author)
+            loadBooks()
+        } catch {
+            self.errorMessage = "Failed to update metadata: \(error.localizedDescription)"
+            self.showErrorAlert = true
+        }
+    }
+
     public func confirmDelete(_ book: Book) {
         self.bookToDelete = book
         self.showDeleteConfirmation = true

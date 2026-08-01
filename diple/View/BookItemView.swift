@@ -2,10 +2,12 @@ import SwiftUI
 
 public struct BookItemView: View {
     public let book: Book
+    public let onEdit: () -> Void
     public let onDelete: () -> Void
 
-    public init(book: Book, onDelete: @escaping () -> Void) {
+    public init(book: Book, onEdit: @escaping () -> Void, onDelete: @escaping () -> Void) {
         self.book = book
+        self.onEdit = onEdit
         self.onDelete = onDelete
     }
 
@@ -42,6 +44,12 @@ public struct BookItemView: View {
             .padding(.top, 2)
         }
         .contextMenu {
+            Button {
+                onEdit()
+            } label: {
+                Label("Edit Metadata", systemImage: "pencil")
+            }
+
             Button(role: .destructive) {
                 onDelete()
             } label: {
