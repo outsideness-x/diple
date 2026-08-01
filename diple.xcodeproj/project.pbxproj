@@ -195,6 +195,10 @@
 			);
 			mainGroup = D071D6D1301DE6DA00A3309A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */,
+				D071D705301DE78800A3309A /* XCRemoteSwiftPackageReference "GRDB" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D071D6DB301DE6DB00A3309A /* Products */;
 			projectDirPath = "";
@@ -578,6 +582,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/readium/swift-toolkit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.11.0;
+			};
+		};
+		D071D705301DE78800A3309A /* XCRemoteSwiftPackageReference "GRDB" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = D071D6D2301DE6DA00A3309A /* Project object */;
 }
