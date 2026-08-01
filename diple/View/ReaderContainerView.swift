@@ -134,21 +134,37 @@ public struct ReaderContainerView: View {
                         Spacer()
 
                         // Bottom Bar Overlay
-                        HStack {
-                            let percentage = Int(viewModel.currentProgress * 100)
-                            Text("\(percentage)% Progres")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Color(red: 0.75, green: 0.75, blue: 0.78))
+                        VStack(spacing: 10) {
+                            // Visual progress bar line
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    Capsule()
+                                        .fill(Color.white.opacity(0.18))
+                                        .frame(height: 3)
 
-                            Spacer()
+                                    Capsule()
+                                        .fill(Color.dipleAccent)
+                                        .frame(width: geo.size.width * CGFloat(min(max(viewModel.currentProgress, 0.0), 1.0)), height: 3)
+                                }
+                            }
+                            .frame(height: 3)
 
-                            Button {
-                                HapticManager.shared.selection()
-                                viewModel.isSettingsPresented = true
-                            } label: {
-                                Image(systemName: "gearshape")
-                                    .font(.system(size: 18, weight: .regular))
-                                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                            HStack {
+                                let percentage = Int(viewModel.currentProgress * 100)
+                                Text("\(percentage)% Progress")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(Color(red: 0.75, green: 0.75, blue: 0.78))
+
+                                Spacer()
+
+                                Button {
+                                    HapticManager.shared.selection()
+                                    viewModel.isSettingsPresented = true
+                                } label: {
+                                    Image(systemName: "gearshape")
+                                        .font(.system(size: 18, weight: .regular))
+                                        .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -175,6 +191,9 @@ public struct ReaderContainerView: View {
         }
         .task {
             await viewModel.openBook()
+        }
+        .onDisappear {
+            onReadingUpdated()
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)

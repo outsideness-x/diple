@@ -98,14 +98,28 @@ public final class ReaderViewModel: ObservableObject {
 
     public func saveLocation(_ locator: Locator) {
         self.currentLocator = locator
-        let progression = locator.locations.totalProgression ?? locator.locations.progression ?? self.currentProgress
-        self.currentProgress = progression
+        
+        let calculatedProgress: Double
+        if let totalProg = locator.locations.totalProgression {
+            calculatedProgress = totalProg
+        } else if let pub = publication, !pub.readingOrder.isEmpty,
+                  let index = pub.readingOrder.firstIndexWithHREF(locator.href) {
+            let chapterProg = locator.locations.progression ?? 0.0
+            calculatedProgress = (Double(index) + chapterProg) / Double(pub.readingOrder.count)
+        } else if let chapterProg = locator.locations.progression {
+            calculatedProgress = chapterProg
+        } else {
+            calculatedProgress = self.currentProgress
+        }
+        
+        let clampedProgress = min(max(calculatedProgress, 0.0), 1.0)
+        self.currentProgress = clampedProgress
 
         let locatorStr = try? locator.jsonString()
         do {
             try AppDatabase.shared.updateReadingProgress(
                 id: book.id,
-                progress: progression,
+                progress: clampedProgress,
                 locator: locatorStr
             )
         } catch {
