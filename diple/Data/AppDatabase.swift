@@ -75,6 +75,24 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        migrator.registerMigration("v4_createNoteTables") { db in
+            try db.create(table: "note") { t in
+                t.column("id", .text).primaryKey()
+                t.column("title", .text)
+                t.column("body", .text).notNull()
+                t.column("bookId", .text).indexed()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+
+            try db.create(table: "noteTag") { t in
+                t.column("noteId", .text).notNull()
+                t.column("tag", .text).notNull()
+                t.primaryKey(["noteId", "tag"])
+            }
+            try db.create(index: "noteTag_on_tag", on: "noteTag", columns: ["tag"])
+        }
+
         return migrator
     }
 
@@ -127,6 +145,9 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.write { db in
             _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
             _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
+            // Notes are the user's own writing and survive the book they referenced;
+            // only the tag pointing at it goes away.
+            try db.execute(sql: "UPDATE note SET bookId = NULL WHERE bookId = ?", arguments: [id])
             _ = try Book.filter(Column("id") == id).deleteAll(db)
         }
     }
@@ -181,6 +202,50 @@ public nonisolated final class AppDatabase: Sendable {
     public func deleteBookmark(id: String) throws {
         try writer.write { db in
             _ = try Bookmark.filter(Column("id") == id).deleteAll(db)
+        }
+    }
+
+    // MARK: - Note CRUD
+
+    /// Writes the note and replaces its tag set in one transaction, so a note is never
+    /// visible with a half-applied set of tags.
+    public func saveNote(_ note: Note, tags: [String]) throws {
+        try writer.write { db in
+            try note.save(db)
+            _ = try NoteTag.filter(Column("noteId") == note.id).deleteAll(db)
+            for tag in Set(tags.compactMap(NoteTag.normalized)) {
+                try NoteTag(noteId: note.id, tag: tag).insert(db)
+            }
+        }
+    }
+
+    public func fetchAllNotes() throws -> [Note] {
+        try writer.read { db in
+            try Note.order(Column("updatedAt").desc).fetchAll(db)
+        }
+    }
+
+    /// Tags for every note at once — the notes board renders them on each card, and one
+    /// query per card would mean a query per scroll.
+    public func fetchTagsByNote() throws -> [String: [String]] {
+        try writer.read { db in
+            let tags = try NoteTag.order(Column("tag")).fetchAll(db)
+            return tags.reduce(into: [String: [String]]()) { result, noteTag in
+                result[noteTag.noteId, default: []].append(noteTag.tag)
+            }
+        }
+    }
+
+    public func fetchAllTags() throws -> [String] {
+        try writer.read { db in
+            try String.fetchAll(db, sql: "SELECT DISTINCT tag FROM noteTag ORDER BY tag")
+        }
+    }
+
+    public func deleteNote(id: String) throws {
+        try writer.write { db in
+            _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)
+            _ = try Note.filter(Column("id") == id).deleteAll(db)
         }
     }
 }
