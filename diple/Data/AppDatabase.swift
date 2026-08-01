@@ -93,6 +93,15 @@ public nonisolated final class AppDatabase: Sendable {
             try db.create(index: "noteTag_on_tag", on: "noteTag", columns: ["tag"])
         }
 
+        /// Articles imported from the web are ordinary books on disk — a generated EPUB — so
+        /// they need one extra column and nothing else. Existing rows keep a NULL here, which
+        /// is exactly what "this came from a file" means.
+        migrator.registerMigration("v5_addBookSourceURL") { db in
+            try db.alter(table: "book") { t in
+                t.add(column: "sourceURL", .text)
+            }
+        }
+
         return migrator
     }
 

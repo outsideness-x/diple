@@ -12,17 +12,6 @@ public struct NoteItem: Identifiable, Equatable, Hashable {
     public var id: String { note.id }
 }
 
-/// What the editor sheet was opened for. A `nil` item means a brand new note.
-public struct NoteEditorTarget: Identifiable {
-    public let item: NoteItem?
-
-    public var id: String { item?.id ?? "new" }
-
-    public init(item: NoteItem?) {
-        self.item = item
-    }
-}
-
 /// What the board is currently narrowed down to.
 public enum NoteFilter: Equatable, Hashable {
     case all
@@ -37,7 +26,6 @@ public final class NotesViewModel: ObservableObject {
     /// Every tag already in use, offered as suggestions in the editor.
     @Published public private(set) var allTags: [String] = []
     @Published public var filter: NoteFilter = .all
-    @Published public var editorTarget: NoteEditorTarget? = nil
     @Published public var noteToDelete: NoteItem? = nil
     @Published public var showDeleteConfirmation: Bool = false
     @Published public var errorMessage: String? = nil
@@ -111,6 +99,17 @@ public final class NotesViewModel: ObservableObject {
             load()
         } catch {
             errorMessage = "Failed to save note: \(error.localizedDescription)"
+            showErrorAlert = true
+        }
+    }
+
+    /// Deletion from the note's own page, which has already asked for confirmation.
+    public func delete(_ item: NoteItem) {
+        do {
+            try AppDatabase.shared.deleteNote(id: item.note.id)
+            load()
+        } catch {
+            errorMessage = "Failed to delete note: \(error.localizedDescription)"
             showErrorAlert = true
         }
     }

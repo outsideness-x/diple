@@ -4,6 +4,10 @@ import SwiftUI
 public struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
 
+    /// Ties a card to the page it becomes, so the note expands out of the block the reader
+    /// tapped instead of sliding in from the side.
+    @Namespace private var cardNamespace
+
     private let columns = [
         GridItem(.adaptive(minimum: 150, maximum: 240), spacing: DipleSpace.m)
     ]
@@ -33,24 +37,18 @@ public struct NotesView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        HapticManager.shared.selection()
-                        viewModel.editorTarget = NoteEditorTarget(item: nil)
-                    } label: {
+                    NavigationLink(value: NoteRoute.new) {
                         Image(systemName: "plus")
                             .dipleIcon(16, weight: .medium)
                             .foregroundStyle(DipleColor.accent)
                     }
+                    .simultaneousGesture(TapGesture().onEnded {
+                        HapticManager.shared.selection()
+                    })
                 }
             }
-            .sheet(item: $viewModel.editorTarget) { target in
-                NoteEditorView(
-                    target: target,
-                    books: viewModel.books,
-                    suggestedTags: viewModel.allTags
-                ) { note, tags in
-                    viewModel.save(note, tags: tags)
-                }
+            .navigationDestination(for: NoteRoute.self) { route in
+                destination(for: route)
             }
             .alert("Error", isPresented: $viewModel.showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -68,6 +66,31 @@ public struct NotesView: View {
             .onAppear {
                 viewModel.load()
             }
+        }
+    }
+
+    /// A new note has no card on the board, so there is nothing for it to expand out of —
+    /// it gets the standard push. `NavigationTransition` has no type eraser, so the two
+    /// cases are branched here rather than resolved into one value.
+    @ViewBuilder
+    private func destination(for route: NoteRoute) -> some View {
+        let page = NoteDetailView(
+            route: route,
+            books: viewModel.books,
+            suggestedTags: viewModel.allTags,
+            onSave: { note, tags in
+                viewModel.save(note, tags: tags)
+            },
+            onDelete: { item in
+                viewModel.delete(item)
+            }
+        )
+
+        switch route {
+        case .existing(let item):
+            page.navigationTransition(.zoom(sourceID: item.id, in: cardNamespace))
+        case .new:
+            page
         }
     }
 
@@ -111,20 +134,15 @@ public struct NotesView: View {
         ScrollView {
             LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
                 ForEach(viewModel.filteredItems) { item in
-                    Button {
-                        HapticManager.shared.impact(.light)
-                        viewModel.editorTarget = NoteEditorTarget(item: item)
-                    } label: {
+                    NavigationLink(value: NoteRoute.existing(item)) {
                         NoteCardView(item: item)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.bookCard)
+                    .matchedTransitionSource(id: item.id, in: cardNamespace)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        HapticManager.shared.impact(.light)
+                    })
                     .contextMenu {
-                        Button {
-                            viewModel.editorTarget = NoteEditorTarget(item: item)
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-
                         Button(role: .destructive) {
                             viewModel.confirmDelete(item)
                         } label: {
@@ -165,10 +183,7 @@ public struct NotesView: View {
                     .padding(.horizontal, DipleSpace.xxxl)
             }
 
-            Button {
-                HapticManager.shared.impact(.light)
-                viewModel.editorTarget = NoteEditorTarget(item: nil)
-            } label: {
+            NavigationLink(value: NoteRoute.new) {
                 HStack(spacing: DipleSpace.s) {
                     Image(systemName: "plus")
                         .dipleIcon(14, weight: .semibold)
