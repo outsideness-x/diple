@@ -48,7 +48,7 @@ public struct LibraryView: View {
                         VStack(spacing: 12) {
                             ProgressView()
                                 .tint(Color.dipleAccent)
-                            Text("Importing EPUB...")
+                            Text("Importing book...")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(red: 0.9, green: 0.9, blue: 0.9))
                         }
@@ -87,7 +87,7 @@ public struct LibraryView: View {
             }
             .fileImporter(
                 isPresented: $isFileImporterPresented,
-                allowedContentTypes: [UTType.epub],
+                allowedContentTypes: [.epub, .pdf],
                 allowsMultipleSelection: false
             ) { result in
                 switch result {

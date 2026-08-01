@@ -18,7 +18,12 @@ public final class EPUBImporter {
 
     private init() {}
 
-    /// Imports EPUB file at `sourceURL`, copies it into `Documents/Books/<uuid>/`, parses title/author & cover, saves to DB.
+    /// Imports EPUB or PDF file at `sourceURL`, copies it into `Documents/Books/<uuid>/`, parses title/author & cover, saves to DB.
+    public func importBook(from sourceURL: URL) async throws -> Book {
+        try await importEPUB(from: sourceURL)
+    }
+
+    /// Imports EPUB or PDF file at `sourceURL`, copies it into `Documents/Books/<uuid>/`, parses title/author & cover, saves to DB.
     public func importEPUB(from sourceURL: URL) async throws -> Book {
         let shouldStopAccessing = sourceURL.startAccessingSecurityScopedResource()
         defer {

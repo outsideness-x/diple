@@ -47,26 +47,45 @@ public struct ReaderContainerView: View {
                     .cornerRadius(8)
                 }
             } else if let publication = viewModel.publication {
-                // EPUB Navigator
-                EPUBNavigatorRepresentable(
-                    publication: publication,
-                    initialLocation: viewModel.initialLocator,
-                    targetLink: viewModel.targetLink,
-                    targetLocator: viewModel.targetLocator,
-                    highlights: viewModel.highlights,
-                    preferences: viewModel.settings.epubPreferences,
-                    onLocationChanged: { locator in
-                        viewModel.saveLocation(locator)
-                        onReadingUpdated()
-                    },
-                    onSelectionChanged: { selection in
-                        viewModel.currentSelection = selection
-                    },
-                    onCenterTap: {
-                        viewModel.toggleOverlay()
-                    }
-                )
-                .ignoresSafeArea()
+                if viewModel.book.filePath.lowercased().hasSuffix(".pdf") {
+                    PDFNavigatorRepresentable(
+                        publication: publication,
+                        initialLocation: viewModel.initialLocator,
+                        targetLink: viewModel.targetLink,
+                        targetLocator: viewModel.targetLocator,
+                        onLocationChanged: { locator in
+                            viewModel.saveLocation(locator)
+                            onReadingUpdated()
+                        },
+                        onSelectionChanged: { selection in
+                            viewModel.currentSelection = selection
+                        },
+                        onCenterTap: {
+                            viewModel.toggleOverlay()
+                        }
+                    )
+                    .ignoresSafeArea()
+                } else {
+                    EPUBNavigatorRepresentable(
+                        publication: publication,
+                        initialLocation: viewModel.initialLocator,
+                        targetLink: viewModel.targetLink,
+                        targetLocator: viewModel.targetLocator,
+                        highlights: viewModel.highlights,
+                        preferences: viewModel.settings.epubPreferences,
+                        onLocationChanged: { locator in
+                            viewModel.saveLocation(locator)
+                            onReadingUpdated()
+                        },
+                        onSelectionChanged: { selection in
+                            viewModel.currentSelection = selection
+                        },
+                        onCenterTap: {
+                            viewModel.toggleOverlay()
+                        }
+                    )
+                    .ignoresSafeArea()
+                }
 
                 // Overlay Controls (Top & Bottom bars)
                 if viewModel.isOverlayVisible {
