@@ -20,28 +20,27 @@ public struct TagChipView: View {
 
     private var foreground: Color {
         if isSelected { return .black }
-        return kind == .book ? Color.dipleAccent : Color(red: 0.65, green: 0.65, blue: 0.7)
+        return kind == .book ? DipleColor.accent : DipleColor.textTertiary
     }
 
     private var background: Color {
-        if isSelected { return Color.dipleAccent }
-        return kind == .book ? Color.dipleAccent.opacity(0.14) : Color(red: 0.15, green: 0.15, blue: 0.17)
+        if isSelected { return DipleColor.accent }
+        return kind == .book ? DipleColor.accent.opacity(0.14) : DipleColor.surfaceOverlay
     }
 
     public var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DipleSpace.xs) {
             if kind == .book {
                 Image(systemName: "book.closed")
-                    .font(.system(size: 9, weight: .semibold))
+                    .dipleIcon(9)
             }
 
             Text(kind == .book ? label : "#\(label)")
-                .font(.system(size: 11, weight: .medium))
+                .dipleType(.micro)
                 .lineLimit(1)
         }
         .foregroundColor(foreground)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .diplePadding(.chip)
         .background(background)
         .clipShape(Capsule())
     }
@@ -62,24 +61,24 @@ public struct NoteCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
             if let title = item.note.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.94, green: 0.94, blue: 0.95))
+                    .dipleType(.callout, weight: .semibold)
+                    .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
             }
 
             Text(item.note.body)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundColor(Color(red: 0.72, green: 0.72, blue: 0.75))
+                .dipleType(.footnote, weight: .regular)
+                .foregroundStyle(DipleColor.textSecondary)
                 .multilineTextAlignment(.leading)
                 .lineLimit(8)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !item.tags.isEmpty || item.book != nil {
-                FlowLayout(spacing: 6) {
+                FlowLayout(spacing: DipleSpace.s) {
                     if let book = item.book {
                         TagChipView(label: book.title, kind: .book)
                     }
@@ -90,15 +89,15 @@ public struct NoteCardView: View {
             }
 
             Text(formattedDate)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                .dipleType(.nano, weight: .medium)
+                .foregroundStyle(DipleColor.textQuaternary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.1))
-        .cornerRadius(12)
+        .padding(DipleSpace.m)
+        .background(DipleColor.surface)
+        .cornerRadius(DipleRadius.m)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: DipleRadius.m)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         )
     }
@@ -109,7 +108,7 @@ public struct NoteCardView: View {
 public struct FlowLayout: Layout {
     public let spacing: CGFloat
 
-    public init(spacing: CGFloat = 6) {
+    public init(spacing: CGFloat = DipleSpace.s) {
         self.spacing = spacing
     }
 

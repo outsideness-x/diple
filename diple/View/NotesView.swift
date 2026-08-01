@@ -5,7 +5,7 @@ public struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
 
     private let columns = [
-        GridItem(.adaptive(minimum: 150, maximum: 240), spacing: 12)
+        GridItem(.adaptive(minimum: 150, maximum: 240), spacing: DipleSpace.m)
     ]
 
     public init() {}
@@ -13,7 +13,7 @@ public struct NotesView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     if viewModel.availableFilters.count > 1 {
@@ -29,7 +29,7 @@ public struct NotesView: View {
             }
             .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -38,8 +38,8 @@ public struct NotesView: View {
                         viewModel.editorTarget = NoteEditorTarget(item: nil)
                     } label: {
                         Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(Color.dipleAccent)
+                            .dipleIcon(16, weight: .medium)
+                            .foregroundStyle(DipleColor.accent)
                     }
                 }
             }
@@ -73,7 +73,7 @@ public struct NotesView: View {
 
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: DipleSpace.s) {
                 ForEach(viewModel.availableFilters, id: \.self) { filter in
                     Button {
                         HapticManager.shared.selection()
@@ -84,8 +84,8 @@ public struct NotesView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.vertical, DipleSpace.m)
         }
     }
 
@@ -95,11 +95,10 @@ public struct NotesView: View {
         switch filter {
         case .all:
             Text("All")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(isSelected ? .black : Color(red: 0.65, green: 0.65, blue: 0.7))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(isSelected ? Color.dipleAccent : Color(red: 0.15, green: 0.15, blue: 0.17))
+                .dipleType(.micro)
+                .foregroundColor(isSelected ? .black : DipleColor.textTertiary)
+                .diplePadding(.chip)
+                .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
                 .clipShape(Capsule())
         case .tag(let tag):
             TagChipView(label: tag, kind: .text, isSelected: isSelected)
@@ -110,7 +109,7 @@ public struct NotesView: View {
 
     private var board: some View {
         ScrollView {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
                 ForEach(viewModel.filteredItems) { item in
                     Button {
                         HapticManager.shared.impact(.light)
@@ -134,56 +133,54 @@ public struct NotesView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 4)
-            .padding(.bottom, 32)
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.top, DipleSpace.xs)
+            .padding(.bottom, DipleSpace.xxxl)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DipleSpace.xl) {
             Spacer()
 
             ZStack {
                 Circle()
-                    .fill(Color.dipleAccent.opacity(0.12))
+                    .fill(DipleColor.accent.opacity(0.12))
                     .frame(width: 80, height: 80)
 
                 Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 30, weight: .thin))
-                    .foregroundColor(Color.dipleAccent)
+                    .dipleIcon(30, weight: .thin)
+                    .foregroundStyle(DipleColor.accent)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: DipleSpace.s) {
                 Text("No Notes Yet")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.title)
+                    .foregroundStyle(DipleColor.textPrimary)
 
                 Text("Write something down and tag it — with your own words, or with a book from your library.")
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.callout)
+                    .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, DipleSpace.xxxl)
             }
 
             Button {
                 HapticManager.shared.impact(.light)
                 viewModel.editorTarget = NoteEditorTarget(item: nil)
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: DipleSpace.s) {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
+                        .dipleIcon(14, weight: .semibold)
                     Text("New Note")
-                        .font(.system(size: 15, weight: .semibold))
+                        .dipleType(.body, weight: .semibold)
                 }
-                .foregroundColor(.black)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 24)
-                .background(Color.dipleAccent)
-                .cornerRadius(20)
+                .foregroundStyle(DipleColor.textOnAccent)
+                .diplePadding(.buttonLarge)
+                .background(DipleColor.accent, in: Capsule())
             }
             .buttonStyle(.plain)
-            .padding(.top, 8)
+            .padding(.top, DipleSpace.s)
 
             Spacer()
         }

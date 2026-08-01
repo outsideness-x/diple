@@ -49,32 +49,32 @@ public struct NoteEditorView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: DipleSpace.xxl) {
                         titleField
                         bodyField
                         tagsSection
                         bookTagSection
                     }
-                    .padding(20)
+                    .padding(DipleSpace.xl)
                 }
             }
             .navigationTitle(target.item == nil ? "New Note" : "Edit Note")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                        .foregroundStyle(DipleColor.textTertiary)
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") { save() }
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(canSave ? Color.dipleAccent : Color(red: 0.35, green: 0.35, blue: 0.4))
+                        .dipleType(.body, weight: .semibold)
+                        .foregroundColor(canSave ? DipleColor.accent : DipleColor.textQuaternary)
                         .disabled(!canSave)
                 }
             }
@@ -87,60 +87,59 @@ public struct NoteEditorView: View {
     }
 
     private var titleField: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
             sectionLabel("TITLE")
 
             TextField("Optional", text: $title)
-                .font(.system(size: 16, weight: .semibold))
+                .dipleType(.headline)
                 .foregroundColor(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color(red: 0.1, green: 0.1, blue: 0.12))
-                .cornerRadius(10)
+                .diplePadding(.field)
+                .background(DipleColor.surfaceRaised)
+                .cornerRadius(DipleRadius.m)
         }
     }
 
     private var bodyField: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
             sectionLabel("NOTE")
 
             TextEditor(text: $body_)
-                .font(.system(size: 15, weight: .regular))
-                .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                .dipleType(.body)
+                .foregroundStyle(DipleColor.textPrimary)
                 .scrollContentBackground(.hidden)
                 .focused($isBodyFocused)
                 .frame(minHeight: 180)
-                .padding(8)
-                .background(Color(red: 0.1, green: 0.1, blue: 0.12))
-                .cornerRadius(10)
+                .padding(DipleSpace.s)
+                .background(DipleColor.surfaceRaised)
+                .cornerRadius(DipleRadius.m)
         }
     }
 
     private var tagsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
             sectionLabel("TAGS")
 
-            HStack(spacing: 8) {
+            HStack(spacing: DipleSpace.s) {
                 TextField("Add a tag", text: $tagDraft)
-                    .font(.system(size: 14, weight: .regular))
+                    .dipleType(.callout)
                     .foregroundColor(.white)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                     .onSubmit { commitTagDraft() }
                     .submitLabel(.done)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color(red: 0.1, green: 0.1, blue: 0.12))
-                    .cornerRadius(10)
+                    .padding(.horizontal, DipleSpace.m)
+                    .padding(.vertical, DipleSpace.m)
+                    .background(DipleColor.surfaceRaised)
+                    .cornerRadius(DipleRadius.m)
 
                 Button {
                     commitTagDraft()
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
+                        .dipleIcon(14, weight: .semibold)
                         .foregroundColor(.black)
-                        .padding(10)
-                        .background(Color.dipleAccent)
+                        .padding(DipleSpace.m)
+                        .background(DipleColor.accent)
                         .clipShape(Circle())
                 }
                 .disabled(NoteTag.normalized(tagDraft) == nil)
@@ -148,22 +147,21 @@ public struct NoteEditorView: View {
             }
 
             if !tags.isEmpty {
-                FlowLayout(spacing: 8) {
+                FlowLayout(spacing: DipleSpace.s) {
                     ForEach(tags, id: \.self) { tag in
                         Button {
                             HapticManager.shared.selection()
                             tags.removeAll { $0 == tag }
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DipleSpace.xs) {
                                 Text("#\(tag)")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .dipleType(.caption, weight: .medium)
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .dipleIcon(9, weight: .bold)
                             }
-                            .foregroundColor(Color(red: 0.7, green: 0.7, blue: 0.75))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(red: 0.15, green: 0.15, blue: 0.17))
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .diplePadding(.chip)
+                            .background(DipleColor.surfaceOverlay)
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
@@ -172,12 +170,12 @@ public struct NoteEditorView: View {
             }
 
             if !unusedSuggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DipleSpace.s) {
                     Text("Used before")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                        .dipleType(.micro)
+                        .foregroundStyle(DipleColor.textQuaternary)
 
-                    FlowLayout(spacing: 8) {
+                    FlowLayout(spacing: DipleSpace.s) {
                         ForEach(unusedSuggestions, id: \.self) { tag in
                             Button {
                                 HapticManager.shared.selection()
@@ -189,30 +187,30 @@ public struct NoteEditorView: View {
                         }
                     }
                 }
-                .padding(.top, 4)
+                .padding(.top, DipleSpace.xs)
             }
         }
     }
 
     private var bookTagSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
             sectionLabel("FROM LIBRARY")
 
             Button {
                 HapticManager.shared.selection()
                 isBookPickerPresented = true
             } label: {
-                HStack(spacing: 10) {
+                HStack(spacing: DipleSpace.m) {
                     Image(systemName: "book.closed")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.dipleAccent)
+                        .dipleIcon(14, weight: .medium)
+                        .foregroundStyle(DipleColor.accent)
 
                     Text(selectedBook?.title ?? "Tag a book or file")
-                        .font(.system(size: 14, weight: .regular))
+                        .dipleType(.callout)
                         .foregroundColor(
                             selectedBook == nil
-                                ? Color(red: 0.5, green: 0.5, blue: 0.55)
-                                : Color(red: 0.92, green: 0.92, blue: 0.92)
+                                ? DipleColor.textTertiary
+                                : DipleColor.textPrimary
                         )
                         .lineLimit(1)
 
@@ -220,22 +218,21 @@ public struct NoteEditorView: View {
 
                     if selectedBook != nil {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 15))
-                            .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.45))
+                            .dipleIcon(15)
+                            .foregroundStyle(DipleColor.textQuaternary)
                             .onTapGesture {
                                 HapticManager.shared.selection()
                                 selectedBookId = nil
                             }
                     } else {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color(red: 0.35, green: 0.35, blue: 0.4))
+                            .dipleIcon(12, weight: .semibold)
+                            .foregroundStyle(DipleColor.textQuaternary)
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color(red: 0.1, green: 0.1, blue: 0.12))
-                .cornerRadius(10)
+                .diplePadding(.field)
+                .background(DipleColor.surfaceRaised)
+                .cornerRadius(DipleRadius.m)
             }
             .buttonStyle(.plain)
         }
@@ -243,9 +240,9 @@ public struct NoteEditorView: View {
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
-            .padding(.horizontal, 4)
+            .dipleType(.micro, weight: .semibold)
+            .foregroundStyle(DipleColor.textTertiary)
+            .padding(.horizontal, DipleSpace.xs)
     }
 
     private func commitTagDraft() {

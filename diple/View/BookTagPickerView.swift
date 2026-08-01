@@ -30,15 +30,15 @@ public struct BookTagPickerView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                Color.black.ignoresSafeArea()
+                DipleColor.canvas.ignoresSafeArea()
 
                 if books.isEmpty {
                     Text("Your library is empty.")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                        .dipleType(.callout)
+                        .foregroundStyle(DipleColor.textTertiary)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 8) {
+                        LazyVStack(spacing: DipleSpace.s) {
                             ForEach(filteredBooks) { book in
                                 Button {
                                     HapticManager.shared.impact(.light)
@@ -50,20 +50,20 @@ public struct BookTagPickerView: View {
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, DipleSpace.xl)
+                        .padding(.vertical, DipleSpace.m)
                     }
                 }
             }
             .searchable(text: $query, prompt: "Search library")
             .navigationTitle("Tag a Book")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundColor(Color(red: 0.6, green: 0.6, blue: 0.65))
+                        .foregroundStyle(DipleColor.textTertiary)
                 }
 
                 if selectedBookId != nil {
@@ -73,7 +73,7 @@ public struct BookTagPickerView: View {
                             onSelect(nil)
                             dismiss()
                         }
-                        .foregroundColor(Color.dipleAccent)
+                        .foregroundStyle(DipleColor.accent)
                     }
                 }
             }
@@ -81,20 +81,20 @@ public struct BookTagPickerView: View {
     }
 
     private func row(for book: Book) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DipleSpace.m) {
             BookCoverView(coverPath: book.coverPath, title: book.title, author: book.author, isCompact: true)
                 .frame(width: thumbnailWidth, height: thumbnailWidth * 1.5)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(book.title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color(red: 0.92, green: 0.92, blue: 0.92))
+                    .dipleType(.callout, weight: .medium)
+                    .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 Text(book.author ?? "Unknown Author")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(Color(red: 0.55, green: 0.55, blue: 0.58))
+                    .dipleType(.micro, weight: .regular)
+                    .foregroundStyle(DipleColor.textTertiary)
                     .lineLimit(1)
             }
 
@@ -102,12 +102,12 @@ public struct BookTagPickerView: View {
 
             if book.id == selectedBookId {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Color.dipleAccent)
+                    .dipleIcon(13, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
             }
         }
-        .padding(10)
-        .background(Color(red: 0.08, green: 0.08, blue: 0.1))
-        .cornerRadius(10)
+        .padding(DipleSpace.m)
+        .background(DipleColor.surface)
+        .cornerRadius(DipleRadius.m)
     }
 }
