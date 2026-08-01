@@ -32,6 +32,8 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var isLoading: Bool = true
     @Published public var errorMessage: String? = nil
 
+    private var persistTask: Task<Void, Never>? = nil
+
     private let httpClient = DefaultHTTPClient()
     private lazy var assetRetriever = AssetRetriever(httpClient: httpClient)
     private lazy var publicationOpener = PublicationOpener(
@@ -79,6 +81,14 @@ public final class ReaderViewModel: ObservableObject {
             let asset = try await assetRetriever.retrieve(url: absoluteURL).get()
             let pub = try await publicationOpener.open(asset: asset, allowUserInteraction: true).get()
 
+            // The navigators throw on restricted publications; catch it here so the reader
+            // shows an error instead of trapping inside `makeUIViewController`.
+            guard !pub.isRestricted else {
+                self.errorMessage = "This book is protected and cannot be opened."
+                self.isLoading = false
+                return
+            }
+
             var savedLocator: Locator? = nil
             if let locatorStr = book.locator {
                 savedLocator = Locator.from(jsonString: locatorStr)
@@ -90,6 +100,9 @@ public final class ReaderViewModel: ObservableObject {
             self.tableOfContents = toc
             self.initialLocator = savedLocator
             self.currentLocator = savedLocator
+            if let savedLocator {
+                self.currentProgress = progress(for: savedLocator)
+            }
             self.isLoading = false
         } catch {
             self.errorMessage = "Failed to open book: \(error.localizedDescription)"
@@ -99,29 +112,79 @@ public final class ReaderViewModel: ObservableObject {
 
     public func saveLocation(_ locator: Locator) {
         self.currentLocator = locator
-        
-        let calculatedProgress: Double
-        if let totalProg = locator.locations.totalProgression {
-            calculatedProgress = totalProg
+        self.currentProgress = progress(for: locator)
+        schedulePersist()
+    }
+
+    /// Reading progress in `0...1` for the given locator.
+    ///
+    /// `totalProgression` is only present when the publication exposes a position list.
+    /// Otherwise we approximate it from the resource index inside the reading order.
+    private func progress(for locator: Locator) -> Double {
+        let calculated: Double
+        if let totalProgression = locator.locations.totalProgression {
+            calculated = totalProgression
         } else if let pub = publication, !pub.readingOrder.isEmpty,
                   let index = pub.readingOrder.firstIndexWithHREF(locator.href) {
-            let chapterProg = locator.locations.progression ?? 0.0
-            calculatedProgress = (Double(index) + chapterProg) / Double(pub.readingOrder.count)
-        } else if let chapterProg = locator.locations.progression {
-            calculatedProgress = chapterProg
+            let chapterProgression = locator.locations.progression ?? 0.0
+            calculated = (Double(index) + chapterProgression) / Double(pub.readingOrder.count)
+        } else if let chapterProgression = locator.locations.progression {
+            calculated = chapterProgression
         } else {
-            calculatedProgress = self.currentProgress
+            calculated = currentProgress
         }
-        
-        let clampedProgress = min(max(calculatedProgress, 0.0), 1.0)
-        self.currentProgress = clampedProgress
+        return min(max(calculated, 0.0), 1.0)
+    }
 
-        let locatorStr = try? locator.jsonString()
+    /// The navigator reports a new location on every scrolled pixel. Writing to SQLite that
+    /// often stutters the reading experience, so persistence is coalesced and moved off the
+    /// main actor. `flushPendingProgress()` forces the last value out when the reader closes.
+    private func schedulePersist() {
+        persistTask?.cancel()
+        persistTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled else { return }
+            self?.persistProgress()
+        }
+    }
+
+    /// Writes the last known position immediately. Called when the reader closes so the
+    /// library grid can be refreshed with a value that is already in the database.
+    public func flushPendingProgress() {
+        persistTask?.cancel()
+        persistTask = nil
+        guard let payload = progressPayload() else { return }
+        Self.write(payload)
+    }
+
+    private func persistProgress() {
+        guard let payload = progressPayload() else { return }
+        Task.detached(priority: .utility) {
+            Self.write(payload)
+        }
+    }
+
+    private func progressPayload() -> ProgressPayload? {
+        guard let locator = currentLocator else { return nil }
+        return ProgressPayload(
+            bookId: book.id,
+            progress: currentProgress,
+            locator: try? locator.jsonString()
+        )
+    }
+
+    private struct ProgressPayload: Sendable {
+        let bookId: String
+        let progress: Double
+        let locator: String?
+    }
+
+    private nonisolated static func write(_ payload: ProgressPayload) {
         do {
             try AppDatabase.shared.updateReadingProgress(
-                id: book.id,
-                progress: clampedProgress,
-                locator: locatorStr
+                id: payload.bookId,
+                progress: payload.progress,
+                locator: payload.locator
             )
         } catch {
             print("Failed to save reading progress: \(error)")

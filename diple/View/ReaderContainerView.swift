@@ -56,7 +56,6 @@ public struct ReaderContainerView: View {
                         preferences: viewModel.settings.pdfPreferences,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
-                            onReadingUpdated()
                         },
                         onSelectionChanged: { selection in
                             viewModel.currentSelection = selection
@@ -83,7 +82,6 @@ public struct ReaderContainerView: View {
                         preferences: viewModel.settings.epubPreferences,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
-                            onReadingUpdated()
                         },
                         onSelectionChanged: { selection in
                             viewModel.currentSelection = selection
@@ -239,6 +237,8 @@ public struct ReaderContainerView: View {
             await viewModel.openBook()
         }
         .onDisappear {
+            // Persist synchronously first so the library grid reloads an up-to-date row.
+            viewModel.flushPendingProgress()
             onReadingUpdated()
         }
         .toolbar(.hidden, for: .navigationBar)

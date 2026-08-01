@@ -103,7 +103,9 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             print("Readium PDF navigator error: \(error)")
         }
 
-        public func navigator(_ navigator: VisualNavigator, locationDidChange locator: Locator) {
+        /// - Important: The parameter type must be `Navigator`, not `VisualNavigator`.
+        ///   See the note in `EPUBNavigatorRepresentable.Coordinator`.
+        public func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
             if let previousHref = lastHref, previousHref != locator.href {
                 HapticManager.shared.chapterChanged()
             }

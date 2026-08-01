@@ -178,7 +178,11 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             print("Readium navigator error: \(error)")
         }
 
-        public func navigator(_ navigator: VisualNavigator, locationDidChange locator: Locator) {
+        /// - Important: The parameter type must be `Navigator`, not `VisualNavigator`.
+        ///   `locationDidChange` is declared on `NavigatorDelegate`; declaring it with a
+        ///   narrower type silently creates an unrelated method and Readium keeps calling
+        ///   the empty default implementation, so no location is ever reported.
+        public func navigator(_ navigator: Navigator, locationDidChange locator: Locator) {
             if let previousHref = lastHref, previousHref != locator.href {
                 HapticManager.shared.chapterChanged()
             }
