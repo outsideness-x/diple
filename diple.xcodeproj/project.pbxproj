@@ -6,6 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D071D70A301DE80000A3309A /* ReadiumShared in Frameworks */ = {isa = PBXBuildFile; productRef = D071D706301DE80000A3309A /* ReadiumShared */; };
+		D071D70B301DE80000A3309A /* ReadiumStreamer in Frameworks */ = {isa = PBXBuildFile; productRef = D071D707301DE80000A3309A /* ReadiumStreamer */; };
+		D071D70C301DE80000A3309A /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = D071D708301DE80000A3309A /* ReadiumNavigator */; };
+		D071D70D301DE80000A3309A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D071D709301DE80000A3309A /* GRDB */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D071D6E8301DE6DD00A3309A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +59,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D071D70A301DE80000A3309A /* ReadiumShared in Frameworks */,
+				D071D70B301DE80000A3309A /* ReadiumStreamer in Frameworks */,
+				D071D70C301DE80000A3309A /* ReadiumNavigator in Frameworks */,
+				D071D70D301DE80000A3309A /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +123,10 @@
 			);
 			name = diple;
 			packageProductDependencies = (
+				D071D706301DE80000A3309A /* ReadiumShared */,
+				D071D707301DE80000A3309A /* ReadiumStreamer */,
+				D071D708301DE80000A3309A /* ReadiumNavigator */,
+				D071D709301DE80000A3309A /* GRDB */,
 			);
 			productName = diple;
 			productReference = D071D6DA301DE6DB00A3309A /* diple.app */;
@@ -582,6 +597,29 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D071D706301DE80000A3309A /* ReadiumShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumShared;
+		};
+		D071D707301DE80000A3309A /* ReadiumStreamer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumStreamer;
+		};
+		D071D708301DE80000A3309A /* ReadiumNavigator */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */;
+			productName = ReadiumNavigator;
+		};
+		D071D709301DE80000A3309A /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D071D705301DE78800A3309A /* XCRemoteSwiftPackageReference "GRDB" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */ = {
