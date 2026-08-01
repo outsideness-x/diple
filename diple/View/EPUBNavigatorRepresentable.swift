@@ -104,6 +104,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         weak var navigator: EPUBNavigatorViewController?
         var lastHandledLink: ReadiumShared.Link? = nil
         var lastHandledLocator: Locator? = nil
+        var lastHref: AnyURL? = nil
 
         init(_ parent: EPUBNavigatorRepresentable) {
             self.parent = parent
@@ -114,10 +115,15 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         }
 
         public func navigator(_ navigator: VisualNavigator, locationDidChange locator: Locator) {
+            if let previousHref = lastHref, previousHref != locator.href {
+                HapticManager.shared.chapterChanged()
+            }
+            lastHref = locator.href
             parent.onLocationChanged(locator)
         }
 
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
+            HapticManager.shared.selection()
             parent.onSelectionChanged(selection)
             return true
         }

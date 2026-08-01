@@ -101,15 +101,41 @@ public struct ReaderSettingsView: View {
                 }
             }
 
+            // Reading Mode selector (Paginated vs Continuous Scroll)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("READING MODE")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.55))
+
+                HStack(spacing: 12) {
+                    ForEach(ReadingMode.allCases) { mode in
+                        let isSelected = settings.readingMode == mode
+                        Button {
+                            HapticManager.shared.selection()
+                            settings.readingMode = mode
+                        } label: {
+                            Text(mode.rawValue)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(isSelected ? .black : Color(red: 0.85, green: 0.85, blue: 0.88))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(isSelected ? Color.dipleAccent : Color(red: 0.12, green: 0.12, blue: 0.14))
+                                .cornerRadius(10)
+                        }
+                    }
+                }
+            }
+
             Spacer()
         }
         .padding(.horizontal, 24)
         .background(Color.black.ignoresSafeArea())
-        .presentationDetents([.height(340)])
+        .presentationDetents([.height(420)])
     }
 
     private func themeButton(title: String, theme: Theme, bg: SwiftUI.Color, fg: SwiftUI.Color) -> some View {
         Button {
+            HapticManager.shared.selection()
             settings.theme = theme
         } label: {
             HStack(spacing: 6) {
@@ -134,6 +160,7 @@ public struct ReaderSettingsView: View {
     private func fontFamilyButton(fontOption: ReaderFont) -> some View {
         let isSelected = settings.font == fontOption
         return Button {
+            HapticManager.shared.selection()
             settings.font = fontOption
         } label: {
             Text(fontOption.rawValue)

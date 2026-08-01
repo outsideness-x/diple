@@ -17,17 +17,31 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+public enum ReadingMode: String, CaseIterable, Identifiable, Codable {
+    case paginated = "Paginated"
+    case scroll = "Continuous Scroll"
+
+    public var id: String { rawValue }
+}
+
 public struct ReaderSettings: Equatable {
     public var fontSizeStep: Int = 2 // 0: 0.8, 1: 0.9, 2: 1.0, 3: 1.15, 4: 1.3
     public var font: ReaderFont = .sanFrancisco
     public var theme: Theme = .dark
+    public var readingMode: ReadingMode = .paginated
 
     public static let fontSizes: [Double] = [0.8, 0.9, 1.0, 1.15, 1.3]
 
-    public init(fontSizeStep: Int = 2, font: ReaderFont = .sanFrancisco, theme: Theme = .dark) {
+    public init(
+        fontSizeStep: Int = 2,
+        font: ReaderFont = .sanFrancisco,
+        theme: Theme = .dark,
+        readingMode: ReadingMode = .paginated
+    ) {
         self.fontSizeStep = fontSizeStep
         self.font = font
         self.theme = theme
+        self.readingMode = readingMode
     }
 
     public var currentFontSize: Double {
@@ -39,6 +53,7 @@ public struct ReaderSettings: Equatable {
         prefs.fontSize = currentFontSize
         prefs.fontFamily = font.fontFamily
         prefs.theme = theme
+        prefs.scroll = (readingMode == .scroll)
         return prefs
     }
 }

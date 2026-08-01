@@ -36,6 +36,8 @@ public final class ReaderViewModel: ObservableObject {
     public init(book: Book) {
         self.book = book
         self.currentProgress = book.progress
+        let defaultMode: ReadingMode = AppSettingsManager.shared.settings.defaultScrollReadingMode ? .scroll : .paginated
+        self.settings = ReaderSettings(readingMode: defaultMode)
         loadHighlights()
     }
 
