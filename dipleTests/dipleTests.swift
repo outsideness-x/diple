@@ -129,6 +129,30 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(try database.search("полином").isEmpty)
     }
 
+    func testGlobalSearchIndexesImportedArticleTextSeparatelyFromMetadata() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let article = Book(
+            id: "article-book",
+            title: "Readable Systems",
+            author: "Ada",
+            filePath: "Books/article-book/article.epub",
+            sourceURL: "https://example.org/readable-systems"
+        )
+
+        try database.saveArticle(
+            article,
+            searchableText: "A distinctive passage about compositional architecture."
+        )
+
+        let bodyResults = try database.search("compositional")
+        XCTAssertEqual(bodyResults.map(\.kind), [.article])
+        XCTAssertEqual(bodyResults.first?.bookID, article.id)
+        XCTAssertTrue(try database.fetchArticlesMissingTextIndex().isEmpty)
+
+        try database.deleteBook(id: article.id)
+        XCTAssertTrue(try database.search("compositional").isEmpty)
+    }
+
     // MARK: - Generated EPUB
 
     func testZIPWriterUsesStoredEntriesAndCorrectCRC32() throws {
@@ -171,6 +195,10 @@ final class DipleTests: XCTestCase {
             String(decoding: archive[38..<(38 + "application/epub+zip".utf8.count)], as: UTF8.self),
             "application/epub+zip"
         )
+        XCTAssertEqual(
+            String(data: try XCTUnwrap(StoredZIPReader.entry(named: "EPUB/article.xhtml", in: archive)), encoding: .utf8)?.contains("Текст"),
+            true
+        )
     }
 
     // MARK: - Article extraction
@@ -211,6 +239,8 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(extractor.metadata.canonicalURL.absoluteString, "https://example.com/canonical")
         XCTAssertEqual(extractor.sections.map(\.title), ["Раздел"])
         XCTAssertEqual(extractor.images.count, 1)
+        XCTAssertTrue(extractor.searchableText.contains(paragraph))
+        XCTAssertFalse(extractor.searchableText.contains("Меню сайта"))
 
         let body = try extractor.bodyXHTML(resolvedImages: [0: "images/article.jpg"])
         XCTAssertTrue(body.contains(paragraph))

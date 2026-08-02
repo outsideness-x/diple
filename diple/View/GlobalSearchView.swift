@@ -29,6 +29,15 @@ public struct GlobalSearchView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                if viewModel.isIndexingArticles {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        ProgressView()
+                            .tint(DipleColor.accent)
+                            .accessibilityLabel("Indexing imported articles")
+                    }
+                }
+            }
             .searchable(
                 text: $viewModel.query,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -108,7 +117,7 @@ public struct GlobalSearchView: View {
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 
-                Text("Find your notes, saved highlights, books and article sources in one place.")
+                Text("Find your notes, saved highlights, books and the text of imported articles in one place.")
                     .dipleType(.callout)
                     .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)

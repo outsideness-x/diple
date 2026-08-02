@@ -152,6 +152,57 @@ nonisolated struct ZIPWriter {
     }
 }
 
+/// Reads one entry from archives emitted by `ZIPWriter` above.
+///
+/// This is intentionally not a general ZIP implementation: Diple's generated article EPUBs
+/// use local headers, no data descriptors and the stored method. Keeping the reader symmetric
+/// with the writer lets old articles be indexed without adding a second archive dependency.
+nonisolated enum StoredZIPReader {
+    static func entry(named wantedPath: String, in archive: Data) -> Data? {
+        var cursor = 0
+
+        while cursor + 30 <= archive.count {
+            guard uint32(in: archive, at: cursor) == 0x0403_4B50,
+                  let flags = uint16(in: archive, at: cursor + 6),
+                  let method = uint16(in: archive, at: cursor + 8),
+                  let compressedSize = uint32(in: archive, at: cursor + 18),
+                  let nameLength = uint16(in: archive, at: cursor + 26),
+                  let extraLength = uint16(in: archive, at: cursor + 28),
+                  flags & 0x0008 == 0
+            else { return nil }
+
+            let nameStart = cursor + 30
+            let nameEnd = nameStart + Int(nameLength)
+            let dataStart = nameEnd + Int(extraLength)
+            let dataEnd = dataStart + Int(compressedSize)
+            guard nameEnd <= archive.count, dataEnd <= archive.count else { return nil }
+
+            let path = String(decoding: archive[nameStart..<nameEnd], as: UTF8.self)
+            if path == wantedPath {
+                guard method == 0 else { return nil }
+                return archive.subdata(in: dataStart..<dataEnd)
+            }
+
+            cursor = dataEnd
+        }
+
+        return nil
+    }
+
+    private static func uint16(in data: Data, at offset: Int) -> UInt16? {
+        guard offset >= 0, offset + 2 <= data.count else { return nil }
+        return UInt16(data[offset]) | (UInt16(data[offset + 1]) << 8)
+    }
+
+    private static func uint32(in data: Data, at offset: Int) -> UInt32? {
+        guard offset >= 0, offset + 4 <= data.count else { return nil }
+        return UInt32(data[offset])
+            | (UInt32(data[offset + 1]) << 8)
+            | (UInt32(data[offset + 2]) << 16)
+            | (UInt32(data[offset + 3]) << 24)
+    }
+}
+
 /// CRC-32 as ZIP defines it: the IEEE 802.3 polynomial in reversed bit order.
 private nonisolated enum CRC32 {
     private static let table: [UInt32] = (0..<256).map { index -> UInt32 in

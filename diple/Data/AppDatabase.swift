@@ -160,6 +160,17 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// An imported article is a regular book plus one FTS document containing its clean prose.
+    /// Both become visible atomically, so search cannot return a publication whose library row
+    /// failed to save (or miss the text of one that succeeded).
+    public func saveArticle(_ book: Book, searchableText: String) throws {
+        try writer.write { db in
+            try book.save(db)
+            try indexBook(book, in: db)
+            try indexArticle(book, text: searchableText, in: db)
+        }
+    }
+
     public func fetchAllBooks() throws -> [Book] {
         try writer.read { db in
             try Book.order(Column("addedAt").desc).fetchAll(db)
@@ -201,6 +212,11 @@ public nonisolated final class AppDatabase: Sendable {
                 for highlight in highlights {
                     try indexHighlight(highlight, book: book, in: db)
                 }
+
+                try db.execute(
+                    sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'article' AND bookID = ?",
+                    arguments: [book.title, book.sourceHost ?? "", book.id]
+                )
             }
         }
     }
@@ -344,6 +360,32 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Legacy web imports that predate article-body indexing. The existence check lives in SQL
+    /// so opening Search does not read every EPUB just to discover that it is already indexed.
+    public func fetchArticlesMissingTextIndex() throws -> [Book] {
+        try writer.read { db in
+            try Book.fetchAll(
+                db,
+                sql: """
+                    SELECT book.*
+                    FROM book
+                    WHERE book.sourceURL IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM searchIndex
+                          WHERE entityType = 'article' AND bookID = book.id
+                      )
+                    ORDER BY book.addedAt DESC
+                    """
+            )
+        }
+    }
+
+    public func indexArticleText(book: Book, text: String) throws {
+        try writer.write { db in
+            try indexArticle(book, text: text, in: db)
+        }
+    }
+
     // MARK: - Global Search
 
     public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {
@@ -453,6 +495,17 @@ public nonisolated final class AppDatabase: Sendable {
                 note.body,
                 tags.joined(separator: " ")
             ]
+        )
+    }
+
+    private func indexArticle(_ book: Book, text: String, in db: Database) throws {
+        try deleteSearchDocument(type: .article, id: book.id, in: db)
+        try db.execute(
+            sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                VALUES ('article', ?, ?, ?, ?, ?, '')
+                """,
+            arguments: [book.id, book.id, book.title, book.sourceHost ?? "", text]
         )
     }
 

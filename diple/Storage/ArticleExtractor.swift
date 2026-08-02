@@ -147,6 +147,8 @@ public nonisolated final class ArticleExtractor {
     public let metadata: ArticleMetadata
     public let images: [ArticleImageSlot]
     public let sections: [ArticleSection]
+    /// Clean prose after page chrome and the duplicate leading headline have been removed.
+    public let searchableText: String
 
     // MARK: - Extraction
 
@@ -184,6 +186,7 @@ public nonisolated final class ArticleExtractor {
         // block of its own, so leaving that one in place would show the title twice.
         try Self.removeLeadingTitleHeading(in: candidate, matching: metadata.title)
         self.sections = try Self.markSections(in: candidate)
+        self.searchableText = try candidate.text()
     }
 
     // MARK: - Rendering

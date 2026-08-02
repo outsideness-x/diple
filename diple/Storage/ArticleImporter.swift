@@ -166,7 +166,7 @@ public nonisolated final class ArticleImporter {
             sourceURL: article.metadata.canonicalURL.absoluteString
         )
 
-        try AppDatabase.shared.saveBook(book)
+        try AppDatabase.shared.saveArticle(book, searchableText: article.searchableText)
         importCommitted = true
         return book
     }
