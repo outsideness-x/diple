@@ -3,6 +3,23 @@ import UIKit
 import ReadiumShared
 import ReadiumStreamer
 
+public nonisolated enum PublicationImportError: LocalizedError {
+    case invalidFileURL
+    case unreadablePublication
+    case restrictedPublication
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidFileURL:
+            return "The selected file could not be opened."
+        case .unreadablePublication:
+            return "That file is not a readable EPUB or PDF."
+        case .restrictedPublication:
+            return "This publication is protected and cannot be opened."
+        }
+    }
+}
+
 public final class EPUBImporter {
     public static let shared = EPUBImporter()
 
@@ -48,31 +65,38 @@ public final class EPUBImporter {
         var author: String? = nil
         var coverRelativePath: String? = nil
 
-        if let absoluteURL = localFileURL.anyURL.absoluteURL {
-            do {
-                let asset = try await assetRetriever.retrieve(url: absoluteURL).get()
-                let publication = try await publicationOpener.open(asset: asset, allowUserInteraction: false).get()
+        guard let absoluteURL = localFileURL.anyURL.absoluteURL else {
+            throw PublicationImportError.invalidFileURL
+        }
 
-                // Extract title
-                if let pubTitle = publication.metadata.title,
-                   !pubTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    title = pubTitle
-                }
+        let publication: Publication
+        do {
+            let asset = try await assetRetriever.retrieve(url: absoluteURL).get()
+            publication = try await publicationOpener.open(asset: asset, allowUserInteraction: false).get()
+        } catch {
+            throw PublicationImportError.unreadablePublication
+        }
 
-                // Extract author(s)
-                let authors = publication.metadata.authors.map(\.name).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                if !authors.isEmpty {
-                    author = authors.joined(separator: ", ")
-                }
+        guard !publication.isRestricted else {
+            throw PublicationImportError.restrictedPublication
+        }
 
-                // Extract cover image
-                if let coverImage = try? await publication.cover().get(),
-                   let coverData = coverImage.pngData() {
-                    coverRelativePath = try BookStorageService.shared.saveCoverData(coverData, bookId: bookId)
-                }
-            } catch {
-                print("Readium metadata extraction failed for \(localFileURL.lastPathComponent): \(error)")
-            }
+        // Extract title
+        if let pubTitle = publication.metadata.title,
+           !pubTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            title = pubTitle
+        }
+
+        // Extract author(s)
+        let authors = publication.metadata.authors.map(\.name).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if !authors.isEmpty {
+            author = authors.joined(separator: ", ")
+        }
+
+        // A missing cover is recoverable; failure to open the publication itself is not.
+        if let coverImage = try? await publication.cover().get(),
+           let coverData = coverImage.pngData() {
+            coverRelativePath = try BookStorageService.shared.saveCoverData(coverData, bookId: bookId)
         }
 
         // 3. Create Book record & save in GRDB database
