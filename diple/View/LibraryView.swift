@@ -7,12 +7,23 @@ public struct LibraryView: View {
     @State private var isLinkImporterPresented = false
 
     @State private var isAppSettingsPresented = false
+    @State private var searchText = ""
+    @State private var filter: LibraryFilter = .all
+    @State private var sort: LibrarySort = .recentlyOpened
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)
     ]
 
     public init() {}
+
+    private var visibleBooks: [Book] {
+        viewModel.visibleBooks(query: searchText, filter: filter, sort: sort)
+    }
+
+    private var isDefaultBrowse: Bool {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filter == .all
+    }
 
     public var body: some View {
         NavigationStack {
@@ -27,7 +38,7 @@ public struct LibraryView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: DipleSpace.xxxl) {
-                            if let book = viewModel.continueReadingBook {
+                            if isDefaultBrowse, let book = viewModel.continueReadingBook {
                                 VStack(alignment: .leading, spacing: DipleSpace.m) {
                                     sectionHeading("CONTINUE READING")
 
@@ -39,28 +50,38 @@ public struct LibraryView: View {
                                 }
                             }
 
+                            if viewModel.books.count > 1 {
+                                filterBar
+                            }
+
                             VStack(alignment: .leading, spacing: DipleSpace.m) {
                                 HStack(alignment: .firstTextBaseline) {
-                                    sectionHeading("LIBRARY")
+                                    sectionHeading(isDefaultBrowse ? "LIBRARY" : "RESULTS")
 
                                     Spacer()
 
-                                    Text("\(viewModel.books.count)")
+                                    Text("\(visibleBooks.count)")
                                         .dipleType(.micro)
                                         .foregroundStyle(DipleColor.textQuaternary)
                                         .monospacedDigit()
+
+                                    sortMenu
                                 }
 
-                                LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
-                                    ForEach(viewModel.books) { book in
-                                        NavigationLink(value: book) {
-                                            BookItemView(book: book, onEdit: {
-                                                viewModel.bookToEdit = book
-                                            }, onDelete: {
-                                                viewModel.confirmDelete(book)
-                                            })
+                                if visibleBooks.isEmpty {
+                                    noResults
+                                } else {
+                                    LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
+                                        ForEach(visibleBooks) { book in
+                                            NavigationLink(value: book) {
+                                                BookItemView(book: book, onEdit: {
+                                                    viewModel.bookToEdit = book
+                                                }, onDelete: {
+                                                    viewModel.confirmDelete(book)
+                                                })
+                                            }
+                                            .buttonStyle(.bookCard)
                                         }
-                                        .buttonStyle(.bookCard)
                                     }
                                 }
                             }
@@ -88,6 +109,11 @@ public struct LibraryView: View {
             }
             .navigationTitle("diple")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "Title, author or source"
+            )
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -181,6 +207,82 @@ public struct LibraryView: View {
         Text(title)
             .dipleType(.micro, weight: .semibold)
             .foregroundStyle(DipleColor.textTertiary)
+    }
+
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DipleSpace.s) {
+                ForEach(LibraryFilter.allCases) { option in
+                    Button {
+                        HapticManager.shared.selection()
+                        withAnimation(DipleMotion.standard) {
+                            filter = option
+                        }
+                    } label: {
+                        Text(option.rawValue)
+                            .dipleType(.micro)
+                            .foregroundStyle(filter == option ? DipleColor.textOnAccent : DipleColor.textTertiary)
+                            .diplePadding(.chip)
+                            .background(filter == option ? DipleColor.accent : DipleColor.surfaceOverlay)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .contentMargins(.horizontal, 0, for: .scrollContent)
+        .accessibilityLabel("Library filters")
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort Library", selection: $sort) {
+                ForEach(LibrarySort.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+        } label: {
+            HStack(spacing: DipleSpace.xs) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .dipleIcon(10, weight: .semibold)
+                Text(sort.compactTitle)
+                    .dipleType(.micro, weight: .semibold)
+            }
+            .foregroundStyle(DipleColor.textSecondary)
+            .diplePadding(.chip)
+            .background(DipleColor.surfaceOverlay, in: Capsule())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel("Sort Library")
+        .accessibilityValue(sort.rawValue)
+    }
+
+    private var noResults: some View {
+        VStack(spacing: DipleSpace.m) {
+            Image(systemName: "magnifyingglass")
+                .dipleIcon(24, weight: .light)
+                .foregroundStyle(DipleColor.textQuaternary)
+
+            Text("Nothing Found")
+                .dipleType(.headline)
+                .foregroundStyle(DipleColor.textPrimary)
+
+            Text("Try another title, author, source or reading status.")
+                .dipleType(.callout)
+                .foregroundStyle(DipleColor.textTertiary)
+                .multilineTextAlignment(.center)
+
+            Button("Clear Search and Filters") {
+                searchText = ""
+                filter = .all
+                HapticManager.shared.selection()
+            }
+            .dipleType(.footnote, weight: .semibold)
+            .foregroundStyle(DipleColor.accent)
+            .buttonStyle(.readerControl)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DipleSpace.xxxl)
     }
 }
 

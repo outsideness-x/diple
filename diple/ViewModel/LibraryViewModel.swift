@@ -2,6 +2,48 @@ import Foundation
 import SwiftUI
 import Combine
 
+public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
+    case all = "All"
+    case books = "Books"
+    case articles = "Articles"
+    case unread = "Unread"
+    case inProgress = "In Progress"
+    case finished = "Finished"
+
+    public var id: Self { self }
+
+    public func includes(_ book: Book) -> Bool {
+        switch self {
+        case .all: return true
+        case .books: return !book.isArticle
+        case .articles: return book.isArticle
+        case .unread: return book.progress <= 0.001
+        case .inProgress: return book.progress > 0.001 && book.progress < 0.995
+        case .finished: return book.progress >= 0.995
+        }
+    }
+}
+
+public enum LibrarySort: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
+    case recentlyOpened = "Recently Opened"
+    case recentlyAdded = "Recently Added"
+    case title = "Title"
+    case author = "Author"
+    case source = "Source"
+
+    public var id: Self { self }
+
+    public var compactTitle: String {
+        switch self {
+        case .recentlyOpened: return "Recent"
+        case .recentlyAdded: return "Added"
+        case .title: return "Title"
+        case .author: return "Author"
+        case .source: return "Source"
+        }
+    }
+}
+
 @MainActor
 public final class LibraryViewModel: ObservableObject {
     @Published public private(set) var books: [Book] = []
@@ -21,6 +63,41 @@ public final class LibraryViewModel: ObservableObject {
         books
             .filter { $0.lastOpenedAt != nil && $0.progress > 0.001 && $0.progress < 0.995 }
             .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }
+    }
+
+    /// Search, filtering and ordering are projections over the in-memory library. Opening the
+    /// screen still costs one database read, and typing never issues a query per keystroke.
+    public func visibleBooks(query: String, filter: LibraryFilter, sort: LibrarySort) -> [Book] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matching = books.filter { book in
+            guard filter.includes(book) else { return false }
+            guard !needle.isEmpty else { return true }
+            return [book.title, book.author, book.sourceHost, book.sourceURL]
+                .compactMap { $0 }
+                .contains { $0.localizedStandardContains(needle) }
+        }
+
+        return matching.sorted { lhs, rhs in
+            switch sort {
+            case .recentlyOpened:
+                let left = lhs.lastOpenedAt ?? .distantPast
+                let right = rhs.lastOpenedAt ?? .distantPast
+                return left == right ? lhs.addedAt > rhs.addedAt : left > right
+            case .recentlyAdded:
+                return lhs.addedAt > rhs.addedAt
+            case .title:
+                return ordered(lhs.title, before: rhs.title, fallback: lhs.addedAt > rhs.addedAt)
+            case .author:
+                return ordered(lhs.author ?? "", before: rhs.author ?? "", fallback: lhs.title < rhs.title)
+            case .source:
+                return ordered(lhs.sourceHost ?? "", before: rhs.sourceHost ?? "", fallback: lhs.title < rhs.title)
+            }
+        }
+    }
+
+    private func ordered(_ lhs: String, before rhs: String, fallback: Bool) -> Bool {
+        let result = lhs.localizedCaseInsensitiveCompare(rhs)
+        return result == .orderedSame ? fallback : result == .orderedAscending
     }
 
     public func loadBooks() {
