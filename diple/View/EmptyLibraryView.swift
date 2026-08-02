@@ -16,9 +16,7 @@ public struct EmptyLibraryView: View {
             ZStack {
                 AccentWash()
 
-                Image(systemName: "book")
-                    .dipleIcon(32, weight: .thin)
-                    .foregroundStyle(DipleColor.accent)
+                DipleMark(size: 56)
                     .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
             }
 

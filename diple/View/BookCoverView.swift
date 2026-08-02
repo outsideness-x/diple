@@ -45,9 +45,7 @@ public struct BookCoverView: View {
                         .offset(x: geometry.size.width * 0.2, y: -geometry.size.height * 0.2)
 
                     VStack(alignment: .leading, spacing: DipleSpace.s) {
-                        Image(systemName: "book.closed")
-                            .dipleIcon(isCompact ? 14 : 20, weight: .light)
-                            .foregroundStyle(DipleColor.textTertiary)
+                        DipleMark(size: isCompact ? 18 : 28)
                             .frame(
                                 maxWidth: isCompact ? .infinity : nil,
                                 maxHeight: isCompact ? .infinity : nil

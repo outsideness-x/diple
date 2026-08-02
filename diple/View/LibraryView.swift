@@ -2,6 +2,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 public struct LibraryView: View {
+    private enum BookPlacement: String, Hashable {
+        case continueReading
+        case grid
+    }
+
+    private struct BookRoute: Hashable {
+        let book: Book
+        let placement: BookPlacement
+
+        var sourceID: String { "\(placement.rawValue):\(book.id)" }
+    }
+
     @StateObject private var viewModel = LibraryViewModel()
     @State private var isFileImporterPresented = false
     @State private var isLinkImporterPresented = false
@@ -10,6 +22,8 @@ public struct LibraryView: View {
     @State private var searchText = ""
     @State private var filter: LibraryFilter = .all
     @State private var sort: LibrarySort = .recentlyOpened
+    @Namespace private var bookNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let columns = [
         GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)
@@ -42,10 +56,12 @@ public struct LibraryView: View {
                                 VStack(alignment: .leading, spacing: DipleSpace.m) {
                                     sectionHeading("CONTINUE READING")
 
-                                    NavigationLink(value: book) {
+                                    let route = BookRoute(book: book, placement: .continueReading)
+                                    NavigationLink(value: route) {
                                         ContinueReadingCard(book: book)
                                     }
                                     .buttonStyle(.bookCard)
+                                    .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
                                     .accessibilityHint("Opens at your last reading position")
                                 }
                             }
@@ -73,7 +89,8 @@ public struct LibraryView: View {
                                 } else {
                                     LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
                                         ForEach(visibleBooks) { book in
-                                            NavigationLink(value: book) {
+                                            let route = BookRoute(book: book, placement: .grid)
+                                            NavigationLink(value: route) {
                                                 BookItemView(book: book, onEdit: {
                                                     viewModel.bookToEdit = book
                                                 }, onDelete: {
@@ -81,6 +98,7 @@ public struct LibraryView: View {
                                                 })
                                             }
                                             .buttonStyle(.bookCard)
+                                            .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
                                         }
                                     }
                                 }
@@ -182,10 +200,8 @@ public struct LibraryView: View {
                     Text("Are you sure you want to delete '\(book.title)'? This will remove the book file and metadata.")
                 }
             }
-            .navigationDestination(for: Book.self) { book in
-                ReaderContainerView(book: book, onReadingUpdated: {
-                    viewModel.loadBooks()
-                })
+            .navigationDestination(for: BookRoute.self) { route in
+                readerDestination(for: route)
             }
             .sheet(isPresented: $isAppSettingsPresented) {
                 AppSettingsView()
@@ -207,6 +223,19 @@ public struct LibraryView: View {
         Text(title)
             .dipleType(.micro, weight: .semibold)
             .foregroundStyle(DipleColor.textTertiary)
+    }
+
+    @ViewBuilder
+    private func readerDestination(for route: BookRoute) -> some View {
+        let reader = ReaderContainerView(book: route.book, onReadingUpdated: {
+            viewModel.loadBooks()
+        })
+
+        if reduceMotion {
+            reader
+        } else {
+            reader.navigationTransition(.zoom(sourceID: route.sourceID, in: bookNamespace))
+        }
     }
 
     private var filterBar: some View {
