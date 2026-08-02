@@ -1,141 +1,173 @@
-Diple is a private and open-source reading application for macOS and iOS. It helps users read books, organize their personal library, track reading progress, and create notes.
+# Diple
 
-Diple is designed around a simple principle: your reading activity and personal content should remain under your control.
+Diple is a private and open-source reading application for **macOS** and **iOS**. It helps users read books, organize their personal library, track reading progress, and create notes.
 
-Privacy Policy
+Diple is designed around a simple principle: **your reading activity and personal content should remain under your control.**
 
-Last updated: August 2, 2026
+---
+
+# Privacy Policy
+
+**Last updated: August 2, 2026**
 
 This Privacy Policy explains how Diple handles user information.
 
-Data collection
+## Data Collection
 
-Diple does not collect, transmit, sell, rent, or share personal data.
+Diple does not collect, transmit to the developer, sell, rent, or share personal data.
 
-The developer does not operate a backend server for Diple and does not maintain a database containing user information.
+The developer does not operate a backend server for Diple and does not maintain a database containing user information or user-created content.
 
 Diple does not use:
 
-Advertising services
+- Advertising services
+- Cross-app tracking
+- Tracking identifiers
+- Third-party analytics SDKs
+- Third-party crash-reporting SDKs
+- User profiling
+- Marketing data collection
 
-Cross-app tracking
+## Accounts
 
-Tracking identifiers
+Diple does not require users to create a separate Diple account.
 
-Third-party analytics SDKs
+The application does not request or store names, email addresses, passwords, phone numbers, or other account credentials.
 
-User profiling
+An Apple Account may be required by Apple when the user chooses to use iCloud synchronization. The user’s Apple Account is managed by Apple and is not accessible to the developer.
 
-Marketing data collection
-
-Accounts
-
-Diple does not require users to create an account.
-
-The application does not request or store names, email addresses, passwords, phone numbers, or other account information.
-
-Local data
+## Local Data
 
 Books, reading progress, bookmarks, notes, preferences, and other user-created content are stored locally on the user’s device.
 
-This information is not transmitted to the developer.
+When iCloud synchronization is enabled, supported app data may also be stored and synchronized through the user’s personal iCloud account.
 
-Users are responsible for maintaining backups of their books, notes, and other local content.
+Diple does not transmit this information to a server operated by the developer. The developer does not receive or use this content for advertising, analytics, tracking, profiling, or marketing.
 
-iCloud synchronization
+Users are responsible for maintaining appropriate backups of their books, notes, and other important content.
 
-Diple may use Apple iCloud to synchronize app data between devices belonging to the same user.
+## iCloud Synchronization
 
-iCloud synchronization is provided and managed by Apple. Data synchronized through iCloud is associated with the user’s Apple Account and is subject to Apple’s privacy policy and iCloud terms.
+Diple uses Apple iCloud to synchronize supported app data between devices connected to the same Apple Account.
 
-The developer does not operate an independent synchronization server and does not use iCloud data for advertising, analytics, tracking, or profiling.
+iCloud synchronization is provided and managed by Apple. Its availability depends on the user’s Apple Account, device settings, available iCloud storage, and network connection.
 
-Users can control iCloud access through the system settings on their Apple devices.
+Information synchronized through iCloud is associated with the user’s Apple Account and is handled according to Apple’s privacy policy and iCloud terms.
 
-Imported books and documents
+The developer does not operate an independent synchronization server and does not use synchronized content for advertising, analytics, tracking, profiling, or marketing.
 
-Diple only accesses books, documents, folders, or other files explicitly selected by the user.
+Users can control Diple’s access to iCloud through the system settings on their Apple devices.
 
-Imported content is used exclusively to provide the application’s reading and note-taking functionality.
+## Imported Books and Documents
+
+Diple only accesses books, documents, folders, or other files explicitly selected or imported by the user.
+
+Imported content is used exclusively to provide Diple’s reading, library-management, and note-taking functionality.
 
 Diple does not upload imported books or documents to a server operated by the developer.
 
+When iCloud synchronization is enabled, supported content or related app data may be synchronized through the user’s personal iCloud account.
+
 Users are responsible for ensuring that they have the right to access and use any content imported into Diple.
 
-Permissions
+## Permissions
 
-Diple may request access to files or folders when the user chooses to import or export content.
+Diple may request access to files or folders when the user chooses to import, open, save, or export content.
 
-Permission is requested only when required for a user-initiated feature. Diple does not use these permissions to scan unrelated files or collect information about the user.
+Permissions are requested only when required for a user-initiated feature. Diple does not use these permissions to scan unrelated files or collect information about the user.
 
-Permissions can be reviewed and changed in macOS System Settings.
+Permissions can be reviewed and changed through the privacy and security settings provided by macOS or iOS.
 
-Analytics and diagnostics
+## Analytics and Diagnostics
 
-Diple does not include an independent analytics or crash-reporting service.
+Diple does not include an independent analytics, telemetry, or crash-reporting service.
 
-Apple may collect and provide limited diagnostic or App Store information according to the user’s Apple privacy and analytics settings. This information is processed by Apple under Apple’s own privacy policies.
+Apple may collect and provide limited diagnostic, performance, crash, or App Store information according to the user’s Apple privacy and analytics settings.
 
-Data retention and deletion
+Information collected directly by Apple is processed by Apple under Apple’s own privacy policies. Diple does not use this information to create user profiles or track users across applications or websites.
 
-Because Diple does not maintain user accounts or store personal information on a developer-operated server, the developer has no personal account data to delete.
+## Data Retention and Deletion
 
-Users can remove locally stored Diple data by deleting content inside the application or uninstalling the application.
+Diple does not maintain user accounts or store personal information on a developer-operated server. Therefore, the developer has no server-side personal account data to retain or delete.
 
-Data stored through iCloud can be managed through the user’s Apple Account and iCloud settings.
+Users can remove locally stored content from within Diple.
 
-Children’s privacy
+Uninstalling Diple removes the application from the device, but it may not automatically remove data previously synchronized through iCloud.
+
+Data synchronized through iCloud can be managed through Diple, the user’s Apple Account, or the relevant iCloud settings provided by Apple.
+
+## Children’s Privacy
 
 Diple does not knowingly collect personal information from children or any other users.
 
-Because the application does not collect personal data, it does not create user profiles based on age.
+Because Diple does not collect personal data or create user accounts, it does not create user profiles based on age.
 
-Data sales and sharing
+## Data Sales and Sharing
 
 Diple does not sell personal information.
 
-Diple does not share personal information with advertisers, data brokers, analytics providers, or other third parties.
+Diple does not share personal information with advertisers, data brokers, analytics providers, marketing services, or other third parties.
 
-Security
+## Security
 
-Diple minimizes privacy and security risks by avoiding unnecessary data collection and by keeping user content on the user’s device or within services controlled by the user, such as iCloud.
+Diple minimizes privacy and security risks by avoiding unnecessary data collection and by keeping user content on the user’s device or within services controlled by the user, such as their personal iCloud account.
 
-No method of electronic storage is completely secure. Users should protect access to their devices and maintain appropriate backups of important content.
+No method of electronic storage or synchronization is completely secure. Users should protect access to their devices and Apple Account and maintain appropriate backups of important content.
 
-Changes to this policy
+## Changes to This Policy
 
 This Privacy Policy may be updated when Diple’s functionality or data-handling practices change.
 
-Any updates will be published in this repository with a revised “Last updated” date.
+Any updates will be published in this repository with a revised **“Last updated”** date.
 
-Open source
+---
+
+# Open Source
 
 Diple is open-source software.
 
-The source code is publicly available in this repository so that users can inspect how the application works, review its privacy practices, report issues, and contribute improvements.
+The source code is publicly available in this repository so that users can:
 
-The source code is distributed under the license included in the repository’s LICENSE file.
+- Inspect how the application works
+- Review its privacy practices
+- Report bugs and security issues
+- Suggest improvements
+- Contribute to the project
+
+The source code is distributed under the license included in the repository’s [`LICENSE`](LICENSE) file.
 
 Third-party open-source components, if present, remain subject to their respective licenses and copyright notices.
 
-Transparency
+## Transparency
 
-The public source code allows the community to verify the application’s behavior. However, availability of source code does not itself guarantee that every distributed build was independently reproduced from that source.
+The public source code allows the community to review Diple’s implementation and privacy-related behavior.
 
-Official builds are distributed through the Apple App Store and other channels explicitly identified by the developer.
+However, the availability of source code does not itself guarantee that every distributed build has been independently reproduced or verified from that source.
 
-Disclaimer
+Official builds are distributed through the Apple App Store and any other distribution channels explicitly identified by the developer.
 
-Diple is provided on an “as is” and “as available” basis, without warranties of any kind, to the extent permitted by applicable law.
+---
 
-The developer is not responsible for loss of imported books, notes, reading progress, or other user-created content. Users should maintain backups of important data.
+# Disclaimer
 
-Diple is not affiliated with or endorsed by Apple Inc. Apple, macOS, iCloud, and App Store are trademarks of Apple Inc.
+Diple is provided on an **“as is”** and **“as available”** basis, without warranties of any kind, to the extent permitted by applicable law.
 
-Contact
+The developer is not responsible for the loss of imported books, notes, reading progress, bookmarks, settings, or other user-created content.
+
+Users should maintain appropriate backups of important data.
+
+Diple is not affiliated with, endorsed by, or sponsored by Apple Inc.
+
+Apple, macOS, iOS, iCloud, Apple Account, and App Store are trademarks of Apple Inc., registered in the United States and other countries and regions.
+
+---
+
+# Contact
 
 For privacy questions, support requests, or security reports, contact:
 
-Email: outsidenessx@gmail.com
+**Email:** [outsidenessx@gmail.com](mailto:outsidenessx@gmail.com)
 
-You may also open an issue in this repository. Please do not include private, sensitive, or confidential information in public issues.
+You may also open an issue in this repository.
+
+Please do not include private, sensitive, personal, or confidential information in public GitHub issues.
