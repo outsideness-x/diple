@@ -313,6 +313,8 @@ public struct MacRootView: View {
             let currentItem = currentNote(matching: item) ?? item
             MacNoteInspector(
                 item: currentItem,
+                books: notes.books,
+                suggestedTags: notes.allTags,
                 onSave: { note, tags in notes.save(note, tags: tags) },
                 onDelete: {
                     notes.delete(currentItem)
@@ -982,17 +984,26 @@ private struct MacQuotesInspector: View {
 
 private struct MacNoteInspector: View {
     let item: NoteItem
+    let books: [Book]
+    let suggestedTags: [String]
     let onSave: (Note, [String]) -> Bool
     let onDelete: () -> Void
 
     @State private var title: String
     @State private var bodyText: String
+    @State private var tags: [String]
+    @State private var tagDraft = ""
+    @State private var selectedBookId: String?
     @State private var lastSavedTitle: String
     @State private var lastSavedBody: String
+    @State private var lastSavedTags: [String]
+    @State private var lastSavedBookId: String?
     @State private var saveState: SaveState = .saved
     @State private var saveTask: Task<Void, Never>?
+    @State private var isBookPickerPresented = false
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
+    @State private var isClosing = false
 
     private static let textEditorInset: CGFloat = 5
 
@@ -1020,18 +1031,34 @@ private struct MacNoteInspector: View {
 
     init(
         item: NoteItem,
+        books: [Book],
+        suggestedTags: [String],
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping () -> Void
     ) {
         self.item = item
+        self.books = books
+        self.suggestedTags = suggestedTags
         self.onSave = onSave
         self.onDelete = onDelete
 
         let initialTitle = item.note.title ?? ""
         _title = State(initialValue: initialTitle)
         _bodyText = State(initialValue: item.note.body)
+        _tags = State(initialValue: item.tags)
+        _selectedBookId = State(initialValue: item.note.bookId)
         _lastSavedTitle = State(initialValue: initialTitle)
         _lastSavedBody = State(initialValue: item.note.body)
+        _lastSavedTags = State(initialValue: item.tags)
+        _lastSavedBookId = State(initialValue: item.note.bookId)
+    }
+
+    private var selectedBook: Book? {
+        books.first { $0.id == selectedBookId }
+    }
+
+    private var unusedSuggestions: [String] {
+        suggestedTags.filter { !tags.contains($0) }
     }
 
     var body: some View {
@@ -1081,6 +1108,8 @@ private struct MacNoteInspector: View {
                 .foregroundStyle(DipleColor.textQuaternary)
                 .monospacedDigit()
 
+                propertiesEditor
+
                 Rectangle()
                     .fill(DipleColor.separator)
                     .frame(height: DipleStroke.hairline)
@@ -1093,20 +1122,6 @@ private struct MacNoteInspector: View {
                     .lineSpacing(ReaderScript.detect(in: bodyText).swiftUILineSpacing)
                     .padding(.horizontal, -Self.textEditorInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                if !item.tags.isEmpty || item.book != nil {
-                    Rectangle()
-                        .fill(DipleColor.separator)
-                        .frame(height: DipleStroke.hairline)
-                    FlowLayout(spacing: DipleSpace.s) {
-                        if let book = item.book {
-                            TagChipView(label: book.title, kind: .book)
-                        }
-                        ForEach(item.tags, id: \.self) { tag in
-                            TagChipView(label: tag, kind: .text)
-                        }
-                    }
-                }
             }
             .padding(DipleSpace.xxl)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1114,9 +1129,18 @@ private struct MacNoteInspector: View {
         .background(DipleColor.surface)
         .onChange(of: title) { _, _ in scheduleSave() }
         .onChange(of: bodyText) { _, _ in scheduleSave() }
+        .onChange(of: tags) { _, _ in scheduleSave() }
+        .onChange(of: selectedBookId) { _, _ in scheduleSave() }
         .onDisappear {
+            isClosing = true
             saveTask?.cancel()
-            if !isDeleting { saveImmediately() }
+            if !isDeleting { saveImmediately(includingPendingTag: true) }
+        }
+        .sheet(isPresented: $isBookPickerPresented) {
+            BookTagPickerView(books: books, selectedBookId: selectedBookId) { bookId in
+                selectedBookId = bookId
+            }
+            .frame(minWidth: 520, minHeight: 560)
         }
         .alert("Delete Note?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
@@ -1130,17 +1154,152 @@ private struct MacNoteInspector: View {
         }
     }
 
+    private var propertiesEditor: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            HStack(spacing: DipleSpace.s) {
+                Label("Tags", systemImage: "number")
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .frame(width: 70, alignment: .leading)
+
+                TextField("Add tag", text: $tagDraft)
+                    .textFieldStyle(.plain)
+                    .dipleType(.callout)
+                    .foregroundStyle(DipleColor.textPrimary)
+                    .onSubmit(commitTagDraft)
+                    .padding(.horizontal, DipleSpace.m)
+                    .padding(.vertical, DipleSpace.s)
+                    .background(
+                        DipleColor.surfaceRaised,
+                        in: RoundedRectangle(cornerRadius: DipleRadius.s)
+                    )
+
+                Button(action: commitTagDraft) {
+                    Image(systemName: "plus")
+                        .dipleIcon(13, weight: .semibold)
+                        .foregroundStyle(DipleColor.textOnAccent)
+                        .frame(width: 30, height: 30)
+                        .background(DipleColor.accent, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(NoteTag.normalized(tagDraft) == nil)
+                .opacity(NoteTag.normalized(tagDraft) == nil ? 0.4 : 1)
+                .help("Add tag")
+            }
+
+            if !tags.isEmpty {
+                FlowLayout(spacing: DipleSpace.s) {
+                    ForEach(tags, id: \.self) { tag in
+                        Button {
+                            tags.removeAll { $0 == tag }
+                        } label: {
+                            HStack(spacing: DipleSpace.xs) {
+                                Text("#\(tag)")
+                                    .dipleType(.caption, weight: .medium)
+                                Image(systemName: "xmark")
+                                    .dipleIcon(9, weight: .bold)
+                            }
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .diplePadding(.chip)
+                            .background(DipleColor.surfaceOverlay, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove #\(tag)")
+                    }
+                }
+            }
+
+            if !unusedSuggestions.isEmpty {
+                Menu {
+                    ForEach(unusedSuggestions, id: \.self) { tag in
+                        Button("#\(tag)") {
+                            tags.append(tag)
+                        }
+                    }
+                } label: {
+                    Label("Add existing tag", systemImage: "tag")
+                        .dipleType(.micro)
+                        .foregroundStyle(DipleColor.textTertiary)
+                }
+                .menuStyle(.borderlessButton)
+            }
+
+            HStack(spacing: DipleSpace.s) {
+                Label("Book", systemImage: "book.closed")
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .frame(width: 70, alignment: .leading)
+
+                Button {
+                    isBookPickerPresented = true
+                } label: {
+                    HStack(spacing: DipleSpace.s) {
+                        Text(selectedBook?.title ?? "Link a library item")
+                            .dipleType(.callout)
+                            .foregroundStyle(
+                                selectedBook == nil
+                                    ? DipleColor.textTertiary
+                                    : DipleColor.textPrimary
+                            )
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .dipleIcon(10, weight: .semibold)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
+                    .padding(.horizontal, DipleSpace.m)
+                    .padding(.vertical, DipleSpace.s)
+                    .background(
+                        DipleColor.surfaceRaised,
+                        in: RoundedRectangle(cornerRadius: DipleRadius.s)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                if selectedBookId != nil {
+                    Button {
+                        selectedBookId = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .dipleIcon(14)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove book link")
+                }
+            }
+        }
+        .padding(DipleSpace.m)
+        .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+        .overlay {
+            RoundedRectangle(cornerRadius: DipleRadius.m)
+                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+        }
+    }
+
     private var wordCountLabel: String {
         let count = bodyText.split { $0.isWhitespace || $0.isNewline }.count
         return count == 1 ? "1 word" : "\(count) words"
     }
 
     private var hasUnsavedChanges: Bool {
-        title != lastSavedTitle || bodyText != lastSavedBody
+        title != lastSavedTitle
+            || bodyText != lastSavedBody
+            || tags != lastSavedTags
+            || selectedBookId != lastSavedBookId
+    }
+
+    private func commitTagDraft() {
+        guard let tag = NoteTag.normalized(tagDraft) else { return }
+        if !tags.contains(tag) {
+            tags.append(tag)
+        }
+        tagDraft = ""
     }
 
     private func scheduleSave() {
         saveTask?.cancel()
+        guard !isClosing, !isDeleting else { return }
         guard hasUnsavedChanges else {
             saveState = .saved
             return
@@ -1154,8 +1313,16 @@ private struct MacNoteInspector: View {
         }
     }
 
-    private func saveImmediately() {
-        guard hasUnsavedChanges else {
+    private func saveImmediately(includingPendingTag: Bool = false) {
+        var finalTags = tags
+        if includingPendingTag,
+           let pendingTag = NoteTag.normalized(tagDraft),
+           !finalTags.contains(pendingTag) {
+            finalTags.append(pendingTag)
+        }
+
+        let tagsChanged = finalTags != lastSavedTags
+        guard hasUnsavedChanges || tagsChanged else {
             saveState = .saved
             return
         }
@@ -1165,13 +1332,15 @@ private struct MacNoteInspector: View {
             id: item.note.id,
             title: trimmedTitle.isEmpty ? nil : trimmedTitle,
             body: bodyText,
-            bookId: item.note.bookId,
+            bookId: selectedBookId,
             createdAt: item.note.createdAt
         )
 
-        if onSave(note, item.tags) {
+        if onSave(note, finalTags) {
             lastSavedTitle = title
             lastSavedBody = bodyText
+            lastSavedTags = finalTags
+            lastSavedBookId = selectedBookId
             saveState = .saved
         } else {
             saveState = .failed
