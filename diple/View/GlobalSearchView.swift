@@ -104,13 +104,9 @@ public struct GlobalSearchView: View {
         VStack(spacing: DipleSpace.xl) {
             Spacer()
 
-            ZStack {
-                AccentWash()
-                Image(systemName: "magnifyingglass")
-                    .dipleIcon(30, weight: .light)
-                    .foregroundStyle(DipleColor.accent)
-                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
-            }
+            Image(systemName: "magnifyingglass")
+                .dipleIcon(30, weight: .light)
+                .foregroundStyle(DipleColor.accent)
 
             VStack(spacing: DipleSpace.s) {
                 Text("Search Everything")
