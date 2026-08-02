@@ -180,8 +180,12 @@ public nonisolated final class ArticleImporter {
         let finalURL: URL
     }
 
+    private enum ResponseSizeError: Error {
+        case limitExceeded
+    }
+
     private static func fetchPage(at url: URL) async throws -> Page {
-        let (data, response) = try await session.data(from: url)
+        let (bytes, response) = try await session.bytes(from: url)
 
         if let http = response as? HTTPURLResponse {
             guard (200..<300).contains(http.statusCode) else {
@@ -193,12 +197,44 @@ public nonisolated final class ArticleImporter {
             }
         }
 
-        guard data.count <= maximumHTMLBytes else { throw ArticleImportError.pageTooLarge }
+        let data: Data
+        do {
+            data = try await collect(bytes, response: response, limit: maximumHTMLBytes)
+        } catch ResponseSizeError.limitExceeded {
+            throw ArticleImportError.pageTooLarge
+        }
 
         return Page(
             html: decode(data, textEncodingName: response.textEncodingName),
             finalURL: response.url ?? url
         )
+    }
+
+    /// Reads at most `limit` bytes and then cancels the task by throwing. Checking both the
+    /// declared length and the stream itself covers honest servers and chunked/misreported
+    /// responses without ever buffering an unbounded body first.
+    private static func collect(
+        _ bytes: URLSession.AsyncBytes,
+        response: URLResponse,
+        limit: Int
+    ) async throws -> Data {
+        let expectedLength = response.expectedContentLength
+        if expectedLength > Int64(limit) {
+            throw ResponseSizeError.limitExceeded
+        }
+
+        var data = Data()
+        if expectedLength > 0 {
+            data.reserveCapacity(Int(expectedLength))
+        }
+
+        for try await byte in bytes {
+            guard data.count < limit else {
+                throw ResponseSizeError.limitExceeded
+            }
+            data.append(byte)
+        }
+        return data
     }
 
     /// Decodes the page with the charset the server declared, then UTF-8, then Latin-1.
@@ -273,12 +309,14 @@ public nonisolated final class ArticleImporter {
     /// A failed image is not a failed import: it returns nil and its `<img>` is dropped from
     /// the markup, which is why nothing here throws.
     private static func downloadImage(at url: URL) async -> DownloadedImage? {
-        guard let (data, response) = try? await session.data(from: url) else { return nil }
+        guard let (bytes, response) = try? await session.bytes(from: url) else { return nil }
 
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             return nil
         }
-        guard data.count <= maximumSingleImageBytes, !data.isEmpty else { return nil }
+        guard let data = try? await collect(bytes, response: response, limit: maximumSingleImageBytes),
+              !data.isEmpty
+        else { return nil }
         guard let mediaType = imageMediaType(of: data) else { return nil }
 
         return DownloadedImage(
