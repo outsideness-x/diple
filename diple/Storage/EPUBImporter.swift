@@ -33,6 +33,12 @@ public final class EPUBImporter {
         }
 
         let bookId = UUID().uuidString
+        var importCommitted = false
+        defer {
+            if !importCommitted {
+                try? BookStorageService.shared.deleteBookFolder(id: bookId)
+            }
+        }
 
         // 1. Copy file to Documents/Books/<bookId>/
         let (localFileURL, relativeFilePath) = try BookStorageService.shared.importEPUB(from: sourceURL, bookId: bookId)
@@ -83,6 +89,7 @@ public final class EPUBImporter {
         )
 
         try AppDatabase.shared.saveBook(book)
+        importCommitted = true
         return book
     }
 }

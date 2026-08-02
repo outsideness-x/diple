@@ -32,12 +32,22 @@ public final class BookStorageService {
         let targetFolder = try bookDirectory(id: bookId)
         let fileName = sourceURL.lastPathComponent.isEmpty ? "book.epub" : sourceURL.lastPathComponent
         let targetFileURL = targetFolder.appendingPathComponent(fileName)
+        let temporaryURL = targetFolder.appendingPathComponent(".import-\(UUID().uuidString)")
+
+        defer {
+            if fileManager.fileExists(atPath: temporaryURL.path) {
+                try? fileManager.removeItem(at: temporaryURL)
+            }
+        }
 
         if fileManager.fileExists(atPath: targetFileURL.path) {
             try fileManager.removeItem(at: targetFileURL)
         }
 
-        try fileManager.copyItem(at: sourceURL, to: targetFileURL)
+        // Copy into a private temporary name and reveal the publication with one rename, so a
+        // cancelled or failed copy never leaves a partially written book at its final path.
+        try fileManager.copyItem(at: sourceURL, to: temporaryURL)
+        try fileManager.moveItem(at: temporaryURL, to: targetFileURL)
         let relativePath = "Books/\(bookId)/\(fileName)"
         return (targetFileURL, relativePath)
     }
@@ -68,7 +78,7 @@ public final class BookStorageService {
             try fileManager.removeItem(at: targetCoverURL)
         }
 
-        try data.write(to: targetCoverURL)
+        try data.write(to: targetCoverURL, options: .atomic)
         return "Books/\(bookId)/\(fileName)"
     }
 

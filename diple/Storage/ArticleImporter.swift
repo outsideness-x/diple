@@ -98,6 +98,12 @@ public nonisolated final class ArticleImporter {
         let article = try ArticleExtractor(html: page.html, url: page.finalURL)
 
         let bookId = UUID().uuidString
+        var importCommitted = false
+        defer {
+            if !importCommitted {
+                try? BookStorageService.shared.deleteBookFolder(id: bookId)
+            }
+        }
         var assets: [ArticleEPUBBuilder.Asset] = []
 
         // The lead image doubles as the library cover, so it is fetched even when the article
@@ -161,6 +167,7 @@ public nonisolated final class ArticleImporter {
         )
 
         try AppDatabase.shared.saveBook(book)
+        importCommitted = true
         return book
     }
 

@@ -76,9 +76,18 @@ public final class LibraryViewModel: ObservableObject {
     public func deleteConfirmedBook() {
         guard let book = bookToDelete else { return }
         do {
-            try BookStorageService.shared.deleteBookFolder(id: book.id)
+            // Commit the database transaction first. If file cleanup then fails, the result is
+            // an unreachable folder that can be retried safely, never a visible book whose file
+            // has already disappeared.
             try AppDatabase.shared.deleteBook(id: book.id)
             loadBooks()
+
+            do {
+                try BookStorageService.shared.deleteBookFolder(id: book.id)
+            } catch {
+                self.errorMessage = "The book was removed, but its files could not be cleaned up: \(error.localizedDescription)"
+                self.showErrorAlert = true
+            }
         } catch {
             self.errorMessage = "Failed to delete book: \(error.localizedDescription)"
             self.showErrorAlert = true
