@@ -122,7 +122,7 @@ public nonisolated final class ArticleImporter {
             }
         }
 
-        let bodyImages = try await downloadBodyImages(article.images, progress: progress)
+        let bodyImages = await downloadBodyImages(article.images, progress: progress)
         var resolvedPaths: [Int: String] = [:]
         for slot in article.images {
             guard let image = bodyImages[slot.index] else { continue }

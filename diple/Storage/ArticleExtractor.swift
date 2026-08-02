@@ -218,7 +218,7 @@ public nonisolated final class ArticleExtractor {
     }
 
     private static func enclosingFigure(of image: Element) -> Element? {
-        guard let parent = image.parent() as? Element else { return nil }
+        guard let parent = image.parent() else { return nil }
         return parent.tagNameNormal() == "figure" ? parent : nil
     }
 
@@ -423,7 +423,7 @@ public nonisolated final class ArticleExtractor {
             score += Double(text.filter { $0 == "," || $0 == "，" || $0 == "、" }.count)
             score += min(Double(text.count) / 100.0, 3.0)
 
-            var ancestor = block.parent() as? Element
+            var ancestor = block.parent()
             var level = 0
             while let current = ancestor, level < 3, current !== body.ownerDocument() {
                 let key = ObjectIdentifier(current)
@@ -434,7 +434,7 @@ public nonisolated final class ArticleExtractor {
                 let divider = level == 0 ? 1.0 : (level == 1 ? 2.0 : 6.0)
                 scores[key, default: 0] += score / divider
 
-                ancestor = current.parent() as? Element
+                ancestor = current.parent()
                 level += 1
             }
         }
@@ -455,7 +455,7 @@ public nonisolated final class ArticleExtractor {
         // immediate wrapper of each paragraph most heavily, which on many sites is a column
         // div holding half the article; the parent that holds all of it scores lower per
         // paragraph but higher in total.
-        while let parent = candidate.parent() as? Element, parent !== body {
+        while let parent = candidate.parent(), parent !== body {
             let key = ObjectIdentifier(parent)
             guard let raw = scores[key] else { break }
             let final = raw * (1.0 - (try linkDensity(of: parent)))

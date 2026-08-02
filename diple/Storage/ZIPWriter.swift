@@ -13,7 +13,7 @@ import Foundation
 ///
 /// The archive is assembled in memory. That is safe because the caller bounds what goes in —
 /// see `ArticleImporter.maximumImageBytes`.
-struct ZIPWriter {
+nonisolated struct ZIPWriter {
     private var payload = Data()
     private var entries: [CentralDirectoryEntry] = []
     private let modified: Date
@@ -153,7 +153,7 @@ struct ZIPWriter {
 }
 
 /// CRC-32 as ZIP defines it: the IEEE 802.3 polynomial in reversed bit order.
-private enum CRC32 {
+private nonisolated enum CRC32 {
     private static let table: [UInt32] = (0..<256).map { index -> UInt32 in
         var value = UInt32(index)
         for _ in 0..<8 {
@@ -173,11 +173,11 @@ private enum CRC32 {
 
 private extension Data {
     /// ZIP is little-endian throughout, on every platform it has ever run on.
-    mutating func appendUInt16(_ value: UInt16) {
+    nonisolated mutating func appendUInt16(_ value: UInt16) {
         append(contentsOf: [UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF)])
     }
 
-    mutating func appendUInt32(_ value: UInt32) {
+    nonisolated mutating func appendUInt32(_ value: UInt32) {
         append(contentsOf: [
             UInt8(value & 0xFF),
             UInt8((value >> 8) & 0xFF),

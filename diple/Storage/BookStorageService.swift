@@ -1,9 +1,13 @@
 import Foundation
 
-public final class BookStorageService {
+/// File-system access is independent of the UI actor. `FileManager` provides its own
+/// thread-safe operations, while callers coordinate writes through unique book directories.
+public nonisolated final class BookStorageService: Sendable {
     public static let shared = BookStorageService()
 
-    private let fileManager = FileManager.default
+    /// Keeping the Foundation reference computed leaves the service itself stateless and
+    /// therefore safely shareable across executors.
+    private var fileManager: FileManager { FileManager.default }
 
     public var documentsDirectory: URL {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
