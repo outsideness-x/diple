@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Top-level shell of the app: library, the cross-book quote hub and user notes.
+/// Top-level shell of the app: library, cross-book highlights and user notes.
 public struct RootTabView: View {
     public enum Tab: Hashable {
         case library
-        case hub
+        case highlights
         case notes
     }
 
@@ -22,9 +22,9 @@ public struct RootTabView: View {
 
             HubView()
                 .tabItem {
-                    Label("Hub", systemImage: "quote.opening")
+                    Label("Highlights", systemImage: "quote.opening")
                 }
-                .tag(Tab.hub)
+                .tag(Tab.highlights)
 
             NotesView()
                 .tabItem {

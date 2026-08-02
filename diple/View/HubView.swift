@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Every quote from every book in one place. Picking a book opens its full quote list.
+/// Every highlight from every book in one place. Picking a book opens its full list.
 public struct HubView: View {
     @StateObject private var viewModel = HubViewModel()
 
@@ -29,7 +29,7 @@ public struct HubView: View {
                     }
                 }
             }
-            .navigationTitle("Hub")
+            .navigationTitle("Highlights")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
