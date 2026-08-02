@@ -16,8 +16,8 @@ public enum NoteRoute: Hashable {
 
 /// A note as a page rather than a form.
 ///
-/// Reading comes first: the note is set as a document — the reader's own words in serif, one
-/// column, structure rendered rather than shown as syntax. Editing is a mode you enter, not
+/// Reading comes first: the note is set as a document — system sans, one column, structure
+/// rendered rather than shown as syntax. Editing is a mode you enter, not
 /// the resting state, which is what keeps the note something you can sit and read.
 ///
 /// This is also the only note editor in the app. Composing and revising share one screen
@@ -185,7 +185,7 @@ public struct NoteDetailView: View {
     private var reader: some View {
         VStack(alignment: .leading, spacing: DipleSpace.l) {
             Text(displayTitle)
-                .dipleType(.readingTitle)
+                .dipleType(.noteTitle)
                 .foregroundStyle(
                     title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         ? DipleColor.textTertiary
@@ -248,7 +248,7 @@ public struct NoteDetailView: View {
     private var editor: some View {
         VStack(alignment: .leading, spacing: DipleSpace.xxl) {
             TextField("Title", text: $title, axis: .vertical)
-                .dipleType(.readingTitle)
+                .dipleType(.noteTitle)
                 .foregroundStyle(DipleColor.textPrimary)
                 .textInputAutocapitalization(.sentences)
 
@@ -259,7 +259,7 @@ public struct NoteDetailView: View {
             // Markdown is written as markdown. The face stays the reading face so switching
             // modes does not reflow the text under the reader's eyes.
             TextEditor(text: $body_)
-                .dipleType(.readingBody)
+                .dipleType(.noteBody)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineSpacing(ReaderScript.detect(in: body_).swiftUILineSpacing)
                 .scrollContentBackground(.hidden)

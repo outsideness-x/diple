@@ -13,12 +13,7 @@ public struct EmptyLibraryView: View {
         VStack(spacing: DipleSpace.xxl) {
             Spacer()
 
-            ZStack {
-                AccentWash()
-
-                DipleMark(size: 56)
-                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
-            }
+            DipleMark(size: 56)
 
             VStack(spacing: DipleSpace.s) {
                 Text("Library is Empty")

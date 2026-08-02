@@ -59,14 +59,9 @@ public struct HubView: View {
 
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
-            ZStack {
-                AccentWash()
-
-                Image(systemName: "quote.opening")
-                    .dipleIcon(30, weight: .thin)
-                    .foregroundStyle(DipleColor.accent)
-                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
-            }
+            Image(systemName: "quote.opening")
+                .dipleIcon(30, weight: .thin)
+                .foregroundStyle(DipleColor.accent)
 
             VStack(spacing: DipleSpace.s) {
                 Text("No Quotes Yet")

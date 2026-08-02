@@ -69,8 +69,6 @@ public struct MacRootView: View {
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var readerBook: Book?
-    @State private var editedNote: NoteItem?
-    @State private var isCreatingNote = false
     @State private var isImportingFile = false
     @State private var isImportingLink = false
     @State private var isShowingSettings = false
@@ -88,6 +86,7 @@ public struct MacRootView: View {
             inspector
                 .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 440)
         }
+        .controlSize(.large)
         .background(DipleColor.canvas)
         .tint(DipleColor.accent)
         .toolbar {
@@ -117,7 +116,7 @@ public struct MacRootView: View {
                     Divider()
 
                     Button {
-                        isCreatingNote = true
+                        createNewNote()
                     } label: {
                         Label("New Note", systemImage: "square.and.pencil")
                     }
@@ -150,12 +149,6 @@ public struct MacRootView: View {
         .sheet(isPresented: $isShowingSettings) {
             AppSettingsView()
         }
-        .sheet(isPresented: $isCreatingNote) {
-            noteEditor(route: .new)
-        }
-        .sheet(item: $editedNote) { item in
-            noteEditor(route: .existing(item))
-        }
         .fullScreenCover(item: $readerBook, onDismiss: reloadAll) { book in
             NavigationStack {
                 ReaderContainerView(book: book, onReadingUpdated: reloadAll)
@@ -171,6 +164,7 @@ public struct MacRootView: View {
             if newSource == .highlights { highlights.load() }
             if newSource == .notes { notes.load() }
             if newSource == .search { search.reloadContext() }
+            if newSource == .notes, case .note = detail { return }
             detail = .welcome
         }
         .onAppear(perform: reloadAll)
@@ -285,7 +279,7 @@ public struct MacRootView: View {
             MacNotesCollection(
                 model: notes,
                 onSelect: { detail = .note($0) },
-                onCreate: { isCreatingNote = true }
+                onCreate: createNewNote
             )
 
         case .search:
@@ -316,9 +310,16 @@ public struct MacRootView: View {
                 .id(book.id)
 
         case .note(let item):
-            MacNoteInspector(item: currentNote(matching: item) ?? item) {
-                editedNote = item
-            }
+            let currentItem = currentNote(matching: item) ?? item
+            MacNoteInspector(
+                item: currentItem,
+                onSave: { note, tags in notes.save(note, tags: tags) },
+                onDelete: {
+                    notes.delete(currentItem)
+                    detail = .welcome
+                }
+            )
+            .id(currentItem.id)
 
         case .search(let result):
             MacSearchInspector(
@@ -326,22 +327,20 @@ public struct MacRootView: View {
                 book: search.book(for: result),
                 note: notes.items.first { $0.id == result.entityID },
                 onRead: { book in readerBook = book },
-                onEditNote: { note in editedNote = note }
+                onOpenNote: { note in
+                    source = .notes
+                    detail = .note(note)
+                }
             )
         }
     }
 
-    private func noteEditor(route: NoteRoute) -> some View {
-        NavigationStack {
-            NoteDetailView(
-                route: route,
-                books: notes.books,
-                suggestedTags: notes.allTags,
-                onSave: { note, tags in notes.save(note, tags: tags) },
-                onDelete: { item in notes.delete(item) }
-            )
-        }
-        .frame(minWidth: 620, minHeight: 620)
+    private func createNewNote() {
+        let note = Note(body: "")
+        guard notes.save(note, tags: []) else { return }
+        guard let item = notes.items.first(where: { $0.id == note.id }) else { return }
+        source = .notes
+        detail = .note(item)
     }
 
     private func count(for filter: LibraryFilter) -> Int {
@@ -382,7 +381,13 @@ private struct MacLibraryCollection: View {
     @State private var query = ""
     @State private var sort: LibrarySort = .recentlyOpened
 
-    private let columns = [GridItem(.adaptive(minimum: 144, maximum: 184), spacing: DipleSpace.xl)]
+    private let columns = [
+        GridItem(
+            .adaptive(minimum: 144, maximum: 184),
+            spacing: DipleSpace.xl,
+            alignment: .top
+        )
+    ]
 
     private var visibleBooks: [Book] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -710,7 +715,9 @@ private struct MacNotesCollection: View {
     let onSelect: (NoteItem) -> Void
     let onCreate: () -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 190, maximum: 280), spacing: DipleSpace.m)]
+    private let columns = [
+        GridItem(.adaptive(minimum: 190, maximum: 280), spacing: DipleSpace.m, alignment: .top)
+    ]
 
     var body: some View {
         ZStack {
@@ -975,22 +982,117 @@ private struct MacQuotesInspector: View {
 
 private struct MacNoteInspector: View {
     let item: NoteItem
-    let onEdit: () -> Void
+    let onSave: (Note, [String]) -> Bool
+    let onDelete: () -> Void
+
+    @State private var title: String
+    @State private var bodyText: String
+    @State private var lastSavedTitle: String
+    @State private var lastSavedBody: String
+    @State private var saveState: SaveState = .saved
+    @State private var saveTask: Task<Void, Never>?
+    @State private var isShowingDeleteConfirmation = false
+    @State private var isDeleting = false
+
+    private static let textEditorInset: CGFloat = 5
+
+    private enum SaveState {
+        case saved
+        case saving
+        case failed
+
+        var label: String {
+            switch self {
+            case .saved: return "Saved"
+            case .saving: return "Saving…"
+            case .failed: return "Not saved"
+            }
+        }
+
+        var color: SwiftUI.Color {
+            switch self {
+            case .saved: return DipleColor.textQuaternary
+            case .saving: return DipleColor.accent
+            case .failed: return DipleColor.destructive
+            }
+        }
+    }
+
+    init(
+        item: NoteItem,
+        onSave: @escaping (Note, [String]) -> Bool,
+        onDelete: @escaping () -> Void
+    ) {
+        self.item = item
+        self.onSave = onSave
+        self.onDelete = onDelete
+
+        let initialTitle = item.note.title ?? ""
+        _title = State(initialValue: initialTitle)
+        _bodyText = State(initialValue: item.note.body)
+        _lastSavedTitle = State(initialValue: initialTitle)
+        _lastSavedBody = State(initialValue: item.note.body)
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DipleSpace.xl) {
-                VStack(alignment: .leading, spacing: DipleSpace.s) {
-                    Text(item.note.title?.isEmpty == false ? item.note.title ?? "" : "Untitled")
-                        .dipleType(.readingTitle)
-                        .foregroundStyle(DipleColor.textPrimary)
-                    Text(item.note.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                        .dipleType(.nano)
-                        .foregroundStyle(DipleColor.textQuaternary)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: DipleSpace.s) {
+                Circle()
+                    .fill(saveState.color)
+                    .frame(width: 6, height: 6)
+                Text(saveState.label)
+                    .dipleType(.micro)
+                    .foregroundStyle(saveState.color)
 
-                NoteMarkdownView(markdown: item.note.body)
-                    .textSelection(.enabled)
+                Spacer()
+
+                Menu {
+                    Button(role: .destructive) {
+                        isShowingDeleteConfirmation = true
+                    } label: {
+                        Label("Delete Note", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .dipleIcon(15)
+                        .foregroundStyle(DipleColor.textSecondary)
+                }
+                .menuStyle(.borderlessButton)
+            }
+            .padding(.horizontal, DipleSpace.xxl)
+            .padding(.vertical, DipleSpace.m)
+
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(height: DipleStroke.hairline)
+
+            VStack(alignment: .leading, spacing: DipleSpace.l) {
+                TextField("Untitled", text: $title, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .dipleType(.noteTitle)
+                    .foregroundStyle(DipleColor.textPrimary)
+
+                HStack(spacing: DipleSpace.s) {
+                    Text(item.note.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                    Text("·")
+                    Text(wordCountLabel)
+                }
+                .dipleType(.micro)
+                .foregroundStyle(DipleColor.textQuaternary)
+                .monospacedDigit()
+
+                Rectangle()
+                    .fill(DipleColor.separator)
+                    .frame(height: DipleStroke.hairline)
+
+                TextEditor(text: $bodyText)
+                    .textEditorStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .dipleType(.noteBody)
+                    .foregroundStyle(DipleColor.textPrimary)
+                    .lineSpacing(ReaderScript.detect(in: bodyText).swiftUILineSpacing)
+                    .padding(.horizontal, -Self.textEditorInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 if !item.tags.isEmpty || item.book != nil {
                     Rectangle()
@@ -1005,15 +1107,75 @@ private struct MacNoteInspector: View {
                         }
                     }
                 }
-
-                Button("Edit Note", action: onEdit)
-                    .buttonStyle(.borderedProminent)
-                    .tint(DipleColor.accent)
-                    .foregroundStyle(DipleColor.textOnAccent)
             }
             .padding(DipleSpace.xxl)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(DipleColor.surface)
+        .onChange(of: title) { _, _ in scheduleSave() }
+        .onChange(of: bodyText) { _, _ in scheduleSave() }
+        .onDisappear {
+            saveTask?.cancel()
+            if !isDeleting { saveImmediately() }
+        }
+        .alert("Delete Note?", isPresented: $isShowingDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                saveTask?.cancel()
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This note and its tags will be removed.")
+        }
+    }
+
+    private var wordCountLabel: String {
+        let count = bodyText.split { $0.isWhitespace || $0.isNewline }.count
+        return count == 1 ? "1 word" : "\(count) words"
+    }
+
+    private var hasUnsavedChanges: Bool {
+        title != lastSavedTitle || bodyText != lastSavedBody
+    }
+
+    private func scheduleSave() {
+        saveTask?.cancel()
+        guard hasUnsavedChanges else {
+            saveState = .saved
+            return
+        }
+
+        saveState = .saving
+        saveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            guard !Task.isCancelled else { return }
+            saveImmediately()
+        }
+    }
+
+    private func saveImmediately() {
+        guard hasUnsavedChanges else {
+            saveState = .saved
+            return
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let note = Note(
+            id: item.note.id,
+            title: trimmedTitle.isEmpty ? nil : trimmedTitle,
+            body: bodyText,
+            bookId: item.note.bookId,
+            createdAt: item.note.createdAt
+        )
+
+        if onSave(note, item.tags) {
+            lastSavedTitle = title
+            lastSavedBody = bodyText
+            saveState = .saved
+        } else {
+            saveState = .failed
+        }
     }
 }
 
@@ -1022,7 +1184,7 @@ private struct MacSearchInspector: View {
     let book: Book?
     let note: NoteItem?
     let onRead: (Book) -> Void
-    let onEditNote: (NoteItem) -> Void
+    let onOpenNote: (NoteItem) -> Void
 
     var body: some View {
         ScrollView {
@@ -1053,7 +1215,7 @@ private struct MacSearchInspector: View {
                 }
 
                 if let note {
-                    Button("Open Note") { onEditNote(note) }
+                    Button("Open Note") { onOpenNote(note) }
                         .buttonStyle(.borderedProminent)
                 } else if let book {
                     Button("Open Publication") { onRead(book) }

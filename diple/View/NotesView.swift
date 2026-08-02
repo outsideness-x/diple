@@ -156,14 +156,9 @@ public struct NotesView: View {
         VStack(spacing: DipleSpace.xl) {
             Spacer()
 
-            ZStack {
-                AccentWash()
-
-                Image(systemName: "square.grid.2x2")
-                    .dipleIcon(30, weight: .thin)
-                    .foregroundStyle(DipleColor.accent)
-                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 18)
-            }
+            Image(systemName: "square.grid.2x2")
+                .dipleIcon(30, weight: .thin)
+                .foregroundStyle(DipleColor.accent)
 
             VStack(spacing: DipleSpace.s) {
                 Text("No Notes Yet")

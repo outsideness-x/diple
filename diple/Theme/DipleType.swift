@@ -14,9 +14,9 @@ import UIKit
 ///    type is set tight so headings read as one mass; small type is opened up so it stays
 ///    legible. Stored as a *ratio* of the size, per the design rule (−1%…−3% for headings,
 ///    +1%…+3% for small caps), so tracking scales together with the glyphs.
-/// 3. **The serif/sans split.** Content — anything that came out of a book or that the reader
-///    wrote — is serif. Interface — anything that acts — is sans. The role name carries the
-///    family, so the choice is made once and is visible at the call site.
+/// 3. **The family split.** Publication content and quotations are serif; interface and notes
+///    use the system sans face. The role name carries the family, so the choice is made once
+///    and is visible at the call site.
 public struct DipleTextStyle: Sendable {
     public let size: CGFloat
     public let weight: Font.Weight
@@ -67,17 +67,33 @@ public struct DipleTextStyle: Sendable {
 
     /// 22 serif — a book title given room, on a cover placeholder or a detail header.
     public static let readingTitle = DipleTextStyle(size: 22, weight: .semibold, design: .serif, metrics: .title2, trackingRatio: -0.015)
-    /// 15 serif — quoted passages and note bodies. The reader's own words.
+    /// 15 serif — quoted passages from publications.
     public static let readingBody = DipleTextStyle(size: 15, weight: .regular, design: .serif, metrics: .subheadline, trackingRatio: 0)
     /// 13 serif — a quote compressed into a list row.
     public static let readingCaption = DipleTextStyle(size: 13, weight: .regular, design: .serif, metrics: .footnote, trackingRatio: 0)
+
+    // MARK: - Note roles (system sans)
+
+    /// 24 — the editable title of a note.
+    public static let noteTitle = DipleTextStyle(size: 24, weight: .semibold, metrics: .title2, trackingRatio: -0.018)
+    /// 20 — second-level and smaller Markdown headings.
+    public static let noteHeading = DipleTextStyle(size: 20, weight: .semibold, metrics: .title3, trackingRatio: -0.012)
+    /// 17 — note prose and Markdown source in the editor.
+    public static let noteBody = DipleTextStyle(size: 17, weight: .regular, metrics: .body, trackingRatio: 0)
 
     // MARK: - Resolution
 
     /// The point size this role renders at under the given Dynamic Type setting.
     public func scaledSize(for typeSize: DynamicTypeSize) -> CGFloat {
-        UIFontMetrics(forTextStyle: metrics.uiTextStyle).scaledValue(
-            for: size,
+#if targetEnvironment(macCatalyst)
+        // Catalyst otherwise inherits the compact iPad scale, which looks undersized in a
+        // desktop window viewed from farther away than a handheld screen.
+        let platformSize = size * 1.16
+#else
+        let platformSize = size
+#endif
+        return UIFontMetrics(forTextStyle: metrics.uiTextStyle).scaledValue(
+            for: platformSize,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: typeSize.uiContentSizeCategory)
         )
     }
@@ -129,8 +145,13 @@ public struct DipleIcon: ViewModifier {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     public func body(content: Content) -> some View {
+#if targetEnvironment(macCatalyst)
+        let platformSize = size * 1.16
+#else
+        let platformSize = size
+#endif
         let scaled = UIFontMetrics(forTextStyle: .body).scaledValue(
-            for: size,
+            for: platformSize,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: typeSize.uiContentSizeCategory)
         )
         return content.font(.system(size: scaled, weight: weight))

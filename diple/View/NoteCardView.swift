@@ -64,14 +64,14 @@ public struct NoteCardView: View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
             if let title = item.note.title, !title.isEmpty {
                 Text(title)
-                    .dipleType(.callout, weight: .semibold)
+                    .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
             }
 
             Text(item.note.body)
-                .dipleType(.footnote, weight: .regular)
+                .dipleType(.callout, weight: .regular)
                 .readingLineSpacing(for: item.note.body)
                 .foregroundStyle(DipleColor.textSecondary)
                 .multilineTextAlignment(.leading)

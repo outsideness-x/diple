@@ -21,10 +21,14 @@ import ReadiumNavigator
 ///   be refreshed whenever the navigator loads new spreads.
 @MainActor
 final class ChapterPullTransitionController {
-    /// Visual overscroll, in points, required to arm the transition. Because UIScrollView
-    /// rubber-bands, this corresponds to roughly twice as much finger travel — which is
-    /// exactly the "longer pull" that separates it from ordinary scrolling.
+    /// Visual overscroll, in points, required to arm the transition. Catalyst's trackpad
+    /// rubber-band is deliberately shallower than the touch version, so using the phone
+    /// threshold makes the next chapter practically unreachable from a desktop gesture.
+#if targetEnvironment(macCatalyst)
+    private static let activationDistance: CGFloat = 36
+#else
     private static let activationDistance: CGFloat = 78
+#endif
     /// Below this fraction the gesture disarms again, so a pull hovering at the threshold
     /// does not tick repeatedly.
     private static let disarmFraction: CGFloat = 0.82
@@ -37,6 +41,9 @@ final class ChapterPullTransitionController {
     private weak var navigator: EPUBNavigatorViewController?
     private let indicator = ChapterPullIndicatorView()
     private let attachedScrollViews = NSHashTable<UIScrollView>.weakObjects()
+#if targetEnvironment(macCatalyst)
+    private var originalScrollTypeMasks: [ObjectIdentifier: UIScrollTypeMask] = [:]
+#endif
 
     private var topConstraint: NSLayoutConstraint?
     private var bottomConstraint: NSLayoutConstraint?
@@ -85,6 +92,15 @@ final class ChapterPullTransitionController {
             // Readium turns bouncing off; without it there is nothing to pull against.
             scrollView.bounces = true
             scrollView.alwaysBounceVertical = true
+#if targetEnvironment(macCatalyst)
+            // UIScrollView itself responds to trackpad and mouse-wheel input on Catalyst, but
+            // targets attached to its pan recognizer do not receive those events unless the
+            // corresponding scroll types are explicitly enabled. Without this, the chapter
+            // pull controller only sees click-and-drag gestures.
+            originalScrollTypeMasks[ObjectIdentifier(scrollView)] =
+                scrollView.panGestureRecognizer.allowedScrollTypesMask
+            scrollView.panGestureRecognizer.allowedScrollTypesMask = .all
+#endif
             scrollView.panGestureRecognizer.addTarget(self, action: #selector(handlePan(_:)))
         }
     }
@@ -93,9 +109,17 @@ final class ChapterPullTransitionController {
         for scrollView in attachedScrollViews.allObjects {
             scrollView.bounces = false
             scrollView.alwaysBounceVertical = false
+#if targetEnvironment(macCatalyst)
+            if let originalMask = originalScrollTypeMasks[ObjectIdentifier(scrollView)] {
+                scrollView.panGestureRecognizer.allowedScrollTypesMask = originalMask
+            }
+#endif
             scrollView.panGestureRecognizer.removeTarget(self, action: #selector(handlePan(_:)))
         }
         attachedScrollViews.removeAllObjects()
+#if targetEnvironment(macCatalyst)
+        originalScrollTypeMasks.removeAll()
+#endif
         resetGestureState()
     }
 

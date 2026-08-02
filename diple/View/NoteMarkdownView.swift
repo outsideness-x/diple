@@ -185,9 +185,9 @@ public enum NoteMarkdown {
 
 /// Reading view for a note's body.
 ///
-/// Set like a page rather than a form: serif for the reader's own words, a measure that stops
-/// widening on large screens, and leading loose enough for Hangul — its glyphs are denser than
-/// Latin and run together at the line height Latin is comfortable at.
+/// Set like a page rather than a form: system sans for an editing-tool feel, a measure that
+/// stops widening on large screens, and leading loose enough for Hangul — its glyphs are
+/// denser than Latin and run together at the line height Latin is comfortable at.
 public struct NoteMarkdownView: View {
     public let markdown: String
 
@@ -219,13 +219,13 @@ public struct NoteMarkdownView: View {
         switch block {
         case .heading(let level, let text):
             Text(NoteMarkdown.inline(text))
-                .dipleType(level <= 1 ? .readingTitle : .headline, weight: .semibold)
+                .dipleType(level <= 1 ? .noteTitle : .noteHeading, weight: .semibold)
                 .foregroundStyle(DipleColor.textPrimary)
                 .padding(.top, level <= 2 ? DipleSpace.s : 0)
 
         case .paragraph(let text):
             Text(NoteMarkdown.inline(text))
-                .dipleType(.readingBody)
+                .dipleType(.noteBody)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineSpacing(script.swiftUILineSpacing)
 
@@ -250,7 +250,7 @@ public struct NoteMarkdownView: View {
                     .frame(width: 2)
 
                 Text(NoteMarkdown.inline(text))
-                    .dipleType(.readingBody)
+                    .dipleType(.noteBody)
                     .foregroundStyle(DipleColor.textSecondary)
                     .lineSpacing(script.swiftUILineSpacing)
             }
@@ -281,13 +281,13 @@ public struct NoteMarkdownView: View {
     private func listRow(marker: String, text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
             Text(marker)
-                .dipleType(.readingBody)
+                .dipleType(.noteBody)
                 .foregroundStyle(DipleColor.textTertiary)
                 .monospacedDigit()
                 .frame(minWidth: DipleSpace.l, alignment: .trailing)
 
             Text(NoteMarkdown.inline(text))
-                .dipleType(.readingBody)
+                .dipleType(.noteBody)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineSpacing(script.swiftUILineSpacing)
                 .frame(maxWidth: .infinity, alignment: .leading)
