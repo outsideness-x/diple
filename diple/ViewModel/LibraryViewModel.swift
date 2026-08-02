@@ -15,6 +15,14 @@ public final class LibraryViewModel: ObservableObject {
         loadBooks()
     }
 
+    /// The unfinished book the reader touched most recently. The library remains the source of
+    /// truth; this is a presentation over the same rows rather than a second persisted shelf.
+    public var continueReadingBook: Book? {
+        books
+            .filter { $0.lastOpenedAt != nil && $0.progress > 0.001 && $0.progress < 0.995 }
+            .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }
+    }
+
     public func loadBooks() {
         do {
             self.books = try AppDatabase.shared.fetchAllBooks()

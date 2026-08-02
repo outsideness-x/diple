@@ -32,13 +32,17 @@ public struct BookCoverView: View {
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
             } else {
-                // High quality minimalist placeholder
+                // A placeholder is cover art, not metadata. The full title and author already
+                // sit directly below a library cover; repeating them here creates a visual echo.
                 ZStack {
                     LinearGradient(
                         colors: [DipleColor.surfaceRaised, DipleColor.surface],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
+
+                    AccentWash(diameter: min(geometry.size.width, geometry.size.height))
+                        .offset(x: geometry.size.width * 0.2, y: -geometry.size.height * 0.2)
 
                     VStack(alignment: .leading, spacing: DipleSpace.s) {
                         Image(systemName: "book.closed")
@@ -52,18 +56,9 @@ public struct BookCoverView: View {
                         if !isCompact {
                             Spacer()
 
-                            Text(title)
-                                .dipleType(.readingCaption, weight: .semibold)
-                                .foregroundStyle(DipleColor.textPrimary)
-                                .lineLimit(3)
-                                .multilineTextAlignment(.leading)
-
-                            if let author = author, !author.isEmpty {
-                                Text(author)
-                                    .dipleType(.micro, weight: .regular)
-                                    .foregroundStyle(DipleColor.textTertiary)
-                                    .lineLimit(1)
-                            }
+                            Text(String(title.prefix(1)).uppercased())
+                                .dipleType(.readingTitle)
+                                .foregroundStyle(DipleColor.textSecondary)
                         }
                     }
                     .padding(isCompact ? 0 : DipleSpace.m)
