@@ -91,15 +91,20 @@ public final class NotesViewModel: ObservableObject {
         }
     }
 
-    public func save(_ note: Note, tags: [String]) {
+    /// Saves a note and tells the editor whether it is safe to leave editing mode.
+    /// Keeping the result explicit prevents a failed write from looking like a successful save.
+    @discardableResult
+    public func save(_ note: Note, tags: [String]) -> Bool {
         do {
             var updated = note
             updated.updatedAt = Date()
             try AppDatabase.shared.saveNote(updated, tags: tags)
             load()
+            return true
         } catch {
             errorMessage = "Failed to save note: \(error.localizedDescription)"
             showErrorAlert = true
+            return false
         }
     }
 

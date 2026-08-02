@@ -26,7 +26,7 @@ public struct NoteDetailView: View {
     public let route: NoteRoute
     public let books: [Book]
     public let suggestedTags: [String]
-    public let onSave: (Note, [String]) -> Void
+    public let onSave: (Note, [String]) -> Bool
     public let onDelete: (NoteItem) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -45,7 +45,7 @@ public struct NoteDetailView: View {
         route: NoteRoute,
         books: [Book],
         suggestedTags: [String],
-        onSave: @escaping (Note, [String]) -> Void,
+        onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping (NoteItem) -> Void = { _ in }
     ) {
         self.route = route
@@ -416,7 +416,7 @@ public struct NoteDetailView: View {
     /// the page; an existing one drops into its reading view.
     private func commit() {
         guard canSave else { return }
-        save()
+        guard save() else { return }
         isBodyFocused = false
 
         if route.item == nil {
@@ -426,7 +426,7 @@ public struct NoteDetailView: View {
         }
     }
 
-    private func save() {
+    private func save() -> Bool {
         // A tag typed but never committed is still a tag the user meant to add.
         var finalTags = tags
         if let pending = NoteTag.normalized(tagDraft), !finalTags.contains(pending) {
@@ -444,7 +444,12 @@ public struct NoteDetailView: View {
             bookId: selectedBookId,
             createdAt: existing?.createdAt ?? Date()
         )
-        onSave(note, finalTags)
-        HapticManager.shared.impact(.medium)
+        let didSave = onSave(note, finalTags)
+        if didSave {
+            HapticManager.shared.impact(.medium)
+        } else {
+            HapticManager.shared.notification(.error)
+        }
+        return didSave
     }
 }

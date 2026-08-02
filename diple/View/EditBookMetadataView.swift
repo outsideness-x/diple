@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 public struct EditBookMetadataView: View {
     public let book: Book
-    public let onSave: (String, String?, Data?) -> Void
+    public let onSave: (String, String?, Data?) -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -14,7 +14,7 @@ public struct EditBookMetadataView: View {
     @State private var previewUIImage: UIImage? = nil
     @State private var isFileImporterPresented = false
 
-    public init(book: Book, onSave: @escaping (String, String?, Data?) -> Void) {
+    public init(book: Book, onSave: @escaping (String, String?, Data?) -> Bool) {
         self.book = book
         self.onSave = onSave
         self._title = State(initialValue: book.title)
@@ -141,9 +141,12 @@ public struct EditBookMetadataView: View {
                         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmedTitle.isEmpty else { return }
                         let trimmedAuthor = author.trimmingCharacters(in: .whitespacesAndNewlines)
-                        HapticManager.shared.notification(.success)
-                        onSave(trimmedTitle, trimmedAuthor.isEmpty ? nil : trimmedAuthor, selectedImageData)
-                        dismiss()
+                        if onSave(trimmedTitle, trimmedAuthor.isEmpty ? nil : trimmedAuthor, selectedImageData) {
+                            HapticManager.shared.notification(.success)
+                            dismiss()
+                        } else {
+                            HapticManager.shared.notification(.error)
+                        }
                     }
                     .dipleType(.body, weight: .semibold)
                     .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : DipleColor.accent)

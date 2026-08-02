@@ -45,7 +45,9 @@ public final class LibraryViewModel: ObservableObject {
 
     @Published public var bookToEdit: Book? = nil
 
-    public func updateMetadata(for bookId: String, title: String, author: String?, coverData: Data? = nil) {
+    /// Updates metadata and reports whether the editor can be dismissed.
+    @discardableResult
+    public func updateMetadata(for bookId: String, title: String, author: String?, coverData: Data? = nil) -> Bool {
         do {
             var coverPath: String? = nil
             if let data = coverData {
@@ -58,9 +60,11 @@ public final class LibraryViewModel: ObservableObject {
             }
             try AppDatabase.shared.updateBookMetadata(id: bookId, title: title, author: author, coverPath: coverPath)
             loadBooks()
+            return true
         } catch {
             self.errorMessage = "Failed to update metadata: \(error.localizedDescription)"
             self.showErrorAlert = true
+            return false
         }
     }
 
