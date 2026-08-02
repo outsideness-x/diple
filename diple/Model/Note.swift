@@ -3,7 +3,7 @@ import GRDB
 
 /// A free-form user note. `bookId` is the optional library item the note is tagged with;
 /// it is cleared rather than cascaded when that book is deleted, so notes outlive books.
-public struct Note: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable {
+public struct Note: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable, Sendable {
     public var id: String
     public var title: String?
     public var body: String
@@ -30,7 +30,7 @@ public struct Note: Codable, FetchableRecord, PersistableRecord, Identifiable, E
 
 /// Free-text tag attached to a note. Tags are stored one row per pair so the notes tab can
 /// list every tag in use without parsing packed strings.
-public struct NoteTag: Codable, FetchableRecord, PersistableRecord, Equatable, Hashable {
+public struct NoteTag: Codable, FetchableRecord, PersistableRecord, Equatable, Hashable, Sendable {
     public var noteId: String
     public var tag: String
 

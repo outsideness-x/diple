@@ -84,7 +84,7 @@ public struct AppSettingsView: View {
                                             Text("Chapter Transition Vibration")
                                                 .dipleType(.body, weight: .medium)
                                                 .foregroundColor(.white)
-                                            Text("Vibrate when moving to next chapter (Readwise Reader style)")
+                                            Text("Vibrate when moving to next chapter")
                                                 .dipleType(.caption)
                                                 .foregroundStyle(DipleColor.textTertiary)
                                         }

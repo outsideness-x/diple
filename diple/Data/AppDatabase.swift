@@ -18,7 +18,7 @@ public nonisolated final class AppDatabase: Sendable {
             var config = Configuration()
             config.qos = .userInitiated
             let dbQueue = try DatabaseQueue(path: dbURL.path, configuration: config)
-            let database = try AppDatabase(dbQueue)
+            let database = try AppDatabase(dbQueue, syncEnabled: true, signalsSyncService: true)
             return database
         } catch {
             fatalError("Failed to initialize database: \(error)")
@@ -26,9 +26,17 @@ public nonisolated final class AppDatabase: Sendable {
     }()
 
     private let writer: any DatabaseWriter
+    private let syncEnabled: Bool
+    private let signalsSyncService: Bool
 
-    public init(_ writer: any DatabaseWriter) throws {
+    public init(
+        _ writer: any DatabaseWriter,
+        syncEnabled: Bool = false,
+        signalsSyncService: Bool = false
+    ) throws {
         self.writer = writer
+        self.syncEnabled = syncEnabled
+        self.signalsSyncService = signalsSyncService
         try migrator.migrate(writer)
     }
 
@@ -148,6 +156,32 @@ public nonisolated final class AppDatabase: Sendable {
                 """)
         }
 
+        /// CloudKit is not the primary store: SQLite remains fully usable offline. The outbox
+        /// durably bridges committed local transactions to CKSyncEngine, while metadata keeps
+        /// each record's last server system fields for optimistic conflict handling.
+        migrator.registerMigration("v7_createCloudSyncState") { db in
+            try db.create(table: "syncMetadata") { t in
+                t.column("entityType", .text).notNull()
+                t.column("entityID", .text).notNull()
+                t.column("modifiedAt", .datetime).notNull()
+                t.column("systemFields", .blob)
+                t.primaryKey(["entityType", "entityID"])
+            }
+
+            try db.create(table: "syncOutbox") { t in
+                t.column("entityType", .text).notNull()
+                t.column("entityID", .text).notNull()
+                t.column("operation", .text).notNull()
+                t.column("modifiedAt", .datetime).notNull()
+                t.primaryKey(["entityType", "entityID"])
+            }
+
+            try db.create(table: "syncState") { t in
+                t.column("key", .text).primaryKey()
+                t.column("value", .text).notNull()
+            }
+        }
+
         return migrator
     }
 
@@ -157,7 +191,10 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.write { db in
             try book.save(db)
             try indexBook(book, in: db)
+            try markLocalSave(.book, id: book.id, at: book.addedAt, in: db)
+            try markLocalSave(.bookAsset, id: book.id, at: book.addedAt, in: db)
         }
+        signalSyncIfNeeded()
     }
 
     /// An imported article is a regular book plus one FTS document containing its clean prose.
@@ -168,7 +205,10 @@ public nonisolated final class AppDatabase: Sendable {
             try book.save(db)
             try indexBook(book, in: db)
             try indexArticle(book, text: searchableText, in: db)
+            try markLocalSave(.book, id: book.id, at: book.addedAt, in: db)
+            try markLocalSave(.bookAsset, id: book.id, at: book.addedAt, in: db)
         }
+        signalSyncIfNeeded()
     }
 
     public func fetchAllBooks() throws -> [Book] {
@@ -190,8 +230,10 @@ public nonisolated final class AppDatabase: Sendable {
                 book.locator = locator
                 book.lastOpenedAt = lastOpenedAt
                 try book.update(db)
+                try markLocalSave(.book, id: id, at: lastOpenedAt, in: db)
             }
         }
+        signalSyncIfNeeded()
     }
 
     public func updateBookMetadata(id: String, title: String, author: String?, coverPath: String? = nil) throws {
@@ -217,12 +259,33 @@ public nonisolated final class AppDatabase: Sendable {
                     sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'article' AND bookID = ?",
                     arguments: [book.title, book.sourceHost ?? "", book.id]
                 )
+                let changedAt = Date()
+                try markLocalSave(.book, id: id, at: changedAt, in: db)
+                if coverPath != nil {
+                    try markLocalSave(.bookAsset, id: id, at: changedAt, in: db)
+                }
             }
         }
+        signalSyncIfNeeded()
     }
 
     public func deleteBook(id: String) throws {
         try writer.write { db in
+            let bookmarkIDs = try String.fetchAll(
+                db,
+                sql: "SELECT id FROM bookmark WHERE bookId = ?",
+                arguments: [id]
+            )
+            let highlightIDs = try String.fetchAll(
+                db,
+                sql: "SELECT id FROM highlight WHERE bookId = ?",
+                arguments: [id]
+            )
+            let linkedNoteIDs = try String.fetchAll(
+                db,
+                sql: "SELECT id FROM note WHERE bookId = ?",
+                arguments: [id]
+            )
             _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
             _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
             // Notes are the user's own writing and survive the book they referenced;
@@ -237,7 +300,25 @@ public nonisolated final class AppDatabase: Sendable {
                 arguments: [id, id]
             )
             _ = try Book.filter(Column("id") == id).deleteAll(db)
+
+            let changedAt = Date()
+            for bookmarkID in bookmarkIDs {
+                try markLocalDelete(.bookmark, id: bookmarkID, at: changedAt, in: db)
+            }
+            for highlightID in highlightIDs {
+                try markLocalDelete(.highlight, id: highlightID, at: changedAt, in: db)
+            }
+            for noteID in linkedNoteIDs {
+                try db.execute(
+                    sql: "UPDATE note SET updatedAt = ? WHERE id = ?",
+                    arguments: [changedAt, noteID]
+                )
+                try markLocalSave(.note, id: noteID, at: changedAt, in: db)
+            }
+            try markLocalDelete(.book, id: id, at: changedAt, in: db)
+            try markLocalDelete(.bookAsset, id: id, at: changedAt, in: db)
         }
+        signalSyncIfNeeded()
     }
 
     // MARK: - Highlight CRUD
@@ -248,7 +329,9 @@ public nonisolated final class AppDatabase: Sendable {
             if let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db) {
                 try indexHighlight(highlight, book: book, in: db)
             }
+            try markLocalSave(.highlight, id: highlight.id, at: highlight.createdAt, in: db)
         }
+        signalSyncIfNeeded()
     }
 
     public func fetchHighlights(forBookId bookId: String) throws -> [Highlight] {
@@ -274,7 +357,9 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.write { db in
             _ = try Highlight.filter(Column("id") == id).deleteAll(db)
             try deleteSearchDocument(type: .highlight, id: id, in: db)
+            try markLocalDelete(.highlight, id: id, at: Date(), in: db)
         }
+        signalSyncIfNeeded()
     }
 
     // MARK: - Bookmark CRUD
@@ -282,7 +367,9 @@ public nonisolated final class AppDatabase: Sendable {
     public func saveBookmark(_ bookmark: Bookmark) throws {
         try writer.write { db in
             try bookmark.save(db)
+            try markLocalSave(.bookmark, id: bookmark.id, at: bookmark.createdAt, in: db)
         }
+        signalSyncIfNeeded()
     }
 
     public func fetchBookmarks(forBookId bookId: String) throws -> [Bookmark] {
@@ -294,7 +381,9 @@ public nonisolated final class AppDatabase: Sendable {
     public func deleteBookmark(id: String) throws {
         try writer.write { db in
             _ = try Bookmark.filter(Column("id") == id).deleteAll(db)
+            try markLocalDelete(.bookmark, id: id, at: Date(), in: db)
         }
+        signalSyncIfNeeded()
     }
 
     // MARK: - Note CRUD
@@ -310,7 +399,9 @@ public nonisolated final class AppDatabase: Sendable {
                 try NoteTag(noteId: note.id, tag: tag).insert(db)
             }
             try indexNote(note, tags: normalizedTags.sorted(), in: db)
+            try markLocalSave(.note, id: note.id, at: note.updatedAt, in: db)
         }
+        signalSyncIfNeeded()
     }
 
     public func fetchAllNotes() throws -> [Note] {
@@ -341,7 +432,9 @@ public nonisolated final class AppDatabase: Sendable {
             _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)
             _ = try Note.filter(Column("id") == id).deleteAll(db)
             try deleteSearchDocument(type: .note, id: id, in: db)
+            try markLocalDelete(.note, id: id, at: Date(), in: db)
         }
+        signalSyncIfNeeded()
     }
 
     public func fetchNote(id: String) throws -> Note? {
@@ -390,6 +483,7 @@ public nonisolated final class AppDatabase: Sendable {
 
     public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {
         guard let matchQuery = Self.ftsMatchQuery(query) else { return [] }
+        let highlightBodyQuery = "body : (\(matchQuery))"
 
         return try writer.read { db in
             let rows = try Row.fetchAll(
@@ -404,6 +498,12 @@ public nonisolated final class AppDatabase: Sendable {
                         snippet(searchIndex, 5, '', '', ' … ', 22) AS snippet
                     FROM searchIndex
                     WHERE searchIndex MATCH ?
+                      AND (
+                          entityType != 'highlight'
+                          OR rowid IN (
+                              SELECT rowid FROM searchIndex WHERE searchIndex MATCH ?
+                          )
+                      )
                     ORDER BY
                         CASE entityType
                             WHEN 'note' THEN 0
@@ -414,7 +514,7 @@ public nonisolated final class AppDatabase: Sendable {
                         bm25(searchIndex, 0.0, 0.0, 0.0, 5.0, 2.0, 1.0, 1.5)
                     LIMIT ?
                     """,
-                arguments: [matchQuery, max(1, limit)]
+                arguments: [matchQuery, highlightBodyQuery, max(1, limit)]
             )
 
             return rows.compactMap { row in
@@ -514,5 +614,399 @@ public nonisolated final class AppDatabase: Sendable {
             sql: "DELETE FROM searchIndex WHERE entityType = ? AND entityID = ?",
             arguments: [type.rawValue, id]
         )
+    }
+
+    // MARK: - Cloud Sync Bridge
+
+    /// Adds every pre-sync-installation object exactly once. Later edits use the same outbox,
+    /// so initial migration and normal operation share one delivery path.
+    public func prepareInitialSync() throws {
+        try writer.write { db in
+            let didBootstrap = try String.fetchOne(
+                db,
+                sql: "SELECT value FROM syncState WHERE key = 'initialUploadQueued'"
+            ) == "1"
+            guard !didBootstrap else { return }
+
+            for book in try Book.fetchAll(db) {
+                let changedAt = book.lastOpenedAt ?? book.addedAt
+                try markLocalSave(.book, id: book.id, at: changedAt, in: db)
+                try markLocalSave(.bookAsset, id: book.id, at: book.addedAt, in: db)
+            }
+            for highlight in try Highlight.fetchAll(db) {
+                try markLocalSave(.highlight, id: highlight.id, at: highlight.createdAt, in: db)
+            }
+            for bookmark in try Bookmark.fetchAll(db) {
+                try markLocalSave(.bookmark, id: bookmark.id, at: bookmark.createdAt, in: db)
+            }
+            for note in try Note.fetchAll(db) {
+                try markLocalSave(.note, id: note.id, at: note.updatedAt, in: db)
+            }
+            // A fresh device's defaults must lose to any real settings already in iCloud.
+            try markLocalSave(.settings, id: "current", at: Date(timeIntervalSince1970: 0), in: db)
+            try db.execute(
+                sql: "INSERT OR REPLACE INTO syncState(key, value) VALUES ('initialUploadQueued', '1')"
+            )
+        }
+    }
+
+    /// An iCloud account change needs a fresh upload into the new private database.
+    public func queueFullResync() throws {
+        try writer.write { db in
+            for book in try Book.fetchAll(db) {
+                let changedAt = max(book.lastOpenedAt ?? .distantPast, book.addedAt)
+                try markLocalSave(.book, id: book.id, at: changedAt, in: db)
+                try markLocalSave(.bookAsset, id: book.id, at: changedAt, in: db)
+            }
+            for highlight in try Highlight.fetchAll(db) {
+                try markLocalSave(.highlight, id: highlight.id, at: highlight.createdAt, in: db)
+            }
+            for bookmark in try Bookmark.fetchAll(db) {
+                try markLocalSave(.bookmark, id: bookmark.id, at: bookmark.createdAt, in: db)
+            }
+            for note in try Note.fetchAll(db) {
+                try markLocalSave(.note, id: note.id, at: note.updatedAt, in: db)
+            }
+            try markLocalSave(.settings, id: "current", at: Date(), in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
+    public func markSettingsChanged(at date: Date = Date()) throws {
+        try writer.write { db in
+            try markLocalSave(.settings, id: "current", at: date, in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
+    public func fetchSyncOutbox() throws -> [SyncOutboxEntry] {
+        try writer.read { db in
+            try SyncOutboxEntry.fetchAll(db, sql: "SELECT * FROM syncOutbox ORDER BY modifiedAt")
+        }
+    }
+
+    public func fetchSyncMetadata(entity: SyncEntityType, id: String) throws -> SyncMetadata? {
+        try writer.read { db in
+            try SyncMetadata.fetchOne(
+                db,
+                sql: "SELECT * FROM syncMetadata WHERE entityType = ? AND entityID = ?",
+                arguments: [entity.rawValue, id]
+            )
+        }
+    }
+
+    public func shouldAcceptRemoteChange(entity: SyncEntityType, id: String, modifiedAt: Date) throws -> Bool {
+        try writer.read { db in
+            try shouldAcceptRemote(entity, id: id, modifiedAt: modifiedAt, in: db)
+        }
+    }
+
+    public func fetchBookForSync(id: String) throws -> Book? { try fetchBook(id: id) }
+
+    public func fetchHighlightForSync(id: String) throws -> Highlight? {
+        try writer.read { db in
+            try Highlight.filter(Column("id") == id).fetchOne(db)
+        }
+    }
+
+    public func fetchBookmarkForSync(id: String) throws -> Bookmark? {
+        try writer.read { db in
+            try Bookmark.filter(Column("id") == id).fetchOne(db)
+        }
+    }
+
+    public func fetchNoteForSync(id: String) throws -> SyncedNote? {
+        try writer.read { db in
+            guard let note = try Note.filter(Column("id") == id).fetchOne(db) else { return nil }
+            let tags = try NoteTag
+                .filter(Column("noteId") == id)
+                .order(Column("tag"))
+                .fetchAll(db)
+                .map(\.tag)
+            return SyncedNote(note: note, tags: tags)
+        }
+    }
+
+    /// Returns false when an unsent local edit is newer than the server record.
+    @discardableResult
+    public func applyRemoteBook(_ book: Book, modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.book, id: book.id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try book.save(db)
+            try indexBook(book, in: db)
+            try storeRemoteMetadata(.book, id: book.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
+    @discardableResult
+    public func applyRemoteHighlight(_ highlight: Highlight, modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.highlight, id: highlight.id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try highlight.save(db)
+            if let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db) {
+                try indexHighlight(highlight, book: book, in: db)
+            }
+            try storeRemoteMetadata(.highlight, id: highlight.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
+    @discardableResult
+    public func applyRemoteBookmark(_ bookmark: Bookmark, modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.bookmark, id: bookmark.id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try bookmark.save(db)
+            try storeRemoteMetadata(.bookmark, id: bookmark.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
+    @discardableResult
+    public func applyRemoteNote(_ syncedNote: SyncedNote, modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            let note = syncedNote.note
+            guard try shouldAcceptRemote(.note, id: note.id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try note.save(db)
+            _ = try NoteTag.filter(Column("noteId") == note.id).deleteAll(db)
+            let tags = Set(syncedNote.tags.compactMap(NoteTag.normalized))
+            for tag in tags {
+                try NoteTag(noteId: note.id, tag: tag).insert(db)
+            }
+            try indexNote(note, tags: tags.sorted(), in: db)
+            try storeRemoteMetadata(.note, id: note.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
+    /// Assets have their own record, so progress updates never upload a multi-megabyte EPUB.
+    @discardableResult
+    public func applyRemoteBookAssetMetadata(id: String, modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.bookAsset, id: id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try storeRemoteMetadata(.bookAsset, id: id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
+    @discardableResult
+    public func applyRemoteSettingsMetadata(modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.settings, id: "current", modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try storeRemoteMetadata(.settings, id: "current", modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
+    /// Applies a server deletion unless the device has a newer unsent save for that object.
+    @discardableResult
+    public func applyRemoteDeletion(entity: SyncEntityType, id: String) throws -> Bool {
+        try writer.write { db in
+            let pendingSave = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM syncOutbox WHERE entityType = ? AND entityID = ? AND operation = 'save')",
+                arguments: [entity.rawValue, id]
+            ) ?? false
+            guard !pendingSave else { return false }
+
+            switch entity {
+            case .book:
+                let linkedNoteIDs = try String.fetchAll(
+                    db,
+                    sql: "SELECT id FROM note WHERE bookId = ?",
+                    arguments: [id]
+                )
+                let childKeys = try Row.fetchAll(
+                    db,
+                    sql: """
+                        SELECT 'bookmark' AS entityType, id AS entityID FROM bookmark WHERE bookId = ?
+                        UNION ALL
+                        SELECT 'highlight' AS entityType, id AS entityID FROM highlight WHERE bookId = ?
+                        """,
+                    arguments: [id, id]
+                )
+                _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
+                _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
+                try db.execute(sql: "UPDATE note SET bookId = NULL WHERE bookId = ?", arguments: [id])
+                try db.execute(
+                    sql: "UPDATE searchIndex SET bookID = '' WHERE entityType = 'note' AND bookID = ?",
+                    arguments: [id]
+                )
+                try db.execute(
+                    sql: "DELETE FROM searchIndex WHERE (entityType = 'book' AND entityID = ?) OR (entityType IN ('highlight', 'article') AND bookID = ?)",
+                    arguments: [id, id]
+                )
+                _ = try Book.filter(Column("id") == id).deleteAll(db)
+                for row in childKeys {
+                    let childEntity: String = row["entityType"]
+                    let childID: String = row["entityID"]
+                    try db.execute(
+                        sql: "DELETE FROM syncOutbox WHERE entityType = ? AND entityID = ?",
+                        arguments: [childEntity, childID]
+                    )
+                    try db.execute(
+                        sql: "DELETE FROM syncMetadata WHERE entityType = ? AND entityID = ?",
+                        arguments: [childEntity, childID]
+                    )
+                }
+                for noteID in linkedNoteIDs {
+                    let changedAt = Date()
+                    try db.execute(
+                        sql: "UPDATE note SET updatedAt = ? WHERE id = ?",
+                        arguments: [changedAt, noteID]
+                    )
+                    try markLocalSave(.note, id: noteID, at: changedAt, in: db)
+                }
+            case .highlight:
+                _ = try Highlight.filter(Column("id") == id).deleteAll(db)
+                try deleteSearchDocument(type: .highlight, id: id, in: db)
+            case .bookmark:
+                _ = try Bookmark.filter(Column("id") == id).deleteAll(db)
+            case .note:
+                _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)
+                _ = try Note.filter(Column("id") == id).deleteAll(db)
+                try deleteSearchDocument(type: .note, id: id, in: db)
+            case .bookAsset, .settings:
+                break
+            }
+            try db.execute(
+                sql: "DELETE FROM syncMetadata WHERE entityType = ? AND entityID = ?",
+                arguments: [entity.rawValue, id]
+            )
+            return true
+        }
+    }
+
+    public func acknowledgeSavedRecord(
+        entity: SyncEntityType,
+        id: String,
+        modifiedAt: Date,
+        systemFields: Data
+    ) throws {
+        try writer.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO syncMetadata(entityType, entityID, modifiedAt, systemFields)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(entityType, entityID) DO UPDATE SET
+                        modifiedAt = max(syncMetadata.modifiedAt, excluded.modifiedAt),
+                        systemFields = excluded.systemFields
+                    """,
+                arguments: [entity.rawValue, id, modifiedAt, systemFields]
+            )
+            try db.execute(
+                sql: "DELETE FROM syncOutbox WHERE entityType = ? AND entityID = ? AND modifiedAt <= ?",
+                arguments: [entity.rawValue, id, modifiedAt]
+            )
+        }
+    }
+
+    public func acknowledgeDeletedRecord(entity: SyncEntityType, id: String) throws {
+        try writer.write { db in
+            try db.execute(
+                sql: "DELETE FROM syncOutbox WHERE entityType = ? AND entityID = ? AND operation = 'delete'",
+                arguments: [entity.rawValue, id]
+            )
+            try db.execute(
+                sql: "DELETE FROM syncMetadata WHERE entityType = ? AND entityID = ?",
+                arguments: [entity.rawValue, id]
+            )
+        }
+    }
+
+    public func clearServerSystemFields(entity: SyncEntityType, id: String) throws {
+        try writer.write { db in
+            try db.execute(
+                sql: "UPDATE syncMetadata SET systemFields = NULL WHERE entityType = ? AND entityID = ?",
+                arguments: [entity.rawValue, id]
+            )
+        }
+    }
+
+    private func markLocalSave(_ entity: SyncEntityType, id: String, at date: Date, in db: Database) throws {
+        try markLocalChange(entity, id: id, operation: .save, at: date, in: db)
+    }
+
+    private func markLocalDelete(_ entity: SyncEntityType, id: String, at date: Date, in db: Database) throws {
+        try markLocalChange(entity, id: id, operation: .delete, at: date, in: db)
+    }
+
+    private func markLocalChange(
+        _ entity: SyncEntityType,
+        id: String,
+        operation: SyncOperation,
+        at date: Date,
+        in db: Database
+    ) throws {
+        guard syncEnabled else { return }
+        try db.execute(
+            sql: """
+                INSERT INTO syncMetadata(entityType, entityID, modifiedAt, systemFields)
+                VALUES (?, ?, ?, NULL)
+                ON CONFLICT(entityType, entityID) DO UPDATE SET modifiedAt = excluded.modifiedAt
+                """,
+            arguments: [entity.rawValue, id, date]
+        )
+        try db.execute(
+            sql: """
+                INSERT INTO syncOutbox(entityType, entityID, operation, modifiedAt)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(entityType, entityID) DO UPDATE SET
+                    operation = excluded.operation,
+                    modifiedAt = excluded.modifiedAt
+                """,
+            arguments: [entity.rawValue, id, operation.rawValue, date]
+        )
+    }
+
+    private func shouldAcceptRemote(
+        _ entity: SyncEntityType,
+        id: String,
+        modifiedAt: Date,
+        in db: Database
+    ) throws -> Bool {
+        let localDate = try Date.fetchOne(
+            db,
+            sql: "SELECT modifiedAt FROM syncMetadata WHERE entityType = ? AND entityID = ?",
+            arguments: [entity.rawValue, id]
+        )
+        return localDate == nil || modifiedAt >= (localDate ?? .distantPast)
+    }
+
+    private func storeRemoteMetadata(
+        _ entity: SyncEntityType,
+        id: String,
+        modifiedAt: Date,
+        systemFields: Data,
+        in db: Database
+    ) throws {
+        try db.execute(
+            sql: """
+                INSERT OR REPLACE INTO syncMetadata(entityType, entityID, modifiedAt, systemFields)
+                VALUES (?, ?, ?, ?)
+                """,
+            arguments: [entity.rawValue, id, modifiedAt, systemFields]
+        )
+        try db.execute(
+            sql: "DELETE FROM syncOutbox WHERE entityType = ? AND entityID = ? AND modifiedAt <= ?",
+            arguments: [entity.rawValue, id, modifiedAt]
+        )
+    }
+
+    private func signalSyncIfNeeded() {
+        guard syncEnabled, signalsSyncService else { return }
+        CloudSyncService.signalLocalChanges()
     }
 }

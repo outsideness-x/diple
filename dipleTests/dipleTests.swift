@@ -153,6 +153,112 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(try database.search("compositional").isEmpty)
     }
 
+    func testCloudSyncOutboxIsDurableCoalescedAndAcknowledgedPerRecord() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let addedAt = Date(timeIntervalSince1970: 100)
+        let book = Book(
+            id: "sync-book",
+            title: "Синхронизация",
+            filePath: "Books/sync-book/book.epub",
+            addedAt: addedAt
+        )
+        try database.saveBook(book)
+
+        var outbox = try database.fetchSyncOutbox()
+        XCTAssertEqual(Set(outbox.compactMap(\.entity)), [.book, .bookAsset])
+
+        let progressDate = Date(timeIntervalSince1970: 200)
+        try database.updateReadingProgress(
+            id: book.id,
+            progress: 0.5,
+            locator: #"{"href":"chapter.xhtml"}"#,
+            lastOpenedAt: progressDate
+        )
+        outbox = try database.fetchSyncOutbox()
+        XCTAssertEqual(outbox.count, 2, "Progress must coalesce into the existing book save")
+        XCTAssertEqual(outbox.first { $0.entity == .book }?.modifiedAt, progressDate)
+        XCTAssertEqual(outbox.first { $0.entity == .bookAsset }?.modifiedAt, addedAt)
+
+        try database.acknowledgeSavedRecord(
+            entity: .book,
+            id: book.id,
+            modifiedAt: progressDate,
+            systemFields: Data("server-fields".utf8)
+        )
+        outbox = try database.fetchSyncOutbox()
+        XCTAssertEqual(outbox.compactMap(\.entity), [.bookAsset])
+        XCTAssertEqual(
+            try database.fetchSyncMetadata(entity: .book, id: book.id)?.systemFields,
+            Data("server-fields".utf8)
+        )
+    }
+
+    func testCloudSyncRemoteMergeUsesModificationDateAndKeepsNotesWhenBookIsDeleted() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(id: "remote-book", title: "Book", filePath: "Books/remote-book/book.epub")
+        try database.saveBook(book)
+
+        let localDate = Date(timeIntervalSince1970: 200)
+        let localNote = Note(
+            id: "remote-note",
+            body: "new local text",
+            bookId: book.id,
+            createdAt: Date(timeIntervalSince1970: 50),
+            updatedAt: localDate
+        )
+        try database.saveNote(localNote, tags: ["local"])
+
+        let staleRemote = SyncedNote(
+            note: Note(
+                id: localNote.id,
+                body: "stale cloud text",
+                bookId: book.id,
+                createdAt: localNote.createdAt,
+                updatedAt: Date(timeIntervalSince1970: 100)
+            ),
+            tags: ["cloud"]
+        )
+        XCTAssertFalse(
+            try database.applyRemoteNote(
+                staleRemote,
+                modifiedAt: Date(timeIntervalSince1970: 100),
+                systemFields: Data()
+            )
+        )
+        XCTAssertEqual(try database.fetchNote(id: localNote.id)?.body, "new local text")
+
+        let freshRemoteDate = Date(timeIntervalSince1970: 300)
+        let freshRemote = SyncedNote(
+            note: Note(
+                id: localNote.id,
+                body: "fresh cloud text",
+                bookId: book.id,
+                createdAt: localNote.createdAt,
+                updatedAt: freshRemoteDate
+            ),
+            tags: ["cloud"]
+        )
+        XCTAssertTrue(
+            try database.applyRemoteNote(
+                freshRemote,
+                modifiedAt: freshRemoteDate,
+                systemFields: Data("note-fields".utf8)
+            )
+        )
+        XCTAssertEqual(try database.fetchNote(id: localNote.id)?.body, "fresh cloud text")
+        XCTAssertEqual(try database.fetchTags(forNoteID: localNote.id), ["cloud"])
+
+        try database.acknowledgeSavedRecord(
+            entity: .book,
+            id: book.id,
+            modifiedAt: .distantFuture,
+            systemFields: Data()
+        )
+        XCTAssertTrue(try database.applyRemoteDeletion(entity: .book, id: book.id))
+        XCTAssertNil(try database.fetchNote(id: localNote.id)?.bookId)
+        XCTAssertNotNil(try database.fetchSyncOutbox().first { $0.entity == .note })
+    }
+
     // MARK: - Generated EPUB
 
     func testZIPWriterUsesStoredEntriesAndCorrectCRC32() throws {

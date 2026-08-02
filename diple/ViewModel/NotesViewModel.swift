@@ -30,9 +30,13 @@ public final class NotesViewModel: ObservableObject {
     @Published public var showDeleteConfirmation: Bool = false
     @Published public var errorMessage: String? = nil
     @Published public var showErrorAlert: Bool = false
+    private var syncObserver: AnyCancellable?
 
     public init() {
         load()
+        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.load() }
     }
 
     public func load() {

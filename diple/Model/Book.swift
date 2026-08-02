@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable {
+public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable, Sendable {
     public var id: String
     public var title: String
     public var author: String?

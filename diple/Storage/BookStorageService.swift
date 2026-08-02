@@ -86,6 +86,35 @@ public nonisolated final class BookStorageService: Sendable {
         return "Books/\(bookId)/\(fileName)"
     }
 
+    /// Installs a downloaded CloudKit asset with an atomic reveal. `suggestedName` is reduced
+    /// to its final path component so server data can never escape the book's private folder.
+    public func installSyncedFile(
+        from sourceURL: URL,
+        bookId: String,
+        suggestedName: String,
+        fallbackName: String
+    ) throws -> String {
+        let sanitized = URL(fileURLWithPath: suggestedName).lastPathComponent
+        let fileName = sanitized.isEmpty || sanitized == "." ? fallbackName : sanitized
+        let targetFolder = try bookDirectory(id: bookId)
+        let targetURL = targetFolder.appendingPathComponent(fileName)
+        let temporaryURL = targetFolder.appendingPathComponent(".sync-\(UUID().uuidString)")
+
+        defer {
+            if fileManager.fileExists(atPath: temporaryURL.path) {
+                try? fileManager.removeItem(at: temporaryURL)
+            }
+        }
+
+        try fileManager.copyItem(at: sourceURL, to: temporaryURL)
+        if fileManager.fileExists(atPath: targetURL.path) {
+            _ = try fileManager.replaceItemAt(targetURL, withItemAt: temporaryURL)
+        } else {
+            try fileManager.moveItem(at: temporaryURL, to: targetURL)
+        }
+        return "Books/\(bookId)/\(fileName)"
+    }
+
     /// Deletes the book directory Documents/Books/<uuid>
     public func deleteBookFolder(id: String) throws {
         let booksURL = try booksDirectory()

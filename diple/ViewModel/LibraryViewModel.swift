@@ -52,9 +52,13 @@ public final class LibraryViewModel: ObservableObject {
     @Published public var showErrorAlert: Bool = false
     @Published public var bookToDelete: Book? = nil
     @Published public var showDeleteConfirmation: Bool = false
+    private var syncObserver: AnyCancellable?
 
     public init() {
         loadBooks()
+        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.loadBooks() }
     }
 
     /// The unfinished book the reader touched most recently. The library remains the source of

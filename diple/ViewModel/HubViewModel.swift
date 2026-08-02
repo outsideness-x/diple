@@ -15,6 +15,7 @@ public final class HubViewModel: ObservableObject {
     @Published public private(set) var summaries: [BookQuoteSummary] = []
     @Published public var errorMessage: String? = nil
     @Published public var showErrorAlert: Bool = false
+    private var syncObserver: AnyCancellable?
 
     public var totalQuoteCount: Int {
         summaries.reduce(0) { $0 + $1.quoteCount }
@@ -22,6 +23,9 @@ public final class HubViewModel: ObservableObject {
 
     public init() {
         load()
+        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.load() }
     }
 
     public func load() {
@@ -46,10 +50,14 @@ public final class BookQuotesViewModel: ObservableObject {
     @Published public var showErrorAlert: Bool = false
 
     private let bookId: String
+    private var syncObserver: AnyCancellable?
 
     public init(bookId: String) {
         self.bookId = bookId
         load()
+        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.load() }
     }
 
     public func load() {

@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 import ReadiumShared
 
-public struct Bookmark: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable {
+public struct Bookmark: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable, Sendable {
     public var id: String
     public var bookId: String
     public var locator: String
