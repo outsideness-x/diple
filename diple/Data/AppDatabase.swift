@@ -102,6 +102,52 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        /// One search surface for reader-authored notes, saved highlights and library
+        /// metadata. FTS rows deliberately keep stable entity ids instead of mirroring source
+        /// rowids: UUID-backed records can be rebuilt or reindexed without coupling tables.
+        migrator.registerMigration("v6_createGlobalSearchIndex") { db in
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE searchIndex USING fts5(
+                    entityType UNINDEXED,
+                    entityID UNINDEXED,
+                    bookID UNINDEXED,
+                    title,
+                    subtitle,
+                    body,
+                    tags,
+                    tokenize = 'unicode61 remove_diacritics 2'
+                )
+                """)
+
+            try db.execute(sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                SELECT
+                    'book', id, id, title,
+                    trim(coalesce(author, '') || ' ' || coalesce(sourceURL, '')),
+                    '', ''
+                FROM book
+                """)
+
+            try db.execute(sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                SELECT
+                    'note', note.id, coalesce(note.bookId, ''), coalesce(note.title, ''), '',
+                    note.body,
+                    coalesce((SELECT group_concat(tag, ' ') FROM noteTag WHERE noteId = note.id), '')
+                FROM note
+                """)
+
+            try db.execute(sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                SELECT
+                    'highlight', highlight.id, highlight.bookId, book.title,
+                    trim(coalesce(book.author, '') || ' ' || coalesce(book.sourceURL, '')),
+                    highlight.text, ''
+                FROM highlight
+                JOIN book ON book.id = highlight.bookId
+                """)
+        }
+
         return migrator
     }
 
@@ -110,6 +156,7 @@ public nonisolated final class AppDatabase: Sendable {
     public func saveBook(_ book: Book) throws {
         try writer.write { db in
             try book.save(db)
+            try indexBook(book, in: db)
         }
     }
 
@@ -146,6 +193,14 @@ public nonisolated final class AppDatabase: Sendable {
                     book.coverPath = coverPath
                 }
                 try book.update(db)
+                try indexBook(book, in: db)
+
+                // Highlight results display their publication title and byline. Keep those
+                // denormalized labels current when metadata is edited.
+                let highlights = try Highlight.filter(Column("bookId") == id).fetchAll(db)
+                for highlight in highlights {
+                    try indexHighlight(highlight, book: book, in: db)
+                }
             }
         }
     }
@@ -157,6 +212,14 @@ public nonisolated final class AppDatabase: Sendable {
             // Notes are the user's own writing and survive the book they referenced;
             // only the tag pointing at it goes away.
             try db.execute(sql: "UPDATE note SET bookId = NULL WHERE bookId = ?", arguments: [id])
+            try db.execute(
+                sql: "UPDATE searchIndex SET bookID = '' WHERE entityType = 'note' AND bookID = ?",
+                arguments: [id]
+            )
+            try db.execute(
+                sql: "DELETE FROM searchIndex WHERE (entityType = 'book' AND entityID = ?) OR (entityType IN ('highlight', 'article') AND bookID = ?)",
+                arguments: [id, id]
+            )
             _ = try Book.filter(Column("id") == id).deleteAll(db)
         }
     }
@@ -166,6 +229,9 @@ public nonisolated final class AppDatabase: Sendable {
     public func saveHighlight(_ highlight: Highlight) throws {
         try writer.write { db in
             try highlight.save(db)
+            if let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db) {
+                try indexHighlight(highlight, book: book, in: db)
+            }
         }
     }
 
@@ -191,6 +257,7 @@ public nonisolated final class AppDatabase: Sendable {
     public func deleteHighlight(id: String) throws {
         try writer.write { db in
             _ = try Highlight.filter(Column("id") == id).deleteAll(db)
+            try deleteSearchDocument(type: .highlight, id: id, in: db)
         }
     }
 
@@ -222,9 +289,11 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.write { db in
             try note.save(db)
             _ = try NoteTag.filter(Column("noteId") == note.id).deleteAll(db)
-            for tag in Set(tags.compactMap(NoteTag.normalized)) {
+            let normalizedTags = Set(tags.compactMap(NoteTag.normalized))
+            for tag in normalizedTags {
                 try NoteTag(noteId: note.id, tag: tag).insert(db)
             }
+            try indexNote(note, tags: normalizedTags.sorted(), in: db)
         }
     }
 
@@ -255,6 +324,142 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.write { db in
             _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)
             _ = try Note.filter(Column("id") == id).deleteAll(db)
+            try deleteSearchDocument(type: .note, id: id, in: db)
         }
+    }
+
+    public func fetchNote(id: String) throws -> Note? {
+        try writer.read { db in
+            try Note.filter(Column("id") == id).fetchOne(db)
+        }
+    }
+
+    public func fetchTags(forNoteID noteID: String) throws -> [String] {
+        try writer.read { db in
+            try NoteTag
+                .filter(Column("noteId") == noteID)
+                .order(Column("tag"))
+                .fetchAll(db)
+                .map(\.tag)
+        }
+    }
+
+    // MARK: - Global Search
+
+    public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {
+        guard let matchQuery = Self.ftsMatchQuery(query) else { return [] }
+
+        return try writer.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT
+                        entityType,
+                        entityID,
+                        nullif(bookID, '') AS bookID,
+                        title,
+                        subtitle,
+                        snippet(searchIndex, 5, '', '', ' … ', 22) AS snippet
+                    FROM searchIndex
+                    WHERE searchIndex MATCH ?
+                    ORDER BY
+                        CASE entityType
+                            WHEN 'note' THEN 0
+                            WHEN 'highlight' THEN 1
+                            WHEN 'book' THEN 2
+                            ELSE 3
+                        END,
+                        bm25(searchIndex, 0.0, 0.0, 0.0, 5.0, 2.0, 1.0, 1.5)
+                    LIMIT ?
+                    """,
+                arguments: [matchQuery, max(1, limit)]
+            )
+
+            return rows.compactMap { row in
+                guard let rawKind: String = row["entityType"],
+                      let kind = GlobalSearchKind(rawValue: rawKind),
+                      let entityID: String = row["entityID"]
+                else { return nil }
+
+                let rawTitle: String = row["title"] ?? ""
+                let title = rawTitle.isEmpty
+                    ? (kind == .note ? "Untitled Note" : "Untitled")
+                    : rawTitle
+                return GlobalSearchResult(
+                    kind: kind,
+                    entityID: entityID,
+                    bookID: row["bookID"],
+                    title: title,
+                    subtitle: row["subtitle"] ?? "",
+                    snippet: row["snippet"] ?? ""
+                )
+            }
+        }
+    }
+
+    private static func ftsMatchQuery(_ raw: String) -> String? {
+        let tokens = raw
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
+            .filter { !$0.isEmpty }
+        guard !tokens.isEmpty else { return nil }
+        return tokens.map { "\"\($0)\"*" }.joined(separator: " AND ")
+    }
+
+    private func indexBook(_ book: Book, in db: Database) throws {
+        try deleteSearchDocument(type: .book, id: book.id, in: db)
+        try db.execute(
+            sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                VALUES ('book', ?, ?, ?, ?, '', '')
+                """,
+            arguments: [
+                book.id,
+                book.id,
+                book.title,
+                [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " ")
+            ]
+        )
+    }
+
+    private func indexHighlight(_ highlight: Highlight, book: Book, in db: Database) throws {
+        try deleteSearchDocument(type: .highlight, id: highlight.id, in: db)
+        try db.execute(
+            sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                VALUES ('highlight', ?, ?, ?, ?, ?, '')
+                """,
+            arguments: [
+                highlight.id,
+                highlight.bookId,
+                book.title,
+                [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " "),
+                highlight.text
+            ]
+        )
+    }
+
+    private func indexNote(_ note: Note, tags: [String], in db: Database) throws {
+        try deleteSearchDocument(type: .note, id: note.id, in: db)
+        try db.execute(
+            sql: """
+                INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
+                VALUES ('note', ?, ?, ?, '', ?, ?)
+                """,
+            arguments: [
+                note.id,
+                note.bookId ?? "",
+                note.title ?? "",
+                note.body,
+                tags.joined(separator: " ")
+            ]
+        )
+    }
+
+    private func deleteSearchDocument(type: GlobalSearchKind, id: String, in db: Database) throws {
+        try db.execute(
+            sql: "DELETE FROM searchIndex WHERE entityType = ? AND entityID = ?",
+            arguments: [type.rawValue, id]
+        )
     }
 }

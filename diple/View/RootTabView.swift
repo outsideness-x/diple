@@ -6,6 +6,7 @@ public struct RootTabView: View {
         case library
         case highlights
         case notes
+        case search
     }
 
     @State private var selection: Tab = .library
@@ -31,6 +32,12 @@ public struct RootTabView: View {
                     Label("Notes", systemImage: "square.grid.2x2")
                 }
                 .tag(Tab.notes)
+
+            GlobalSearchView()
+                .tabItem {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .tag(Tab.search)
         }
         .tint(DipleColor.accent)
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)

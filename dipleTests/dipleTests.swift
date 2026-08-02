@@ -93,6 +93,42 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(try database.fetchTagsByNote()[note.id], ["ideas", "한국어"])
     }
 
+    func testGlobalSearchIndexesAndSynchronizesNotesHighlightsAndMetadata() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(
+            id: "search-book",
+            title: "Алгебра",
+            author: "Анна",
+            filePath: "Books/search-book/book.epub",
+            sourceURL: "https://example.org/article"
+        )
+        try database.saveBook(book)
+
+        let note = Note(id: "search-note", title: "Идея", body: "Своя математическая мысль")
+        try database.saveNote(note, tags: ["한국어"])
+
+        let highlight = Highlight(
+            id: "search-highlight",
+            bookId: book.id,
+            locator: "{}",
+            text: "Сохранённая цитата о полиномах"
+        )
+        try database.saveHighlight(highlight)
+
+        XCTAssertEqual(try database.search("мысль").map(\.kind), [.note])
+        XCTAssertEqual(try database.search("цитат").map(\.kind), [.highlight])
+        XCTAssertEqual(try database.search("example").map(\.kind), [.book])
+        XCTAssertEqual(try database.search("한국").map(\.kind), [.note])
+        XCTAssertNoThrow(try database.search(#"\"quoted-value\""#))
+
+        try database.updateBookMetadata(id: book.id, title: "Геометрия", author: "Борис")
+        XCTAssertTrue(try database.search("Алгебра").isEmpty)
+        XCTAssertEqual(try database.search("Геометр").map(\.kind), [.book])
+
+        try database.deleteHighlight(id: highlight.id)
+        XCTAssertTrue(try database.search("полином").isEmpty)
+    }
+
     // MARK: - Generated EPUB
 
     func testZIPWriterUsesStoredEntriesAndCorrectCRC32() throws {
