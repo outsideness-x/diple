@@ -11,8 +11,14 @@ import SwiftUI
 struct dipleApp: App {
     var body: some Scene {
         WindowGroup {
+            #if targetEnvironment(macCatalyst)
+            MacRootView()
+                .frame(minWidth: 980, minHeight: 680)
+                .preferredColorScheme(.dark)
+            #else
             RootTabView()
                 .preferredColorScheme(.dark)
+            #endif
         }
     }
 }
