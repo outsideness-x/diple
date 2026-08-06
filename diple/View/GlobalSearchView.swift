@@ -30,11 +30,11 @@ public struct GlobalSearchView: View {
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
-                if viewModel.isIndexingArticles {
+                if viewModel.isIndexingArticles || viewModel.isIndexingBookContent {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         ProgressView()
                             .tint(DipleColor.accent)
-                            .accessibilityLabel("Indexing imported articles")
+                            .accessibilityLabel("Indexing your library")
                     }
                 }
             }
@@ -44,7 +44,7 @@ public struct GlobalSearchView: View {
                 prompt: "Notes, highlights and library"
             )
             .onChange(of: viewModel.query) { _, _ in
-                viewModel.search()
+                viewModel.scheduleSearch()
             }
             .onAppear {
                 viewModel.reloadContext()
@@ -171,6 +171,14 @@ public struct GlobalSearchView: View {
         case .book, .article:
             if let book = viewModel.book(for: result) {
                 ReaderContainerView(book: book) {
+                    viewModel.reloadContext()
+                }
+            } else {
+                unavailableResult
+            }
+        case .bookContent:
+            if let book = viewModel.book(for: result), let locator = result.parsedLocator {
+                ReaderContainerView(book: book, startingLocator: locator) {
                     viewModel.reloadContext()
                 }
             } else {

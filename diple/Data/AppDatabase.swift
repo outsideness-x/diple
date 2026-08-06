@@ -197,6 +197,34 @@ public nonisolated final class AppDatabase: Sendable {
                 """)
         }
 
+        /// A second FTS5 table, deliberately separate from `searchIndex`: content needs its own
+        /// bm25 weights and must be rebuildable per book (delete-then-reinsert its chunks)
+        /// without touching every other kind of search document. Like `searchIndex` it is a
+        /// derived local index — not synced, not backed up, safe to drop and rebuild.
+        /// `bookContentIndex` is the resumable-backfill ledger: one row per book that has been
+        /// swept, so a restart never re-parses a book it already finished (or already gave up
+        /// on for lacking any extractable text).
+        migrator.registerMigration("v9_createBookContentIndex") { db in
+            try db.execute(sql: """
+                CREATE VIRTUAL TABLE bookContent USING fts5(
+                    bookID UNINDEXED,
+                    href UNINDEXED,
+                    chapterTitle,
+                    ordinal UNINDEXED,
+                    locatorJSON UNINDEXED,
+                    body,
+                    tokenize = 'unicode61 remove_diacritics 2',
+                    prefix = '2 3'
+                )
+                """)
+
+            try db.create(table: "bookContentIndex") { t in
+                t.column("bookID", .text).primaryKey()
+                t.column("indexedAt", .datetime).notNull()
+                t.column("chunkCount", .integer).notNull()
+            }
+        }
+
         return migrator
     }
 
@@ -529,6 +557,58 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    // MARK: - Book Content Index
+
+    /// Books whose own prose has never been swept into `bookContent`. Articles are excluded:
+    /// their body already lives in `searchIndex` as an `article` document, and indexing them
+    /// again here would surface every hit twice. The existence check lives in SQL for the same
+    /// reason as `fetchArticlesMissingTextIndex` — opening Search must not itself read a whole
+    /// already-indexed library just to find out there is nothing left to do.
+    public func fetchBooksMissingContentIndex() throws -> [Book] {
+        try writer.read { db in
+            try Book.fetchAll(
+                db,
+                sql: """
+                    SELECT book.*
+                    FROM book
+                    WHERE book.sourceURL IS NULL
+                      AND NOT EXISTS (
+                          SELECT 1 FROM bookContentIndex WHERE bookContentIndex.bookID = book.id
+                      )
+                    ORDER BY book.addedAt DESC
+                    """
+            )
+        }
+    }
+
+    /// Replaces one book's chunks in a single transaction — the resumable backfill never holds
+    /// a write transaction across more than one book, so an in-progress read (search, or the
+    /// reader itself) is never blocked for longer than one book's worth of inserts.
+    public func indexBookContent(book: Book, chunks: [BookContentChunk]) throws {
+        try writer.write { db in
+            try db.execute(sql: "DELETE FROM bookContent WHERE bookID = ?", arguments: [book.id])
+            for (ordinal, chunk) in chunks.enumerated() {
+                try db.execute(
+                    sql: """
+                        INSERT INTO bookContent(bookID, href, chapterTitle, ordinal, locatorJSON, body)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                    arguments: [book.id, chunk.href, chunk.chapterTitle, ordinal, chunk.locatorJSON, chunk.body]
+                )
+            }
+            try db.execute(
+                sql: """
+                    INSERT INTO bookContentIndex(bookID, indexedAt, chunkCount)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(bookID) DO UPDATE SET
+                        indexedAt = excluded.indexedAt,
+                        chunkCount = excluded.chunkCount
+                    """,
+                arguments: [book.id, Date(), chunks.count]
+            )
+        }
+    }
+
     // MARK: - Global Search
 
     public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {
@@ -567,7 +647,7 @@ public nonisolated final class AppDatabase: Sendable {
                 arguments: [matchQuery, highlightBodyQuery, max(1, limit)]
             )
 
-            return rows.compactMap { row in
+            let metadataResults: [GlobalSearchResult] = rows.compactMap { row in
                 guard let rawKind: String = row["entityType"],
                       let kind = GlobalSearchKind(rawValue: rawKind),
                       let entityID: String = row["entityID"]
@@ -586,16 +666,60 @@ public nonisolated final class AppDatabase: Sendable {
                     snippet: row["snippet"] ?? ""
                 )
             }
+
+            // Own query, own bm25 weights, own table: `bookContent` is not part of
+            // `searchIndex` (see the v9 migration note), so it cannot share the query above.
+            let contentRows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT
+                        rowid AS chunkID,
+                        bookID,
+                        chapterTitle,
+                        locatorJSON,
+                        snippet(bookContent, 5, '', '', ' … ', 20) AS snippet
+                    FROM bookContent
+                    WHERE bookContent MATCH ?
+                    ORDER BY bm25(bookContent, 0.0, 0.0, 3.0, 0.0, 0.0, 1.0)
+                    LIMIT ?
+                    """,
+                arguments: [matchQuery, max(1, limit)]
+            )
+
+            let contentResults: [GlobalSearchResult] = contentRows.compactMap { row in
+                guard let chunkID: Int64 = row["chunkID"],
+                      let bookID: String = row["bookID"],
+                      let locatorJSON: String = row["locatorJSON"]
+                else { return nil }
+
+                let chapterTitle: String = row["chapterTitle"] ?? ""
+                return GlobalSearchResult(
+                    kind: .bookContent,
+                    entityID: String(chunkID),
+                    bookID: bookID,
+                    title: chapterTitle.isEmpty ? "Untitled" : chapterTitle,
+                    subtitle: "",
+                    snippet: row["snippet"] ?? "",
+                    locatorJSON: locatorJSON
+                )
+            }
+
+            return metadataResults + contentResults
         }
     }
 
+    /// Every token becomes an exact match except the last, which stays a prefix — while the
+    /// user is mid-word the final token is unfinished, but the earlier ones are already
+    /// complete and a stray prefix match there only widens results without helping relevance.
     private static func ftsMatchQuery(_ raw: String) -> String? {
         let tokens = raw
             .split(whereSeparator: { $0.isWhitespace })
             .map { String($0).replacingOccurrences(of: "\"", with: "\"\"") }
             .filter { !$0.isEmpty }
         guard !tokens.isEmpty else { return nil }
-        return tokens.map { "\"\($0)\"*" }.joined(separator: " AND ")
+        return tokens.enumerated()
+            .map { index, token in index == tokens.count - 1 ? "\"\(token)\"*" : "\"\(token)\"" }
+            .joined(separator: " AND ")
     }
 
     private func indexBook(_ book: Book, in db: Database) throws {

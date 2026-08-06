@@ -7,31 +7,62 @@ public final class GlobalSearchViewModel: ObservableObject {
     @Published public private(set) var results: [GlobalSearchResult] = []
     @Published public private(set) var books: [Book] = []
     @Published public private(set) var isIndexingArticles = false
+    @Published public private(set) var isIndexingBookContent = false
     @Published public var errorMessage: String?
 
     private var indexingTask: Task<Void, Never>?
+    private var bookContentIndexingTask: Task<Void, Never>?
+    private var searchTask: Task<Void, Never>?
 
     public init() {
         reloadContext()
         indexLegacyArticles()
+        indexBookContent()
     }
 
     public func reloadContext() {
         do {
             books = try AppDatabase.shared.fetchAllBooks()
-            search()
         } catch {
             errorMessage = "Search is unavailable: \(error.localizedDescription)"
         }
+        search()
     }
 
+    /// Runs right away: used after a save/delete and on first appearance, where there is no
+    /// keystroke to debounce and the caller wants the list current immediately.
     public func search() {
-        do {
-            results = try AppDatabase.shared.search(query)
-            errorMessage = nil
-        } catch {
-            results = []
-            errorMessage = "Search failed: \(error.localizedDescription)"
+        runSearch(debounced: false)
+    }
+
+    /// Debounced (~120 ms) and off the main actor: called on every keystroke, so an unguarded
+    /// synchronous query here would mean one FTS scan per character typed, blocking scrolling
+    /// and typing alike as the library grows. Cancels any query already in flight so a slow
+    /// response can never land after — and overwrite — a newer one.
+    public func scheduleSearch() {
+        runSearch(debounced: true)
+    }
+
+    private func runSearch(debounced: Bool) {
+        searchTask?.cancel()
+        let query = query
+        searchTask = Task { [weak self] in
+            if debounced {
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled else { return }
+            }
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Result { try AppDatabase.shared.search(query) }
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            switch outcome {
+            case let .success(results):
+                self.results = results
+                self.errorMessage = nil
+            case let .failure(error):
+                self.results = []
+                self.errorMessage = "Search failed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -62,6 +93,18 @@ public final class GlobalSearchViewModel: ObservableObject {
             guard let self else { return }
             self.isIndexingArticles = false
             self.indexingTask = nil
+            self.reloadContext()
+        }
+    }
+
+    private func indexBookContent() {
+        guard bookContentIndexingTask == nil else { return }
+        isIndexingBookContent = true
+        bookContentIndexingTask = Task { [weak self] in
+            _ = await BookContentIndexer.shared.indexMissingBooks()
+            guard let self else { return }
+            self.isIndexingBookContent = false
+            self.bookContentIndexingTask = nil
             self.reloadContext()
         }
     }

@@ -9,8 +9,8 @@ public struct ReaderContainerView: View {
     @Environment(\.scenePhase) private var scenePhase
     public let onReadingUpdated: () -> Void
 
-    public init(book: Book, onReadingUpdated: @escaping () -> Void) {
-        self._viewModel = StateObject(wrappedValue: ReaderViewModel(book: book))
+    public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
+        self._viewModel = StateObject(wrappedValue: ReaderViewModel(book: book, startingLocator: startingLocator))
         self.onReadingUpdated = onReadingUpdated
     }
 

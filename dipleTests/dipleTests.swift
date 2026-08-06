@@ -136,6 +136,20 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(try database.search("полином").isEmpty)
     }
 
+    func testFTSMatchQueryTreatsOnlyTheLastTokenAsAPrefix() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let note = Note(id: "prefix-note", body: "Продолжаем программирование и игра")
+        try database.saveNote(note, tags: [])
+
+        // "игр" is an unfinished last word while the user is still typing, so a trailing
+        // prefix still finds "игра".
+        XCTAssertEqual(try database.search("программирование игр").map(\.kind), [.note])
+        // "программ" is not a real word in this body, only a prefix of "программирование".
+        // Treating every token as a prefix (the previous behaviour) would have matched this
+        // anyway; only the last token should still be unfinished once a second word starts.
+        XCTAssertTrue(try database.search("программ игра").isEmpty)
+    }
+
     func testGlobalSearchIndexesImportedArticleTextSeparatelyFromMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
         let article = Book(
@@ -158,6 +172,49 @@ final class DipleTests: XCTestCase {
 
         try database.deleteBook(id: article.id)
         XCTAssertTrue(try database.search("compositional").isEmpty)
+    }
+
+    func testBookContentIndexIsResumableAndSearchableSeparatelyFromMetadata() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(id: "content-book", title: "Пиранези", filePath: "Books/content-book/book.epub")
+        try database.saveBook(book)
+        let article = Book(
+            id: "content-article",
+            title: "An Article",
+            filePath: "Books/content-article/article.epub",
+            sourceURL: "https://example.org/piece"
+        )
+        try database.saveBook(article)
+
+        // Both books start unindexed, but the article — already covered by `searchIndex` as an
+        // `article` document — must never be offered to the content backfill, or the same
+        // prose would be found twice.
+        XCTAssertEqual(try database.fetchBooksMissingContentIndex().map(\.id), [book.id])
+
+        let chunks = [
+            BookContentChunk(
+                href: "chapter1.xhtml",
+                chapterTitle: "Зала Первая",
+                locatorJSON: #"{"href":"chapter1.xhtml","type":"application/xhtml+xml","locations":{"progression":0}}"#,
+                body: "Дом бесконечен, Залы, Лестницы и Дворы в нём без числа."
+            ),
+        ]
+        try database.indexBookContent(book: book, chunks: chunks)
+
+        // A finished book must never come back from the resumable-backfill query — that is
+        // what makes the sweep a one-time cost instead of a per-launch re-parse.
+        XCTAssertTrue(try database.fetchBooksMissingContentIndex().isEmpty)
+
+        let results = try database.search("Дворы")
+        XCTAssertEqual(results.map(\.kind), [.bookContent])
+        XCTAssertEqual(results.first?.bookID, book.id)
+        XCTAssertEqual(results.first?.title, "Зала Первая")
+        XCTAssertNotNil(results.first?.parsedLocator)
+
+        // Re-indexing (the resumable sweep landing on a book a second time, or a future
+        // edition) replaces the old chunks wholesale rather than appending duplicates.
+        try database.indexBookContent(book: book, chunks: [])
+        XCTAssertTrue(try database.search("Дворы").isEmpty)
     }
 
     func testCloudSyncOutboxIsDurableCoalescedAndAcknowledgedPerRecord() throws {

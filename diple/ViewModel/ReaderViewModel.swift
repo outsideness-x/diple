@@ -49,8 +49,16 @@ public final class ReaderViewModel: ObservableObject {
         )
     )
 
-    public init(book: Book) {
+    /// A search-result locator that wins over the book's saved position for this one
+    /// presentation only. It is never written into `currentLocator`/`currentProgress` up
+    /// front — `openBook()` hands it to the navigator as where to open, and the saved
+    /// position only actually moves once the navigator's own `onLocationChanged` confirms it
+    /// got there (see `saveLocation`). A bounce back out before that never touches progress.
+    private let startingLocator: Locator?
+
+    public init(book: Book, startingLocator: Locator? = nil) {
         self.book = book
+        self.startingLocator = startingLocator
         self.currentProgress = book.progress
         self.settings = AppSettingsManager.shared.settings.readerSettings
         loadHighlights()
@@ -103,10 +111,17 @@ public final class ReaderViewModel: ObservableObject {
 
             self.publication = pub
             self.tableOfContents = toc
-            self.initialLocator = savedLocator
-            self.currentLocator = savedLocator
-            if let savedLocator {
-                self.currentProgress = progress(for: savedLocator)
+            self.initialLocator = startingLocator ?? savedLocator
+            // A search hit is a presentation-time override the navigator has not confirmed
+            // yet: seeding `currentLocator` from it here, before the navigator has actually
+            // rendered there, would let a close-before-render persist a position the reader
+            // never really showed. Without an override this matches the previous behaviour
+            // exactly — saved locator in, saved locator back out.
+            if startingLocator == nil {
+                self.currentLocator = savedLocator
+                if let savedLocator {
+                    self.currentProgress = progress(for: savedLocator)
+                }
             }
             self.isLoading = false
 

@@ -114,6 +114,9 @@ public final class EPUBImporter {
 
         try AppDatabase.shared.saveBook(book)
         importCommitted = true
+        // Fire-and-forget: the reader is usable immediately, full-text indexing catches up
+        // in the background (see `BookContentIndexer`).
+        BookContentIndexer.shared.indexBook(book)
         return book
     }
 }
