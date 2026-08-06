@@ -225,3 +225,32 @@
   ссылается на него, а не дублирует значение.
 - `#Preview` — это `@ViewBuilder`-замыкание: `let` со следующим `return` в нём не
   компилируется. Специмены токенов вынесены в отдельные `private struct`.
+
+### Акцентные цвета
+- `DipleColor.accent`/`.accentSoft`/`.accentGlow` и `Color.dipleAccent`/`UIColor.dipleAccent`
+  стали вычисляемыми `static var` поверх `DipleAccent.current` вместо `static let`: `let`
+  захватил бы акцент на момент первого обращения и не увидел бы смену в Settings. Сами ~94
+  точек использования и UIKit-слои читалки (`ChapterPullTransition`) не тронуты — контракт
+  «один источник правды» из раздела выше сохранён, hex живёт только в `DipleAccent.hex`.
+- `DipleAccent.current` — единственный держатель текущего акцента, пишет его только
+  `AppSettingsManager` (при загрузке и в `didSet` у `settings`). Явных `@MainActor`/локов не
+  добавлено: при `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` неотмеченные объявления модуля
+  уже изолированы на главном акторе, а держатель и все его читатели живут в SwiftUI/UIKit —
+  синхронизация нужна ровно там, где она уже есть бесплатно.
+- Статический var сам по себе не инвалидирует ни одну SwiftUI-вьюху. `dipleApp` подписан на
+  `AppSettingsManager.shared` и вешает `.id(settings.accent)` на корень: смена акцента
+  пересобирает всё дерево, поэтому `RootTabView` теряет выбранную вкладку, а `MacRootView` —
+  выбор в сайдбаре. Это принятая цена: акцент меняют осознанно и редко, а прокидывать
+  environment-значение через 28 файлов ради этого не стоит.
+- `AppIconManager.apply` сверяет `UIApplication.alternateIconName` с желаемым именем и не
+  вызывает `setAlternateIconName`, когда они уже совпадают: система показывает алерт
+  подтверждения при каждом вызове независимо от того, меняется ли иконка на самом деле.
+  На Mac Catalyst функции нет вовсе (`#if !targetEnvironment(macCatalyst)`) — акцент там всё
+  равно перекрашивает интерфейс через `DipleAccent.current`, просто не иконку в Dock.
+  Сверка на старте (`dipleApp.task`) нужна, чтобы акцент, пришедший через iCloud, пока
+  устройство было выключено, подвинул иконку и на нём, а не только на том, где его выбрали.
+- `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` и
+  `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` — это настройки таргета, а не что-то,
+  что можно вывести из наличия `.appiconset` в каталоге: без них `CFBundleAlternateIcons`
+  просто не попадает в собранный `Info.plist`, и `setAlternateIconName` молча ничего не
+  делает в рантайме, хотя ассеты на месте и компилируются.

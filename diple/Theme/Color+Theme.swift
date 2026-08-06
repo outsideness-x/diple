@@ -2,13 +2,15 @@ import SwiftUI
 import UIKit
 
 public extension UIColor {
-    /// Premium brand accent color (#DF9BE1 - Lilac), for the UIKit layers of the reader.
-    static let dipleAccent = UIColor(red: 223 / 255.0, green: 155 / 255.0, blue: 225 / 255.0, alpha: 1)
+    /// Selected accent colour, for the UIKit layers of the reader. Computed rather than a
+    /// stored literal so a change in Settings reaches `ChapterPullTransition` and friends —
+    /// mirrors `DipleAccent.current`, the single writer.
+    static var dipleAccent: UIColor { DipleAccent.current.uiColor }
 }
 
 public extension Color {
-    /// Premium brand accent color (#DF9BE1 - Lilac)
-    static let dipleAccent = Color(red: 223 / 255.0, green: 155 / 255.0, blue: 225 / 255.0)
+    /// Selected accent colour. Mirrors `DipleAccent.current`, the single writer.
+    static var dipleAccent: Color { DipleAccent.current.color }
 
     init(hex: String) {
         let hexCleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

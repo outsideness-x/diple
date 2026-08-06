@@ -13,6 +13,33 @@ public struct AppSettingsView: View {
 
                 ScrollView {
                     VStack(spacing: 28) {
+                        // APPEARANCE SECTION
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
+                            Text("APPEARANCE")
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
+
+                            VStack(spacing: 1) {
+                                HStack(spacing: DipleSpace.xl) {
+                                    ForEach(DipleAccent.allCases, id: \.rawValue) { accent in
+                                        AccentSwatchButton(
+                                            accent: accent,
+                                            isSelected: settingsManager.settings.accent == accent
+                                        ) {
+                                            settingsManager.settings.accent = accent
+                                            AppIconManager.apply(accent)
+                                            HapticManager.shared.selection()
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
+                            }
+                            .cornerRadius(DipleRadius.m)
+                        }
+
                         // HAPTICS SECTION
                         VStack(alignment: .leading, spacing: DipleSpace.l) {
                             Text("HAPTICS & VIBRATION")
@@ -162,5 +189,42 @@ public struct AppSettingsView: View {
                 }
             }
         }
+    }
+}
+
+/// One accent swatch in the APPEARANCE section. Selection reads as a ring around the fill
+/// plus a checkmark, matching how a selected haptic-intensity option reads as a filled pill —
+/// each section in this screen marks "current choice" with its own shape, not a shared style.
+private struct AccentSwatchButton: View {
+    let accent: DipleAccent
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: DipleSpace.s) {
+                ZStack {
+                    Circle()
+                        .fill(accent.color)
+                        .frame(width: 40, height: 40)
+                    if isSelected {
+                        Circle()
+                            .stroke(DipleColor.textPrimary, lineWidth: DipleStroke.regular * 2)
+                            .frame(width: 48, height: 48)
+                        Image(systemName: "checkmark")
+                            .dipleIcon(13, weight: .bold)
+                            .foregroundStyle(DipleColor.textOnAccent)
+                    }
+                }
+                Text(accent.title)
+                    .dipleType(.caption)
+                    .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textTertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accent.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

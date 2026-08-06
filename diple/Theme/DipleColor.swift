@@ -67,16 +67,17 @@ public enum DipleColor {
 
     // MARK: - Accent
 
-    /// Brand lilac. Mirrors `Color.dipleAccent`, which predates this ramp and stays for the
-    /// UIKit layers of the reader.
-    public static let accent = Color.dipleAccent
+    /// Selected accent. Mirrors `Color.dipleAccent`, which predates this ramp and stays for
+    /// the UIKit layers of the reader. Computed, not `let`: a `static let` would capture
+    /// whichever accent was current at first access and never see a later change.
+    public static var accent: Color { Color.dipleAccent }
 
     /// Accent as a background: chips, selected states, icon wells.
-    public static let accentSoft = Color.dipleAccent.opacity(0.14)
+    public static var accentSoft: Color { Color.dipleAccent.opacity(0.14) }
 
     /// Accent as light rather than paint — the radial falloff behind an interactive element.
     /// Colour is directed with glow, not with saturated fills.
-    public static let accentGlow = Color.dipleAccent.opacity(0.30)
+    public static var accentGlow: Color { Color.dipleAccent.opacity(0.30) }
 
     // MARK: - Status
 
