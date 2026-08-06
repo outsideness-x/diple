@@ -15,6 +15,7 @@ public struct AppSettings: Codable, Equatable {
     public var defaultScrollReadingMode: Bool
     public var readerSettings: ReaderSettings
     public var accent: DipleAccent
+    public var keepScreenAwakeWhileReading: Bool
 
     public init(
         isHapticsEnabled: Bool = true,
@@ -22,7 +23,8 @@ public struct AppSettings: Codable, Equatable {
         chapterHapticsEnabled: Bool = true,
         defaultScrollReadingMode: Bool = false,
         readerSettings: ReaderSettings = ReaderSettings(),
-        accent: DipleAccent = .lilac
+        accent: DipleAccent = .lilac,
+        keepScreenAwakeWhileReading: Bool = true
     ) {
         self.isHapticsEnabled = isHapticsEnabled
         self.hapticIntensity = hapticIntensity
@@ -30,6 +32,7 @@ public struct AppSettings: Codable, Equatable {
         self.defaultScrollReadingMode = defaultScrollReadingMode
         self.readerSettings = readerSettings
         self.accent = accent
+        self.keepScreenAwakeWhileReading = keepScreenAwakeWhileReading
     }
 
     enum CodingKeys: String, CodingKey {
@@ -39,6 +42,7 @@ public struct AppSettings: Codable, Equatable {
         case defaultScrollReadingMode
         case readerSettings
         case accent
+        case keepScreenAwakeWhileReading
     }
 
     public init(from decoder: Decoder) throws {
@@ -53,5 +57,6 @@ public struct AppSettings: Codable, Equatable {
         }
         self.readerSettings = loadedReaderSettings
         self.accent = try container.decodeIfPresent(DipleAccent.self, forKey: .accent) ?? .lilac
+        self.keepScreenAwakeWhileReading = try container.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeWhileReading) ?? true
     }
 }

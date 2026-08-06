@@ -4,7 +4,9 @@ import ReadiumNavigator
 
 public struct ReaderContainerView: View {
     @StateObject private var viewModel: ReaderViewModel
+    @StateObject private var settingsManager = AppSettingsManager.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, onReadingUpdated: @escaping () -> Void) {
@@ -61,12 +63,15 @@ public struct ReaderContainerView: View {
                         preferences: viewModel.settings.pdfPreferences,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
                             viewModel.currentSelection = selection
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onLinkJump: { originLocator in
                             viewModel.pushBackLocation(originLocator)
@@ -91,12 +96,15 @@ public struct ReaderContainerView: View {
                         preferences: viewModel.epubPreferences,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
                             viewModel.currentSelection = selection
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onLinkJump: { originLocator in
                             viewModel.pushBackLocation(originLocator)
@@ -276,10 +284,34 @@ public struct ReaderContainerView: View {
         .task {
             await viewModel.openBook()
         }
+        .onAppear {
+            if settingsManager.settings.keepScreenAwakeWhileReading {
+                ReaderIdleTimerKeeper.shared.begin()
+            }
+        }
         .onDisappear {
             // Persist synchronously first so the library grid reloads an up-to-date row.
             viewModel.flushPendingProgress()
             onReadingUpdated()
+            ReaderIdleTimerKeeper.shared.end()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // A stale `isIdleTimerDisabled == true` would otherwise outlive the reader the
+            // moment the app leaves the foreground with the screen still lit.
+            if newPhase == .active {
+                if settingsManager.settings.keepScreenAwakeWhileReading {
+                    ReaderIdleTimerKeeper.shared.begin()
+                }
+            } else {
+                ReaderIdleTimerKeeper.shared.end()
+            }
+        }
+        .onChange(of: settingsManager.settings.keepScreenAwakeWhileReading) { _, isEnabled in
+            if isEnabled {
+                ReaderIdleTimerKeeper.shared.begin()
+            } else {
+                ReaderIdleTimerKeeper.shared.end()
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)

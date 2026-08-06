@@ -164,6 +164,29 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
+
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Keep Screen Awake")
+                                            .dipleType(.body, weight: .medium)
+                                            .foregroundColor(.white)
+                                        Text("Screen dims after 10 minutes without page turns instead of after a few seconds")
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { settingsManager.settings.keepScreenAwakeWhileReading },
+                                        set: { newValue in
+                                            settingsManager.settings.keepScreenAwakeWhileReading = newValue
+                                            HapticManager.shared.selection()
+                                        }
+                                    ))
+                                    .tint(DipleColor.accent)
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
                             }
                             .cornerRadius(DipleRadius.m)
                         }
