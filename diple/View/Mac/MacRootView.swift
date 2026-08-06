@@ -200,7 +200,7 @@ public struct MacRootView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             HStack(spacing: DipleSpace.s) {
                 DipleMark(size: 22)
-                Text("diple")
+                Text("diple.")
                     .dipleType(.headline, weight: .semibold)
                     .foregroundStyle(DipleColor.textPrimary)
                 Spacer()

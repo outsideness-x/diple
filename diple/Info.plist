@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>Diple</string>
+	<string>diple.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

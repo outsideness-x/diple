@@ -125,7 +125,7 @@ public struct LibraryView: View {
                     }
                 }
             }
-            .navigationTitle("diple")
+            .navigationTitle("diple.")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
                 text: $searchText,
