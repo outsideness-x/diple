@@ -1,14 +1,16 @@
 import SwiftUI
 
-/// Every quote saved from a single book.
+/// Every quote saved from a single book — or, once the book has been removed from the
+/// library, every quote that still remembers it by the title and author snapshotted at save
+/// time.
 public struct BookQuotesView: View {
-    public let book: Book
+    public let summary: BookQuoteSummary
 
     @StateObject private var viewModel: BookQuotesViewModel
 
-    public init(book: Book) {
-        self.book = book
-        self._viewModel = StateObject(wrappedValue: BookQuotesViewModel(bookId: book.id))
+    public init(summary: BookQuoteSummary) {
+        self.summary = summary
+        self._viewModel = StateObject(wrappedValue: BookQuotesViewModel(bookId: summary.bookId))
     }
 
     public var body: some View {
@@ -20,7 +22,9 @@ public struct BookQuotesView: View {
                     header
 
                     ForEach(viewModel.quotes) { quote in
-                        QuoteCardView(quote: quote)
+                        QuoteCardView(quote: quote) {
+                            viewModel.confirmDelete(quote)
+                        }
                     }
                 }
                 .padding(.horizontal, DipleSpace.xl)
@@ -28,7 +32,7 @@ public struct BookQuotesView: View {
                 .padding(.bottom, DipleSpace.xxxl)
             }
         }
-        .navigationTitle(book.title)
+        .navigationTitle(summary.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -37,6 +41,14 @@ public struct BookQuotesView: View {
         } message: {
             Text(viewModel.errorMessage ?? "An unknown error occurred.")
         }
+        .alert("Delete Quote?", isPresented: $viewModel.showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                viewModel.deleteConfirmedQuote()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This quote will be removed.")
+        }
         .onAppear {
             viewModel.load()
         }
@@ -44,14 +56,20 @@ public struct BookQuotesView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text(book.title)
+            Text(summary.title)
                 .dipleType(.readingTitle)
                 .foregroundStyle(DipleColor.textPrimary)
 
-            if let author = book.author, !author.isEmpty {
+            if let author = summary.author, !author.isEmpty {
                 Text(author)
                     .dipleType(.footnote, weight: .regular)
                     .foregroundStyle(DipleColor.textTertiary)
+            }
+
+            if summary.isRemovedFromLibrary {
+                Text("Removed from library")
+                    .dipleType(.footnote, weight: .regular)
+                    .foregroundStyle(DipleColor.textQuaternary)
             }
 
             Text("\(viewModel.quotes.count) \(viewModel.quotes.count == 1 ? "quote" : "quotes")")

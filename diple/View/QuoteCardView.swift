@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// Read-only presentation of a saved quote, used by the hub. The reader's own list
-/// (`HighlightRowView`) stays separate because it carries navigation and deletion.
+/// Presentation of a saved quote, used by the hub. Deletion lives in a context menu rather
+/// than an inline button; the reader's own list (`HighlightRowView`) stays a separate view
+/// because it also carries navigation to the passage.
 public struct QuoteCardView: View {
     public let quote: Highlight
+    public let onDeleteRequest: (() -> Void)?
 
-    public init(quote: Highlight) {
+    public init(quote: Highlight, onDeleteRequest: (() -> Void)? = nil) {
         self.quote = quote
+        self.onDeleteRequest = onDeleteRequest
     }
 
     private var accentColor: Color {
@@ -47,6 +50,12 @@ public struct QuoteCardView: View {
                 HapticManager.shared.impact(.light)
             } label: {
                 Label("Copy Quote", systemImage: "doc.on.doc")
+            }
+
+            if let onDeleteRequest {
+                Button(role: .destructive, action: onDeleteRequest) {
+                    Label("Delete Quote", systemImage: "trash")
+                }
             }
         }
     }

@@ -182,6 +182,21 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        /// Additive, nullable, backfill-only. Quotes must survive the book they were cut from
+        /// being deleted, so the title/author they display afterward has to live on the
+        /// highlight itself rather than come from a `book` join that may no longer resolve.
+        migrator.registerMigration("v8_addHighlightBookSnapshot") { db in
+            try db.alter(table: "highlight") { t in
+                t.add(column: "bookTitle", .text)
+                t.add(column: "bookAuthor", .text)
+            }
+            try db.execute(sql: """
+                UPDATE highlight
+                SET bookTitle = (SELECT title FROM book WHERE book.id = highlight.bookId),
+                    bookAuthor = (SELECT author FROM book WHERE book.id = highlight.bookId)
+                """)
+        }
+
         return migrator
     }
 
@@ -248,18 +263,25 @@ public nonisolated final class AppDatabase: Sendable {
                 try book.update(db)
                 try indexBook(book, in: db)
 
-                // Highlight results display their publication title and byline. Keep those
-                // denormalized labels current when metadata is edited.
-                let highlights = try Highlight.filter(Column("bookId") == id).fetchAll(db)
-                for highlight in highlights {
-                    try indexHighlight(highlight, book: book, in: db)
+                let changedAt = Date()
+
+                // Highlight results display their publication title and byline, and now carry
+                // a durable snapshot of both so a quote can outlive its book. Keep every
+                // highlight's copy current when metadata is edited, and push the change like
+                // any other save so synced devices pick up the new snapshot too.
+                var highlights = try Highlight.filter(Column("bookId") == id).fetchAll(db)
+                for i in highlights.indices {
+                    highlights[i].bookTitle = book.title
+                    highlights[i].bookAuthor = book.author
+                    try highlights[i].update(db)
+                    try indexHighlight(highlights[i], book: book, in: db)
+                    try markLocalSave(.highlight, id: highlights[i].id, at: changedAt, in: db)
                 }
 
                 try db.execute(
                     sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'article' AND bookID = ?",
                     arguments: [book.title, book.sourceHost ?? "", book.id]
                 )
-                let changedAt = Date()
                 try markLocalSave(.book, id: id, at: changedAt, in: db)
                 if coverPath != nil {
                     try markLocalSave(.bookAsset, id: id, at: changedAt, in: db)
@@ -276,18 +298,32 @@ public nonisolated final class AppDatabase: Sendable {
                 sql: "SELECT id FROM bookmark WHERE bookId = ?",
                 arguments: [id]
             )
-            let highlightIDs = try String.fetchAll(
-                db,
-                sql: "SELECT id FROM highlight WHERE bookId = ?",
-                arguments: [id]
-            )
             let linkedNoteIDs = try String.fetchAll(
                 db,
                 sql: "SELECT id FROM note WHERE bookId = ?",
                 arguments: [id]
             )
+            let book = try Book.filter(Column("id") == id).fetchOne(db)
+
             _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
-            _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
+
+            // Quotes outlive the book they were cut from: only the bookmark and the library
+            // row disappear here. `bookId` is left dangling on purpose — there is no foreign
+            // key — and the snapshot frozen into the highlight (and its FTS document) is what
+            // the hub and search fall back to from now on. No outbox entry is written for the
+            // highlights themselves: they were never deleted, so there is nothing to sync.
+            if let book {
+                let subtitle = [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " ")
+                try db.execute(
+                    sql: "UPDATE highlight SET bookTitle = ?, bookAuthor = ? WHERE bookId = ?",
+                    arguments: [book.title, book.author, id]
+                )
+                try db.execute(
+                    sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'highlight' AND bookID = ?",
+                    arguments: [book.title, subtitle, id]
+                )
+            }
+
             // Notes are the user's own writing and survive the book they referenced;
             // only the tag pointing at it goes away.
             try db.execute(sql: "UPDATE note SET bookId = NULL WHERE bookId = ?", arguments: [id])
@@ -296,7 +332,7 @@ public nonisolated final class AppDatabase: Sendable {
                 arguments: [id]
             )
             try db.execute(
-                sql: "DELETE FROM searchIndex WHERE (entityType = 'book' AND entityID = ?) OR (entityType IN ('highlight', 'article') AND bookID = ?)",
+                sql: "DELETE FROM searchIndex WHERE (entityType = 'book' AND entityID = ?) OR (entityType = 'article' AND bookID = ?)",
                 arguments: [id, id]
             )
             _ = try Book.filter(Column("id") == id).deleteAll(db)
@@ -304,9 +340,6 @@ public nonisolated final class AppDatabase: Sendable {
             let changedAt = Date()
             for bookmarkID in bookmarkIDs {
                 try markLocalDelete(.bookmark, id: bookmarkID, at: changedAt, in: db)
-            }
-            for highlightID in highlightIDs {
-                try markLocalDelete(.highlight, id: highlightID, at: changedAt, in: db)
             }
             for noteID in linkedNoteIDs {
                 try db.execute(
@@ -325,10 +358,14 @@ public nonisolated final class AppDatabase: Sendable {
 
     public func saveHighlight(_ highlight: Highlight) throws {
         try writer.write { db in
-            try highlight.save(db)
-            if let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db) {
-                try indexHighlight(highlight, book: book, in: db)
+            var highlight = highlight
+            let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
+            if let book {
+                highlight.bookTitle = book.title
+                highlight.bookAuthor = book.author
             }
+            try highlight.save(db)
+            try indexHighlight(highlight, book: book, in: db)
             try markLocalSave(.highlight, id: highlight.id, at: highlight.createdAt, in: db)
         }
         signalSyncIfNeeded()
@@ -340,15 +377,28 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
-    /// Number of quotes per book id, for the hub's book list. Counting in SQL keeps the
-    /// whole highlight table out of memory just to render a badge.
-    public func fetchHighlightCountsByBook() throws -> [String: Int] {
+    /// One row per book id that still holds quotes, grouped straight from `highlight` — a book
+    /// row is only consulted afterward, by the caller, so a deleted book still produces a
+    /// group instead of silently dropping out of the hub.
+    public func fetchHighlightGroups() throws -> [HighlightGroup] {
         try writer.read { db in
             let rows = try Row.fetchAll(db, sql: """
-                SELECT bookId, COUNT(*) AS count FROM highlight GROUP BY bookId
+                SELECT
+                    bookId,
+                    COUNT(*) AS quoteCount,
+                    MAX(bookTitle) AS bookTitle,
+                    MAX(bookAuthor) AS bookAuthor
+                FROM highlight
+                GROUP BY bookId
+                ORDER BY MAX(createdAt) DESC
                 """)
-            return rows.reduce(into: [String: Int]()) { result, row in
-                result[row["bookId"]] = row["count"]
+            return rows.map { row in
+                HighlightGroup(
+                    bookId: row["bookId"],
+                    quoteCount: row["quoteCount"],
+                    bookTitle: row["bookTitle"],
+                    bookAuthor: row["bookAuthor"]
+                )
             }
         }
     }
@@ -564,20 +614,21 @@ public nonisolated final class AppDatabase: Sendable {
         )
     }
 
-    private func indexHighlight(_ highlight: Highlight, book: Book, in db: Database) throws {
+    /// `book` is the live row when it still exists; a highlight whose book is gone falls back
+    /// to the snapshot taken at save time, which is what keeps it searchable under its former
+    /// title instead of disappearing from the index along with the book.
+    private func indexHighlight(_ highlight: Highlight, book: Book?, in db: Database) throws {
         try deleteSearchDocument(type: .highlight, id: highlight.id, in: db)
+        let title = book?.title ?? highlight.bookTitle ?? ""
+        let subtitle = [book?.author ?? highlight.bookAuthor, book?.sourceURL]
+            .compactMap { $0 }
+            .joined(separator: " ")
         try db.execute(
             sql: """
                 INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
                 VALUES ('highlight', ?, ?, ?, ?, ?, '')
                 """,
-            arguments: [
-                highlight.id,
-                highlight.bookId,
-                book.title,
-                [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " "),
-                highlight.text
-            ]
+            arguments: [highlight.id, highlight.bookId, title, subtitle, highlight.text]
         )
     }
 
@@ -747,10 +798,17 @@ public nonisolated final class AppDatabase: Sendable {
             guard try shouldAcceptRemote(.highlight, id: highlight.id, modifiedAt: modifiedAt, in: db) else {
                 return false
             }
-            try highlight.save(db)
-            if let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db) {
-                try indexHighlight(highlight, book: book, in: db)
+            var highlight = highlight
+            let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
+            // A record saved before this device's snapshot columns existed decodes with a nil
+            // title/author; a book that is still around locally is the only place left to
+            // recover them. A record that already carries its own snapshot is left alone.
+            if let book {
+                highlight.bookTitle = highlight.bookTitle ?? book.title
+                highlight.bookAuthor = highlight.bookAuthor ?? book.author
             }
+            try highlight.save(db)
+            try indexHighlight(highlight, book: book, in: db)
             try storeRemoteMetadata(.highlight, id: highlight.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
             return true
         }
@@ -828,24 +886,33 @@ public nonisolated final class AppDatabase: Sendable {
                     sql: "SELECT id FROM note WHERE bookId = ?",
                     arguments: [id]
                 )
+                // Only bookmarks are still cascade-deleted with the book; a remote book
+                // deletion must leave the same trail as a local one — highlights survive it.
                 let childKeys = try Row.fetchAll(
                     db,
-                    sql: """
-                        SELECT 'bookmark' AS entityType, id AS entityID FROM bookmark WHERE bookId = ?
-                        UNION ALL
-                        SELECT 'highlight' AS entityType, id AS entityID FROM highlight WHERE bookId = ?
-                        """,
-                    arguments: [id, id]
+                    sql: "SELECT 'bookmark' AS entityType, id AS entityID FROM bookmark WHERE bookId = ?",
+                    arguments: [id]
                 )
+                let book = try Book.filter(Column("id") == id).fetchOne(db)
                 _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
-                _ = try Highlight.filter(Column("bookId") == id).deleteAll(db)
+                if let book {
+                    let subtitle = [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " ")
+                    try db.execute(
+                        sql: "UPDATE highlight SET bookTitle = ?, bookAuthor = ? WHERE bookId = ?",
+                        arguments: [book.title, book.author, id]
+                    )
+                    try db.execute(
+                        sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'highlight' AND bookID = ?",
+                        arguments: [book.title, subtitle, id]
+                    )
+                }
                 try db.execute(sql: "UPDATE note SET bookId = NULL WHERE bookId = ?", arguments: [id])
                 try db.execute(
                     sql: "UPDATE searchIndex SET bookID = '' WHERE entityType = 'note' AND bookID = ?",
                     arguments: [id]
                 )
                 try db.execute(
-                    sql: "DELETE FROM searchIndex WHERE (entityType = 'book' AND entityID = ?) OR (entityType IN ('highlight', 'article') AND bookID = ?)",
+                    sql: "DELETE FROM searchIndex WHERE (entityType = 'book' AND entityID = ?) OR (entityType = 'article' AND bookID = ?)",
                     arguments: [id, id]
                 )
                 _ = try Book.filter(Column("id") == id).deleteAll(db)

@@ -163,8 +163,8 @@ public struct GlobalSearchView: View {
                 unavailableResult
             }
         case .highlight:
-            if let book = viewModel.book(for: result) {
-                BookQuotesView(book: book)
+            if let summary = viewModel.quoteSummary(for: result) {
+                BookQuotesView(summary: summary)
             } else {
                 unavailableResult
             }

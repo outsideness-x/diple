@@ -79,7 +79,9 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(fetchedBook.id, book.id)
         XCTAssertEqual(fetchedBook.title, book.title)
         XCTAssertEqual(fetchedBook.filePath, book.filePath)
-        XCTAssertEqual(try database.fetchHighlightCountsByBook(), [book.id: 1])
+        let groups = try database.fetchHighlightGroups()
+        XCTAssertEqual(groups.map(\.bookId), [book.id])
+        XCTAssertEqual(groups.first?.quoteCount, 1)
         XCTAssertEqual(try database.fetchHighlights(forBookId: book.id).map(\.id), [highlight.id])
         XCTAssertEqual(try database.fetchBookmarks(forBookId: book.id).map(\.id), [bookmark.id])
         XCTAssertEqual(try database.fetchTagsByNote()[note.id], ["ideas", "한국어"])
@@ -87,7 +89,12 @@ final class DipleTests: XCTestCase {
         try database.deleteBook(id: book.id)
 
         XCTAssertTrue(try database.fetchAllBooks().isEmpty)
-        XCTAssertTrue(try database.fetchHighlights(forBookId: book.id).isEmpty)
+        // The book is gone, but the quote survives with the title/author frozen onto it, and
+        // stays searchable under that snapshot instead of being dropped from the index.
+        let survivingHighlights = try database.fetchHighlights(forBookId: book.id)
+        XCTAssertEqual(survivingHighlights.map(\.id), [highlight.id])
+        XCTAssertEqual(survivingHighlights.first?.bookTitle, book.title)
+        XCTAssertEqual(try database.search("Цитата").map(\.kind), [.highlight])
         XCTAssertTrue(try database.fetchBookmarks(forBookId: book.id).isEmpty)
         XCTAssertNil(try XCTUnwrap(database.fetchAllNotes().first).bookId)
         XCTAssertEqual(try database.fetchTagsByNote()[note.id], ["ideas", "한국어"])
@@ -195,8 +202,11 @@ final class DipleTests: XCTestCase {
 
     func testCloudSyncRemoteMergeUsesModificationDateAndKeepsNotesWhenBookIsDeleted() throws {
         let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
-        let book = Book(id: "remote-book", title: "Book", filePath: "Books/remote-book/book.epub")
+        let book = Book(id: "remote-book", title: "Book", author: "Remote Author", filePath: "Books/remote-book/book.epub")
         try database.saveBook(book)
+
+        let highlight = Highlight(id: "remote-highlight", bookId: book.id, locator: "{}", text: "Remote quote")
+        try database.saveHighlight(highlight)
 
         let localDate = Date(timeIntervalSince1970: 200)
         let localNote = Note(
@@ -257,6 +267,15 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(try database.applyRemoteDeletion(entity: .book, id: book.id))
         XCTAssertNil(try database.fetchNote(id: localNote.id)?.bookId)
         XCTAssertNotNil(try database.fetchSyncOutbox().first { $0.entity == .note })
+
+        // A book deletion that arrives from another device must leave the same trail as a
+        // local one: the highlight survives with its snapshot, and no delete is queued for it.
+        let survivingHighlight = try XCTUnwrap(database.fetchHighlightForSync(id: highlight.id))
+        XCTAssertEqual(survivingHighlight.bookTitle, book.title)
+        XCTAssertEqual(survivingHighlight.bookAuthor, book.author)
+        XCTAssertFalse(
+            try database.fetchSyncOutbox().contains { $0.entity == .highlight && $0.pendingOperation == .delete }
+        )
     }
 
     // MARK: - Generated EPUB

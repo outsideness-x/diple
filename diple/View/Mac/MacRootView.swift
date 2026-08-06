@@ -55,7 +55,7 @@ public struct MacRootView: View {
     private enum Detail: Hashable {
         case welcome
         case book(Book)
-        case quoteBook(Book)
+        case quoteBook(BookQuoteSummary)
         case note(NoteItem)
         case search(GlobalSearchResult)
     }
@@ -305,9 +305,9 @@ public struct MacRootView: View {
                 onEdit: { library.bookToEdit = book }
             )
 
-        case .quoteBook(let book):
-            MacQuotesInspector(book: book)
-                .id(book.id)
+        case .quoteBook(let summary):
+            MacQuotesInspector(summary: summary)
+                .id(summary.bookId)
 
         case .note(let item):
             let currentItem = currentNote(matching: item) ?? item
@@ -654,7 +654,7 @@ private struct MacContinueReadingCard: View {
 
 private struct MacHighlightsCollection: View {
     @ObservedObject var model: HubViewModel
-    let onSelect: (Book) -> Void
+    let onSelect: (BookQuoteSummary) -> Void
 
     var body: some View {
         ZStack {
@@ -670,21 +670,21 @@ private struct MacHighlightsCollection: View {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
                         MacCollectionHeader(title: "Highlights", count: model.totalQuoteCount)
                         ForEach(model.summaries) { summary in
-                            Button { onSelect(summary.book) } label: {
+                            Button { onSelect(summary) } label: {
                                 HStack(spacing: DipleSpace.m) {
                                     BookCoverView(
-                                        coverPath: summary.book.coverPath,
-                                        title: summary.book.title,
-                                        author: summary.book.author,
+                                        coverPath: summary.book?.coverPath,
+                                        title: summary.title,
+                                        author: summary.author,
                                         isCompact: true
                                     )
                                     .frame(width: 44, height: 66)
                                     VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                                        Text(summary.book.title)
+                                        Text(summary.title)
                                             .dipleType(.body, weight: .semibold)
                                             .foregroundStyle(DipleColor.textPrimary)
                                             .lineLimit(2)
-                                        Text(summary.book.subtitle)
+                                        Text(summary.subtitle)
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
                                     }
@@ -939,21 +939,26 @@ private struct MacBookInspector: View {
 }
 
 private struct MacQuotesInspector: View {
-    let book: Book
+    let summary: BookQuoteSummary
     @StateObject private var model: BookQuotesViewModel
 
-    init(book: Book) {
-        self.book = book
-        _model = StateObject(wrappedValue: BookQuotesViewModel(bookId: book.id))
+    init(summary: BookQuoteSummary) {
+        self.summary = summary
+        _model = StateObject(wrappedValue: BookQuotesViewModel(bookId: summary.bookId))
     }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
                 VStack(alignment: .leading, spacing: DipleSpace.s) {
-                    Text(book.title)
+                    Text(summary.title)
                         .dipleType(.readingTitle)
                         .foregroundStyle(DipleColor.textPrimary)
+                    if summary.isRemovedFromLibrary {
+                        Text("Removed from library")
+                            .dipleType(.caption)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
                     Text("\(model.quotes.count) saved passages")
                         .dipleType(.caption)
                         .foregroundStyle(DipleColor.textTertiary)
@@ -974,11 +979,26 @@ private struct MacQuotesInspector: View {
                     }
                     .padding(DipleSpace.l)
                     .craftSurface()
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            model.confirmDelete(quote)
+                        } label: {
+                            Label("Delete Quote", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .padding(DipleSpace.xxl)
         }
         .background(DipleColor.surface)
+        .alert("Delete Quote?", isPresented: $model.showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                model.deleteConfirmedQuote()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This quote will be removed.")
+        }
     }
 }
 

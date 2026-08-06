@@ -40,6 +40,20 @@ public final class GlobalSearchViewModel: ObservableObject {
         return books.first { $0.id == id }
     }
 
+    /// A highlight result stays reachable after its book is gone: `result.title`/`.subtitle`
+    /// already carry the highlight's own snapshot (search indexes that, not a book join), so
+    /// only the author needs a direct lookup when there is no live book left to read it from.
+    public func quoteSummary(for result: GlobalSearchResult) -> BookQuoteSummary? {
+        guard result.kind == .highlight, let bookId = result.bookID else { return nil }
+        let book = books.first { $0.id == bookId }
+        let author = book?.author ?? highlightBookAuthor(for: result.entityID)
+        return BookQuoteSummary(bookId: bookId, title: result.title, author: author, book: book, quoteCount: 0)
+    }
+
+    private func highlightBookAuthor(for highlightID: String) -> String? {
+        (try? AppDatabase.shared.fetchHighlightForSync(id: highlightID))?.bookAuthor
+    }
+
     private func indexLegacyArticles() {
         guard indexingTask == nil else { return }
         isIndexingArticles = true

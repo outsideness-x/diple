@@ -221,6 +221,8 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["text"] = highlight.text as CKRecordValue
         record["colorHex"] = highlight.colorHex as CKRecordValue
         record["createdAt"] = highlight.createdAt as CKRecordValue
+        record["bookTitle"] = highlight.bookTitle as CKRecordValue?
+        record["bookAuthor"] = highlight.bookAuthor as CKRecordValue?
     }
 
     private static func populate(bookmark: Bookmark, record: CKRecord) {
@@ -353,8 +355,19 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                   let colorHex = record["colorHex"] as? String,
                   let createdAt = record["createdAt"] as? Date
             else { return true }
+            // Records written before this field existed simply lack it — `as?` decodes those
+            // as nil, and `applyRemoteHighlight` refills them from the local book when it can.
             return try database.applyRemoteHighlight(
-                Highlight(id: key.id, bookId: bookID, locator: locator, text: text, colorHex: colorHex, createdAt: createdAt),
+                Highlight(
+                    id: key.id,
+                    bookId: bookID,
+                    locator: locator,
+                    text: text,
+                    colorHex: colorHex,
+                    createdAt: createdAt,
+                    bookTitle: record["bookTitle"] as? String,
+                    bookAuthor: record["bookAuthor"] as? String
+                ),
                 modifiedAt: modifiedAt,
                 systemFields: systemFields
             )

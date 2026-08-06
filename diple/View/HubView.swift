@@ -17,7 +17,7 @@ public struct HubView: View {
                     ScrollView {
                         LazyVStack(spacing: DipleSpace.s) {
                             ForEach(viewModel.summaries) { summary in
-                                NavigationLink(value: summary.book) {
+                                NavigationLink(value: summary) {
                                     HubBookRowView(summary: summary)
                                 }
                                 .buttonStyle(.bookCard)
@@ -43,8 +43,8 @@ public struct HubView: View {
                     }
                 }
             }
-            .navigationDestination(for: Book.self) { book in
-                BookQuotesView(book: book)
+            .navigationDestination(for: BookQuoteSummary.self) { summary in
+                BookQuotesView(summary: summary)
             }
             .alert("Error", isPresented: $viewModel.showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -93,21 +93,28 @@ public struct HubBookRowView: View {
     public var body: some View {
         HStack(spacing: DipleSpace.m) {
             BookCoverView(
-                coverPath: summary.book.coverPath,
-                title: summary.book.title,
-                author: summary.book.author,
+                coverPath: summary.book?.coverPath,
+                title: summary.title,
+                author: summary.author,
                 isCompact: true
             )
             .frame(width: thumbnailWidth, height: thumbnailWidth * 1.5)
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text(summary.book.title)
+                Text(summary.title)
                     .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                BookSubtitleView(book: summary.book)
+                if let book = summary.book {
+                    BookSubtitleView(book: book)
+                } else {
+                    Text(summary.subtitle)
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 8)
