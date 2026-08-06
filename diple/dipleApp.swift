@@ -32,14 +32,18 @@ struct dipleApp: App {
             }
             .id(settingsManager.settings.accent)
             .task {
+                // Reconciles the icon against whatever accent is already in `settings` before
+                // touching the network: this is a local operation and has no reason to wait on
+                // a CloudKit round trip. If an accent arrives later over iCloud, `AppSettingsManager`
+                // updates `settings` itself and the next launch reconciles again.
+                AppIconManager.apply(settingsManager.settings.accent)
+                // iCloud sync is opt-in (device-local flag, off by default — see CLAUDE.md).
                 // Silent CloudKit pushes don't require notification permission, but the app
                 // must register with APNs so CKSyncEngine can fetch while it is running.
-                UIApplication.shared.registerForRemoteNotifications()
-                await CloudSyncService.shared.start()
-                // Reconciles the icon against whatever accent CloudKit already applied to
-                // `settings` during/before this launch, so a change made on another device
-                // while this one was closed still moves the icon here.
-                AppIconManager.apply(settingsManager.settings.accent)
+                if CloudSyncService.isEnabled {
+                    UIApplication.shared.registerForRemoteNotifications()
+                    await CloudSyncService.shared.start()
+                }
             }
         }
     }

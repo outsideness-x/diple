@@ -1,8 +1,13 @@
 import SwiftUI
+import UIKit
 
 public struct AppSettingsView: View {
     @StateObject private var settingsManager = AppSettingsManager.shared
     @Environment(\.dismiss) private var dismiss
+    // Device-local (`CloudSyncService.isEnabled` reads/writes `UserDefaults` directly, not
+    // `AppSettings`), so this needs its own `@State` mirror to drive the toggle — nothing
+    // publishes changes to it the way `settingsManager` does for synced settings.
+    @State private var isICloudSyncEnabled = CloudSyncService.isEnabled
 
     public init() {}
 
@@ -180,6 +185,49 @@ public struct AppSettingsView: View {
                                         set: { newValue in
                                             settingsManager.settings.keepScreenAwakeWhileReading = newValue
                                             HapticManager.shared.selection()
+                                        }
+                                    ))
+                                    .tint(DipleColor.accent)
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
+                            }
+                            .cornerRadius(DipleRadius.m)
+                        }
+
+                        // ICLOUD SECTION
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
+                            Text("ICLOUD")
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
+
+                            VStack(spacing: 1) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("iCloud Sync")
+                                            .dipleType(.body, weight: .medium)
+                                            .foregroundColor(.white)
+                                        Text("Sync your library, quotes and notes across your devices")
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { isICloudSyncEnabled },
+                                        set: { newValue in
+                                            isICloudSyncEnabled = newValue
+                                            CloudSyncService.isEnabled = newValue
+                                            HapticManager.shared.selection()
+                                            Task {
+                                                if newValue {
+                                                    UIApplication.shared.registerForRemoteNotifications()
+                                                    await CloudSyncService.shared.start()
+                                                } else {
+                                                    await CloudSyncService.shared.stop()
+                                                }
+                                            }
                                         }
                                     ))
                                     .tint(DipleColor.accent)

@@ -14,13 +14,27 @@ public actor CloudSyncService: CKSyncEngineDelegate {
 
     private static let zoneName = "Diple"
     private static let stateKey = "diple_cloudkit_sync_engine_state_v1"
+    private static let enabledKey = "diple_icloud_sync_enabled"
     private static let logger = Logger(subsystem: "com.chemical-pink.diple", category: "CloudSync")
 
     private let database = AppDatabase.shared
     private var syncEngine: CKSyncEngine?
     private var hasStarted = false
 
+    /// Device-local — deliberately not part of `AppSettings`, which is itself synced through
+    /// CloudKit: a synced flag could silently switch sync back on for a device where the user
+    /// just turned it off. `UserDefaults.bool(forKey:)` already defaults to `false` when unset,
+    /// which is exactly "off by default" with no separate migration to write.
+    public nonisolated static var isEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: enabledKey) }
+        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+    }
+
+    /// Called from every local write (`AppDatabase.signalSyncIfNeeded`), so the disabled path
+    /// has to stay cheap: checking the flag here — before ever hopping onto the actor — skips
+    /// spawning a `Task` at all instead of spawning one that immediately no-ops.
     public nonisolated static func signalLocalChanges() {
+        guard isEnabled else { return }
         Task { await shared.enqueueOutbox() }
     }
 
@@ -63,6 +77,16 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             // Automatic sync keeps retrying transient account/network failures.
             Self.logger.info("Initial iCloud sync deferred: \(error.localizedDescription)")
         }
+    }
+
+    /// Drops the running engine so a later `start()` (the user flipping the Settings toggle
+    /// back on) builds a fresh one instead of finding `hasStarted` permanently latched. The
+    /// engine's own serialized state in `UserDefaults` is left alone, so resuming continues
+    /// from where it left off rather than re-uploading everything.
+    public func stop() async {
+        guard hasStarted else { return }
+        syncEngine = nil
+        hasStarted = false
     }
 
     private static var recordZone: CKRecordZone {
