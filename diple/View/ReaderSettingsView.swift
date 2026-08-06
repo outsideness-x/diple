@@ -82,6 +82,33 @@ public struct ReaderSettingsView: View {
                 }
             }
 
+            // Page margins selector
+            VStack(alignment: .leading, spacing: DipleSpace.m) {
+                Text("PAGE MARGINS")
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+
+                HStack {
+                    marginsButton(systemName: "minus", isEnabled: settings.canDecreasePageMargins) {
+                        settings.pageMarginsStep -= 1
+                    }
+
+                    Spacer()
+
+                    Text("\(settings.pageMarginsPercentage)%")
+                        .dipleType(.footnote, weight: .semibold)
+                        .monospacedDigit()
+                        .foregroundStyle(DipleColor.textPrimary)
+                        .contentTransition(.numericText())
+
+                    Spacer()
+
+                    marginsButton(systemName: "plus", isEnabled: settings.canIncreasePageMargins) {
+                        settings.pageMarginsStep += 1
+                    }
+                }
+            }
+
             // Font Family selector (Serif / San Francisco)
             VStack(alignment: .leading, spacing: DipleSpace.m) {
                 Text("TYPOGRAPHY")
@@ -134,6 +161,23 @@ public struct ReaderSettingsView: View {
         } label: {
             Text("A")
                 .dipleIcon(glyphSize, weight: glyphSize > 16 ? .bold : .medium)
+                .foregroundStyle(isEnabled ? DipleColor.textPrimary : DipleColor.textQuaternary)
+                .frame(width: 44, height: 44)
+                .background(DipleColor.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
+        }
+        .buttonStyle(.readerControl)
+        .disabled(!isEnabled)
+    }
+
+    private func marginsButton(systemName: String, isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            guard isEnabled else { return }
+            HapticManager.shared.impact(.light)
+            action()
+        } label: {
+            Image(systemName: systemName)
+                .dipleIcon(16, weight: .semibold)
                 .foregroundStyle(isEnabled ? DipleColor.textPrimary : DipleColor.textQuaternary)
                 .frame(width: 44, height: 44)
                 .background(DipleColor.surfaceRaised)

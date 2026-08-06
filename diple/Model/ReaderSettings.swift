@@ -53,6 +53,11 @@ public struct ReaderSettings: Codable, Equatable {
     public var theme: Theme = .dark
     public var readingMode: ReadingMode = .paginated
 
+    /// Factor Readium multiplies its horizontal gutter by. Stored as a multiplier, not an
+    /// index, for the same reason as `fontSizeScale`: an index reinterprets itself the moment
+    /// the ladder is retuned, silently moving a reader's chosen value to a different one.
+    public var pageMargins: Double = 0.65
+
     /// Ten steps, closely spaced around 100% and opening up towards the extremes. Reading
     /// size is adjusted a nudge at a time — a ladder coarse enough that every press is a
     /// visible jump gives no comfortable resting place, which is the failure of the five
@@ -64,16 +69,27 @@ public struct ReaderSettings: Codable, Equatable {
 
     public static let defaultFontSizeScale: Double = 1.0
 
+    /// Six steps from edge-to-edge to generous, spanning `EPUBPreferencesEditor.pageMargins`'s
+    /// own accepted range (`0.0 ... 4.0` in the resolved swift-toolkit 3.11.0 checkout — see
+    /// `Sources/Navigator/EPUB/Preferences/EPUBPreferencesEditor.swift`). Readium's factory
+    /// default is 1×, which is the width this task exists to move away from, so the default
+    /// below sits at the narrow end of what still reads comfortably instead of restating it.
+    public static let pageMarginsSteps: [Double] = [0.0, 0.35, 0.65, 1.0, 1.25, 1.5]
+
+    public static let defaultPageMargins: Double = 0.65
+
     public init(
         fontSizeScale: Double = ReaderSettings.defaultFontSizeScale,
         font: ReaderFont = .sanFrancisco,
         theme: Theme = .dark,
-        readingMode: ReadingMode = .paginated
+        readingMode: ReadingMode = .paginated,
+        pageMargins: Double = ReaderSettings.defaultPageMargins
     ) {
         self.fontSizeScale = fontSizeScale
         self.font = font
         self.theme = theme
         self.readingMode = readingMode
+        self.pageMargins = pageMargins
     }
 
     // MARK: - Step interface
@@ -107,6 +123,33 @@ public struct ReaderSettings: Codable, Equatable {
 
     public var currentFontSize: Double { fontSizeScale }
 
+    /// Position on `pageMarginsSteps`. Mirrors `fontSizeStep`.
+    public var pageMarginsStep: Int {
+        get { Self.nearestPageMarginsStep(to: pageMargins) }
+        set { pageMargins = Self.pageMarginsSteps[min(max(newValue, 0), Self.pageMarginsSteps.count - 1)] }
+    }
+
+    public static var maximumPageMarginsStep: Int { pageMarginsSteps.count - 1 }
+
+    public var canDecreasePageMargins: Bool { pageMarginsStep > 0 }
+    public var canIncreasePageMargins: Bool { pageMarginsStep < Self.maximumPageMarginsStep }
+
+    /// Percentage shown beside the stepper, relative to Readium's own 1× gutter.
+    public var pageMarginsPercentage: Int { Int((pageMargins * 100).rounded()) }
+
+    private static func nearestPageMarginsStep(to factor: Double) -> Int {
+        var bestIndex = 0
+        var bestDistance = Double.greatestFiniteMagnitude
+        for (index, step) in pageMarginsSteps.enumerated() {
+            let distance = abs(step - factor)
+            if distance < bestDistance {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
     // MARK: - Persistence
 
     enum CodingKeys: String, CodingKey {
@@ -115,6 +158,7 @@ public struct ReaderSettings: Codable, Equatable {
         case font
         case theme
         case readingMode
+        case pageMargins
     }
 
     /// Readers who set a size under the old five-step ladder keep it: the stored index is
@@ -137,6 +181,7 @@ public struct ReaderSettings: Codable, Equatable {
         self.font = try container.decodeIfPresent(ReaderFont.self, forKey: .font) ?? .sanFrancisco
         self.theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? .dark
         self.readingMode = try container.decodeIfPresent(ReadingMode.self, forKey: .readingMode) ?? .paginated
+        self.pageMargins = try container.decodeIfPresent(Double.self, forKey: .pageMargins) ?? Self.defaultPageMargins
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -145,6 +190,7 @@ public struct ReaderSettings: Codable, Equatable {
         try container.encode(font, forKey: .font)
         try container.encode(theme, forKey: .theme)
         try container.encode(readingMode, forKey: .readingMode)
+        try container.encode(pageMargins, forKey: .pageMargins)
     }
 
     // MARK: - Readium
@@ -163,6 +209,12 @@ public struct ReaderSettings: Codable, Equatable {
         prefs.fontFamily = font.fontFamily
         prefs.theme = theme
         prefs.scroll = (readingMode == .scroll)
+
+        // Unlike lineHeight/paragraphSpacing above, EPUBPreferencesEditor.pageMargins is
+        // effective for every reflowable book regardless of publisherStyles (see
+        // EPUBPreferencesEditor.swift) — it only multiplies Readium's own gutter variable, so
+        // it stays set for Latin books too instead of joining the CJK-only branch below.
+        prefs.pageMargins = pageMargins
 
         if script == .cjk {
             prefs.publisherStyles = false

@@ -120,6 +120,17 @@
 - Навигатор сообщает локацию на каждый прокрученный пиксель. Запись в SQLite на каждое
   событие ощутимо дёргает скролл — запись коалесцируется и уходит с главного актора,
   синхронный сброс только при закрытии читалки.
+- `EPUBPreferences.pageMargins` — множитель для `--RS__pageGutter` (`EPUBPreferencesEditor.swift`,
+  `supportedRange: 0.0 ... 4.0`, шаг 0.3 в референсном UI). В отличие от `lineHeight`/
+  `paragraphSpacing`, `isEffective` для него не требует `publisherStyles == false` — множитель
+  просто масштабирует переменную ReadiumCSS, поэтому применяется всегда, в том числе для
+  латинских книг вне CJK-ветки `epubPreferences(for:)`. У ReadiumCSS есть свой потолок ширины
+  колонки — `--RS__maxLineLength: 40rem` на `body` (`ReadiumCSS-after.css`), к которому
+  `pageMargins` отношения не имеет: на телефонном экране (уже уже потолка) паддинг от
+  `pageMargins` — это и есть видимая граница текста, а `readiumCSSRSProperties` в
+  `EPUBNavigatorViewController.Configuration` не тронут: это единственная точка, где RS-свойства
+  задаются, и она читается только при создании навигатора — `submitPreferences` (тот же путь,
+  что и live-степпер шрифта) их не перезадаёт.
 
 ### UI
 - macOS поставляется как Mac Catalyst-вариант того же app target: Readium Navigator основан
