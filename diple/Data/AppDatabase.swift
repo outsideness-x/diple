@@ -609,6 +609,70 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Whether `bookID` has ever been swept into `bookContent`, not whether it has any rows.
+    /// A book with genuinely no extractable text is swept with zero chunks and must read as
+    /// "no matches", while a book the backfill has not reached yet has no `bookContentIndex`
+    /// row at all and must read as "still indexing" — the same zero-row result from
+    /// `searchBookContent` alone cannot tell those two apart.
+    public func isBookContentIndexed(bookID: String) throws -> Bool {
+        try writer.read { db in
+            try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM bookContentIndex WHERE bookID = ?)",
+                arguments: [bookID]
+            ) ?? false
+        }
+    }
+
+    /// Scopes task 7's own `bookContent` index to one book — the reader's in-book search sheet
+    /// reuses the exact index built for cross-library search rather than a second parallel
+    /// implementation, which also covers PDFs for free (indexed page-by-page there already).
+    /// Ordered by `ordinal` (reading order) rather than bm25 relevance: a search inside the
+    /// single open book reads like a find-in-page pass through the text, not a ranked pick
+    /// from the whole library.
+    public func searchBookContent(bookID: String, query: String, limit: Int = 200) throws -> [BookSearchHit] {
+        guard let matchQuery = Self.ftsMatchQuery(query) else { return [] }
+
+        return try writer.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT
+                        rowid AS chunkID,
+                        href,
+                        chapterTitle,
+                        locatorJSON,
+                        snippet(bookContent, 5, ?, ?, ' … ', 24) AS snippet
+                    FROM bookContent
+                    WHERE bookContent MATCH ? AND bookID = ?
+                    ORDER BY ordinal
+                    LIMIT ?
+                    """,
+                arguments: [
+                    BookSearchHit.matchMarkerStart,
+                    BookSearchHit.matchMarkerEnd,
+                    matchQuery,
+                    bookID,
+                    max(1, limit)
+                ]
+            )
+
+            return rows.compactMap { row in
+                guard let chunkID: Int64 = row["chunkID"],
+                      let locatorJSON: String = row["locatorJSON"]
+                else { return nil }
+                let chapterTitle: String = row["chapterTitle"] ?? ""
+                return BookSearchHit(
+                    id: String(chunkID),
+                    chapterTitle: chapterTitle.isEmpty ? "Untitled" : chapterTitle,
+                    href: row["href"] ?? "",
+                    snippet: row["snippet"] ?? "",
+                    locatorJSON: locatorJSON
+                )
+            }
+        }
+    }
+
     // MARK: - Global Search
 
     public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {

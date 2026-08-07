@@ -24,6 +24,19 @@ public nonisolated final class BookContentIndexer: Sendable {
         }
     }
 
+    /// The same single-book path as `indexBook`, but awaited. The reader's own search sheet
+    /// needs to know when the book it is showing becomes searchable — unlike a fresh import,
+    /// it cannot fire into the void, because "Indexing this book…" has to actually resolve
+    /// instead of only being true until the user happens to open the Search tab, which is what
+    /// drives `indexMissingBooks` today.
+    @discardableResult
+    public func indexBookAwaiting(_ book: Book) async -> Bool {
+        guard book.sourceURL == nil else { return false }
+        return await Task.detached(priority: .userInitiated) { [self] in
+            await index(book)
+        }.value
+    }
+
     /// Sweeps the library for books with no `bookContent` yet. Returns the number newly
     /// indexed, so callers (the Search tab's spinner) know whether anything changed.
     @discardableResult
@@ -63,7 +76,7 @@ public nonisolated final class BookContentIndexer: Sendable {
 /// concurrently on different detached tasks, so the failure cache needs real synchronization —
 /// unlike the module's plain `static var`s, which get away without a lock only because their
 /// readers and writers all already live on the main actor (see `DipleAccent.current`).
-private final class LockedIDSet: @unchecked Sendable {
+private nonisolated final class LockedIDSet: @unchecked Sendable {
     private let lock = NSLock()
     private var ids = Set<String>()
 

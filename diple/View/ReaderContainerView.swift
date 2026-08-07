@@ -173,32 +173,50 @@ public struct ReaderContainerView: View {
 
                             Spacer()
 
-                            Button {
-                                HapticManager.shared.selection()
-                                viewModel.isAddBookmarkPresented = true
-                            } label: {
-                                Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
-                                    .dipleIcon(16, weight: .regular)
-                                    .foregroundStyle(
-                                        viewModel.isCurrentPositionBookmarked
-                                            ? DipleColor.accent
-                                            : chrome.control
-                                    )
-                            }
-                            .buttonStyle(.readerControl)
-                            .disabled(!viewModel.canAddBookmark)
-                            .opacity(viewModel.canAddBookmark ? 1 : 0.35)
-                            .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
+                            // Tighter than the outer bar's spacing on purpose: this trio reads
+                            // as one tool cluster, and the extra room is what keeps a fourth
+                            // control (search) from crowding the title out at large Dynamic
+                            // Type sizes.
+                            HStack(spacing: DipleSpace.m) {
+                                if !viewModel.book.isArticle {
+                                    Button {
+                                        HapticManager.shared.selection()
+                                        viewModel.isSearchPresented = true
+                                    } label: {
+                                        Image(systemName: "magnifyingglass")
+                                            .dipleIcon(16, weight: .regular)
+                                            .foregroundStyle(chrome.control)
+                                    }
+                                    .buttonStyle(.readerControl)
+                                }
 
-                            Button {
-                                HapticManager.shared.selection()
-                                viewModel.isOutlinePresented = true
-                            } label: {
-                                Image(systemName: "list.bullet")
-                                    .dipleIcon(16, weight: .regular)
-                                    .foregroundStyle(chrome.control)
+                                Button {
+                                    HapticManager.shared.selection()
+                                    viewModel.isAddBookmarkPresented = true
+                                } label: {
+                                    Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
+                                        .dipleIcon(16, weight: .regular)
+                                        .foregroundStyle(
+                                            viewModel.isCurrentPositionBookmarked
+                                                ? DipleColor.accent
+                                                : chrome.control
+                                        )
+                                }
+                                .buttonStyle(.readerControl)
+                                .disabled(!viewModel.canAddBookmark)
+                                .opacity(viewModel.canAddBookmark ? 1 : 0.35)
+                                .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
+
+                                Button {
+                                    HapticManager.shared.selection()
+                                    viewModel.isOutlinePresented = true
+                                } label: {
+                                    Image(systemName: "list.bullet")
+                                        .dipleIcon(16, weight: .regular)
+                                        .foregroundStyle(chrome.control)
+                                }
+                                .buttonStyle(.readerControl)
                             }
-                            .buttonStyle(.readerControl)
                         }
                         .padding(.horizontal, DipleSpace.xl)
                         .padding(.vertical, DipleSpace.m)
@@ -350,6 +368,13 @@ public struct ReaderContainerView: View {
                     viewModel.deleteBookmark(bookmark)
                 }
             )
+        }
+        .sheet(isPresented: $viewModel.isSearchPresented) {
+            BookSearchSheetView(book: viewModel.book) { hit in
+                if let locator = hit.parsedLocator {
+                    viewModel.navigateToSearchResult(locator)
+                }
+            }
         }
     }
 }

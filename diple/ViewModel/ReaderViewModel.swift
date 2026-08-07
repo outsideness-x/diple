@@ -14,6 +14,7 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var isOverlayVisible: Bool = false
     @Published public var isSettingsPresented: Bool = false
     @Published public var isOutlinePresented: Bool = false
+    @Published public var isSearchPresented: Bool = false
     @Published public var targetLink: ReadiumShared.Link? = nil
     @Published public var targetLocator: Locator? = nil
     @Published public var tableOfContents: [ReadiumShared.Link] = []
@@ -280,6 +281,18 @@ public final class ReaderViewModel: ObservableObject {
 
     public func navigateToLocator(_ locator: Locator) {
         self.targetLocator = locator
+    }
+
+    /// The in-book search sheet's own entry into the same `navigateToLocator` path the outline
+    /// sheet uses — the only difference is that a search jump also remembers where reading was,
+    /// so the existing "Return to text" button (`backLocationStack`) can bring the reader home.
+    /// An outline/bookmark/highlight jump does not push, because those already describe a place
+    /// *in* the book the reader chose to visit, not a detour away from where they were reading.
+    public func navigateToSearchResult(_ locator: Locator) {
+        if let origin = currentLocator ?? initialLocator {
+            pushBackLocation(origin)
+        }
+        navigateToLocator(locator)
     }
 
     public func clearTargetLocator() {
