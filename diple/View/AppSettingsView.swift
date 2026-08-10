@@ -2,6 +2,10 @@ import SwiftUI
 import UIKit
 
 public struct AppSettingsView: View {
+    private static let privacyPolicyURL = URL(
+        string: "https://github.com/outsideness-x/diple/blob/main/README.md"
+    )
+
     @StateObject private var settingsManager = AppSettingsManager.shared
     @Environment(\.dismiss) private var dismiss
     // Device-local (`CloudSyncService.isEnabled` reads/writes `UserDefaults` directly, not
@@ -303,6 +307,46 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
+                            }
+                            .cornerRadius(DipleRadius.m)
+                        }
+
+                        // PRIVACY SECTION
+                        if let privacyPolicyURL = Self.privacyPolicyURL {
+                            VStack(alignment: .leading, spacing: DipleSpace.l) {
+                                Text("PRIVACY")
+                                    .dipleType(.micro, weight: .semibold)
+                                    .foregroundStyle(DipleColor.textTertiary)
+                                    .padding(.horizontal, DipleSpace.xs)
+
+                                Link(destination: privacyPolicyURL) {
+                                    HStack(spacing: DipleSpace.m) {
+                                        Image(systemName: "hand.raised.fill")
+                                            .dipleIcon(17, weight: .medium)
+                                            .foregroundStyle(DipleColor.accent)
+                                            .frame(width: 28)
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Privacy Policy")
+                                                .dipleType(.body, weight: .medium)
+                                                .foregroundStyle(DipleColor.textPrimary)
+                                            Text("How diple handles your library and iCloud sync")
+                                                .dipleType(.caption)
+                                                .foregroundStyle(DipleColor.textTertiary)
+                                        }
+
+                                        Spacer(minLength: DipleSpace.s)
+
+                                        Image(systemName: "arrow.up.right")
+                                            .dipleIcon(13, weight: .semibold)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                    }
+                                    .padding(.horizontal, DipleSpace.l)
+                                    .padding(.vertical, DipleSpace.m)
+                                    .background(DipleColor.surfaceRaised)
+                                    .contentShape(Rectangle())
+                                }
+                                .accessibilityHint("Opens the privacy policy in your browser")
                             }
                             .cornerRadius(DipleRadius.m)
                         }
