@@ -100,6 +100,26 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(try database.fetchTagsByNote()[note.id], ["ideas", "한국어"])
     }
 
+    func testMarkingBookFinishedPreservesItsSavedLocation() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let originalLocator = #"{"href":"chapter-8.xhtml","locations":{"progression":0.42}}"#
+        let book = Book(
+            id: "finished-book",
+            title: "Almost There",
+            filePath: "Books/finished-book/book.epub",
+            progress: 0.42,
+            locator: originalLocator
+        )
+        try database.saveBook(book)
+
+        try database.updateReadingProgress(id: book.id, progress: 1, locator: book.locator)
+
+        let finishedBook = try XCTUnwrap(database.fetchBook(id: book.id))
+        XCTAssertEqual(finishedBook.progress, 1)
+        XCTAssertEqual(finishedBook.locator, originalLocator)
+        XCTAssertNotNil(finishedBook.lastOpenedAt)
+    }
+
     func testGlobalSearchIndexesAndSynchronizesNotesHighlightsAndMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
         let book = Book(

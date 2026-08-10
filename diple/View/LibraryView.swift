@@ -91,11 +91,18 @@ public struct LibraryView: View {
                                         ForEach(visibleBooks) { book in
                                             let route = BookRoute(book: book, placement: .grid)
                                             NavigationLink(value: route) {
-                                                BookItemView(book: book, onEdit: {
-                                                    viewModel.bookToEdit = book
-                                                }, onDelete: {
-                                                    viewModel.confirmDelete(book)
-                                                })
+                                                BookItemView(
+                                                    book: book,
+                                                    onMarkAsFinished: {
+                                                        viewModel.markAsFinished(book)
+                                                    },
+                                                    onEdit: {
+                                                        viewModel.bookToEdit = book
+                                                    },
+                                                    onDelete: {
+                                                        viewModel.confirmDelete(book)
+                                                    }
+                                                )
                                             }
                                             .buttonStyle(.bookCard)
                                             .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
@@ -197,7 +204,7 @@ public struct LibraryView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 if let book = viewModel.bookToDelete {
-                    Text("Are you sure you want to delete '\(book.title)'? This will remove the book file and metadata.")
+                    Text("Are you sure you want to delete '\(book.title)'? This will remove the book file and metadata. Its quotes will remain in Quotes, where you can delete them manually.")
                 }
             }
             .navigationDestination(for: BookRoute.self) { route in

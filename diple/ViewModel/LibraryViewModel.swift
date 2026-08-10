@@ -162,6 +162,25 @@ public final class LibraryViewModel: ObservableObject {
         self.showDeleteConfirmation = true
     }
 
+    /// Marks the publication complete without disturbing its saved reading location. The
+    /// locator is retained so a reader can still reopen the last passage if they choose.
+    public func markAsFinished(_ book: Book) {
+        guard book.progress < 0.995 else { return }
+
+        do {
+            try AppDatabase.shared.updateReadingProgress(
+                id: book.id,
+                progress: 1,
+                locator: book.locator
+            )
+            loadBooks()
+            HapticManager.shared.notification(.success)
+        } catch {
+            self.errorMessage = "Failed to mark book as finished: \(error.localizedDescription)"
+            self.showErrorAlert = true
+        }
+    }
+
     public func deleteConfirmedBook() {
         guard let book = bookToDelete else { return }
         do {

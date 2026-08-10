@@ -253,6 +253,7 @@ public struct MacRootView: View {
                 onSelect: { detail = .book($0) },
                 onOpen: { readerBook = $0 },
                 onEdit: { library.bookToEdit = $0 },
+                onMarkAsFinished: { library.markAsFinished($0) },
                 onDelete: { library.confirmDelete($0) },
                 onImportFile: { isImportingFile = true },
                 onImportLink: { isImportingLink = true }
@@ -266,7 +267,7 @@ public struct MacRootView: View {
                 Button("Delete", role: .destructive) { library.deleteConfirmedBook() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The publication, reading position and highlights will be removed.")
+                Text("The publication and reading position will be removed. Its quotes will remain in Quotes, where you can delete them manually.")
             }
 
         case .highlights:
@@ -376,6 +377,7 @@ private struct MacLibraryCollection: View {
     let onSelect: (Book) -> Void
     let onOpen: (Book) -> Void
     let onEdit: (Book) -> Void
+    let onMarkAsFinished: (Book) -> Void
     let onDelete: (Book) -> Void
     let onImportFile: () -> Void
     let onImportLink: () -> Void
@@ -459,6 +461,9 @@ private struct MacLibraryCollection: View {
                                         }
                                         .contextMenu {
                                             Button("Open") { onOpen(book) }
+                                            if book.progress < 0.995 {
+                                                Button("Mark as Finished") { onMarkAsFinished(book) }
+                                            }
                                             Button("Edit Metadata") { onEdit(book) }
                                             Divider()
                                             Button("Delete", role: .destructive) { onDelete(book) }
