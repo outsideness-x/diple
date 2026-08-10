@@ -42,4 +42,7 @@ public nonisolated struct SyncedNote: Sendable {
 extension Notification.Name {
     /// Posted after a remote batch has been committed to the local store.
     static let dipleRemoteDataDidChange = Notification.Name("diple.remoteDataDidChange")
+    /// A daily-resurfacing local notification was opened. The phone shell selects Highlights,
+    /// while the desktop shell selects its equivalent sidebar source.
+    static let dipleOpenDailyResurfacing = Notification.Name("diple.openDailyResurfacing")
 }

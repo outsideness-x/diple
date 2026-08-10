@@ -3,6 +3,7 @@ import SwiftUI
 /// Every highlight from every book in one place. Picking a book opens its full list.
 public struct HubView: View {
     @StateObject private var viewModel = HubViewModel()
+    @State private var dailyQuoteDestination: BookQuoteSummary?
 
     public init() {}
 
@@ -16,6 +17,11 @@ public struct HubView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: DipleSpace.s) {
+                            DailyResurfacingCard { summary in
+                                dailyQuoteDestination = summary
+                            }
+                            .padding(.bottom, DipleSpace.m)
+
                             ForEach(viewModel.summaries) { summary in
                                 NavigationLink(value: summary) {
                                     HubBookRowView(summary: summary)
@@ -44,6 +50,9 @@ public struct HubView: View {
                 }
             }
             .navigationDestination(for: BookQuoteSummary.self) { summary in
+                BookQuotesView(summary: summary)
+            }
+            .navigationDestination(item: $dailyQuoteDestination) { summary in
                 BookQuotesView(summary: summary)
             }
             .alert("Error", isPresented: $viewModel.showErrorAlert) {

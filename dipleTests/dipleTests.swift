@@ -120,6 +120,21 @@ final class DipleTests: XCTestCase {
         XCTAssertNotNil(finishedBook.lastOpenedAt)
     }
 
+    func testDailyResurfacingPrefersAnOlderQuoteAndIsStableForTheDay() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let today = Calendar.current.startOfDay(for: now)
+        let quotes = [
+            Highlight(id: "old-a", bookId: "book", locator: "{}", text: "Old A", createdAt: today.addingTimeInterval(-86_400)),
+            Highlight(id: "old-b", bookId: "book", locator: "{}", text: "Old B", createdAt: today.addingTimeInterval(-172_800)),
+            Highlight(id: "new", bookId: "book", locator: "{}", text: "New", createdAt: today.addingTimeInterval(60))
+        ]
+
+        let first = DailyResurfacingService.candidate(for: now, from: quotes)
+        let second = DailyResurfacingService.candidate(for: now, from: quotes)
+        XCTAssertEqual(first?.id, second?.id)
+        XCTAssertNotEqual(first?.id, "new")
+    }
+
     func testGlobalSearchIndexesAndSynchronizesNotesHighlightsAndMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
         let book = Book(

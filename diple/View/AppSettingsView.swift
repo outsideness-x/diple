@@ -8,6 +8,9 @@ public struct AppSettingsView: View {
     // `AppSettings`), so this needs its own `@State` mirror to drive the toggle — nothing
     // publishes changes to it the way `settingsManager` does for synced settings.
     @State private var isICloudSyncEnabled = CloudSyncService.isEnabled
+    @State private var isDailyResurfacingEnabled = DailyResurfacingService.shared.isNotificationEnabled
+    @State private var dailyResurfacingTime = DailyResurfacingService.shared.notificationTime
+    @State private var showDailyResurfacingPermissionAlert = false
 
     public init() {}
 
@@ -196,6 +199,71 @@ public struct AppSettingsView: View {
                             .cornerRadius(DipleRadius.m)
                         }
 
+                        // DAILY RESURFACING SECTION
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
+                            Text("DAILY RESURFACING")
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
+
+                            VStack(spacing: 1) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Daily Quote")
+                                            .dipleType(.body, weight: .medium)
+                                            .foregroundColor(.white)
+                                        Text("Return to one saved passage each day")
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { isDailyResurfacingEnabled },
+                                        set: { newValue in
+                                            Task {
+                                                let isEnabled = await DailyResurfacingService.shared.setNotificationsEnabled(newValue)
+                                                isDailyResurfacingEnabled = isEnabled
+                                                if newValue && !isEnabled {
+                                                    showDailyResurfacingPermissionAlert = true
+                                                } else {
+                                                    HapticManager.shared.selection()
+                                                }
+                                            }
+                                        }
+                                    ))
+                                    .tint(DipleColor.accent)
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
+
+                                if isDailyResurfacingEnabled {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Reminder Time")
+                                                .dipleType(.body, weight: .medium)
+                                                .foregroundColor(.white)
+                                            Text("A quiet nudge to revisit a saved thought")
+                                                .dipleType(.caption)
+                                                .foregroundStyle(DipleColor.textTertiary)
+                                        }
+                                        Spacer()
+                                        DatePicker(
+                                            "Reminder Time",
+                                            selection: $dailyResurfacingTime,
+                                            displayedComponents: .hourAndMinute
+                                        )
+                                        .labelsHidden()
+                                        .tint(DipleColor.accent)
+                                    }
+                                    .padding(.horizontal, DipleSpace.l)
+                                    .padding(.vertical, DipleSpace.m)
+                                    .background(DipleColor.surfaceRaised)
+                                }
+                            }
+                            .cornerRadius(DipleRadius.m)
+                        }
+
                         // ICLOUD SECTION
                         VStack(alignment: .leading, spacing: DipleSpace.l) {
                             Text("ICLOUD")
@@ -258,6 +326,16 @@ public struct AppSettingsView: View {
                     .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.accent)
                 }
+            }
+            .onChange(of: dailyResurfacingTime) { _, newTime in
+                Task {
+                    await DailyResurfacingService.shared.setNotificationTime(newTime)
+                }
+            }
+            .alert("Notifications Are Off", isPresented: $showDailyResurfacingPermissionAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Allow notifications for diple in iOS Settings to receive your daily quote.")
             }
         }
     }

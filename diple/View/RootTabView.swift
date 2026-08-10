@@ -46,5 +46,13 @@ public struct RootTabView: View {
         .onChange(of: selection) { _, _ in
             HapticManager.shared.selection()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
+            selection = .highlights
+        }
+        .onAppear {
+            if DailyResurfacingService.shared.consumeOpenRequest() {
+                selection = .highlights
+            }
+        }
     }
 }

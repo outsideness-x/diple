@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import UserNotifications
 
 @main
 struct dipleApp: App {
@@ -17,6 +18,13 @@ struct dipleApp: App {
     // an accent change; that is the accepted price of not threading an environment value
     // through 28 files for something the user changes rarely and deliberately.
     @StateObject private var settingsManager = AppSettingsManager.shared
+
+    init() {
+        // The delegate must be installed before the root view appears, otherwise a tap on a
+        // notification that cold-launches the app can be delivered before RootTabView starts
+        // observing the routing event.
+        UNUserNotificationCenter.current().delegate = DailyResurfacingNotificationDelegate.shared
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -32,6 +40,7 @@ struct dipleApp: App {
             }
             .id(settingsManager.settings.accent)
             .task {
+                await DailyResurfacingService.shared.reconcileNotifications()
                 // Reconciles the icon against whatever accent is already in `settings` before
                 // touching the network: this is a local operation and has no reason to wait on
                 // a CloudKit round trip. If an accent arrives later over iCloud, `AppSettingsManager`

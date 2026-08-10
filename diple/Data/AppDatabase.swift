@@ -405,6 +405,14 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Quotes are deliberately fetched independently of their books: a saved passage may
+    /// outlive the publication it came from, and resurfacing should still bring it back.
+    public func fetchAllHighlights() throws -> [Highlight] {
+        try writer.read { db in
+            try Highlight.order(Column("createdAt").desc).fetchAll(db)
+        }
+    }
+
     /// One row per book id that still holds quotes, grouped straight from `highlight` — a book
     /// row is only consulted afterward, by the caller, so a deleted book still produces a
     /// group instead of silently dropping out of the hub.

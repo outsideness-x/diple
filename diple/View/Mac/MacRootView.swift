@@ -167,6 +167,14 @@ public struct MacRootView: View {
             if newSource == .notes, case .note = detail { return }
             detail = .welcome
         }
+        .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
+            source = .highlights
+        }
+        .onAppear {
+            if DailyResurfacingService.shared.consumeOpenRequest() {
+                source = .highlights
+            }
+        }
         .onAppear(perform: reloadAll)
     }
 
@@ -674,6 +682,7 @@ private struct MacHighlightsCollection: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
                         MacCollectionHeader(title: "Highlights", count: model.totalQuoteCount)
+                        DailyResurfacingCard(onOpen: onSelect)
                         ForEach(model.summaries) { summary in
                             Button { onSelect(summary) } label: {
                                 HStack(spacing: DipleSpace.m) {
