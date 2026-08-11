@@ -233,6 +233,7 @@ public struct NotesView: View {
             route: route,
             books: viewModel.books,
             suggestedTags: viewModel.allTags,
+            allNotes: viewModel.items,
             onSave: { note, tags in
                 viewModel.save(note, tags: tags)
             },

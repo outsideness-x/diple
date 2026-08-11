@@ -107,6 +107,28 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual((text as NSString).substring(with: selection), "second")
     }
 
+    func testNoteKnowledgeResolvesWikiLinksAndBacklinksByTitle() {
+        let source = NoteItem(
+            note: Note(id: "source", title: "Source", body: "See [[Deep Work]] and [[Кафе]]."),
+            tags: [],
+            book: nil
+        )
+        let deepWork = NoteItem(
+            note: Note(id: "deep", title: "deep work", body: "Focus."),
+            tags: [],
+            book: nil
+        )
+        let cafe = NoteItem(
+            note: Note(id: "cafe", title: "КАФЕ", body: "A place."),
+            tags: [],
+            book: nil
+        )
+
+        XCTAssertEqual(NoteKnowledge.wikiLinks(in: source.note.body), ["Deep Work", "Кафе"])
+        XCTAssertEqual(Set(NoteKnowledge.outgoing(from: source.note.body, among: [source, deepWork, cafe]).map(\.id)), ["deep", "cafe"])
+        XCTAssertEqual(NoteKnowledge.backlinks(to: deepWork, among: [source, deepWork, cafe]).map(\.id), ["source"])
+    }
+
     // MARK: - Database contract
 
     func testDatabaseMigrationsCRUDAndDeleteSemantics() throws {

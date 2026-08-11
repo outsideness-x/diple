@@ -26,6 +26,7 @@ public struct NoteDetailView: View {
     public let route: NoteRoute
     public let books: [Book]
     public let suggestedTags: [String]
+    public let allNotes: [NoteItem]
     public let onSave: (Note, [String]) -> Bool
     public let onDelete: (NoteItem) -> Void
 
@@ -50,12 +51,14 @@ public struct NoteDetailView: View {
         route: NoteRoute,
         books: [Book],
         suggestedTags: [String],
+        allNotes: [NoteItem] = [],
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping (NoteItem) -> Void = { _ in }
     ) {
         self.route = route
         self.books = books
         self.suggestedTags = suggestedTags
+        self.allNotes = allNotes
         self.onSave = onSave
         self.onDelete = onDelete
 
@@ -115,24 +118,30 @@ public struct NoteDetailView: View {
     }
 
     public var body: some View {
-        ZStack {
-            DipleColor.canvas.ignoresSafeArea()
+        ScrollViewReader { proxy in
+            ZStack {
+                DipleColor.canvas.ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: DipleSpace.xxl) {
-                    if isEditing {
-                        editor
-                    } else {
-                        reader
+                ScrollView {
+                    VStack(alignment: .leading, spacing: DipleSpace.xxl) {
+                        if isEditing {
+                            editor
+                        } else {
+                            reader { anchor in
+                                withAnimation(DipleMotion.gentle) {
+                                    proxy.scrollTo(anchor, anchor: .top)
+                                }
+                            }
+                        }
                     }
+                    // A page of prose stops being readable long before it stops being wide, so the
+                    // column holds its measure and the margins take the rest.
+                    .frame(maxWidth: 680, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, DipleSpace.xl)
+                    .padding(.top, DipleSpace.l)
+                    .padding(.bottom, DipleSpace.scrollBottom)
                 }
-                // A page of prose stops being readable long before it stops being wide, so the
-                // column holds its measure and the margins take the rest.
-                .frame(maxWidth: 680, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, DipleSpace.xl)
-                .padding(.top, DipleSpace.l)
-                .padding(.bottom, DipleSpace.scrollBottom)
             }
         }
         .navigationTitle(isEditing ? (route.item == nil ? "New Note" : "Editing") : "")
@@ -251,7 +260,7 @@ public struct NoteDetailView: View {
 
     // MARK: - Reading
 
-    private var reader: some View {
+    private func reader(scrollTo: @escaping (String) -> Void) -> some View {
         VStack(alignment: .leading, spacing: DipleSpace.l) {
             Text(displayTitle)
                 .dipleType(.noteTitle)
@@ -263,6 +272,11 @@ public struct NoteDetailView: View {
                 .multilineTextAlignment(.leading)
 
             metadataLine
+
+            if outline.count > 1 {
+                outlinePanel(scrollTo: scrollTo)
+                    .padding(.top, DipleSpace.xs)
+            }
 
             if !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 NoteMarkdownView(markdown: body_)
@@ -285,6 +299,130 @@ public struct NoteDetailView: View {
                     }
                 }
             }
+
+            connectionsSection
+        }
+    }
+
+    private var outline: [NoteMarkdown.OutlineItem] {
+        NoteMarkdown.outline(in: body_)
+    }
+
+    private func outlinePanel(scrollTo: @escaping (String) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            Label("On this page", systemImage: "list.bullet.indent")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+
+            ForEach(outline) { item in
+                Button {
+                    HapticManager.shared.selection()
+                    scrollTo(item.anchor)
+                } label: {
+                    HStack(spacing: DipleSpace.s) {
+                        Text(item.title)
+                            .dipleType(.callout)
+                            .foregroundStyle(item.level <= 2 ? DipleColor.textSecondary : DipleColor.textTertiary)
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "arrow.down")
+                            .dipleIcon(9)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
+                    .padding(.leading, CGFloat(max(item.level - 1, 0)) * DipleSpace.m)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(DipleSpace.m)
+        .craftSurface(DipleColor.surface, radius: DipleRadius.m)
+    }
+
+    @ViewBuilder
+    private var connectionsSection: some View {
+        let backlinks = NoteKnowledge.backlinks(to: currentNoteForConnections, among: allNotes)
+        let outgoing = NoteKnowledge.outgoing(from: body_, among: allNotes)
+            .filter { $0.id != route.item?.id }
+        let related = relatedNotes(excluding: Set((backlinks + outgoing).map(\.id)))
+
+        if !backlinks.isEmpty || !outgoing.isEmpty || !related.isEmpty {
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(height: DipleStroke.hairline)
+                .padding(.top, DipleSpace.l)
+
+            VStack(alignment: .leading, spacing: DipleSpace.l) {
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    Text("CONNECTIONS")
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.accent)
+                    Text("Part of a larger thought")
+                        .dipleType(.headline)
+                        .foregroundStyle(DipleColor.textPrimary)
+                }
+
+                if !backlinks.isEmpty {
+                    connectionGroup("Links here", icon: "arrow.turn.up.left", notes: backlinks)
+                }
+                if !outgoing.isEmpty {
+                    connectionGroup("Linked notes", icon: "link", notes: outgoing)
+                }
+                if !related.isEmpty {
+                    connectionGroup("Related by context", icon: "sparkles", notes: related)
+                }
+            }
+        }
+    }
+
+    private func connectionGroup(_ title: String, icon: String, notes: [NoteItem]) -> some View {
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
+            Label(title, systemImage: icon)
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+
+            ForEach(notes.prefix(4)) { note in
+                NavigationLink(value: NoteRoute.existing(note)) {
+                    HStack(spacing: DipleSpace.m) {
+                        Image(systemName: "note.text")
+                            .dipleIcon(12, weight: .semibold)
+                            .foregroundStyle(DipleColor.accent)
+                            .frame(width: 28, height: 28)
+                            .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+                        VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                            Text(note.displayTitle)
+                                .dipleType(.footnote, weight: .semibold)
+                                .foregroundStyle(DipleColor.textPrimary)
+                                .lineLimit(1)
+                            Text(NoteMarkdown.plainText(note.note.body))
+                                .dipleType(.caption)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .dipleIcon(10, weight: .semibold)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
+                    .padding(DipleSpace.m)
+                    .craftSurface(DipleColor.surface)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var currentNoteForConnections: NoteItem {
+        if let item = route.item { return item }
+        let note = Note(id: draftID, title: title, body: body_, bookId: selectedBookId)
+        return NoteItem(note: note, tags: tags, book: selectedBook)
+    }
+
+    private func relatedNotes(excluding excluded: Set<String>) -> [NoteItem] {
+        allNotes.filter { candidate in
+            guard candidate.id != route.item?.id, !excluded.contains(candidate.id) else { return false }
+            let sharesBook = selectedBookId != nil && candidate.note.bookId == selectedBookId
+            let sharesTag = !Set(tags).isDisjoint(with: candidate.tags)
+            return sharesBook || sharesTag
         }
     }
 
@@ -395,6 +533,22 @@ public struct NoteDetailView: View {
                 barDivider
                 formatButton(systemImage: "link", accessibility: "Link") {
                     apply(prefix: "[", suffix: "](https://)", placeholder: "link title")
+                }
+                if !allNotes.filter({ $0.id != route.item?.id }).isEmpty {
+                    Menu {
+                        ForEach(allNotes.filter { $0.id != route.item?.id }.prefix(30)) { note in
+                            Button(note.displayTitle) {
+                                apply(prefix: "[[", suffix: "]]", placeholder: note.displayTitle)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "point.3.connected.trianglepath.dotted")
+                            .dipleIcon(15, weight: .semibold)
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .frame(width: 36, height: 36)
+                            .background(DipleColor.surfaceRaised.opacity(0.8), in: RoundedRectangle(cornerRadius: DipleRadius.s))
+                    }
+                    .accessibilityLabel("Link another note")
                 }
                 formatButton(systemImage: "chevron.left.forwardslash.chevron.right", accessibility: "Code") {
                     apply(prefix: "`", suffix: "`", placeholder: "code")
@@ -703,5 +857,34 @@ public struct NoteDetailView: View {
         }
         selection = NSRange(location: (body_ as NSString).length, length: 0)
         isBodyFocused = true
+    }
+}
+
+public enum NoteKnowledge {
+    public static func wikiLinks(in markdown: String) -> [String] {
+        guard let expression = try? NSRegularExpression(pattern: #"\[\[([^\]]+)\]\]"#) else { return [] }
+        let source = markdown as NSString
+        return expression.matches(in: markdown, range: NSRange(location: 0, length: source.length)).compactMap { match in
+            guard match.numberOfRanges > 1 else { return nil }
+            return source.substring(with: match.range(at: 1))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    public static func outgoing(from markdown: String, among notes: [NoteItem]) -> [NoteItem] {
+        let linkedTitles = Set(wikiLinks(in: markdown).map { $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) })
+        return notes.filter { note in
+            linkedTitles.contains(note.displayTitle.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current))
+        }
+    }
+
+    public static func backlinks(to note: NoteItem, among notes: [NoteItem]) -> [NoteItem] {
+        let target = note.displayTitle.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return notes.filter { candidate in
+            guard candidate.id != note.id else { return false }
+            return wikiLinks(in: candidate.note.body).contains { link in
+                link.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == target
+            }
+        }
     }
 }

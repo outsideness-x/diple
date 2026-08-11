@@ -66,12 +66,7 @@ public struct NoteCardView: View {
     }
 
     private var title: String {
-        let explicit = item.note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !explicit.isEmpty { return explicit }
-        return NoteMarkdown.parse(item.note.body).compactMap { block in
-            if case .heading(_, let text) = block { return text }
-            return nil
-        }.first ?? "Untitled"
+        item.displayTitle
     }
 
     private var preview: String {

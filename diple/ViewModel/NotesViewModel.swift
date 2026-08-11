@@ -10,6 +10,15 @@ public struct NoteItem: Identifiable, Equatable, Hashable {
     public let book: Book?
 
     public var id: String { note.id }
+
+    public var displayTitle: String {
+        let explicit = note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !explicit.isEmpty { return explicit }
+        return NoteMarkdown.parse(note.body).compactMap { block in
+            if case .heading(_, let text) = block { return text }
+            return nil
+        }.first ?? "Untitled"
+    }
 }
 
 /// What the board is currently narrowed down to.

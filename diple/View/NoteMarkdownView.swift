@@ -58,6 +58,14 @@ public enum NoteCallout: String, Equatable {
 }
 
 public enum NoteMarkdown {
+    public struct OutlineItem: Identifiable, Equatable {
+        public let level: Int
+        public let title: String
+        public let anchor: String
+
+        public var id: String { anchor }
+    }
+
     /// Splits a note into blocks. Deliberately forgiving: notes are typed by hand, so
     /// anything that is not recognised stays a paragraph rather than disappearing.
     public static func parse(_ raw: String) -> [NoteBlock] {
@@ -298,6 +306,17 @@ public enum NoteMarkdown {
         guard !tasks.isEmpty else { return nil }
         return (tasks.filter(\.isCompleted).count, tasks.count)
     }
+
+    public static func outline(in markdown: String) -> [OutlineItem] {
+        parse(markdown).enumerated().compactMap { index, block in
+            guard case .heading(let level, let text) = block else { return nil }
+            return OutlineItem(level: level, title: text, anchor: headingAnchor(at: index))
+        }
+    }
+
+    public static func headingAnchor(at blockIndex: Int) -> String {
+        "note-heading-\(blockIndex)"
+    }
 }
 
 /// Reading view for a note's body.
@@ -324,8 +343,9 @@ public struct NoteMarkdownView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DipleSpace.l) {
-            ForEach(blocks) { block in
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
                 view(for: block)
+                    .id(block.headingLevel == nil ? "note-block-\(index)" : NoteMarkdown.headingAnchor(at: index))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -461,6 +481,13 @@ public struct NoteMarkdownView: View {
                 .lineSpacing(script.swiftUILineSpacing)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+private extension NoteBlock {
+    var headingLevel: Int? {
+        guard case .heading(let level, _) = self else { return nil }
+        return level
     }
 }
 
