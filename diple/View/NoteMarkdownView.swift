@@ -15,6 +15,7 @@ public enum NoteBlock: Identifiable, Equatable {
     case quote(String)
     case callout(kind: NoteCallout, title: String?, body: String)
     case code(language: String?, body: String)
+    case math(String)
     case divider
 
     public var id: String {
@@ -27,6 +28,7 @@ public enum NoteBlock: Identifiable, Equatable {
         case .quote(let text): return "q-\(text)"
         case .callout(let kind, let title, let body): return "callout-\(kind.rawValue)-\(title ?? "")-\(body)"
         case .code(let language, let body): return "c-\(language ?? "")-\(body)"
+        case .math(let latex): return "math-\(latex)"
         case .divider: return "hr-\(UUID().uuidString)"
         }
     }
@@ -78,6 +80,9 @@ public enum NoteMarkdown {
         var code: [String] = []
         var codeLanguage: String?
         var inCode = false
+        var math: [String] = []
+        var mathClosingDelimiter = "$$"
+        var inMath = false
 
         func flushParagraph() {
             guard !paragraph.isEmpty else { return }
@@ -136,6 +141,30 @@ public enum NoteMarkdown {
 
             if inCode {
                 code.append(line)
+                continue
+            }
+
+            if inMath {
+                if trimmed == mathClosingDelimiter {
+                    blocks.append(.math(math.joined(separator: "\n")))
+                    math = []
+                    inMath = false
+                } else {
+                    math.append(line)
+                }
+                continue
+            }
+
+            if let latex = singleLineMath(from: trimmed) {
+                flushAll()
+                blocks.append(.math(latex))
+                continue
+            }
+
+            if trimmed == "$$" || trimmed == "\\[" {
+                flushAll()
+                mathClosingDelimiter = trimmed == "$$" ? "$$" : "\\]"
+                inMath = true
                 continue
             }
 
@@ -203,8 +232,24 @@ public enum NoteMarkdown {
         if inCode, !code.isEmpty {
             blocks.append(.code(language: codeLanguage, body: code.joined(separator: "\n")))
         }
+        // An unfinished equation stays visible as source instead of silently disappearing.
+        if inMath {
+            paragraph.append((mathClosingDelimiter == "$$" ? "$$" : "\\[") + " " + math.joined(separator: " "))
+        }
         flushAll()
         return blocks
+    }
+
+    private static func singleLineMath(from line: String) -> String? {
+        if line.hasPrefix("$$"), line.hasSuffix("$$"), line.count > 4 {
+            return String(line.dropFirst(2).dropLast(2))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if line.hasPrefix("\\["), line.hasSuffix("\\]"), line.count > 4 {
+            return String(line.dropFirst(2).dropLast(2))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
     }
 
     private static func isDivider(_ line: String) -> Bool {
@@ -288,6 +333,7 @@ public enum NoteMarkdown {
             case .tasks(let items): return items.map(\.text)
             case .callout(_, let title, let body): return [title, body].compactMap { $0 }
             case .code(_, let body): return [body]
+            case .math(let latex): return [latex]
             case .divider: return []
             }
         }
@@ -296,6 +342,7 @@ public enum NoteMarkdown {
         .replacingOccurrences(of: "__", with: "")
         .replacingOccurrences(of: "~~", with: "")
         .replacingOccurrences(of: "`", with: "")
+        .removingNoteMathDelimiters()
     }
 
     public static func taskProgress(in markdown: String) -> (completed: Int, total: Int)? {
@@ -355,13 +402,13 @@ public struct NoteMarkdownView: View {
     private func view(for block: NoteBlock) -> some View {
         switch block {
         case .heading(let level, let text):
-            Text(NoteMarkdown.inline(text))
+            NoteInlineMathText(text, style: level <= 1 ? .noteTitle : .noteHeading)
                 .dipleType(level <= 1 ? .noteTitle : .noteHeading, weight: .semibold)
                 .foregroundStyle(DipleColor.textPrimary)
                 .padding(.top, level <= 2 ? DipleSpace.s : 0)
 
         case .paragraph(let text):
-            Text(NoteMarkdown.inline(text))
+            NoteInlineMathText(text, style: .noteBody)
                 .dipleType(.noteBody)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineSpacing(script.swiftUILineSpacing)
@@ -388,7 +435,7 @@ public struct NoteMarkdownView: View {
                             .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
                             .foregroundStyle(task.isCompleted ? DipleColor.accent : DipleColor.textQuaternary)
 
-                        Text(NoteMarkdown.inline(task.text))
+                        NoteInlineMathText(task.text, style: .noteBody)
                             .dipleType(.noteBody)
                             .foregroundStyle(task.isCompleted ? DipleColor.textTertiary : DipleColor.textPrimary)
                             .strikethrough(task.isCompleted, color: DipleColor.textQuaternary)
@@ -404,7 +451,7 @@ public struct NoteMarkdownView: View {
                     .fill(DipleColor.accent.opacity(0.5))
                     .frame(width: 2)
 
-                Text(NoteMarkdown.inline(text))
+                NoteInlineMathText(text, style: .noteBody)
                     .dipleType(.noteBody)
                     .foregroundStyle(DipleColor.textSecondary)
                     .lineSpacing(script.swiftUILineSpacing)
@@ -424,7 +471,7 @@ public struct NoteMarkdownView: View {
                         .dipleType(.footnote, weight: .semibold)
                         .foregroundStyle(DipleColor.textPrimary)
                     if !body.isEmpty {
-                        Text(NoteMarkdown.inline(body))
+                        NoteInlineMathText(body, style: .callout)
                             .dipleType(.callout)
                             .foregroundStyle(DipleColor.textSecondary)
                             .lineSpacing(script.swiftUILineSpacing)
@@ -459,6 +506,9 @@ public struct NoteMarkdownView: View {
             }
             .craftSurface(DipleColor.surface, radius: DipleRadius.s)
 
+        case .math(let latex):
+            NoteMathBlockView(latex: latex)
+
         case .divider:
             Rectangle()
                 .fill(DipleColor.separator)
@@ -475,7 +525,7 @@ public struct NoteMarkdownView: View {
                 .monospacedDigit()
                 .frame(minWidth: DipleSpace.l, alignment: .trailing)
 
-            Text(NoteMarkdown.inline(text))
+            NoteInlineMathText(text, style: .noteBody)
                 .dipleType(.noteBody)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineSpacing(script.swiftUILineSpacing)

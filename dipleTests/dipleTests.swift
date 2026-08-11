@@ -107,6 +107,39 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual((text as NSString).substring(with: selection), "second")
     }
 
+    func testNoteMarkdownParsesInlineAndDisplayMathWithoutLosingSource() {
+        let markdown = #"""
+        Energy is $E = mc^2$.
+
+        $$
+        \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+        $$
+
+        \[\sum_{i=1}^{n} i = \frac{n(n+1)}{2}\]
+        """#
+
+        let blocks = NoteMarkdown.parse(markdown)
+        XCTAssertTrue(blocks.contains(.paragraph("Energy is $E = mc^2$.")))
+        XCTAssertTrue(blocks.contains(.math(#"\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}"#)))
+        XCTAssertTrue(blocks.contains(.math(#"\sum_{i=1}^{n} i = \frac{n(n+1)}{2}"#)))
+        XCTAssertFalse(NoteMarkdown.plainText(markdown).contains("$$"))
+        XCTAssertTrue(NoteMarkdown.plainText(markdown).contains("E = mc^2"))
+    }
+
+    func testNoteMathParserHonorsEscapesAndBothInlineDelimiters() {
+        let source = #"Price \$5 and $x^2$ plus \(y_1 + y_2\)"#
+        XCTAssertEqual(NoteMathParser.inlineSegments(in: source), [
+            .text(#"Price \$5 and "#),
+            .formula("x^2"),
+            .text(" plus "),
+            .formula("y_1 + y_2")
+        ])
+        XCTAssertEqual(
+            NoteMathParser.removingDelimiters(from: source),
+            #"Price \$5 and x^2 plus y_1 + y_2"#
+        )
+    }
+
     func testNoteKnowledgeResolvesWikiLinksAndBacklinksByTitle() {
         let source = NoteItem(
             note: Note(id: "source", title: "Source", body: "See [[Deep Work]] and [[Кафе]]."),
