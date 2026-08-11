@@ -34,6 +34,7 @@ public struct NoteEditorView: UIViewRepresentable {
         view.smartDashesType = .no
         view.smartQuotesType = .no
         view.accessibilityLabel = "Note body"
+        view.accessibilityIdentifier = "note.body"
         return view
     }
 

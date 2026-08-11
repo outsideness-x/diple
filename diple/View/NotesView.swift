@@ -10,7 +10,7 @@ public struct NotesView: View {
     @Namespace private var cardNamespace
 
     private let columns = [
-        GridItem(.adaptive(minimum: 168, maximum: 280), spacing: DipleSpace.m)
+        GridItem(.adaptive(minimum: 240, maximum: 360), spacing: DipleSpace.m)
     ]
 
     private enum NoteLayout: String {
@@ -67,6 +67,8 @@ public struct NotesView: View {
                             .foregroundStyle(DipleColor.accent)
                     }
                     .buttonStyle(.readerControl)
+                    .accessibilityLabel("New note")
+                    .accessibilityIdentifier("notes.new")
                 }
             }
             .navigationDestination(for: NoteRoute.self) { route in
@@ -175,6 +177,7 @@ public struct NotesView: View {
                         .foregroundStyle(DipleColor.textPrimary)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .accessibilityIdentifier("notes.search")
 
                     if !viewModel.query.isEmpty {
                         Button {
@@ -392,6 +395,7 @@ public struct NotesView: View {
                 .craftGlow(radius: 16)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("notes.new")
             .padding(.top, DipleSpace.s)
 
             Spacer()

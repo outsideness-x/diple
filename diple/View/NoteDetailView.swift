@@ -486,6 +486,7 @@ public struct NoteDetailView: View {
                 .dipleType(.noteTitle)
                 .foregroundStyle(DipleColor.textPrimary)
                 .textInputAutocapitalization(.sentences)
+                .accessibilityIdentifier("note.title")
 
             Rectangle()
                 .fill(DipleColor.separator)
