@@ -62,28 +62,67 @@ public struct NoteCardView: View {
     }
 
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: item.note.updatedAt)
+        item.note.updatedAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
+    }
+
+    private var title: String {
+        let explicit = item.note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !explicit.isEmpty { return explicit }
+        return NoteMarkdown.parse(item.note.body).compactMap { block in
+            if case .heading(_, let text) = block { return text }
+            return nil
+        }.first ?? "Untitled"
+    }
+
+    private var preview: String {
+        NoteMarkdown.plainText(item.note.body)
+    }
+
+    private var taskProgress: (completed: Int, total: Int)? {
+        NoteMarkdown.taskProgress(in: item.note.body)
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.s) {
-            if let title = item.note.title, !title.isEmpty {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            HStack(alignment: .top, spacing: DipleSpace.s) {
+                Image(systemName: item.book == nil ? "note.text" : "book.pages")
+                    .dipleIcon(12, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
+                    .frame(width: 26, height: 26)
+                    .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+
                 Text(title)
                     .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.textPrimary)
+                    .foregroundStyle(title == "Untitled" ? DipleColor.textTertiary : DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
+
+                Spacer(minLength: 0)
             }
 
-            Text(item.note.body)
-                .dipleType(.callout, weight: .regular)
-                .readingLineSpacing(for: item.note.body)
-                .foregroundStyle(DipleColor.textSecondary)
-                .multilineTextAlignment(.leading)
-                .lineLimit(style == .card ? 8 : 2)
-                .fixedSize(horizontal: false, vertical: true)
+            if !preview.isEmpty {
+                Text(preview)
+                    .dipleType(.callout, weight: .regular)
+                    .readingLineSpacing(for: preview)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(style == .card ? 6 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let taskProgress {
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    HStack {
+                        Text("\(taskProgress.completed) of \(taskProgress.total) complete")
+                        Spacer()
+                        Text(taskProgress.total == taskProgress.completed ? "Done" : "In progress")
+                    }
+                    .dipleType(.nano)
+                    .foregroundStyle(taskProgress.total == taskProgress.completed ? DipleColor.success : DipleColor.textQuaternary)
+                    ProgressView(value: Double(taskProgress.completed), total: Double(taskProgress.total))
+                        .tint(taskProgress.total == taskProgress.completed ? DipleColor.success : DipleColor.accent)
+                }
+            }
 
             if !item.tags.isEmpty || item.book != nil {
                 FlowLayout(spacing: DipleSpace.s) {
@@ -96,9 +135,13 @@ public struct NoteCardView: View {
                 }
             }
 
-            Text(formattedDate)
-                .dipleType(.nano, weight: .medium)
-                .foregroundStyle(DipleColor.textQuaternary)
+            HStack(spacing: DipleSpace.xs) {
+                Image(systemName: "clock")
+                    .dipleIcon(9)
+                Text(formattedDate)
+            }
+            .dipleType(.nano, weight: .medium)
+            .foregroundStyle(DipleColor.textQuaternary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(style == .card ? DipleSpace.m : DipleSpace.l)

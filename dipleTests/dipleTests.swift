@@ -50,6 +50,37 @@ final class DipleTests: XCTestCase {
         assertScript(.latin, ReaderScript.detect(languages: ["ru"], sample: "Русский текст"))
     }
 
+    func testNoteMarkdownPreservesTasksCalloutsAndCleanPreviews() {
+        let markdown = """
+        # Release plan
+
+        - [x] Search
+        - [ ] Backlinks
+
+        > [!TIP] Keep it focused
+        > Ship the smallest excellent thing.
+
+        ```swift
+        let quality = "high"
+        ```
+        """
+
+        let blocks = NoteMarkdown.parse(markdown)
+        XCTAssertTrue(blocks.contains(.tasks([
+            NoteTask(text: "Search", isCompleted: true),
+            NoteTask(text: "Backlinks", isCompleted: false)
+        ])))
+        XCTAssertTrue(blocks.contains(.callout(
+            kind: .tip,
+            title: "Keep it focused",
+            body: "Ship the smallest excellent thing."
+        )))
+        XCTAssertTrue(blocks.contains(.code(language: "swift", body: "let quality = \"high\"")))
+        XCTAssertEqual(NoteMarkdown.taskProgress(in: markdown)?.completed, 1)
+        XCTAssertFalse(NoteMarkdown.plainText(markdown).contains("[!TIP]"))
+        XCTAssertFalse(NoteMarkdown.plainText(markdown).contains("```"))
+    }
+
     // MARK: - Database contract
 
     func testDatabaseMigrationsCRUDAndDeleteSemantics() throws {

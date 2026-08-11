@@ -11,8 +11,10 @@ public enum NoteBlock: Identifiable, Equatable {
     case paragraph(String)
     case bulleted([String])
     case numbered([String])
+    case tasks([NoteTask])
     case quote(String)
-    case code(String)
+    case callout(kind: NoteCallout, title: String?, body: String)
+    case code(language: String?, body: String)
     case divider
 
     public var id: String {
@@ -21,10 +23,37 @@ public enum NoteBlock: Identifiable, Equatable {
         case .paragraph(let text): return "p-\(text)"
         case .bulleted(let items): return "ul-\(items.joined(separator: "|"))"
         case .numbered(let items): return "ol-\(items.joined(separator: "|"))"
+        case .tasks(let items): return "tasks-\(items.map(\.text).joined(separator: "|"))"
         case .quote(let text): return "q-\(text)"
-        case .code(let text): return "c-\(text)"
+        case .callout(let kind, let title, let body): return "callout-\(kind.rawValue)-\(title ?? "")-\(body)"
+        case .code(let language, let body): return "c-\(language ?? "")-\(body)"
         case .divider: return "hr-\(UUID().uuidString)"
         }
+    }
+}
+
+public struct NoteTask: Equatable {
+    public let text: String
+    public let isCompleted: Bool
+}
+
+public enum NoteCallout: String, Equatable {
+    case note
+    case tip
+    case important
+    case warning
+
+    fileprivate var icon: String {
+        switch self {
+        case .note: return "note.text"
+        case .tip: return "lightbulb"
+        case .important: return "sparkles"
+        case .warning: return "exclamationmark.triangle"
+        }
+    }
+
+    fileprivate var fallbackTitle: String {
+        rawValue.capitalized
     }
 }
 
@@ -36,8 +65,10 @@ public enum NoteMarkdown {
         var paragraph: [String] = []
         var bullets: [String] = []
         var numbers: [String] = []
+        var tasks: [NoteTask] = []
         var quote: [String] = []
         var code: [String] = []
+        var codeLanguage: String?
         var inCode = false
 
         func flushParagraph() {
@@ -55,15 +86,25 @@ public enum NoteMarkdown {
             blocks.append(.numbered(numbers))
             numbers = []
         }
+        func flushTasks() {
+            guard !tasks.isEmpty else { return }
+            blocks.append(.tasks(tasks))
+            tasks = []
+        }
         func flushQuote() {
             guard !quote.isEmpty else { return }
-            blocks.append(.quote(quote.joined(separator: " ")))
+            if let callout = callout(from: quote) {
+                blocks.append(callout)
+            } else {
+                blocks.append(.quote(quote.joined(separator: " ")))
+            }
             quote = []
         }
         func flushAll() {
             flushParagraph()
             flushBullets()
             flushNumbers()
+            flushTasks()
             flushQuote()
         }
 
@@ -72,11 +113,14 @@ public enum NoteMarkdown {
 
             if trimmed.hasPrefix("```") {
                 if inCode {
-                    blocks.append(.code(code.joined(separator: "\n")))
+                    blocks.append(.code(language: codeLanguage, body: code.joined(separator: "\n")))
                     code = []
+                    codeLanguage = nil
                     inCode = false
                 } else {
                     flushAll()
+                    let language = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                    codeLanguage = language.isEmpty ? nil : language
                     inCode = true
                 }
                 continue
@@ -104,9 +148,19 @@ public enum NoteMarkdown {
                 continue
             }
 
+            if let task = taskItem(from: trimmed) {
+                flushParagraph()
+                flushBullets()
+                flushNumbers()
+                flushQuote()
+                tasks.append(task)
+                continue
+            }
+
             if let item = bulletItem(from: trimmed) {
                 flushParagraph()
                 flushNumbers()
+                flushTasks()
                 flushQuote()
                 bullets.append(item)
                 continue
@@ -115,6 +169,7 @@ public enum NoteMarkdown {
             if let item = numberedItem(from: trimmed) {
                 flushParagraph()
                 flushBullets()
+                flushTasks()
                 flushQuote()
                 numbers.append(item)
                 continue
@@ -124,19 +179,21 @@ public enum NoteMarkdown {
                 flushParagraph()
                 flushBullets()
                 flushNumbers()
+                flushTasks()
                 quote.append(String(trimmed.dropFirst()).trimmingCharacters(in: .whitespaces))
                 continue
             }
 
             flushBullets()
             flushNumbers()
+            flushTasks()
             flushQuote()
             paragraph.append(trimmed)
         }
 
         // An unterminated fence is still text the reader wrote; keep it rather than drop it.
         if inCode, !code.isEmpty {
-            blocks.append(.code(code.joined(separator: "\n")))
+            blocks.append(.code(language: codeLanguage, body: code.joined(separator: "\n")))
         }
         flushAll()
         return blocks
@@ -165,6 +222,37 @@ public enum NoteMarkdown {
         return nil
     }
 
+    private static func taskItem(from line: String) -> NoteTask? {
+        for marker in ["- [ ] ", "* [ ] ", "+ [ ] "] where line.hasPrefix(marker) {
+            return NoteTask(
+                text: String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces),
+                isCompleted: false
+            )
+        }
+        for marker in ["- [x] ", "- [X] ", "* [x] ", "* [X] ", "+ [x] ", "+ [X] "] where line.hasPrefix(marker) {
+            return NoteTask(
+                text: String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces),
+                isCompleted: true
+            )
+        }
+        return nil
+    }
+
+    private static func callout(from lines: [String]) -> NoteBlock? {
+        guard let first = lines.first, first.hasPrefix("[!") else { return nil }
+        guard let close = first.firstIndex(of: "]") else { return nil }
+        let rawKind = first[first.index(first.startIndex, offsetBy: 2)..<close].lowercased()
+        guard let kind = NoteCallout(rawValue: rawKind) else { return nil }
+        let title = String(first[first.index(after: close)...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = lines.dropFirst().joined(separator: " ")
+        return .callout(
+            kind: kind,
+            title: title.isEmpty ? nil : title,
+            body: body
+        )
+    }
+
     private static func numberedItem(from line: String) -> String? {
         let digits = line.prefix { $0.isNumber }
         guard !digits.isEmpty else { return nil }
@@ -180,6 +268,35 @@ public enum NoteMarkdown {
             markdown: text,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(text)
+    }
+
+    /// A clean preview for cards, search and share surfaces. Raw Markdown on a card makes
+    /// the workspace feel like source code; this keeps the meaning while removing notation.
+    public static func plainText(_ markdown: String) -> String {
+        parse(markdown).flatMap { block -> [String] in
+            switch block {
+            case .heading(_, let text), .paragraph(let text), .quote(let text): return [text]
+            case .bulleted(let items), .numbered(let items): return items
+            case .tasks(let items): return items.map(\.text)
+            case .callout(_, let title, let body): return [title, body].compactMap { $0 }
+            case .code(_, let body): return [body]
+            case .divider: return []
+            }
+        }
+        .joined(separator: " ")
+        .replacingOccurrences(of: "**", with: "")
+        .replacingOccurrences(of: "__", with: "")
+        .replacingOccurrences(of: "~~", with: "")
+        .replacingOccurrences(of: "`", with: "")
+    }
+
+    public static func taskProgress(in markdown: String) -> (completed: Int, total: Int)? {
+        let tasks = parse(markdown).flatMap { block -> [NoteTask] in
+            if case .tasks(let items) = block { return items }
+            return []
+        }
+        guard !tasks.isEmpty else { return nil }
+        return (tasks.filter(\.isCompleted).count, tasks.count)
     }
 }
 
@@ -243,6 +360,24 @@ public struct NoteMarkdownView: View {
                 }
             }
 
+        case .tasks(let items):
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, task in
+                    HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
+                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
+                            .foregroundStyle(task.isCompleted ? DipleColor.accent : DipleColor.textQuaternary)
+
+                        Text(NoteMarkdown.inline(task.text))
+                            .dipleType(.noteBody)
+                            .foregroundStyle(task.isCompleted ? DipleColor.textTertiary : DipleColor.textPrimary)
+                            .strikethrough(task.isCompleted, color: DipleColor.textQuaternary)
+                            .lineSpacing(script.swiftUILineSpacing)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
         case .quote(let text):
             HStack(alignment: .top, spacing: DipleSpace.m) {
                 Capsule()
@@ -256,19 +391,53 @@ public struct NoteMarkdownView: View {
             }
             .fixedSize(horizontal: false, vertical: true)
 
-        case .code(let text):
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(text)
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(DipleColor.textSecondary)
-                    .textSelection(.enabled)
-                    .padding(DipleSpace.m)
+        case .callout(let kind, let title, let body):
+            HStack(alignment: .top, spacing: DipleSpace.m) {
+                Image(systemName: kind.icon)
+                    .dipleIcon(15, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
+                    .frame(width: 24, height: 24)
+                    .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    Text(title ?? kind.fallbackTitle)
+                        .dipleType(.footnote, weight: .semibold)
+                        .foregroundStyle(DipleColor.textPrimary)
+                    if !body.isEmpty {
+                        Text(NoteMarkdown.inline(body))
+                            .dipleType(.callout)
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .lineSpacing(script.swiftUILineSpacing)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.s))
-            .overlay(
-                RoundedRectangle(cornerRadius: DipleRadius.s)
-                    .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-            )
+            .padding(DipleSpace.m)
+            .background(DipleColor.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: DipleRadius.m))
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: DipleRadius.m)
+                    .fill(DipleColor.accent.opacity(0.55))
+                    .frame(width: 2)
+            }
+
+        case .code(let language, let body):
+            VStack(alignment: .leading, spacing: 0) {
+                if let language {
+                    Text(language.uppercased())
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                        .padding(.horizontal, DipleSpace.m)
+                        .padding(.top, DipleSpace.s)
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(body)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .textSelection(.enabled)
+                        .padding(DipleSpace.m)
+                }
+            }
+            .craftSurface(DipleColor.surface, radius: DipleRadius.s)
 
         case .divider:
             Rectangle()
