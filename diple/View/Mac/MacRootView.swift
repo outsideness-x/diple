@@ -751,8 +751,26 @@ private struct MacNotesCollection: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
                         HStack {
-                            MacCollectionHeader(title: "Notes", count: model.filteredItems.count)
+                            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                                MacCollectionHeader(title: "Notes", count: model.filteredItems.count)
+                                Text("\(model.totalWordCount.formatted()) words · \(model.linkedCount) linked to your library")
+                                    .dipleType(.micro)
+                                    .foregroundStyle(DipleColor.textQuaternary)
+                            }
                             Spacer()
+                            Menu {
+                                ForEach(NoteSort.allCases) { sort in
+                                    Button {
+                                        model.sort = sort
+                                    } label: {
+                                        Label(sort.title, systemImage: sort.systemImage)
+                                    }
+                                }
+                            } label: {
+                                Label(model.sort.title, systemImage: "arrow.up.arrow.down")
+                            }
+                            .menuStyle(.borderlessButton)
+
                             Button(action: onCreate) {
                                 Label("New note", systemImage: "plus")
                             }
@@ -761,12 +779,23 @@ private struct MacNotesCollection: View {
                             .foregroundStyle(DipleColor.textOnAccent)
                         }
 
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
-                            ForEach(model.filteredItems) { item in
-                                Button { onSelect(item) } label: {
-                                    NoteCardView(item: item)
+                        macNoteFilters
+
+                        if model.filteredItems.isEmpty {
+                            MacEmptyCollection(
+                                icon: model.query.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass",
+                                title: model.query.isEmpty ? "Nothing in this view" : "No matching notes",
+                                message: model.query.isEmpty ? "Choose another filter." : "Try a title, phrase, tag, author or book."
+                            )
+                            .frame(minHeight: 280)
+                        } else {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
+                                ForEach(model.filteredItems) { item in
+                                    Button { onSelect(item) } label: {
+                                        NoteCardView(item: item)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -774,6 +803,49 @@ private struct MacNotesCollection: View {
                 }
             }
         }
+        .searchable(text: $model.query, placement: .toolbar, prompt: "Search notes, tags and books")
+    }
+
+    private var macNoteFilters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DipleSpace.s) {
+                ForEach(model.availableFilters, id: \.self) { filter in
+                    Button {
+                        model.filter = filter
+                    } label: {
+                        macFilterChip(for: filter)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func macFilterChip(for filter: NoteFilter) -> some View {
+        let selected = model.filter == filter
+        switch filter {
+        case .all:
+            macSmartChip("All", icon: "tray.full", selected: selected)
+        case .recent:
+            macSmartChip("This week", icon: "clock", selected: selected)
+        case .linked:
+            macSmartChip("From library", icon: "book.closed", selected: selected)
+        case .untagged:
+            macSmartChip("Unsorted", icon: "tray", selected: selected)
+        case .tag(let tag):
+            TagChipView(label: tag, kind: .text, isSelected: selected)
+        case .book:
+            TagChipView(label: model.title(for: filter), kind: .book, isSelected: selected)
+        }
+    }
+
+    private func macSmartChip(_ title: String, icon: String, selected: Bool) -> some View {
+        Label(title, systemImage: icon)
+            .dipleType(.micro)
+            .foregroundStyle(selected ? DipleColor.textOnAccent : DipleColor.textTertiary)
+            .diplePadding(.chip)
+            .background(selected ? DipleColor.accent : DipleColor.surfaceOverlay, in: Capsule())
     }
 }
 
@@ -1038,8 +1110,9 @@ private struct MacNoteInspector: View {
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var isClosing = false
-
-    private static let textEditorInset: CGFloat = 5
+    @State private var selection = NSRange(location: 0, length: 0)
+    @State private var isBodyFocused = false
+    @State private var isPreviewing = false
 
     private enum SaveState {
         case saved
@@ -1108,6 +1181,15 @@ private struct MacNoteInspector: View {
                 Spacer()
 
                 Menu {
+                    ShareLink(item: exportMarkdown) {
+                        Label("Share Markdown", systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        UIPasteboard.general.string = exportMarkdown
+                    } label: {
+                        Label("Copy Markdown", systemImage: "doc.on.doc")
+                    }
+                    Divider()
                     Button(role: .destructive) {
                         isShowingDeleteConfirmation = true
                     } label: {
@@ -1119,6 +1201,16 @@ private struct MacNoteInspector: View {
                         .foregroundStyle(DipleColor.textSecondary)
                 }
                 .menuStyle(.borderlessButton)
+
+                Button {
+                    withAnimation(DipleMotion.snappy) { isPreviewing.toggle() }
+                } label: {
+                    Image(systemName: isPreviewing ? "square.and.pencil" : "eye")
+                        .dipleIcon(14)
+                        .foregroundStyle(isPreviewing ? DipleColor.accent : DipleColor.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help(isPreviewing ? "Edit note" : "Preview rendered note")
             }
             .padding(.horizontal, DipleSpace.xxl)
             .padding(.vertical, DipleSpace.m)
@@ -1148,14 +1240,20 @@ private struct MacNoteInspector: View {
                     .fill(DipleColor.separator)
                     .frame(height: DipleStroke.hairline)
 
-                TextEditor(text: $bodyText)
-                    .textEditorStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .dipleType(.noteBody)
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .lineSpacing(ReaderScript.detect(in: bodyText).swiftUILineSpacing)
-                    .padding(.horizontal, -Self.textEditorInset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                if isPreviewing {
+                    ScrollView {
+                        NoteMarkdownView(markdown: bodyText)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.bottom, DipleSpace.xxxl)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: DipleSpace.s) {
+                        macFormattingBar
+                        NoteEditorView(text: $bodyText, selection: $selection, isFocused: $isBodyFocused)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                }
             }
             .padding(DipleSpace.xxl)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1314,6 +1412,92 @@ private struct MacNoteInspector: View {
     private var wordCountLabel: String {
         let count = bodyText.split { $0.isWhitespace || $0.isNewline }.count
         return count == 1 ? "1 word" : "\(count) words"
+    }
+
+    private var exportMarkdown: String {
+        var sections: [String] = []
+        if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sections.append("# \(title.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+        if !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sections.append(bodyText.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        if !tags.isEmpty { sections.append(tags.map { "#\($0)" }.joined(separator: " ")) }
+        return sections.joined(separator: "\n\n")
+    }
+
+    private var macFormattingBar: some View {
+        HStack(spacing: DipleSpace.xs) {
+            macFormatButton(label: "H1", help: "Heading") {
+                applyMarkdown(prefix: "# ", placeholder: "Heading", line: true)
+            }
+            macFormatButton(icon: "bold", help: "Bold") {
+                applyMarkdown(prefix: "**", suffix: "**", placeholder: "bold text")
+            }
+            .keyboardShortcut("b", modifiers: .command)
+            macFormatButton(icon: "italic", help: "Italic") {
+                applyMarkdown(prefix: "*", suffix: "*", placeholder: "italic text")
+            }
+            .keyboardShortcut("i", modifiers: .command)
+            macFormatButton(icon: "checklist", help: "Task") {
+                applyMarkdown(prefix: "- [ ] ", placeholder: "Task", line: true)
+            }
+            macFormatButton(icon: "list.bullet", help: "List") {
+                applyMarkdown(prefix: "- ", placeholder: "List item", line: true)
+            }
+            macFormatButton(icon: "text.quote", help: "Quote") {
+                applyMarkdown(prefix: "> ", placeholder: "Quote", line: true)
+            }
+            macFormatButton(icon: "link", help: "Link") {
+                applyMarkdown(prefix: "[", suffix: "](https://)", placeholder: "link title")
+            }
+            Spacer()
+        }
+        .padding(DipleSpace.xs)
+        .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+        .overlay {
+            RoundedRectangle(cornerRadius: DipleRadius.s)
+                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+        }
+    }
+
+    private func macFormatButton(
+        label: String? = nil,
+        icon: String? = nil,
+        help: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if let icon {
+                    Image(systemName: icon).dipleIcon(13, weight: .semibold)
+                } else {
+                    Text(label ?? "").dipleType(.footnote, weight: .semibold)
+                }
+            }
+            .foregroundStyle(DipleColor.textSecondary)
+            .frame(width: 30, height: 28)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    private func applyMarkdown(
+        prefix: String,
+        suffix: String = "",
+        placeholder: String,
+        line: Bool = false
+    ) {
+        NoteEditing.apply(
+            to: &bodyText,
+            selection: &selection,
+            prefix: prefix,
+            suffix: suffix,
+            placeholder: placeholder,
+            isLineCommand: line
+        )
+        isBodyFocused = true
     }
 
     private var hasUnsavedChanges: Bool {
