@@ -39,7 +39,12 @@ public struct NoteDetailView: View {
     @State private var selectedBookId: String?
     @State private var isBookPickerPresented = false
     @State private var showDeleteConfirmation = false
-    @FocusState private var isBodyFocused: Bool
+    @State private var isBodyFocused = false
+    @State private var selection = NSRange(location: 0, length: 0)
+    @State private var saveState: NoteSaveState = .saved
+    @State private var saveTask: Task<Void, Never>?
+    @State private var draftID: String
+    @State private var lastSavedSnapshot: String
 
     public init(
         route: NoteRoute,
@@ -60,10 +65,36 @@ public struct NoteDetailView: View {
         _body_ = State(initialValue: item?.note.body ?? "")
         _tags = State(initialValue: item?.tags ?? [])
         _selectedBookId = State(initialValue: item?.note.bookId)
+        _draftID = State(initialValue: item?.id ?? UUID().uuidString)
+        _lastSavedSnapshot = State(initialValue: Self.snapshot(
+            title: item?.note.title ?? "",
+            body: item?.note.body ?? "",
+            tags: item?.tags ?? [],
+            bookID: item?.note.bookId
+        ))
     }
 
-    /// UIKit's text view inset, which `TextEditor` inherits and does not surface.
-    private static let textEditorInset: CGFloat = 5
+    private enum NoteSaveState {
+        case saved
+        case saving
+        case failed
+
+        var label: String {
+            switch self {
+            case .saved: return "Saved"
+            case .saving: return "Saving…"
+            case .failed: return "Not saved"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .saved: return DipleColor.textQuaternary
+            case .saving: return DipleColor.accent
+            case .failed: return DipleColor.destructive
+            }
+        }
+    }
 
     private var selectedBook: Book? {
         books.first { $0.id == selectedBookId }
@@ -112,6 +143,11 @@ public struct NoteDetailView: View {
         // A note reads as a page of its own, so the board's tab bar steps out of the way —
         // the same treatment the reader gets.
         .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if isEditing {
+                formattingBar
+            }
+        }
         .sheet(isPresented: $isBookPickerPresented) {
             BookTagPickerView(books: books, selectedBookId: selectedBookId) { bookId in
                 selectedBookId = bookId
@@ -129,6 +165,16 @@ public struct NoteDetailView: View {
             Text("This note and its tags will be removed.")
         }
         .animation(DipleMotion.standard, value: isEditing)
+        .onChange(of: title) { _, _ in scheduleSave() }
+        .onChange(of: body_) { _, _ in scheduleSave() }
+        .onChange(of: tags) { _, _ in scheduleSave() }
+        .onChange(of: selectedBookId) { _, _ in scheduleSave() }
+        .onDisappear {
+            saveTask?.cancel()
+            if canSave && currentSnapshot != lastSavedSnapshot {
+                _ = save(feedback: false)
+            }
+        }
     }
 
     // MARK: - Toolbar
@@ -136,6 +182,18 @@ public struct NoteDetailView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         if isEditing {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: DipleSpace.s) {
+                    Circle()
+                        .fill(saveState.color)
+                        .frame(width: 6, height: 6)
+                    Text(saveState.label)
+                        .dipleType(.micro)
+                        .foregroundStyle(saveState.color)
+                }
+                .animation(DipleMotion.snappy, value: saveState.label)
+            }
+
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Done") { commit() }
                     .dipleType(.body, weight: .semibold)
@@ -157,11 +215,22 @@ public struct NoteDetailView: View {
 
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
+                    ShareLink(item: exportMarkdown) {
+                        Label("Share Markdown", systemImage: "square.and.arrow.up")
+                    }
+
                     Button {
-                        UIPasteboard.general.string = body_
+                        UIPasteboard.general.string = exportMarkdown
                         HapticManager.shared.impact(.light)
                     } label: {
-                        Label("Copy Text", systemImage: "doc.on.doc")
+                        Label("Copy Markdown", systemImage: "doc.on.doc")
+                    }
+
+                    Button {
+                        UIPasteboard.general.string = NoteMarkdown.plainText(body_)
+                        HapticManager.shared.impact(.light)
+                    } label: {
+                        Label("Copy Plain Text", systemImage: "text.alignleft")
                     }
 
                     if route.item != nil {
@@ -220,7 +289,7 @@ public struct NoteDetailView: View {
     }
 
     private var metadataLine: some View {
-        HStack(spacing: DipleSpace.s) {
+        FlowLayout(spacing: DipleSpace.s) {
             if let item = route.item {
                 Text(item.note.updatedAt.formatted(date: .abbreviated, time: .shortened))
                     .dipleType(.micro)
@@ -235,12 +304,40 @@ public struct NoteDetailView: View {
                 .dipleType(.micro)
                 .monospacedDigit()
                 .foregroundStyle(DipleColor.textQuaternary)
+
+            Text("·")
+                .dipleType(.micro)
+                .foregroundStyle(DipleColor.textQuaternary)
+
+            Label(readingTimeLabel, systemImage: "book.pages")
+                .dipleType(.micro)
+                .foregroundStyle(DipleColor.textQuaternary)
         }
     }
 
     private var wordCountLabel: String {
         let words = body_.split { $0.isWhitespace || $0.isNewline }.count
         return words == 1 ? "1 word" : "\(words) words"
+    }
+
+    private var readingTimeLabel: String {
+        let words = body_.split { $0.isWhitespace || $0.isNewline }.count
+        let minutes = max(1, Int(ceil(Double(words) / 220)))
+        return "\(minutes) min read"
+    }
+
+    private var exportMarkdown: String {
+        var parts: [String] = []
+        if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append("# \(title.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+        if !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append(body_.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        if !tags.isEmpty {
+            parts.append(tags.map { "#\($0)" }.joined(separator: " "))
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     // MARK: - Editing
@@ -256,25 +353,115 @@ public struct NoteDetailView: View {
                 .fill(DipleColor.separator)
                 .frame(height: DipleStroke.hairline)
 
-            // Markdown is written as markdown. The face stays the reading face so switching
-            // modes does not reflow the text under the reader's eyes.
-            TextEditor(text: $body_)
-                .dipleType(.noteBody)
-                .foregroundStyle(DipleColor.textPrimary)
-                .lineSpacing(ReaderScript.detect(in: body_).swiftUILineSpacing)
-                .scrollContentBackground(.hidden)
-                .scrollDisabled(true)
-                .focused($isBodyFocused)
-                .frame(minHeight: 240, alignment: .topLeading)
-                // TextEditor carries a built-in text inset that TextField and Text do not,
-                // and it is not exposed. Left alone, the body sits a few points right of the
-                // title above it and of where the same text sits when reading — which reads
-                // as a wobble in the margin every time the mode changes.
-                .padding(.horizontal, -Self.textEditorInset)
+            ZStack(alignment: .topLeading) {
+                if body_.isEmpty {
+                    Text("Start writing…")
+                        .dipleType(.noteBody)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                        .allowsHitTesting(false)
+                }
+
+                NoteEditorView(text: $body_, selection: $selection, isFocused: $isBodyFocused)
+                    .frame(minHeight: 280, alignment: .topLeading)
+            }
 
             tagsSection
             bookTagSection
         }
+    }
+
+    private var formattingBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DipleSpace.xs) {
+                formatButton("H1", accessibility: "Heading") {
+                    apply(prefix: "# ", placeholder: "Heading", isLineCommand: true)
+                }
+                formatButton(systemImage: "bold", accessibility: "Bold") {
+                    apply(prefix: "**", suffix: "**", placeholder: "bold text")
+                }
+                formatButton(systemImage: "italic", accessibility: "Italic") {
+                    apply(prefix: "*", suffix: "*", placeholder: "italic text")
+                }
+                barDivider
+                formatButton(systemImage: "checklist", accessibility: "Task") {
+                    apply(prefix: "- [ ] ", placeholder: "Task", isLineCommand: true)
+                }
+                formatButton(systemImage: "list.bullet", accessibility: "Bulleted list") {
+                    apply(prefix: "- ", placeholder: "List item", isLineCommand: true)
+                }
+                formatButton(systemImage: "text.quote", accessibility: "Quote") {
+                    apply(prefix: "> ", placeholder: "Quote", isLineCommand: true)
+                }
+                barDivider
+                formatButton(systemImage: "link", accessibility: "Link") {
+                    apply(prefix: "[", suffix: "](https://)", placeholder: "link title")
+                }
+                formatButton(systemImage: "chevron.left.forwardslash.chevron.right", accessibility: "Code") {
+                    apply(prefix: "`", suffix: "`", placeholder: "code")
+                }
+
+                Menu {
+                    Button("Callout") {
+                        apply(prefix: "> [!NOTE] ", placeholder: "Note", isLineCommand: true)
+                    }
+                    Button("Tip") {
+                        apply(prefix: "> [!TIP] ", placeholder: "Tip", isLineCommand: true)
+                    }
+                    Button("Divider") {
+                        apply(prefix: "---\n", placeholder: "", isLineCommand: true)
+                    }
+                    if route.item == nil {
+                        Divider()
+                        Button("Reading notes template") { applyTemplate(.reading) }
+                        Button("Evergreen idea template") { applyTemplate(.evergreen) }
+                        Button("Daily reflection template") { applyTemplate(.reflection) }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .dipleIcon(15, weight: .semibold)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .frame(width: 36, height: 36)
+                }
+            }
+            .padding(.horizontal, DipleSpace.m)
+            .padding(.vertical, DipleSpace.s)
+        }
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle().fill(DipleColor.hairline).frame(height: DipleStroke.hairline)
+        }
+    }
+
+    private func formatButton(
+        _ label: String? = nil,
+        systemImage: String? = nil,
+        accessibility: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            HapticManager.shared.selection()
+            action()
+        } label: {
+            Group {
+                if let systemImage {
+                    Image(systemName: systemImage).dipleIcon(15, weight: .semibold)
+                } else {
+                    Text(label ?? "").dipleType(.footnote, weight: .semibold)
+                }
+            }
+            .foregroundStyle(DipleColor.textSecondary)
+            .frame(width: 36, height: 36)
+            .background(DipleColor.surfaceRaised.opacity(0.8), in: RoundedRectangle(cornerRadius: DipleRadius.s))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibility)
+    }
+
+    private var barDivider: some View {
+        Rectangle()
+            .fill(DipleColor.separator)
+            .frame(width: DipleStroke.hairline, height: 22)
+            .padding(.horizontal, DipleSpace.xs)
     }
 
     private var tagsSection: some View {
@@ -416,7 +603,8 @@ public struct NoteDetailView: View {
     /// the page; an existing one drops into its reading view.
     private func commit() {
         guard canSave else { return }
-        guard save() else { return }
+        saveTask?.cancel()
+        guard save(feedback: true) else { return }
         isBodyFocused = false
 
         if route.item == nil {
@@ -426,7 +614,7 @@ public struct NoteDetailView: View {
         }
     }
 
-    private func save() -> Bool {
+    private func save(feedback: Bool) -> Bool {
         // A tag typed but never committed is still a tag the user meant to add.
         var finalTags = tags
         if let pending = NoteTag.normalized(tagDraft), !finalTags.contains(pending) {
@@ -438,7 +626,7 @@ public struct NoteDetailView: View {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let existing = route.item?.note
         let note = Note(
-            id: existing?.id ?? UUID().uuidString,
+            id: existing?.id ?? draftID,
             title: trimmedTitle.isEmpty ? nil : trimmedTitle,
             body: body_.trimmingCharacters(in: .whitespacesAndNewlines),
             bookId: selectedBookId,
@@ -446,10 +634,74 @@ public struct NoteDetailView: View {
         )
         let didSave = onSave(note, finalTags)
         if didSave {
-            HapticManager.shared.impact(.medium)
+            lastSavedSnapshot = currentSnapshot
+            saveState = .saved
+            if feedback { HapticManager.shared.impact(.medium) }
         } else {
-            HapticManager.shared.notification(.error)
+            saveState = .failed
+            if feedback { HapticManager.shared.notification(.error) }
         }
         return didSave
+    }
+
+    private var currentSnapshot: String {
+        Self.snapshot(title: title, body: body_, tags: tags, bookID: selectedBookId)
+    }
+
+    private static func snapshot(title: String, body: String, tags: [String], bookID: String?) -> String {
+        ([title, body, tags.sorted().joined(separator: "\u{1F}"), bookID ?? ""] as [String])
+            .joined(separator: "\u{1E}")
+    }
+
+    private func scheduleSave() {
+        guard isEditing, canSave, currentSnapshot != lastSavedSnapshot else { return }
+        saveTask?.cancel()
+        saveState = .saving
+        saveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            _ = save(feedback: false)
+        }
+    }
+
+    private func apply(
+        prefix: String,
+        suffix: String = "",
+        placeholder: String,
+        isLineCommand: Bool = false
+    ) {
+        NoteEditing.apply(
+            to: &body_,
+            selection: &selection,
+            prefix: prefix,
+            suffix: suffix,
+            placeholder: placeholder,
+            isLineCommand: isLineCommand
+        )
+        isBodyFocused = true
+    }
+
+    private enum NoteTemplate {
+        case reading
+        case evergreen
+        case reflection
+    }
+
+    private func applyTemplate(_ template: NoteTemplate) {
+        guard title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        switch template {
+        case .reading:
+            title = "Reading notes"
+            body_ = "## The central idea\n\n\n\n## What surprised me\n\n\n\n## In the author’s words\n\n> \n\n## My synthesis\n\n\n\n- [ ] Follow this thread"
+        case .evergreen:
+            title = "One clear idea"
+            body_ = "> [!IMPORTANT] Claim\n> State the idea in one precise sentence.\n\n## Why it matters\n\n\n\n## Evidence\n\n\n\n## Connections\n\n"
+        case .reflection:
+            title = Date().formatted(date: .long, time: .omitted)
+            body_ = "## What stayed with me\n\n\n\n## What changed my mind\n\n\n\n## What I want to explore next\n\n- [ ] "
+        }
+        selection = NSRange(location: (body_ as NSString).length, length: 0)
+        isBodyFocused = true
     }
 }

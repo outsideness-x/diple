@@ -81,6 +81,32 @@ final class DipleTests: XCTestCase {
         XCTAssertFalse(NoteMarkdown.plainText(markdown).contains("```"))
     }
 
+    func testNoteEditingWrapsSelectionsAndPrefixesWholeLines() {
+        var text = "A useful idea"
+        var selection = NSRange(location: 2, length: 6)
+        NoteEditing.apply(
+            to: &text,
+            selection: &selection,
+            prefix: "**",
+            suffix: "**",
+            placeholder: "bold text"
+        )
+        XCTAssertEqual(text, "A **useful** idea")
+        XCTAssertEqual(selection, NSRange(location: 4, length: 6))
+
+        text = "first\nsecond\nthird"
+        selection = NSRange(location: 8, length: 0)
+        NoteEditing.apply(
+            to: &text,
+            selection: &selection,
+            prefix: "- [ ] ",
+            placeholder: "Task",
+            isLineCommand: true
+        )
+        XCTAssertEqual(text, "first\n- [ ] second\nthird")
+        XCTAssertEqual((text as NSString).substring(with: selection), "second")
+    }
+
     // MARK: - Database contract
 
     func testDatabaseMigrationsCRUDAndDeleteSemantics() throws {
