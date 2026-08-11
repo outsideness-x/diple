@@ -1113,6 +1113,10 @@ private struct MacNoteInspector: View {
     @State private var selection = NSRange(location: 0, length: 0)
     @State private var isBodyFocused = false
     @State private var isPreviewing = false
+    @State private var isFormulaComposerPresented = false
+    @State private var formulaSeed = ""
+    @State private var formulaMode: NoteFormulaMode = .inline
+    @State private var formulaSessionID = UUID()
 
     private enum SaveState {
         case saved
@@ -1273,6 +1277,14 @@ private struct MacNoteInspector: View {
                 selectedBookId = bookId
             }
             .frame(minWidth: 520, minHeight: 560)
+        }
+        .sheet(isPresented: $isFormulaComposerPresented) {
+            NoteFormulaComposer(initialLatex: formulaSeed, initialMode: formulaMode) { mode, latex in
+                NoteEditing.insertFormula(latex, mode: mode, in: &bodyText, selection: &selection)
+                isBodyFocused = true
+            }
+            .id(formulaSessionID)
+            .frame(minWidth: 620, minHeight: 680)
         }
         .alert("Delete Note?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
@@ -1439,6 +1451,10 @@ private struct MacNoteInspector: View {
                 applyMarkdown(prefix: "*", suffix: "*", placeholder: "italic text")
             }
             .keyboardShortcut("i", modifiers: .command)
+            macFormatButton(label: "ƒx", help: "Equation") {
+                presentFormulaComposer()
+            }
+            .keyboardShortcut("e", modifiers: [.command, .shift])
             macFormatButton(icon: "checklist", help: "Task") {
                 applyMarkdown(prefix: "- [ ] ", placeholder: "Task", line: true)
             }
@@ -1498,6 +1514,19 @@ private struct MacNoteInspector: View {
             isLineCommand: line
         )
         isBodyFocused = true
+    }
+
+    private func presentFormulaComposer() {
+        let source = bodyText as NSString
+        let location = min(selection.location, source.length)
+        let length = min(selection.length, source.length - location)
+        let selected = source.substring(with: NSRange(location: location, length: length))
+        let formula = NoteMathParser.formulaSelection(from: selected)
+        formulaSeed = formula.latex
+        formulaMode = formula.mode
+        formulaSessionID = UUID()
+        isBodyFocused = false
+        isFormulaComposerPresented = true
     }
 
     private var hasUnsavedChanges: Bool {

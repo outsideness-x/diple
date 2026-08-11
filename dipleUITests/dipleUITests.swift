@@ -83,6 +83,62 @@ final class dipleUITests: XCTestCase {
     }
 
     @MainActor
+    func testEquationComposerAndRenderedFormulaFlow() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["Notes"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["Notes"].tap()
+        let newNote = app.buttons.matching(identifier: "notes.new").firstMatch
+        XCTAssertTrue(newNote.waitForExistence(timeout: 5))
+        newNote.tap()
+
+        let noteTitle = "Equation QA · \(Int(Date().timeIntervalSince1970))"
+        let title = app.textFields["note.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(noteTitle)
+
+        let equationButton = app.buttons["Equation"]
+        XCTAssertTrue(equationButton.waitForExistence(timeout: 5))
+        equationButton.tap()
+
+        let source = app.textViews["formula.source"]
+        XCTAssertTrue(source.waitForExistence(timeout: 5))
+        source.tap()
+        source.typeText(#"\frac{x + 1}{y}"#)
+
+        let blockMode = app.buttons["Block"]
+        XCTAssertTrue(blockMode.waitForExistence(timeout: 5))
+        blockMode.tap()
+        XCTAssertTrue(app.staticTexts["EQUATION"].waitForExistence(timeout: 5))
+
+        let composerShot = XCTAttachment(screenshot: app.screenshot())
+        composerShot.name = "Live equation composer"
+        composerShot.lifetime = .keepAlways
+        add(composerShot)
+
+        let insert = app.buttons["formula.insert"]
+        XCTAssertTrue(insert.isEnabled)
+        insert.tap()
+
+        let body = app.textViews["note.body"]
+        XCTAssertTrue(body.waitForExistence(timeout: 5))
+        XCTAssertTrue((body.value as? String)?.contains("$$") == true)
+
+        app.buttons["Done"].tap()
+        let savedNote = app.staticTexts[noteTitle].firstMatch
+        XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
+        savedNote.tap()
+        XCTAssertTrue(app.staticTexts["EQUATION"].waitForExistence(timeout: 5))
+
+        let readerShot = XCTAttachment(screenshot: app.screenshot())
+        readerShot.name = "Rendered block equation"
+        readerShot.lifetime = .keepAlways
+        add(readerShot)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

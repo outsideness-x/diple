@@ -46,6 +46,10 @@ public struct NoteDetailView: View {
     @State private var saveTask: Task<Void, Never>?
     @State private var draftID: String
     @State private var lastSavedSnapshot: String
+    @State private var isFormulaComposerPresented = false
+    @State private var formulaSeed = ""
+    @State private var formulaMode: NoteFormulaMode = .inline
+    @State private var formulaSessionID = UUID()
 
     public init(
         route: NoteRoute,
@@ -161,6 +165,13 @@ public struct NoteDetailView: View {
             BookTagPickerView(books: books, selectedBookId: selectedBookId) { bookId in
                 selectedBookId = bookId
             }
+        }
+        .sheet(isPresented: $isFormulaComposerPresented) {
+            NoteFormulaComposer(initialLatex: formulaSeed, initialMode: formulaMode) { mode, latex in
+                NoteEditing.insertFormula(latex, mode: mode, in: &body_, selection: &selection)
+                isBodyFocused = true
+            }
+            .id(formulaSessionID)
         }
         .alert("Delete Note?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
@@ -521,6 +532,9 @@ public struct NoteDetailView: View {
                 formatButton(systemImage: "italic", accessibility: "Italic") {
                     apply(prefix: "*", suffix: "*", placeholder: "italic text")
                 }
+                formatButton("ƒx", accessibility: "Equation") {
+                    presentFormulaComposer()
+                }
                 barDivider
                 formatButton(systemImage: "checklist", accessibility: "Task") {
                     apply(prefix: "- [ ] ", placeholder: "Task", isLineCommand: true)
@@ -834,6 +848,19 @@ public struct NoteDetailView: View {
             isLineCommand: isLineCommand
         )
         isBodyFocused = true
+    }
+
+    private func presentFormulaComposer() {
+        let source = body_ as NSString
+        let location = min(selection.location, source.length)
+        let length = min(selection.length, source.length - location)
+        let selected = source.substring(with: NSRange(location: location, length: length))
+        let formula = NoteMathParser.formulaSelection(from: selected)
+        formulaSeed = formula.latex
+        formulaMode = formula.mode
+        formulaSessionID = UUID()
+        isBodyFocused = false
+        isFormulaComposerPresented = true
     }
 
     private enum NoteTemplate {

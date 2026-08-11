@@ -8,11 +8,27 @@ public struct NoteEditorView: UIViewRepresentable {
     @Binding public var text: String
     @Binding public var selection: NSRange
     @Binding public var isFocused: Bool
+    public let minimumHeight: CGFloat
+    public let usesMonospacedFont: Bool
+    public let editorAccessibilityLabel: String
+    public let editorAccessibilityIdentifier: String
 
-    public init(text: Binding<String>, selection: Binding<NSRange>, isFocused: Binding<Bool>) {
+    public init(
+        text: Binding<String>,
+        selection: Binding<NSRange>,
+        isFocused: Binding<Bool>,
+        minimumHeight: CGFloat = 280,
+        usesMonospacedFont: Bool = false,
+        accessibilityLabel: String = "Note body",
+        accessibilityIdentifier: String = "note.body"
+    ) {
         _text = text
         _selection = selection
         _isFocused = isFocused
+        self.minimumHeight = minimumHeight
+        self.usesMonospacedFont = usesMonospacedFont
+        self.editorAccessibilityLabel = accessibilityLabel
+        self.editorAccessibilityIdentifier = accessibilityIdentifier
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -23,9 +39,10 @@ public struct NoteEditorView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.textColor = UIColor(DipleColor.textPrimary)
         view.tintColor = UIColor(DipleColor.accent)
-        view.font = UIFontMetrics(forTextStyle: .body).scaledFont(
-            for: .systemFont(ofSize: 17, weight: .regular)
-        )
+        let baseFont = usesMonospacedFont
+            ? UIFont.monospacedSystemFont(ofSize: 16, weight: .regular)
+            : UIFont.systemFont(ofSize: 17, weight: .regular)
+        view.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: baseFont)
         view.adjustsFontForContentSizeCategory = true
         view.isScrollEnabled = false
         view.textContainerInset = .zero
@@ -33,8 +50,10 @@ public struct NoteEditorView: UIViewRepresentable {
         view.keyboardDismissMode = .interactive
         view.smartDashesType = .no
         view.smartQuotesType = .no
-        view.accessibilityLabel = "Note body"
-        view.accessibilityIdentifier = "note.body"
+        view.autocorrectionType = usesMonospacedFont ? .no : .default
+        view.spellCheckingType = usesMonospacedFont ? .no : .default
+        view.accessibilityLabel = editorAccessibilityLabel
+        view.accessibilityIdentifier = editorAccessibilityIdentifier
         return view
     }
 
@@ -59,7 +78,7 @@ public struct NoteEditorView: UIViewRepresentable {
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         guard let width = proposal.width else { return nil }
         let measured = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        return CGSize(width: width, height: max(measured.height, 280))
+        return CGSize(width: width, height: max(measured.height, minimumHeight))
     }
 
     public final class Coordinator: NSObject, UITextViewDelegate {
@@ -114,5 +133,62 @@ public enum NoteEditing {
         let replacement = prefix + selected + suffix
         text = source.replacingCharacters(in: target, with: replacement)
         selection = NSRange(location: target.location + prefix.utf16.count, length: selected.utf16.count)
+    }
+
+    /// Replaces exactly the current selection and optionally keeps a meaningful range inside
+    /// the inserted source selected. Formula composition uses this to return from its preview
+    /// without losing the user's insertion point in the main note editor.
+    public static func replaceSelection(
+        in text: inout String,
+        selection: inout NSRange,
+        with replacement: String,
+        selecting selectedRangeInReplacement: NSRange? = nil
+    ) {
+        let source = text as NSString
+        let safeLocation = min(selection.location, source.length)
+        let safeLength = min(selection.length, source.length - safeLocation)
+        let target = NSRange(location: safeLocation, length: safeLength)
+        text = source.replacingCharacters(in: target, with: replacement)
+
+        if let selectedRangeInReplacement {
+            let replacementLength = replacement.utf16.count
+            let location = min(selectedRangeInReplacement.location, replacementLength)
+            let length = min(selectedRangeInReplacement.length, replacementLength - location)
+            selection = NSRange(location: target.location + location, length: length)
+        } else {
+            selection = NSRange(location: target.location + replacement.utf16.count, length: 0)
+        }
+    }
+
+    public static func insertFormula(
+        _ latex: String,
+        mode: NoteFormulaMode,
+        in text: inout String,
+        selection: inout NSRange
+    ) {
+        let source = text as NSString
+        let safeLocation = min(selection.location, source.length)
+        let safeLength = min(selection.length, source.length - safeLocation)
+        let targetEnd = safeLocation + safeLength
+
+        let leadingBreak = mode == .block && safeLocation > 0 && source.character(at: safeLocation - 1) != 10
+            ? "\n\n"
+            : ""
+        let trailingBreak = mode == .block && targetEnd < source.length && source.character(at: targetEnd) != 10
+            ? "\n\n"
+            : ""
+        let markdown = mode.markdown(for: latex)
+        let replacement = leadingBreak + markdown + trailingBreak
+        let delimiterLength = mode == .inline ? 1 : 3
+        let formulaRange = NSRange(
+            location: leadingBreak.utf16.count + delimiterLength,
+            length: latex.utf16.count
+        )
+        replaceSelection(
+            in: &text,
+            selection: &selection,
+            with: replacement,
+            selecting: formulaRange
+        )
     }
 }

@@ -140,6 +140,24 @@ final class DipleTests: XCTestCase {
         )
     }
 
+    func testFormulaComposerRoundTripsSelectionsAndBlockSpacing() {
+        XCTAssertEqual(NoteMathParser.formulaSelection(from: "$E = mc^2$").latex, "E = mc^2")
+        XCTAssertEqual(NoteMathParser.formulaSelection(from: "$E = mc^2$").mode, .inline)
+        XCTAssertEqual(NoteMathParser.formulaSelection(from: "$$\n\\frac{a}{b}\n$$").mode, .block)
+
+        var text = "Energy: "
+        var selection = NSRange(location: (text as NSString).length, length: 0)
+        NoteEditing.insertFormula("E = mc^2", mode: .inline, in: &text, selection: &selection)
+        XCTAssertEqual(text, "Energy: $E = mc^2$")
+        XCTAssertEqual((text as NSString).substring(with: selection), "E = mc^2")
+
+        text = "Before\nAfter"
+        selection = NSRange(location: 7, length: 0)
+        NoteEditing.insertFormula(#"\sum_{i=1}^{n} i"#, mode: .block, in: &text, selection: &selection)
+        XCTAssertEqual(text, "Before\n$$\n\\sum_{i=1}^{n} i\n$$\n\nAfter")
+        XCTAssertEqual((text as NSString).substring(with: selection), #"\sum_{i=1}^{n} i"#)
+    }
+
     func testNoteKnowledgeResolvesWikiLinksAndBacklinksByTitle() {
         let source = NoteItem(
             note: Note(id: "source", title: "Source", body: "See [[Deep Work]] and [[Кафе]]."),
