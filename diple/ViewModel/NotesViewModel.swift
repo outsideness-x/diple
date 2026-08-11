@@ -15,8 +15,38 @@ public struct NoteItem: Identifiable, Equatable, Hashable {
 /// What the board is currently narrowed down to.
 public enum NoteFilter: Equatable, Hashable {
     case all
+    case recent
+    case linked
+    case untagged
     case tag(String)
     case book(String)
+}
+
+/// The sort is intentionally small and predictable. Notes are a thinking space, not a
+/// spreadsheet; the three orders cover returning to work, browsing history and scanning
+/// an alphabetical reference shelf without turning the toolbar into a query builder.
+public enum NoteSort: String, CaseIterable, Identifiable {
+    case updated
+    case created
+    case title
+
+    public var id: Self { self }
+
+    public var title: String {
+        switch self {
+        case .updated: return "Last edited"
+        case .created: return "Date created"
+        case .title: return "Title"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .updated: return "clock.arrow.circlepath"
+        case .created: return "calendar"
+        case .title: return "textformat.abc"
+        }
+    }
 }
 
 @MainActor
@@ -26,6 +56,8 @@ public final class NotesViewModel: ObservableObject {
     /// Every tag already in use, offered as suggestions in the editor.
     @Published public private(set) var allTags: [String] = []
     @Published public var filter: NoteFilter = .all
+    @Published public var query: String = ""
+    @Published public var sort: NoteSort = .updated
     @Published public var noteToDelete: NoteItem? = nil
     @Published public var showDeleteConfirmation: Bool = false
     @Published public var errorMessage: String? = nil
@@ -67,20 +99,62 @@ public final class NotesViewModel: ObservableObject {
     /// Every filter the current notes can actually satisfy — an empty tag chip would be a
     /// dead end.
     public var availableFilters: [NoteFilter] {
+        var smart: [NoteFilter] = [.all]
+        if items.contains(where: { Calendar.current.isDate($0.note.updatedAt, equalTo: Date(), toGranularity: .weekOfYear) }) {
+            smart.append(.recent)
+        }
+        if items.contains(where: { $0.book != nil }) {
+            smart.append(.linked)
+        }
+        if items.contains(where: { $0.tags.isEmpty && $0.book == nil }) {
+            smart.append(.untagged)
+        }
         let tags = Set(items.flatMap(\.tags)).sorted().map(NoteFilter.tag)
         let bookIds = items.compactMap(\.book).map(\.id)
         let uniqueBookIds = Array(NSOrderedSet(array: bookIds)).compactMap { $0 as? String }
-        return [.all] + tags + uniqueBookIds.map(NoteFilter.book)
+        return smart + tags + uniqueBookIds.map(NoteFilter.book)
     }
 
     public var filteredItems: [NoteItem] {
+        let scoped: [NoteItem]
         switch filter {
         case .all:
-            return items
+            scoped = items
+        case .recent:
+            scoped = items.filter {
+                Calendar.current.isDate($0.note.updatedAt, equalTo: Date(), toGranularity: .weekOfYear)
+            }
+        case .linked:
+            scoped = items.filter { $0.book != nil }
+        case .untagged:
+            scoped = items.filter { $0.tags.isEmpty && $0.book == nil }
         case .tag(let tag):
-            return items.filter { $0.tags.contains(tag) }
+            scoped = items.filter { $0.tags.contains(tag) }
         case .book(let bookId):
-            return items.filter { $0.book?.id == bookId }
+            scoped = items.filter { $0.book?.id == bookId }
+        }
+
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matching = needle.isEmpty ? scoped : scoped.filter { item in
+            let haystack = [
+                item.note.title ?? "",
+                item.note.body,
+                item.tags.joined(separator: " "),
+                item.book?.title ?? "",
+                item.book?.author ?? ""
+            ].joined(separator: "\n")
+            return haystack.localizedStandardContains(needle)
+        }
+
+        switch sort {
+        case .updated:
+            return matching.sorted { $0.note.updatedAt > $1.note.updatedAt }
+        case .created:
+            return matching.sorted { $0.note.createdAt > $1.note.createdAt }
+        case .title:
+            return matching.sorted {
+                displayTitle(for: $0).localizedStandardCompare(displayTitle(for: $1)) == .orderedAscending
+            }
         }
     }
 
@@ -88,11 +162,34 @@ public final class NotesViewModel: ObservableObject {
         switch filter {
         case .all:
             return "All"
+        case .recent:
+            return "This week"
+        case .linked:
+            return "From library"
+        case .untagged:
+            return "Unsorted"
         case .tag(let tag):
             return "#\(tag)"
         case .book(let bookId):
             return books.first { $0.id == bookId }?.title ?? "Book"
         }
+    }
+
+    public var totalWordCount: Int {
+        items.reduce(0) { result, item in
+            result + item.note.body.split { $0.isWhitespace || $0.isNewline }.count
+        }
+    }
+
+    public var linkedCount: Int { items.filter { $0.book != nil }.count }
+
+    private func displayTitle(for item: NoteItem) -> String {
+        let title = item.note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !title.isEmpty { return title }
+        return item.note.body
+            .split(whereSeparator: \Character.isNewline)
+            .first
+            .map(String.init) ?? "Untitled"
     }
 
     /// Saves a note and tells the editor whether it is safe to leave editing mode.

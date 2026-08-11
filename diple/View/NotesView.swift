@@ -1,16 +1,27 @@
 import SwiftUI
 
-/// User notes, laid out as an are.na-style board of blocks.
+/// The notes workspace: capture, rediscover and develop ideas without leaving reading.
 public struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
+    @AppStorage("diple_notes_layout") private var storedLayout = NoteLayout.cards.rawValue
 
     /// Ties a card to the page it becomes, so the note expands out of the block the reader
     /// tapped instead of sliding in from the side.
     @Namespace private var cardNamespace
 
     private let columns = [
-        GridItem(.adaptive(minimum: 150, maximum: 240), spacing: DipleSpace.m)
+        GridItem(.adaptive(minimum: 168, maximum: 280), spacing: DipleSpace.m)
     ]
+
+    private enum NoteLayout: String {
+        case cards
+        case list
+    }
+
+    private var layout: NoteLayout {
+        get { NoteLayout(rawValue: storedLayout) ?? .cards }
+        nonmutating set { storedLayout = newValue.rawValue }
+    }
 
     public init() {}
 
@@ -20,14 +31,10 @@ public struct NotesView: View {
                 DipleColor.canvas.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    if viewModel.availableFilters.count > 1 {
-                        filterBar
-                    }
-
                     if viewModel.items.isEmpty {
                         emptyState
                     } else {
-                        board
+                        workspace
                     }
                 }
             }
@@ -36,6 +43,23 @@ public struct NotesView: View {
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Menu {
+                        ForEach(NoteSort.allCases) { sort in
+                            Button {
+                                viewModel.sort = sort
+                            } label: {
+                                Label(sort.title, systemImage: sort.systemImage)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .dipleIcon(15)
+                            .foregroundStyle(DipleColor.textSecondary)
+                    }
+                    .accessibilityLabel("Sort notes")
+                }
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(value: NoteRoute.new) {
                         Image(systemName: "plus")
@@ -65,6 +89,139 @@ public struct NotesView: View {
                 viewModel.load()
             }
         }
+    }
+
+    private var workspace: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: DipleSpace.l, pinnedViews: [.sectionHeaders]) {
+                workspaceHeader
+
+                Section {
+                    if viewModel.filteredItems.isEmpty {
+                        noResults
+                    } else {
+                        notesContent
+                    }
+                } header: {
+                    controls
+                }
+            }
+            .padding(.bottom, DipleSpace.scrollBottom)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var workspaceHeader: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.l) {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                Text("YOUR THINKING SPACE")
+                    .dipleType(.nano)
+                    .foregroundStyle(DipleColor.accent)
+
+                Text("Ideas worth returning to.")
+                    .dipleType(.display)
+                    .foregroundStyle(DipleColor.textPrimary)
+
+                Text("Keep thoughts close to the books that sparked them, then find the thread again in seconds.")
+                    .dipleType(.callout)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 0) {
+                metric(value: viewModel.items.count, label: "notes")
+                metricDivider
+                metric(value: viewModel.totalWordCount, label: "words")
+                metricDivider
+                metric(value: viewModel.linkedCount, label: "linked")
+            }
+            .padding(DipleSpace.l)
+            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
+        }
+        .padding(.horizontal, DipleSpace.xl)
+        .padding(.top, DipleSpace.m)
+    }
+
+    private func metric(value: Int, label: String) -> some View {
+        VStack(alignment: .leading, spacing: DipleSpace.xs) {
+            Text(value.formatted(.number.notation(value > 9_999 ? .compactName : .automatic)))
+                .dipleType(.headline)
+                .foregroundStyle(DipleColor.textPrimary)
+                .monospacedDigit()
+            Text(label.uppercased())
+                .dipleType(.nano)
+                .foregroundStyle(DipleColor.textQuaternary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var metricDivider: some View {
+        Rectangle()
+            .fill(DipleColor.separator)
+            .frame(width: DipleStroke.hairline, height: 34)
+            .padding(.horizontal, DipleSpace.m)
+    }
+
+    private var controls: some View {
+        VStack(spacing: DipleSpace.m) {
+            HStack(spacing: DipleSpace.s) {
+                HStack(spacing: DipleSpace.s) {
+                    Image(systemName: "magnifyingglass")
+                        .dipleIcon(14)
+                        .foregroundStyle(DipleColor.textQuaternary)
+
+                    TextField("Search every note", text: $viewModel.query)
+                        .dipleType(.callout)
+                        .foregroundStyle(DipleColor.textPrimary)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    if !viewModel.query.isEmpty {
+                        Button {
+                            viewModel.query = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .dipleIcon(13)
+                                .foregroundStyle(DipleColor.textQuaternary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                    }
+                }
+                .diplePadding(.field)
+                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DipleRadius.m)
+                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                )
+
+                Button {
+                    HapticManager.shared.selection()
+                    withAnimation(DipleMotion.snappy) {
+                        layout = layout == .cards ? .list : .cards
+                    }
+                } label: {
+                    Image(systemName: layout == .cards ? "rectangle.grid.1x2" : "square.grid.2x2")
+                        .dipleIcon(15)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .frame(width: 36, height: 36)
+                        .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DipleRadius.m)
+                                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(layout == .cards ? "Show as list" : "Show as cards")
+            }
+
+            filterBar
+        }
+        .padding(.horizontal, DipleSpace.xl)
+        .padding(.top, DipleSpace.l)
+        .padding(.bottom, DipleSpace.m)
+        .background(.ultraThinMaterial)
+        .background(DipleColor.canvas.opacity(0.88))
     }
 
     /// A new note has no card on the board, so there is nothing for it to expand out of —
@@ -105,9 +262,8 @@ public struct NotesView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, DipleSpace.xl)
-            .padding(.vertical, DipleSpace.m)
         }
+        .contentMargins(.horizontal, 0, for: .scrollContent)
     }
 
     @ViewBuilder
@@ -115,12 +271,13 @@ public struct NotesView: View {
         let isSelected = viewModel.filter == filter
         switch filter {
         case .all:
-            Text("All")
-                .dipleType(.micro)
-                .foregroundColor(isSelected ? .black : DipleColor.textTertiary)
-                .diplePadding(.chip)
-                .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
-                .clipShape(Capsule())
+            filterChip("All", systemImage: "tray.full", isSelected: isSelected)
+        case .recent:
+            filterChip("This week", systemImage: "clock", isSelected: isSelected)
+        case .linked:
+            filterChip("From library", systemImage: "book.closed", isSelected: isSelected)
+        case .untagged:
+            filterChip("Unsorted", systemImage: "tray", isSelected: isSelected)
         case .tag(let tag):
             TagChipView(label: tag, kind: .text, isSelected: isSelected)
         case .book:
@@ -128,44 +285,93 @@ public struct NotesView: View {
         }
     }
 
-    private var board: some View {
-        ScrollView {
+    private func filterChip(_ title: String, systemImage: String, isSelected: Bool) -> some View {
+        Label(title, systemImage: systemImage)
+            .dipleType(.micro)
+            .foregroundColor(isSelected ? DipleColor.textOnAccent : DipleColor.textTertiary)
+            .diplePadding(.chip)
+            .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
+            .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var notesContent: some View {
+        if layout == .cards {
             LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
-                ForEach(viewModel.filteredItems) { item in
-                    NavigationLink(value: NoteRoute.existing(item)) {
-                        NoteCardView(item: item)
-                    }
-                    .buttonStyle(.bookCard)
-                    .matchedTransitionSource(id: item.id, in: cardNamespace)
-                    .contextMenu {
-                        Button(role: .destructive) {
-                            viewModel.confirmDelete(item)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                }
+                noteLinks
             }
             .padding(.horizontal, DipleSpace.xl)
-            .padding(.top, DipleSpace.xs)
-            .padding(.bottom, DipleSpace.xxxl)
+        } else {
+            LazyVStack(spacing: DipleSpace.s) {
+                noteLinks
+            }
+            .padding(.horizontal, DipleSpace.xl)
         }
+    }
+
+    private var noteLinks: some View {
+        ForEach(viewModel.filteredItems) { item in
+            NavigationLink(value: NoteRoute.existing(item)) {
+                NoteCardView(item: item, style: layout == .cards ? .card : .row)
+            }
+            .buttonStyle(.bookCard)
+            .matchedTransitionSource(id: item.id, in: cardNamespace)
+            .contextMenu {
+                Button {
+                    UIPasteboard.general.string = item.note.body
+                } label: {
+                    Label("Copy text", systemImage: "doc.on.doc")
+                }
+
+                Button(role: .destructive) {
+                    viewModel.confirmDelete(item)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private var noResults: some View {
+        VStack(spacing: DipleSpace.m) {
+            Image(systemName: viewModel.query.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass")
+                .dipleIcon(24, weight: .light)
+                .foregroundStyle(DipleColor.accent)
+            Text(viewModel.query.isEmpty ? "Nothing in this view" : "No matching notes")
+                .dipleType(.headline)
+                .foregroundStyle(DipleColor.textPrimary)
+            Text(viewModel.query.isEmpty ? "Choose another filter or create a note here." : "Try a title, phrase, tag, author or book.")
+                .dipleType(.callout)
+                .foregroundStyle(DipleColor.textTertiary)
+                .multilineTextAlignment(.center)
+            if !viewModel.query.isEmpty {
+                Button("Clear search") { viewModel.query = "" }
+                    .dipleType(.footnote, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, DipleSpace.xl)
+        .padding(.vertical, DipleSpace.xxxl)
     }
 
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
             Spacer()
 
-            Image(systemName: "square.grid.2x2")
+            ZStack {
+                AccentWash(diameter: 190)
+                Image(systemName: "note.text")
                 .dipleIcon(30, weight: .thin)
                 .foregroundStyle(DipleColor.accent)
+            }
 
             VStack(spacing: DipleSpace.s) {
-                Text("No Notes Yet")
+                Text("A home for your thinking")
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 
-                Text("Write something down and tag it — with your own words, or with a book from your library.")
+                Text("Capture an idea, connect it to what you read, and let your knowledge compound over time.")
                     .dipleType(.callout)
                     .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)

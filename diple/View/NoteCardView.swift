@@ -48,10 +48,17 @@ public struct TagChipView: View {
 
 /// One block on the notes board.
 public struct NoteCardView: View {
-    public let item: NoteItem
+    public enum Style {
+        case card
+        case row
+    }
 
-    public init(item: NoteItem) {
+    public let item: NoteItem
+    public let style: Style
+
+    public init(item: NoteItem, style: Style = .card) {
         self.item = item
+        self.style = style
     }
 
     private var formattedDate: String {
@@ -75,7 +82,7 @@ public struct NoteCardView: View {
                 .readingLineSpacing(for: item.note.body)
                 .foregroundStyle(DipleColor.textSecondary)
                 .multilineTextAlignment(.leading)
-                .lineLimit(8)
+                .lineLimit(style == .card ? 8 : 2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !item.tags.isEmpty || item.book != nil {
@@ -94,8 +101,8 @@ public struct NoteCardView: View {
                 .foregroundStyle(DipleColor.textQuaternary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DipleSpace.m)
-        .craftSurface()
+        .padding(style == .card ? DipleSpace.m : DipleSpace.l)
+        .craftSurface(style == .card ? DipleColor.surface : DipleColor.surfaceRaised)
     }
 }
 
