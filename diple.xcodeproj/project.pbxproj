@@ -12,6 +12,7 @@
 		D071D70C301DE80000A3309A /* ReadiumNavigator in Frameworks */ = {isa = PBXBuildFile; productRef = D071D708301DE80000A3309A /* ReadiumNavigator */; };
 		D071D70D301DE80000A3309A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D071D709301DE80000A3309A /* GRDB */; };
 		D0A17C01301E0A0000A3309A /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = D0A17C00301E0A0000A3309A /* SwiftSoup */; };
+		D0F04A013022000000A3309A /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = D0F04A033022000000A3309A /* SwiftMath */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -78,6 +79,7 @@
 				D071D70C301DE80000A3309A /* ReadiumNavigator in Frameworks */,
 				D071D70D301DE80000A3309A /* GRDB in Frameworks */,
 				D0A17C01301E0A0000A3309A /* SwiftSoup in Frameworks */,
+				D0F04A013022000000A3309A /* SwiftMath in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -143,6 +145,7 @@
 				D071D708301DE80000A3309A /* ReadiumNavigator */,
 				D071D709301DE80000A3309A /* GRDB */,
 				D0A17C00301E0A0000A3309A /* SwiftSoup */,
+				D0F04A033022000000A3309A /* SwiftMath */,
 			);
 			productName = diple;
 			productReference = D071D6DA301DE6DB00A3309A /* diple.app */;
@@ -229,6 +232,7 @@
 			packageReferences = (
 				D071D704301DE70000A3309A /* XCRemoteSwiftPackageReference "swift-toolkit" */,
 				D071D705301DE78800A3309A /* XCRemoteSwiftPackageReference "GRDB" */,
+				D0F04A023022000000A3309A /* XCRemoteSwiftPackageReference "SwiftMath" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D071D6DB301DE6DB00A3309A /* Products */;
@@ -647,6 +651,14 @@
 				kind = branch;
 			};
 		};
+		D0F04A023022000000A3309A /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.7.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -673,6 +685,11 @@
 		D0A17C00301E0A0000A3309A /* SwiftSoup */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftSoup;
+		};
+		D0F04A033022000000A3309A /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D0F04A023022000000A3309A /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
