@@ -8,5 +8,19 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- The interface is dark everywhere; SwiftUI's own `preferredColorScheme` only takes
+	     effect once the first view is on screen, which left the launch screen, system sheets
+	     and the keyboard following the device appearance. On a light-mode phone that read as
+	     a white flash at every launch. -->
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
+	<!-- Painted with the app's own canvas rather than the system background: `canvas` is
+	     deliberately #0B0B0F and not pure black (see CLAUDE.md), so the generated launch
+	     screen would still have stepped one shade on the way in. -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
 </dict>
 </plist>
