@@ -5,25 +5,84 @@ import GRDB
 ///   to the main thread, which is exactly where reading-position writes must not happen.
 ///   GRDB's `DatabaseQueue` serializes access itself, so this type opts out of that default.
 public nonisolated final class AppDatabase: Sendable {
-    public static let shared: AppDatabase = {
+    /// Why the on-disk library could not be opened, when it could not be.
+    ///
+    /// A corrupt SQLite file, a migration that fails halfway or an unwritable Application
+    /// Support directory used to be a `fatalError`, which meant the app crashed on launch and
+    /// kept crashing: the reader had no way back in, and with iCloud sync off by default the
+    /// library, quotes and notes were only recoverable by deleting the app along with them.
+    /// The failure is reported instead, and `dipleApp` shows a recovery screen rather than
+    /// starting a session on top of a database that isn't there.
+    public struct StartupFailure: Sendable {
+        /// The database file that would not open, kept exactly where it was.
+        public let fileURL: URL?
+        public let reason: String
+    }
+
+    /// Opened once, together with whatever went wrong doing it, so both are immutable and
+    /// there is no shared mutable static to synchronise.
+    private static let opened: (database: AppDatabase, failure: StartupFailure?) = {
+        var fileURL: URL? = nil
         do {
-            let fileManager = FileManager.default
-            let appSupportURL = try fileManager.url(
+            let appSupportURL = try FileManager.default.url(
                 for: .applicationSupportDirectory,
                 in: .userDomainMask,
                 appropriateFor: nil,
                 create: true
             )
             let dbURL = appSupportURL.appendingPathComponent("diple.sqlite")
+            fileURL = dbURL
             var config = Configuration()
             config.qos = .userInitiated
             let dbQueue = try DatabaseQueue(path: dbURL.path, configuration: config)
-            let database = try AppDatabase(dbQueue, syncEnabled: true, signalsSyncService: true)
-            return database
+            return (try AppDatabase(dbQueue, syncEnabled: true, signalsSyncService: true), nil)
         } catch {
-            fatalError("Failed to initialize database: \(error)")
+            // A stand-in so `shared` stays non-optional and the recovery screen has something
+            // inert to be built against. Nothing reads it: the root view blocks on
+            // `startupFailure` before any screen that queries the library appears, and sync
+            // never starts, so an empty in-memory database is never mistaken for an empty
+            // library and never uploaded over the real one.
+            let failure = StartupFailure(fileURL: fileURL, reason: "\(error)")
+            if let standIn = try? AppDatabase(DatabaseQueue(), syncEnabled: false, signalsSyncService: false) {
+                return (standIn, failure)
+            }
+            // Reached only if SQLite cannot allocate an in-memory database, which means the
+            // process is already out of memory and has nothing left to run on.
+            fatalError("Failed to open an in-memory database: \(error)")
         }
     }()
+
+    public static var shared: AppDatabase { opened.database }
+
+    /// `nil` when the library opened normally.
+    public static var startupFailure: StartupFailure? { opened.failure }
+
+    /// Moves the unreadable database aside so the next launch starts a fresh library, keeping
+    /// the original file next to it — a database this app cannot open is not necessarily one
+    /// that nothing can, and deleting a reader's only copy of their quotes is not a recovery.
+    /// The renamed file is dated so a second attempt never overwrites the first.
+    ///
+    /// Reopening has to wait for the next launch: `shared` is resolved once per process.
+    public static func quarantineDatabaseFile() throws -> URL? {
+        guard let fileURL = startupFailure?.fileURL else { return nil }
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+
+        let stamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let quarantined = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("diple-unreadable-\(stamp).sqlite")
+
+        try fileManager.moveItem(at: fileURL, to: quarantined)
+        // The write-ahead log and shared memory file belong to the database that just moved;
+        // left behind, SQLite would try to replay them into the new one.
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = URL(fileURLWithPath: fileURL.path + suffix)
+            guard fileManager.fileExists(atPath: sidecar.path) else { continue }
+            try? fileManager.moveItem(at: sidecar, to: URL(fileURLWithPath: quarantined.path + suffix))
+        }
+        return quarantined
+    }
 
     private let writer: any DatabaseWriter
     private let syncEnabled: Bool

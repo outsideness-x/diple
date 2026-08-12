@@ -34,12 +34,23 @@ struct dipleApp: App {
                     .frame(minWidth: 980, minHeight: 680)
                     .preferredColorScheme(.dark)
                 #else
-                RootTabView()
-                    .preferredColorScheme(.dark)
+                // A library that would not open used to crash the app on launch. Now the
+                // reader gets told, and nothing that queries the database is put on screen.
+                if let failure = AppDatabase.startupFailure {
+                    DatabaseUnavailableView(failure: failure)
+                        .preferredColorScheme(.dark)
+                } else {
+                    RootTabView()
+                        .preferredColorScheme(.dark)
+                }
                 #endif
             }
             .id(settingsManager.settings.accent)
             .task {
+                // Notifications and sync both read the library; with no library to read,
+                // starting them would only mean uploading an empty one over the real thing.
+                guard AppDatabase.startupFailure == nil else { return }
+
                 await DailyResurfacingService.shared.reconcileNotifications()
                 // Reconciles the icon against whatever accent is already in `settings` before
                 // touching the network: this is a local operation and has no reason to wait on
