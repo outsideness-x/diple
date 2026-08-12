@@ -327,7 +327,18 @@ public struct LibraryView: View {
 private struct ContinueReadingCard: View {
     let book: Book
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 72
+
+    /// The thumbnail scales with Dynamic Type so it stays in proportion to the title beside
+    /// it, but only up to a point: this is a side-by-side card, and every point the cover
+    /// takes comes out of the text's measure. Unclamped it reached ~140 pt at accessibility
+    /// sizes, leaving the title barely a word per line — "A" over "Simplifie…" — and the
+    /// byline truncated to "James O'…". Past about half again its size the cover has stopped
+    /// helping anyone recognise the book and started hiding its name.
+    private var clampedCoverWidth: CGFloat {
+        min(coverWidth, 108)
+    }
 
     private var clampedProgress: CGFloat {
         CGFloat(min(max(book.progress, 0), 1))
@@ -341,14 +352,16 @@ private struct ContinueReadingCard: View {
                 author: book.author,
                 isCompact: true
             )
-            .frame(width: coverWidth, height: coverWidth * 1.5)
+            .frame(width: clampedCoverWidth, height: clampedCoverWidth * 1.5)
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 VStack(alignment: .leading, spacing: DipleSpace.xs) {
                     Text(book.title)
                         .dipleType(.headline)
                         .foregroundStyle(DipleColor.textPrimary)
-                        .lineLimit(2)
+                        // Two lines hold a title at normal sizes and cut one in half at
+                        // accessibility sizes; the card is free to grow taller instead.
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
                         .multilineTextAlignment(.leading)
 
                     BookSubtitleView(book: book)

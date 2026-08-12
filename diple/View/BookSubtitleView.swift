@@ -9,12 +9,14 @@ import SwiftUI
 public struct BookSubtitleView: View {
     public let book: Book
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     public init(book: Book) {
         self.book = book
     }
 
     public var body: some View {
-        HStack(spacing: DipleSpace.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: DipleSpace.xs) {
             if book.isArticle {
                 Image(systemName: "link")
                     .dipleIcon(9, weight: .semibold)
@@ -24,7 +26,11 @@ public struct BookSubtitleView: View {
             Text(book.subtitle)
                 .dipleType(.caption)
                 .foregroundStyle(DipleColor.textTertiary)
-                .lineLimit(1)
+                // One line keeps the byline subordinate to the title at normal sizes. At
+                // accessibility sizes a single line fits about two words, so "James O'Brien ·
+                // towardsdatascience.com" became "James O'…" — a line that has stopped saying
+                // anything. It gets a second line there rather than a shorter ellipsis.
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .truncationMode(.tail)
         }
     }
