@@ -341,7 +341,11 @@ final class DipleTests: XCTestCase {
 
     func testBookContentIndexIsResumableAndSearchableSeparatelyFromMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
-        let book = Book(id: "content-book", title: "Пиранези", filePath: "Books/content-book/book.epub")
+        let book = Book(
+            id: "content-book",
+            title: "Пиранези",
+            filePath: "Books/content-book/Пиранези — Сюзанна Кларк.epub"
+        )
         try database.saveBook(book)
         let article = Book(
             id: "content-article",
@@ -373,7 +377,8 @@ final class DipleTests: XCTestCase {
         let results = try database.search("Дворы")
         XCTAssertEqual(results.map(\.kind), [.bookContent])
         XCTAssertEqual(results.first?.bookID, book.id)
-        XCTAssertEqual(results.first?.title, "Зала Первая")
+        XCTAssertEqual(results.first?.title, "Пиранези — Сюзанна Кларк.epub")
+        XCTAssertEqual(results.first?.subtitle, "Зала Первая")
         XCTAssertNotNil(results.first?.parsedLocator)
 
         // Re-indexing (the resumable sweep landing on a book a second time, or a future

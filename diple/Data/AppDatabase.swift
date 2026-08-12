@@ -745,12 +745,14 @@ public nonisolated final class AppDatabase: Sendable {
                 db,
                 sql: """
                     SELECT
-                        rowid AS chunkID,
-                        bookID,
-                        chapterTitle,
-                        locatorJSON,
+                        bookContent.rowid AS chunkID,
+                        bookContent.bookID,
+                        bookContent.chapterTitle,
+                        bookContent.locatorJSON,
+                        book.filePath AS bookFilePath,
                         snippet(bookContent, 5, '', '', ' … ', 20) AS snippet
                     FROM bookContent
+                    JOIN book ON book.id = bookContent.bookID
                     WHERE bookContent MATCH ?
                     ORDER BY bm25(bookContent, 0.0, 0.0, 3.0, 0.0, 0.0, 1.0)
                     LIMIT ?
@@ -765,12 +767,14 @@ public nonisolated final class AppDatabase: Sendable {
                 else { return nil }
 
                 let chapterTitle: String = row["chapterTitle"] ?? ""
+                let bookFilePath: String = row["bookFilePath"] ?? ""
+                let bookFileName = URL(fileURLWithPath: bookFilePath).lastPathComponent
                 return GlobalSearchResult(
                     kind: .bookContent,
                     entityID: String(chunkID),
                     bookID: bookID,
-                    title: chapterTitle.isEmpty ? "Untitled" : chapterTitle,
-                    subtitle: "",
+                    title: bookFileName.isEmpty ? "Untitled" : bookFileName,
+                    subtitle: chapterTitle,
                     snippet: row["snippet"] ?? "",
                     locatorJSON: locatorJSON
                 )
