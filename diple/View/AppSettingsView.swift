@@ -333,7 +333,10 @@ public struct AppSettingsView: View {
                                             Text("How diple handles your library and iCloud sync")
                                                 .dipleType(.caption)
                                                 .foregroundStyle(DipleColor.textTertiary)
+                                                .multilineTextAlignment(.leading)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
                                         }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
 
                                         Spacer(minLength: DipleSpace.s)
 

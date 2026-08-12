@@ -16,6 +16,8 @@ public struct SelectionColorBarView: View {
             Text("Highlight Quote")
                 .dipleType(.footnote, weight: .semibold)
                 .foregroundStyle(DipleColor.accent)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
 
             Spacer()
 
@@ -37,6 +39,7 @@ public struct SelectionColorBarView: View {
                     .accessibilityLabel(item.name)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Button {
                 HapticManager.shared.impact(.light)
