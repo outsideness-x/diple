@@ -13,11 +13,16 @@ public struct SelectionColorBarView: View {
 
     public var body: some View {
         HStack(spacing: DipleSpace.m) {
-            Text("Highlight Quote")
-                .dipleType(.footnote, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: DipleSpace.hair) {
+                Text("Highlight")
+                Text("Quote")
+            }
+            .dipleType(.footnote, weight: .semibold)
+            .foregroundStyle(DipleColor.accent)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Highlight Quote")
 
             Spacer()
 
