@@ -5,10 +5,16 @@ import SwiftUI
 /// because it also carries navigation to the passage.
 public struct QuoteCardView: View {
     public let quote: Highlight
+    public let onCommentRequest: (() -> Void)?
     public let onDeleteRequest: (() -> Void)?
 
-    public init(quote: Highlight, onDeleteRequest: (() -> Void)? = nil) {
+    public init(
+        quote: Highlight,
+        onCommentRequest: (() -> Void)? = nil,
+        onDeleteRequest: (() -> Void)? = nil
+    ) {
         self.quote = quote
+        self.onCommentRequest = onCommentRequest
         self.onDeleteRequest = onDeleteRequest
     }
 
@@ -20,6 +26,11 @@ public struct QuoteCardView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         return formatter.string(from: quote.createdAt)
+    }
+
+    private var comment: String? {
+        let trimmed = quote.comment?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty ?? true) ? nil : trimmed
     }
 
     public var body: some View {
@@ -36,9 +47,37 @@ public struct QuoteCardView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(formattedDate)
-                    .dipleType(.micro)
-                    .foregroundStyle(DipleColor.textQuaternary)
+                if let comment {
+                    HStack(alignment: .top, spacing: DipleSpace.s) {
+                        Image(systemName: "bubble.left")
+                            .dipleIcon(11, weight: .medium)
+                            .foregroundStyle(DipleColor.accent)
+
+                        Text(comment)
+                            .dipleType(.callout)
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                HStack(spacing: DipleSpace.m) {
+                    Text(formattedDate)
+                        .dipleType(.micro)
+                        .foregroundStyle(DipleColor.textQuaternary)
+
+                    Spacer()
+
+                    if let onCommentRequest {
+                        Button(action: onCommentRequest) {
+                            Label(comment == nil ? "Comment" : "Edit", systemImage: "bubble.left")
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(comment == nil ? "Add comment to quote" : "Edit quote comment")
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -52,11 +91,79 @@ public struct QuoteCardView: View {
                 Label("Copy Quote", systemImage: "doc.on.doc")
             }
 
+            if let onCommentRequest {
+                Button(action: onCommentRequest) {
+                    Label(comment == nil ? "Add Comment" : "Edit Comment", systemImage: "bubble.left")
+                }
+            }
+
             if let onDeleteRequest {
                 Button(role: .destructive, action: onDeleteRequest) {
                     Label("Delete Quote", systemImage: "trash")
                 }
             }
         }
+    }
+}
+
+/// A focused editor shared by the iPhone/iPad quote list and the Mac quote inspector.
+public struct QuoteCommentEditorView: View {
+    public let quote: Highlight
+    public let onSave: (String) -> Void
+    public let onCancel: () -> Void
+
+    @State private var comment: String
+
+    public init(
+        quote: Highlight,
+        onSave: @escaping (String) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.quote = quote
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self._comment = State(initialValue: quote.comment ?? "")
+    }
+
+    public var body: some View {
+        NavigationStack {
+            Form {
+                Section("Quote") {
+                    Text(quote.text)
+                        .dipleType(.readingCaption)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .lineLimit(4)
+                }
+
+                Section("Comment") {
+                    TextField("Your thoughts about this quote", text: $comment, axis: .vertical)
+                        .lineLimit(4...12)
+                        .textInputAutocapitalization(.sentences)
+                }
+
+                if quote.comment != nil {
+                    Section {
+                        Button("Remove Comment", role: .destructive) {
+                            onSave("")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(quote.comment == nil ? "Add Comment" : "Edit Comment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(comment)
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled()
     }
 }

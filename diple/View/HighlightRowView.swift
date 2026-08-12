@@ -53,6 +53,19 @@ public struct HighlightRowView: View {
                     .lineLimit(5)
             }
             .buttonStyle(.plain)
+
+            if let comment = highlight.comment, !comment.isEmpty {
+                HStack(alignment: .top, spacing: DipleSpace.s) {
+                    Image(systemName: "bubble.left")
+                        .dipleIcon(10, weight: .medium)
+                        .foregroundStyle(DipleColor.accent)
+
+                    Text(comment)
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .multilineTextAlignment(.leading)
+                }
+            }
         }
         .padding(DipleSpace.m)
         .craftSurface()

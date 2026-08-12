@@ -219,6 +219,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["bookID"] = highlight.bookId as CKRecordValue
         record["locator"] = highlight.locator as CKRecordValue
         record["text"] = highlight.text as CKRecordValue
+        record["comment"] = highlight.comment as CKRecordValue?
         record["colorHex"] = highlight.colorHex as CKRecordValue
         record["createdAt"] = highlight.createdAt as CKRecordValue
         record["bookTitle"] = highlight.bookTitle as CKRecordValue?
@@ -363,6 +364,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                     bookId: bookID,
                     locator: locator,
                     text: text,
+                    comment: record["comment"] as? String,
                     colorHex: colorHex,
                     createdAt: createdAt,
                     bookTitle: record["bookTitle"] as? String,

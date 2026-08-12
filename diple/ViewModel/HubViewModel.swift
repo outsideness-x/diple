@@ -73,6 +73,7 @@ public final class BookQuotesViewModel: ObservableObject {
     @Published public var showErrorAlert: Bool = false
     @Published public var quoteToDelete: Highlight? = nil
     @Published public var showDeleteConfirmation: Bool = false
+    @Published public var quoteForComment: Highlight? = nil
 
     private let bookId: String
     private var syncObserver: AnyCancellable?
@@ -97,6 +98,26 @@ public final class BookQuotesViewModel: ObservableObject {
     public func confirmDelete(_ quote: Highlight) {
         quoteToDelete = quote
         showDeleteConfirmation = true
+    }
+
+    public func beginEditingComment(_ quote: Highlight) {
+        quoteForComment = quote
+    }
+
+    public func cancelCommentEditing() {
+        quoteForComment = nil
+    }
+
+    public func saveComment(_ comment: String) {
+        guard let quote = quoteForComment else { return }
+        do {
+            try AppDatabase.shared.updateHighlightComment(id: quote.id, comment: comment)
+            quoteForComment = nil
+            load()
+        } catch {
+            errorMessage = "Failed to save comment: \(error.localizedDescription)"
+            showErrorAlert = true
+        }
     }
 
     public func deleteConfirmedQuote() {

@@ -39,6 +39,18 @@ public struct DailyResurfacingCard: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
 
+                    if let comment = item.quote.comment, !comment.isEmpty {
+                        HStack(alignment: .top, spacing: DipleSpace.s) {
+                            Image(systemName: "bubble.left")
+                                .dipleIcon(10, weight: .medium)
+                                .foregroundStyle(DipleColor.accent)
+                            Text(comment)
+                                .dipleType(.caption)
+                                .foregroundStyle(DipleColor.textSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+
                     VStack(alignment: .leading, spacing: DipleSpace.xs) {
                         Text(item.summary.title)
                             .dipleType(.footnote, weight: .semibold)

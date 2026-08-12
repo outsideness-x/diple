@@ -22,9 +22,11 @@ public struct BookQuotesView: View {
                     header
 
                     ForEach(viewModel.quotes) { quote in
-                        QuoteCardView(quote: quote) {
-                            viewModel.confirmDelete(quote)
-                        }
+                        QuoteCardView(
+                            quote: quote,
+                            onCommentRequest: { viewModel.beginEditingComment(quote) },
+                            onDeleteRequest: { viewModel.confirmDelete(quote) }
+                        )
                     }
                 }
                 .padding(.horizontal, DipleSpace.xl)
@@ -48,6 +50,13 @@ public struct BookQuotesView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This quote will be removed.")
+        }
+        .sheet(item: $viewModel.quoteForComment) { quote in
+            QuoteCommentEditorView(
+                quote: quote,
+                onSave: viewModel.saveComment,
+                onCancel: viewModel.cancelCommentEditing
+            )
         }
         .onAppear {
             viewModel.load()

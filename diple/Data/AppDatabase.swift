@@ -225,6 +225,14 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        /// Reader comments belong to the quote itself: they must survive deletion of the
+        /// source book and travel with the existing DipleHighlight CloudKit record.
+        migrator.registerMigration("v10_addHighlightComment") { db in
+            try db.alter(table: "highlight") { t in
+                t.add(column: "comment", .text)
+            }
+        }
+
         return migrator
     }
 
@@ -403,6 +411,21 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.read { db in
             try Highlight.filter(Column("bookId") == bookId).order(Column("createdAt").desc).fetchAll(db)
         }
+    }
+
+    public func updateHighlightComment(id: String, comment: String?, changedAt: Date = Date()) throws {
+        try writer.write { db in
+            guard var highlight = try Highlight.filter(Column("id") == id).fetchOne(db) else {
+                return
+            }
+            let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
+            highlight.comment = (trimmed?.isEmpty ?? true) ? nil : trimmed
+            try highlight.update(db)
+            let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
+            try indexHighlight(highlight, book: book, in: db)
+            try markLocalSave(.highlight, id: id, at: changedAt, in: db)
+        }
+        signalSyncIfNeeded()
     }
 
     /// Quotes are deliberately fetched independently of their books: a saved passage may
@@ -828,7 +851,13 @@ public nonisolated final class AppDatabase: Sendable {
                 INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
                 VALUES ('highlight', ?, ?, ?, ?, ?, '')
                 """,
-            arguments: [highlight.id, highlight.bookId, title, subtitle, highlight.text]
+            arguments: [
+                highlight.id,
+                highlight.bookId,
+                title,
+                subtitle,
+                [highlight.text, highlight.comment].compactMap { $0 }.joined(separator: " ")
+            ]
         )
     }
 

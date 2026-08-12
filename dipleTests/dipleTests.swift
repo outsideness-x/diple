@@ -293,12 +293,59 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(try database.search("한국").map(\.kind), [.note])
         XCTAssertNoThrow(try database.search(#"\"quoted-value\""#))
 
+        try database.updateHighlightComment(
+            id: highlight.id,
+            comment: "Мой комментарий о структуре доказательства"
+        )
+        XCTAssertEqual(
+            try database.fetchHighlights(forBookId: book.id).first?.comment,
+            "Мой комментарий о структуре доказательства"
+        )
+        XCTAssertEqual(try database.search("структур").map(\.kind), [.highlight])
+
         try database.updateBookMetadata(id: book.id, title: "Геометрия", author: "Борис")
         XCTAssertTrue(try database.search("Алгебра").isEmpty)
         XCTAssertEqual(try database.search("Геометр").map(\.kind), [.book])
 
         try database.deleteHighlight(id: highlight.id)
         XCTAssertTrue(try database.search("полином").isEmpty)
+    }
+
+    func testHighlightCommentNormalizesBlankTextAndQueuesSync() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(
+            id: "comment-book",
+            title: "Commented Book",
+            filePath: "Books/comment-book/book.epub",
+            addedAt: Date(timeIntervalSince1970: 50)
+        )
+        try database.saveBook(book)
+        let highlight = Highlight(
+            id: "comment-highlight",
+            bookId: book.id,
+            locator: "{}",
+            text: "A passage",
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+        try database.saveHighlight(highlight)
+
+        let changedAt = Date(timeIntervalSince1970: 200)
+        try database.updateHighlightComment(
+            id: highlight.id,
+            comment: "  A personal connection.  ",
+            changedAt: changedAt
+        )
+        XCTAssertEqual(
+            try database.fetchHighlightForSync(id: highlight.id)?.comment,
+            "A personal connection."
+        )
+        XCTAssertEqual(
+            try database.fetchSyncOutbox().first { $0.entity == .highlight }?.modifiedAt,
+            changedAt
+        )
+
+        try database.updateHighlightComment(id: highlight.id, comment: " \n ")
+        XCTAssertNil(try database.fetchHighlightForSync(id: highlight.id)?.comment)
     }
 
     func testFTSMatchQueryTreatsOnlyTheLastTokenAsAPrefix() throws {

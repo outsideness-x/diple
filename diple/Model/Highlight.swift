@@ -7,6 +7,9 @@ public struct Highlight: Codable, FetchableRecord, PersistableRecord, Identifiab
     public var bookId: String
     public var locator: String
     public var text: String
+    /// The reader's own thought attached to this saved passage. `nil` means no comment;
+    /// blank input is normalized to `nil` before persistence.
+    public var comment: String?
     public var colorHex: String
     public var createdAt: Date
     /// A copy of the book's title/author taken when the highlight is saved and kept current
@@ -20,6 +23,7 @@ public struct Highlight: Codable, FetchableRecord, PersistableRecord, Identifiab
         bookId: String,
         locator: String,
         text: String,
+        comment: String? = nil,
         colorHex: String = "#FFD60A",
         createdAt: Date = Date(),
         bookTitle: String? = nil,
@@ -29,6 +33,7 @@ public struct Highlight: Codable, FetchableRecord, PersistableRecord, Identifiab
         self.bookId = bookId
         self.locator = locator
         self.text = text
+        self.comment = comment
         self.colorHex = colorHex
         self.createdAt = createdAt
         self.bookTitle = bookTitle

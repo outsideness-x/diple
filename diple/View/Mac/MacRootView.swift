@@ -1059,6 +1059,17 @@ private struct MacQuotesInspector: View {
                             .dipleType(.readingBody)
                             .foregroundStyle(DipleColor.textPrimary)
                             .textSelection(.enabled)
+                        if let comment = quote.comment, !comment.isEmpty {
+                            HStack(alignment: .top, spacing: DipleSpace.s) {
+                                Image(systemName: "bubble.left")
+                                    .dipleIcon(10, weight: .medium)
+                                    .foregroundStyle(DipleColor.accent)
+                                Text(comment)
+                                    .dipleType(.caption)
+                                    .foregroundStyle(DipleColor.textSecondary)
+                                    .textSelection(.enabled)
+                            }
+                        }
                         Text(quote.createdAt.formatted(date: .abbreviated, time: .omitted))
                             .dipleType(.nano)
                             .foregroundStyle(DipleColor.textQuaternary)
@@ -1066,6 +1077,12 @@ private struct MacQuotesInspector: View {
                     .padding(DipleSpace.l)
                     .craftSurface()
                     .contextMenu {
+                        Button {
+                            model.beginEditingComment(quote)
+                        } label: {
+                            Label(quote.comment == nil ? "Add Comment" : "Edit Comment", systemImage: "bubble.left")
+                        }
+
                         Button(role: .destructive) {
                             model.confirmDelete(quote)
                         } label: {
@@ -1084,6 +1101,13 @@ private struct MacQuotesInspector: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This quote will be removed.")
+        }
+        .sheet(item: $model.quoteForComment) { quote in
+            QuoteCommentEditorView(
+                quote: quote,
+                onSave: model.saveComment,
+                onCancel: model.cancelCommentEditing
+            )
         }
     }
 }
