@@ -9,6 +9,8 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public let targetLink: ReadiumShared.Link?
     public let targetLocator: Locator?
     public let preferences: PDFPreferences
+    /// See `EPUBNavigatorRepresentable.hasSelection`.
+    public let hasSelection: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
     public let onCenterTap: () -> Void
@@ -22,6 +24,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         targetLink: ReadiumShared.Link? = nil,
         targetLocator: Locator? = nil,
         preferences: PDFPreferences = PDFPreferences(),
+        hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
         onCenterTap: @escaping () -> Void,
@@ -34,6 +37,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         self.targetLink = targetLink
         self.targetLocator = targetLocator
         self.preferences = preferences
+        self.hasSelection = hasSelection
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
         self.onCenterTap = onCenterTap
@@ -80,6 +84,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             uiViewController.submitPreferences(preferences)
         }
 
+        context.coordinator.clearSelectionIfNeeded(hasSelection, in: uiViewController)
         context.coordinator.navigate(to: targetLink, or: targetLocator, in: uiViewController)
     }
 
@@ -88,7 +93,19 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         weak var navigator: PDFNavigatorViewController?
         var lastHref: AnyURL? = nil
         var lastPreferences: PDFPreferences? = nil
+        private var didClearSelection = false
         private var inFlightTarget: NavigationTarget? = nil
+
+        /// See `EPUBNavigatorRepresentable.Coordinator.clearSelectionIfNeeded`.
+        func clearSelectionIfNeeded(_ hasSelection: Bool, in navigator: PDFNavigatorViewController) {
+            guard !hasSelection else {
+                didClearSelection = false
+                return
+            }
+            guard !didClearSelection else { return }
+            didClearSelection = true
+            navigator.clearSelection()
+        }
 
         private enum NavigationTarget: Equatable {
             case link(ReadiumShared.Link)

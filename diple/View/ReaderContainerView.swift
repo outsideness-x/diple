@@ -61,6 +61,7 @@ public struct ReaderContainerView: View {
                         targetLink: viewModel.targetLink,
                         targetLocator: viewModel.targetLocator,
                         preferences: viewModel.settings.pdfPreferences,
+                        hasSelection: viewModel.currentSelection != nil,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
                             ReaderIdleTimerKeeper.shared.poke()
@@ -94,6 +95,7 @@ public struct ReaderContainerView: View {
                         highlights: viewModel.highlights,
                         tableOfContents: viewModel.tableOfContents,
                         preferences: viewModel.epubPreferences,
+                        hasSelection: viewModel.currentSelection != nil,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
                             ReaderIdleTimerKeeper.shared.poke()
@@ -291,9 +293,16 @@ public struct ReaderContainerView: View {
                 // minimum widened the stack — and with it the navigator — so the page reflowed
                 // under the reader every time a sentence was selected. An overlay is laid out
                 // inside its host and can never resize it.
+                //
+                // That same carrier is what dismisses the bar: a tap anywhere off it drops
+                // the selection, the way any transient popover closes. The tap is consumed
+                // rather than passed to the page, so dismissing never also turns a page or
+                // toggles the reader chrome — and `hasSelection` carries the same drop into
+                // the navigator, so the blue selection and the system edit menu go with it.
                 if viewModel.currentSelection != nil {
                     Color.clear
-                        .allowsHitTesting(false)
+                        .contentShape(Rectangle())
+                        .onTapGesture { viewModel.currentSelection = nil }
                         .overlay(alignment: .bottom) {
                             SelectionColorBarView { hexColor in
                                 viewModel.createHighlight(colorHex: hexColor)

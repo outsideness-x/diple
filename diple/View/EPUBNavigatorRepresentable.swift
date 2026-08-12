@@ -12,6 +12,10 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let highlights: [Highlight]
     public let tableOfContents: [ReadiumShared.Link]
     public let preferences: EPUBPreferences
+    /// Whether the app still considers a selection active. Dropping it clears the
+    /// publication's own selection too, so dismissing the highlight bar takes the blue
+    /// selection and the system edit menu with it.
+    public let hasSelection: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
     public let onCenterTap: () -> Void
@@ -27,6 +31,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         highlights: [Highlight] = [],
         tableOfContents: [ReadiumShared.Link] = [],
         preferences: EPUBPreferences,
+        hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
         onCenterTap: @escaping () -> Void,
@@ -41,6 +46,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.highlights = highlights
         self.tableOfContents = tableOfContents
         self.preferences = preferences
+        self.hasSelection = hasSelection
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
         self.onCenterTap = onCenterTap
@@ -96,6 +102,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         }
         
         context.coordinator.syncScrollTransition(for: uiViewController)
+        context.coordinator.clearSelectionIfNeeded(hasSelection, in: uiViewController)
         context.coordinator.navigate(to: targetLink, or: targetLocator, in: uiViewController)
 
         if context.coordinator.lastHighlights != highlights {
@@ -128,6 +135,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
         var lastHighlights: [Highlight]? = nil
+        private var didClearSelection = false
         private var pullTransition: ChapterPullTransitionController? = nil
         private var inFlightTarget: NavigationTarget? = nil
 
@@ -186,6 +194,20 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                 self?.inFlightTarget = nil
                 self?.parent.onTargetHandled()
             }
+        }
+
+        /// Mirrors the app's selection state back into the publication. `clearSelection()`
+        /// evaluates JavaScript in every loaded spread, and `updateUIViewController` runs on
+        /// every SwiftUI update, so the request is latched: it fires once per transition into
+        /// "nothing selected" rather than on every progress tick.
+        func clearSelectionIfNeeded(_ hasSelection: Bool, in navigator: EPUBNavigatorViewController) {
+            guard !hasSelection else {
+                didClearSelection = false
+                return
+            }
+            guard !didClearSelection else { return }
+            didClearSelection = true
+            navigator.clearSelection()
         }
 
         func syncScrollTransition(for navigator: EPUBNavigatorViewController) {
