@@ -6,6 +6,8 @@ public struct BookItemView: View {
     public let onEdit: () -> Void
     public let onDelete: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     public init(
         book: Book,
         onMarkAsFinished: @escaping () -> Void,
@@ -26,11 +28,11 @@ public struct BookItemView: View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
             BookCoverView(coverPath: book.coverPath, title: book.title, author: book.author)
 
-            // Title (1-2 lines)
+            // Title (1-2 lines, more once the type is large enough that two would cut it)
             Text(book.title)
                 .dipleType(.callout, weight: .semibold)
                 .foregroundStyle(DipleColor.textPrimary)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
                 .multilineTextAlignment(.leading)
 
             // Byline, or where the article was saved from

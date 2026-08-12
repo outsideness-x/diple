@@ -24,10 +24,17 @@ public struct LibraryView: View {
     @State private var sort: LibrarySort = .recentlyOpened
     @Namespace private var bookNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)
-    ]
+    /// A 140–180 pt column holds a two-line title at normal sizes and about one word of it at
+    /// accessibility sizes, where the grid kept its two columns and truncated instead —
+    /// "A Simplified View of th…". The card gets a full measure there and the grid gives up a
+    /// column, the same trade Notes already makes on a phone.
+    private var columns: [GridItem] {
+        dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.adaptive(minimum: 260), spacing: 20)]
+            : [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)]
+    }
 
     public init() {}
 
