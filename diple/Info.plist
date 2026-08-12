@@ -4,6 +4,11 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>diple.</string>
+	<!-- Declared here rather than answered by hand on every upload, which otherwise parks
+	     each build in "Missing Compliance". The app's only cryptography is HTTPS through the
+	     system stack when importing an article and CloudKit's own transport, both exempt. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
