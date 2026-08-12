@@ -282,18 +282,27 @@ public struct ReaderContainerView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // Selection Floating Color Bar Overlay
+                // Selection Floating Color Bar Overlay.
+                //
+                // Carried by a flexible `Color.clear` and attached as its overlay, because a
+                // `ZStack` sizes itself to its widest child: the bar's row of fixed circles
+                // and its `fixedSize` label give it a minimum width that a narrow phone or a
+                // large Dynamic Type size pushes past the screen, and as a plain sibling that
+                // minimum widened the stack — and with it the navigator — so the page reflowed
+                // under the reader every time a sentence was selected. An overlay is laid out
+                // inside its host and can never resize it.
                 if viewModel.currentSelection != nil {
-                    VStack {
-                        Spacer()
-                        SelectionColorBarView { hexColor in
-                            viewModel.createHighlight(colorHex: hexColor)
-                        } onCancel: {
-                            viewModel.currentSelection = nil
+                    Color.clear
+                        .allowsHitTesting(false)
+                        .overlay(alignment: .bottom) {
+                            SelectionColorBarView { hexColor in
+                                viewModel.createHighlight(colorHex: hexColor)
+                            } onCancel: {
+                                viewModel.currentSelection = nil
+                            }
+                            .padding(.bottom, DipleSpace.scrollBottom)
                         }
-                        .padding(.bottom, DipleSpace.scrollBottom)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
