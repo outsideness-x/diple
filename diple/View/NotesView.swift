@@ -4,6 +4,7 @@ import SwiftUI
 public struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
     @AppStorage("diple_notes_layout") private var storedLayout = NoteLayout.cards.rawValue
+    @AppStorage("diple_notes_overview_expanded") private var isOverviewExpanded = true
 
     /// Ties a card to the page it becomes, so the note expands out of the block the reader
     /// tapped instead of sliding in from the side.
@@ -114,31 +115,52 @@ public struct NotesView: View {
     }
 
     private var workspaceHeader: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.l) {
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text("YOUR THINKING SPACE")
-                    .dipleType(.nano)
-                    .foregroundStyle(DipleColor.accent)
+        VStack(alignment: .leading, spacing: isOverviewExpanded ? DipleSpace.l : 0) {
+            Button {
+                HapticManager.shared.selection()
+                withAnimation(DipleMotion.snappy) {
+                    isOverviewExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("YOUR THINKING SPACE")
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.accent)
 
-                Text("Ideas worth returning to.")
-                    .dipleType(.display)
-                    .foregroundStyle(DipleColor.textPrimary)
+                    Spacer()
 
-                Text("Keep thoughts close to the books that sparked them, then find the thread again in seconds.")
-                    .dipleType(.callout)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: isOverviewExpanded ? "chevron.up" : "chevron.down")
+                        .dipleIcon(12, weight: .semibold)
+                        .foregroundStyle(DipleColor.textTertiary)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isOverviewExpanded ? "Hide notes overview" : "Show notes overview")
 
-            HStack(spacing: 0) {
-                metric(value: viewModel.items.count, label: "notes")
-                metricDivider
-                metric(value: viewModel.totalWordCount, label: "words")
-                metricDivider
-                metric(value: viewModel.linkedCount, label: "linked")
+            if isOverviewExpanded {
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    Text("Ideas worth returning to.")
+                        .dipleType(.display)
+                        .foregroundStyle(DipleColor.textPrimary)
+
+                    Text("Keep thoughts close to the books that sparked them, then find the thread again in seconds.")
+                        .dipleType(.callout)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 0) {
+                    metric(value: viewModel.items.count, label: "notes")
+                    metricDivider
+                    metric(value: viewModel.totalWordCount, label: "words")
+                    metricDivider
+                    metric(value: viewModel.linkedCount, label: "linked")
+                }
+                .padding(DipleSpace.l)
+                .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            .padding(DipleSpace.l)
-            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
         }
         .padding(.horizontal, DipleSpace.xl)
         .padding(.top, DipleSpace.m)
