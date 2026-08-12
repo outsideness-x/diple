@@ -13,16 +13,23 @@ public struct SelectionColorBarView: View {
 
     public var body: some View {
         HStack(spacing: DipleSpace.m) {
-            VStack(alignment: .leading, spacing: DipleSpace.hair) {
-                Text("Highlight")
-                Text("Quote")
-            }
-            .dipleType(.footnote, weight: .semibold)
-            .foregroundStyle(DipleColor.accent)
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: true)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Highlight Quote")
+            // One Text with a break rather than two stacked ones: `minimumScaleFactor` is
+            // resolved per Text, so as separate views the words shrank by different amounts
+            // and the label came out as a small "Highli…" above a full-size "Quote".
+            Text("Highlight\nQuote")
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.accent)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                // Horizontally compressible on purpose. Held at its ideal width, the label
+                // gave the bar a minimum wider than a narrow phone at large Dynamic Type
+                // sizes, and a sibling in the reader's ZStack that cannot shrink widens the
+                // stack — which used to drag the page itself wider (see ReaderContainerView).
+                // The colours are the control and keep their size; the label is what gives
+                // way, and it shrinks rather than truncating so it stays words, not fragments.
+                .minimumScaleFactor(0.6)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel("Highlight Quote")
 
             Spacer()
 
