@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import OSLog
 import WebKit
 import ReadiumShared
 import ReadiumNavigator
@@ -225,7 +226,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         }
 
         public func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
-            print("Readium navigator error: \(error)")
+            ReaderLog.navigator.error("EPUB navigator error: \(error, privacy: .public)")
         }
 
         public func navigator(_ navigator: EPUBNavigatorViewController, setupUserScripts userContentController: WKUserContentController) {

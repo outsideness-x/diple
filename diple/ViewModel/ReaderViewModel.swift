@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import OSLog
 import SwiftUI
 import ReadiumShared
 import ReadiumStreamer
@@ -39,6 +40,17 @@ public final class ReaderViewModel: ObservableObject {
 
     private var persistTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
+    /// The reading position is written on a timer as the page scrolls, so a failing write
+    /// fails repeatedly. The reader is told once and then left to read.
+    private var hasReportedProgressFailure = false
+
+    /// `print` goes nowhere in a shipped build. These are the failures behind a quote that
+    /// did not save or a position that did not stick, which is exactly what a bug report
+    /// needs to name.
+    fileprivate static let log = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "diple",
+        category: "reader"
+    )
 
     private let httpClient = DefaultHTTPClient()
     private lazy var assetRetriever = AssetRetriever(httpClient: httpClient)
@@ -70,7 +82,10 @@ public final class ReaderViewModel: ObservableObject {
         do {
             self.highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
         } catch {
-            print("Failed to fetch highlights: \(error)")
+            // Saying nothing would show the book with none of its quotes on it, which reads
+            // as "they are gone" rather than "they could not be read".
+            Self.log.error("Failed to fetch highlights: \(error, privacy: .public)")
+            showToast("Could not load your quotes")
         }
     }
 
@@ -78,7 +93,8 @@ public final class ReaderViewModel: ObservableObject {
         do {
             self.bookmarks = try AppDatabase.shared.fetchBookmarks(forBookId: book.id)
         } catch {
-            print("Failed to fetch bookmarks: \(error)")
+            Self.log.error("Failed to fetch bookmarks: \(error, privacy: .public)")
+            showToast("Could not load your bookmarks")
         }
     }
 
@@ -195,13 +211,16 @@ public final class ReaderViewModel: ObservableObject {
         persistTask?.cancel()
         persistTask = nil
         guard let payload = progressPayload() else { return }
-        Self.write(payload)
+        // Called as the reader closes: there is no longer a page to put a toast on, and the
+        // failure is already in the log.
+        _ = Self.write(payload)
     }
 
     private func persistProgress() {
         guard let payload = progressPayload() else { return }
-        Task.detached(priority: .utility) {
-            Self.write(payload)
+        Task.detached(priority: .utility) { [weak self] in
+            guard !Self.write(payload) else { return }
+            await self?.reportProgressFailure()
         }
     }
 
@@ -220,16 +239,28 @@ public final class ReaderViewModel: ObservableObject {
         let locator: String?
     }
 
-    private nonisolated static func write(_ payload: ProgressPayload) {
+    /// Returns whether the position actually reached the database.
+    @discardableResult
+    private nonisolated static func write(_ payload: ProgressPayload) -> Bool {
         do {
             try AppDatabase.shared.updateReadingProgress(
                 id: payload.bookId,
                 progress: payload.progress,
                 locator: payload.locator
             )
+            return true
         } catch {
-            print("Failed to save reading progress: \(error)")
+            log.error("Failed to save reading progress: \(error, privacy: .public)")
+            return false
         }
+    }
+
+    /// Losing the reading position is worth knowing about — reopening the book somewhere
+    /// else is otherwise inexplicable — but only once: the write repeats as the page scrolls.
+    private func reportProgressFailure() {
+        guard !hasReportedProgressFailure else { return }
+        hasReportedProgressFailure = true
+        showToast("Could not save your place")
     }
 
     public func pushBackLocation(_ locator: Locator) {
@@ -322,12 +353,15 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     public func addBookmark(name: String, colorHex: String) {
+        // Both of these end a tap on "Save" with nothing on screen unless they say so.
         guard let locator = currentLocator ?? initialLocator else {
-            print("Cannot add bookmark: no current locator")
+            Self.log.error("Cannot add bookmark: no current locator")
+            showToast("Could not save bookmark")
             return
         }
         guard let locatorJson = (try? locator.jsonString()) else {
-            print("Cannot add bookmark: failed to serialize locator")
+            Self.log.error("Cannot add bookmark: failed to serialize locator")
+            showToast("Could not save bookmark")
             return
         }
 
@@ -345,7 +379,7 @@ public final class ReaderViewModel: ObservableObject {
             HapticManager.shared.impact(.medium)
             showToast("Bookmark saved")
         } catch {
-            print("Failed to save bookmark: \(error)")
+            Self.log.error("Failed to save bookmark: \(error, privacy: .public)")
             showToast("Could not save bookmark")
         }
     }
@@ -355,7 +389,9 @@ public final class ReaderViewModel: ObservableObject {
             try AppDatabase.shared.deleteBookmark(id: bookmark.id)
             loadBookmarks()
         } catch {
-            print("Failed to delete bookmark: \(error)")
+            // The row stays on screen when this fails, so silence reads as an ignored tap.
+            Self.log.error("Failed to delete bookmark: \(error, privacy: .public)")
+            showToast("Could not delete bookmark")
         }
     }
 
@@ -379,7 +415,7 @@ public final class ReaderViewModel: ObservableObject {
             HapticManager.shared.impact(.light)
             showToast("Quote saved")
         } catch {
-            print("Failed to save highlight: \(error)")
+            Self.log.error("Failed to save highlight: \(error, privacy: .public)")
             showToast("Could not save quote")
         }
 
@@ -391,7 +427,8 @@ public final class ReaderViewModel: ObservableObject {
             try AppDatabase.shared.deleteHighlight(id: highlight.id)
             loadHighlights()
         } catch {
-            print("Failed to delete highlight: \(error)")
+            Self.log.error("Failed to delete highlight: \(error, privacy: .public)")
+            showToast("Could not delete quote")
         }
     }
 

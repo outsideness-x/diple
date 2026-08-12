@@ -1,7 +1,17 @@
 import SwiftUI
 import UIKit
+import OSLog
 import ReadiumShared
 import ReadiumNavigator
+
+/// Failures the navigators report but cannot act on. `print` does not reach the system log
+/// in a shipped build, which is the only place these are ever read from.
+enum ReaderLog {
+    static let navigator = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "diple",
+        category: "navigator"
+    )
+}
 
 public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public let publication: Publication
@@ -147,7 +157,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         }
 
         public func navigator(_ navigator: Navigator, presentError error: NavigatorError) {
-            print("Readium PDF navigator error: \(error)")
+            ReaderLog.navigator.error("PDF navigator error: \(error, privacy: .public)")
         }
 
         /// - Important: The parameter type must be `Navigator`, not `VisualNavigator`.
