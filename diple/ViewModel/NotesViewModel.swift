@@ -11,13 +11,66 @@ public struct NoteItem: Identifiable, Equatable, Hashable {
 
     public var id: String { note.id }
 
+    /// What a note is called on a card, in search and at the end of a wiki link.
+    ///
+    /// An explicit title wins, then the first heading. Failing both it takes the note's opening
+    /// line, which is what a note captured in a hurry actually is — every such note used to be
+    /// headlined "Untitled" with its real first line demoted to preview text underneath, so the
+    /// card spent its most prominent row saying nothing. It also meant every untitled note was
+    /// the same wiki-link target, since links resolve on this value.
     public var displayTitle: String {
         let explicit = note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !explicit.isEmpty { return explicit }
-        return NoteMarkdown.parse(note.body).compactMap { block in
+
+        let blocks = NoteMarkdown.parse(note.body)
+        if let heading = blocks.compactMap({ block -> String? in
             if case .heading(_, let text) = block { return text }
             return nil
-        }.first ?? "Untitled"
+        }).first {
+            return heading
+        }
+
+        let opening = NoteMarkdown.plainText(note.body)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !opening.isEmpty else { return "Untitled" }
+        return Self.shortened(opening)
+    }
+
+    /// The body as a card shows it, with whatever `displayTitle` already used taken off the
+    /// front.
+    ///
+    /// When a note has no title of its own the headline is its opening line, and printing the
+    /// body underneath unchanged made the card say the same words twice. This continues from
+    /// where the headline stopped instead; a one-line note is left with no preview at all,
+    /// which is correct — the headline already showed the whole note.
+    public var previewText: String {
+        let body = NoteMarkdown.plainText(note.body).trimmingCharacters(in: .whitespacesAndNewlines)
+        let explicit = note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard explicit.isEmpty else { return body }
+
+        let heading = NoteMarkdown.parse(note.body).contains { block in
+            if case .heading = block { return true }
+            return false
+        }
+        guard !heading else { return body }
+
+        let headline = displayTitle
+        // The headline is truncated at a word boundary, so match on the part before the
+        // ellipsis rather than on the whole string.
+        let consumed = headline.hasSuffix("…") ? String(headline.dropLast()) : headline
+        guard body.hasPrefix(consumed) else { return body }
+        return String(body.dropFirst(consumed.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A headline, not a paragraph: cut at a word boundary so it reads as a name rather than a
+    /// sentence that ran out of room.
+    private static func shortened(_ text: String, limit: Int = 60) -> String {
+        guard text.count > limit else { return text }
+        let clipped = text.prefix(limit)
+        if let lastSpace = clipped.lastIndex(of: " "), clipped.distance(from: clipped.startIndex, to: lastSpace) > limit / 2 {
+            return clipped[..<lastSpace].trimmingCharacters(in: .whitespaces) + "…"
+        }
+        return clipped.trimmingCharacters(in: .whitespaces) + "…"
     }
 }
 

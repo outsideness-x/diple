@@ -70,7 +70,7 @@ public struct NoteCardView: View {
     }
 
     private var preview: String {
-        NoteMarkdown.plainText(item.note.body)
+        item.previewText
     }
 
     private var taskProgress: (completed: Int, total: Int)? {

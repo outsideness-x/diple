@@ -432,7 +432,7 @@ public struct NoteDetailView: View {
                                 .dipleType(.footnote, weight: .semibold)
                                 .foregroundStyle(DipleColor.textPrimary)
                                 .lineLimit(1)
-                            Text(NoteMarkdown.plainText(note.note.body))
+                            Text(note.previewText)
                                 .dipleType(.caption)
                                 .foregroundStyle(DipleColor.textTertiary)
                                 .lineLimit(1)

@@ -359,8 +359,7 @@ private struct HomeRecentNoteRow: View {
     let item: NoteItem
 
     private var preview: String {
-        NoteMarkdown.plainText(item.note.body)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        item.previewText
     }
 
     var body: some View {
