@@ -38,6 +38,9 @@
 - Home использует существующие `LibraryViewModel`/`HubViewModel`/`NotesViewModel`, а не держит
   второй агрегированный snapshot. Поэтому импорт, CloudKit push и сохранение заметки сразу
   отражаются в тех же источниках истины, что Library, Highlights и Notes.
+- Карточка Continue на Home и обе точки входа в чтение из Library используют обратимый
+  `navigationTransition(.zoom)` между карточкой/обложкой и reader. При Reduce Motion остаётся
+  обычный push; source id должен быть стабильным id книги, а в Library ещё учитывать placement.
 
 ### Выделение в reader
 - Новое выделение сразу открывает один `HighlightEditorView`; системное selection menu и

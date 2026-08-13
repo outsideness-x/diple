@@ -15,6 +15,8 @@ public struct HomeView: View {
     @State private var isImportingLink = false
     @State private var isShowingSettings = false
     @State private var dailyQuoteDestination: BookQuoteSummary?
+    @Namespace private var readingNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
 
@@ -42,6 +44,7 @@ public struct HomeView: View {
                                     HomeContinueReadingCard(book: book)
                                 }
                                 .buttonStyle(.bookCard)
+                                .matchedTransitionSource(id: book.id, in: readingNamespace)
                             }
                         }
 
@@ -108,7 +111,7 @@ public struct HomeView: View {
                 }
             }
             .navigationDestination(for: Book.self) { book in
-                ReaderContainerView(book: book, onReadingUpdated: reload)
+                readerDestination(for: book)
             }
             .navigationDestination(for: NoteRoute.self) { route in
                 NoteDetailView(
@@ -246,6 +249,17 @@ public struct HomeView: View {
         library.loadBooks()
         highlights.load()
         notes.load()
+    }
+
+    @ViewBuilder
+    private func readerDestination(for book: Book) -> some View {
+        let reader = ReaderContainerView(book: book, onReadingUpdated: reload)
+
+        if reduceMotion {
+            reader
+        } else {
+            reader.navigationTransition(.zoom(sourceID: book.id, in: readingNamespace))
+        }
     }
 }
 
