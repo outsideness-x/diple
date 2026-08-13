@@ -56,7 +56,7 @@ public struct ReaderContainerView: View {
                     .cornerRadius(DipleRadius.s)
                 }
             } else if let publication = viewModel.publication {
-                if viewModel.book.filePath.lowercased().hasSuffix(".pdf") {
+                if viewModel.book.isPDF {
                     PDFNavigatorRepresentable(
                         publication: publication,
                         initialLocation: viewModel.initialLocator,

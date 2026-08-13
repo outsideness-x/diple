@@ -209,6 +209,7 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(fetchedBook.id, book.id)
         XCTAssertEqual(fetchedBook.title, book.title)
         XCTAssertEqual(fetchedBook.filePath, book.filePath)
+        XCTAssertEqual(fetchedBook.sourceKind, .epub)
         let groups = try database.fetchHighlightGroups()
         XCTAssertEqual(groups.map(\.bookId), [book.id])
         XCTAssertEqual(groups.first?.quoteCount, 1)
@@ -228,6 +229,29 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(try database.fetchBookmarks(forBookId: book.id).isEmpty)
         XCTAssertNil(try XCTUnwrap(database.fetchAllNotes().first).bookId)
         XCTAssertEqual(try database.fetchTagsByNote()[note.id], ["ideas", "한국어"])
+    }
+
+    func testPublicationKindIsInferredAndPersistedForEverySource() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let epub = Book(id: "epub", title: "Book", filePath: "Books/epub/book.epub")
+        let pdf = Book(id: "pdf", title: "Paper", filePath: "Books/pdf/paper.PDF")
+        let article = Book(
+            id: "article",
+            title: "Essay",
+            filePath: "Books/article/article.epub",
+            sourceURL: "https://example.org/essay"
+        )
+
+        try database.saveBook(epub)
+        try database.saveBook(pdf)
+        try database.saveBook(article)
+
+        let saved = try database.fetchAllBooks().reduce(into: [String: PublicationKind]()) {
+            $0[$1.id] = $1.sourceKind
+        }
+        XCTAssertEqual(saved[epub.id], .epub)
+        XCTAssertEqual(saved[pdf.id], .pdf)
+        XCTAssertEqual(saved[article.id], .article)
     }
 
     func testMarkingBookFinishedPreservesItsSavedLocation() throws {

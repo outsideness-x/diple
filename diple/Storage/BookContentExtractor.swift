@@ -46,7 +46,7 @@ public nonisolated enum BookContentExtractor {
             throw BookContentExtractionError.restrictedPublication
         }
 
-        if book.filePath.lowercased().hasSuffix(".pdf") {
+        if book.isPDF {
             return try extractPDFChunks(publication: publication, fileURL: fileURL)
         }
         return try await extractEPUBChunks(publication: publication)

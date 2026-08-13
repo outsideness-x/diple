@@ -292,6 +292,23 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        /// A web article is stored as an EPUB, which made file-extension checks lie about what
+        /// the reader had actually saved. Backfill the explicit kind from the two facts older
+        /// versions did preserve, then let all future imports and CloudKit records carry it.
+        migrator.registerMigration("v11_addBookSourceKind") { db in
+            try db.alter(table: "book") { t in
+                t.add(column: "sourceKind", .text).notNull().defaults(to: PublicationKind.epub.rawValue)
+            }
+            try db.execute(
+                sql: "UPDATE book SET sourceKind = ? WHERE lower(filePath) LIKE '%.pdf'",
+                arguments: [PublicationKind.pdf.rawValue]
+            )
+            try db.execute(
+                sql: "UPDATE book SET sourceKind = ? WHERE sourceURL IS NOT NULL",
+                arguments: [PublicationKind.article.rawValue]
+            )
+        }
+
         return migrator
     }
 

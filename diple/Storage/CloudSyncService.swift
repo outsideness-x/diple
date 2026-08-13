@@ -213,6 +213,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["progress"] = NSNumber(value: book.progress)
         record["locator"] = book.locator as CKRecordValue?
         record["sourceURL"] = book.sourceURL as CKRecordValue?
+        record["sourceKind"] = book.sourceKind.rawValue as CKRecordValue
     }
 
     private static func populate(highlight: Highlight, record: CKRecord) {
@@ -315,7 +316,8 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 lastOpenedAt: record["lastOpenedAt"] as? Date,
                 progress: (record["progress"] as? NSNumber)?.doubleValue ?? 0,
                 locator: record["locator"] as? String,
-                sourceURL: record["sourceURL"] as? String
+                sourceURL: record["sourceURL"] as? String,
+                sourceKind: (record["sourceKind"] as? String).flatMap(PublicationKind.init(rawValue:))
             )
             return try database.applyRemoteBook(book, modifiedAt: modifiedAt, systemFields: systemFields)
         case .bookAsset:
