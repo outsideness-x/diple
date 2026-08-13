@@ -58,7 +58,7 @@ public struct HomeView: View {
                                 } label: {
                                     HomeOpenCollectionRow(
                                         title: "All highlights",
-                                        detail: "(highlights.totalQuoteCount) saved passages",
+                                        detail: "\(highlights.totalQuoteCount) saved passages",
                                         systemImage: "quote.opening"
                                     )
                                 }
