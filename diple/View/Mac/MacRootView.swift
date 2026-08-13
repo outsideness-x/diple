@@ -324,6 +324,8 @@ public struct MacRootView: View {
                 item: currentItem,
                 books: notes.books,
                 suggestedTags: notes.allTags,
+                allNotes: notes.items,
+                onOpenNote: { detail = .note($0) },
                 onSave: { note, tags in notes.save(note, tags: tags) },
                 onDelete: {
                     notes.delete(currentItem)
@@ -1116,6 +1118,9 @@ private struct MacNoteInspector: View {
     let item: NoteItem
     let books: [Book]
     let suggestedTags: [String]
+    /// Wiki links resolve against these, exactly as they do on the phone.
+    let allNotes: [NoteItem]
+    let onOpenNote: (NoteItem) -> Void
     let onSave: (Note, [String]) -> Bool
     let onDelete: () -> Void
 
@@ -1168,12 +1173,16 @@ private struct MacNoteInspector: View {
         item: NoteItem,
         books: [Book],
         suggestedTags: [String],
+        allNotes: [NoteItem],
+        onOpenNote: @escaping (NoteItem) -> Void,
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping () -> Void
     ) {
         self.item = item
         self.books = books
         self.suggestedTags = suggestedTags
+        self.allNotes = allNotes
+        self.onOpenNote = onOpenNote
         self.onSave = onSave
         self.onDelete = onDelete
 
@@ -1282,6 +1291,15 @@ private struct MacNoteInspector: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.bottom, DipleSpace.xxxl)
                     }
+                    // Without this the private wiki-link scheme escapes to the system, which
+                    // has nothing registered for it — the link would look live and do nothing,
+                    // or worse, hand the URL to another app. Resolution matches the phone's.
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard let title = NoteMarkdown.wikiLinkTitle(from: url) else { return .systemAction }
+                        guard let target = note(titled: title) else { return .handled }
+                        onOpenNote(target)
+                        return .handled
+                    })
                 } else {
                     VStack(alignment: .leading, spacing: DipleSpace.s) {
                         macFormattingBar
@@ -1548,6 +1566,17 @@ private struct MacNoteInspector: View {
             isLineCommand: line
         )
         isBodyFocused = true
+    }
+
+    /// Resolved the same way `NoteKnowledge` builds the Connections list, so following a link
+    /// and appearing under "Linked notes" cannot disagree about what a title matches.
+    private func note(titled title: String) -> NoteItem? {
+        let target = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return allNotes.first { candidate in
+            candidate.id != item.id
+                && candidate.displayTitle
+                    .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == target
+        }
     }
 
     private func presentFormulaComposer() {
