@@ -5,12 +5,18 @@ import SwiftUI
 public enum NoteRoute: Hashable {
     case existing(NoteItem)
     case new
+    case newFromSource(Book)
 
     public var item: NoteItem? {
         switch self {
         case .existing(let item): return item
-        case .new: return nil
+        case .new, .newFromSource: return nil
         }
+    }
+
+    public var initialBookId: String? {
+        if case .newFromSource(let book) = self { return book.id }
+        return nil
     }
 }
 
@@ -71,7 +77,7 @@ public struct NoteDetailView: View {
         _title = State(initialValue: item?.note.title ?? "")
         _body_ = State(initialValue: item?.note.body ?? "")
         _tags = State(initialValue: item?.tags ?? [])
-        _selectedBookId = State(initialValue: item?.note.bookId)
+        _selectedBookId = State(initialValue: item?.note.bookId ?? route.initialBookId)
         _draftID = State(initialValue: item?.id ?? UUID().uuidString)
         _lastSavedSnapshot = State(initialValue: Self.snapshot(
             title: item?.note.title ?? "",

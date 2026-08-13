@@ -19,6 +19,7 @@ public struct LibraryView: View {
     @State private var isLinkImporterPresented = false
 
     @State private var isAppSettingsPresented = false
+    @State private var overviewBook: Book?
     @State private var searchText = ""
     @State private var filter: LibraryFilter = .all
     @State private var sort: LibrarySort = .recentlyOpened
@@ -102,6 +103,9 @@ public struct LibraryView: View {
                                                     book: book,
                                                     onMarkAsFinished: {
                                                         viewModel.markAsFinished(book)
+                                                    },
+                                                    onShowOverview: {
+                                                        overviewBook = book
                                                     },
                                                     onEdit: {
                                                         viewModel.bookToEdit = book
@@ -228,6 +232,11 @@ public struct LibraryView: View {
             .sheet(item: $viewModel.bookToEdit) { book in
                 EditBookMetadataView(book: book) { newTitle, newAuthor, coverData in
                     viewModel.updateMetadata(for: book.id, title: newTitle, author: newAuthor, coverData: coverData)
+                }
+            }
+            .sheet(item: $overviewBook) { book in
+                SourceOverviewView(book: book) {
+                    viewModel.loadBooks()
                 }
             }
         }

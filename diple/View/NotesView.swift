@@ -251,7 +251,7 @@ public struct NotesView: View {
         switch route {
         case .existing(let item):
             page.navigationTransition(.zoom(sourceID: item.id, in: cardNamespace))
-        case .new:
+        case .new, .newFromSource:
             page
         }
     }

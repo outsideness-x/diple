@@ -3,6 +3,7 @@ import SwiftUI
 public struct BookItemView: View {
     public let book: Book
     public let onMarkAsFinished: () -> Void
+    public let onShowOverview: () -> Void
     public let onEdit: () -> Void
     public let onDelete: () -> Void
 
@@ -11,11 +12,13 @@ public struct BookItemView: View {
     public init(
         book: Book,
         onMarkAsFinished: @escaping () -> Void,
+        onShowOverview: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.book = book
         self.onMarkAsFinished = onMarkAsFinished
+        self.onShowOverview = onShowOverview
         self.onEdit = onEdit
         self.onDelete = onDelete
     }
@@ -66,6 +69,12 @@ public struct BookItemView: View {
             .animation(DipleMotion.standard, value: clampedProgress)
         }
         .contextMenu {
+            Button {
+                onShowOverview()
+            } label: {
+                Label("Source Overview", systemImage: "info.circle")
+            }
+
             if book.progress < 0.995 {
                 Button {
                     onMarkAsFinished()

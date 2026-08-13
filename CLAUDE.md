@@ -26,6 +26,9 @@
 - `BookSubtitleView` показывает один монохромный SF Symbol для любого kind; яркие chips здесь
   создали бы три визуальных класса для сущностей, которые ведут в один reader. Library при
   этом фильтрует Books/PDFs/Articles отдельно — тип легко найти, но он не кричит на карточке.
+- Основной тап по Library card по-прежнему сразу открывает reader; Source Overview — вторичное
+  действие в context menu. Overview объединяет progress, highlights и notes одного source и
+  создаёт note через `.newFromSource(book)`, заранее проставляя связь без дополнительного picker.
 
 ### Home и навигация
 - На iPhone Home — первый экран и единственная верхнеуровневая точка ежедневного цикла:
