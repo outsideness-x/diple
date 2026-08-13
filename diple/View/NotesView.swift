@@ -13,8 +13,22 @@ public struct NotesView: View {
     /// stack the cards push onto.
     @State private var path = NavigationPath()
 
+    /// No maximum, deliberately.
+    ///
+    /// A cap of 360 pt only ever binds in one situation: a single column on a screen wider
+    /// than 360 + gutters. There the card stopped at 360 while the track was 400, and the
+    /// grid is `.leading`, so all 40 pt of slack collected on the right — 20 pt of margin on
+    /// the left against 60 on the right, with the search field and the screen title above
+    /// running to the true gutter. On a 393 pt phone the track is narrower than the cap, so
+    /// nothing showed; it only appeared on the large phones.
+    ///
+    /// The minimum is what carries the rule that matters (see CLAUDE.md): a card never
+    /// narrows past 240 pt, so a phone gets one full-measure column instead of two columns of
+    /// shredded text, while iPad and wide windows still get several. Those cases divide the
+    /// track evenly and land well under 360 on their own, so the cap was never doing work
+    /// there either.
     private let columns = [
-        GridItem(.adaptive(minimum: 240, maximum: 360), spacing: DipleSpace.m)
+        GridItem(.adaptive(minimum: 240), spacing: DipleSpace.m)
     ]
 
     private enum NoteLayout: String {
