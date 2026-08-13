@@ -28,6 +28,84 @@ public final class NoteSelectionBox {
     }
 }
 
+/// A slash command being typed: what has been entered after the `/`, where the whole thing
+/// sits in the text, and where the caret is so a menu can be put beside it.
+public struct NoteSlashContext: Equatable {
+    /// What follows the slash. Empty right after typing `/`, which is when the full list shows.
+    public let query: String
+    /// The `/query` itself, replaced wholesale when a command is chosen.
+    public let range: NSRange
+    /// Caret position in the text view's own coordinate space, so an overlay on the editor can
+    /// place a menu without converting between spaces.
+    public let caretRect: CGRect
+}
+
+/// One entry in the slash menu.
+///
+/// Deliberately expressed as the same prefix/suffix pair the formatting bar already uses, so a
+/// command means exactly what the corresponding button means. Two lists of "what a heading is"
+/// would drift the first time one of them was tuned.
+public struct NoteSlashCommand: Identifiable, Equatable {
+    public let id: String
+    public let title: String
+    public let systemImage: String
+    public let prefix: String
+    public let suffix: String
+    public let placeholder: String
+    public let isLineCommand: Bool
+    /// Extra words a reader might type to find this. "todo" should reach the task command even
+    /// though the command is called Task.
+    let keywords: [String]
+
+    public static let all: [NoteSlashCommand] = [
+        .init(id: "h1", title: "Heading", systemImage: "textformat.size.larger",
+              prefix: "# ", suffix: "", placeholder: "Heading", isLineCommand: true,
+              keywords: ["h1", "title"]),
+        .init(id: "h2", title: "Subheading", systemImage: "textformat.size",
+              prefix: "## ", suffix: "", placeholder: "Subheading", isLineCommand: true,
+              keywords: ["h2"]),
+        .init(id: "task", title: "Task", systemImage: "checklist",
+              prefix: "- [ ] ", suffix: "", placeholder: "Task", isLineCommand: true,
+              keywords: ["todo", "checkbox", "check"]),
+        .init(id: "bullet", title: "Bulleted list", systemImage: "list.bullet",
+              prefix: "- ", suffix: "", placeholder: "List item", isLineCommand: true,
+              keywords: ["ul", "list"]),
+        .init(id: "number", title: "Numbered list", systemImage: "list.number",
+              prefix: "1. ", suffix: "", placeholder: "List item", isLineCommand: true,
+              keywords: ["ol", "ordered"]),
+        .init(id: "quote", title: "Quote", systemImage: "text.quote",
+              prefix: "> ", suffix: "", placeholder: "Quote", isLineCommand: true,
+              keywords: ["blockquote"]),
+        .init(id: "callout", title: "Callout", systemImage: "sparkles",
+              prefix: "> [!NOTE] ", suffix: "", placeholder: "Note", isLineCommand: true,
+              keywords: ["note", "aside"]),
+        .init(id: "divider", title: "Divider", systemImage: "minus",
+              prefix: "---\n", suffix: "", placeholder: "", isLineCommand: true,
+              keywords: ["hr", "rule", "separator"]),
+        .init(id: "code", title: "Code", systemImage: "chevron.left.forwardslash.chevron.right",
+              prefix: "`", suffix: "`", placeholder: "code", isLineCommand: false,
+              keywords: ["monospace"]),
+        .init(id: "bold", title: "Bold", systemImage: "bold",
+              prefix: "**", suffix: "**", placeholder: "bold text", isLineCommand: false,
+              keywords: ["strong"]),
+        .init(id: "link", title: "Link", systemImage: "link",
+              prefix: "[", suffix: "](https://)", placeholder: "link title", isLineCommand: false,
+              keywords: ["url", "href"])
+    ]
+
+    /// Matches on the visible title first and the aliases second, both as prefixes rather than
+    /// as "contains": a menu that reorders itself around a substring buried mid-word feels
+    /// arbitrary, and typing is meant to narrow, not to shuffle.
+    public static func matching(_ query: String) -> [NoteSlashCommand] {
+        let needle = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        guard !needle.isEmpty else { return all }
+        return all.filter { command in
+            let title = command.title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            return title.hasPrefix(needle) || command.keywords.contains { $0.hasPrefix(needle) }
+        }
+    }
+}
+
 /// A selection-aware Markdown editor. SwiftUI's `TextEditor` does not expose its selection,
 /// which turns formatting controls into append-at-the-end buttons. Keeping the tiny UIKit
 /// bridge here lets bold, links and callouts wrap exactly what the writer selected.
@@ -39,6 +117,12 @@ public struct NoteEditorView: UIViewRepresentable {
     public let usesMonospacedFont: Bool
     public let editorAccessibilityLabel: String
     public let editorAccessibilityIdentifier: String
+    /// Reports a slash command being typed, and `nil` the moment it stops being one.
+    ///
+    /// A callback rather than another binding: this is nil almost always, and publishing it
+    /// only when it actually changes keeps the editor's per-keystroke cost where the rest of
+    /// this file worked to put it — see `NoteSelectionBox`.
+    public let onSlashChanged: ((NoteSlashContext?) -> Void)?
 
     public init(
         text: Binding<String>,
@@ -47,7 +131,8 @@ public struct NoteEditorView: UIViewRepresentable {
         minimumHeight: CGFloat = 280,
         usesMonospacedFont: Bool = false,
         accessibilityLabel: String = "Note body",
-        accessibilityIdentifier: String = "note.body"
+        accessibilityIdentifier: String = "note.body",
+        onSlashChanged: ((NoteSlashContext?) -> Void)? = nil
     ) {
         _text = text
         self.selection = selection
@@ -56,6 +141,7 @@ public struct NoteEditorView: UIViewRepresentable {
         self.usesMonospacedFont = usesMonospacedFont
         self.editorAccessibilityLabel = accessibilityLabel
         self.editorAccessibilityIdentifier = accessibilityIdentifier
+        self.onSlashChanged = onSlashChanged
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -142,6 +228,7 @@ public struct NoteEditorView: UIViewRepresentable {
         var measuredWidth: CGFloat?
         var measuredText: String?
         var measuredHeight: CGFloat?
+        var lastSlashContext: NoteSlashContext?
 
         init(parent: NoteEditorView) {
             self.parent = parent
@@ -187,11 +274,61 @@ public struct NoteEditorView: UIViewRepresentable {
             guard textView.markedTextRange == nil else { return }
             parent.selection.range = textView.selectedRange
             parent.text = textView.text
+            publishSlashContext(in: textView)
         }
 
         public func textViewDidChangeSelection(_ textView: UITextView) {
             // Deliberately does not touch SwiftUI state — see `NoteSelectionBox`.
             parent.selection.range = textView.selectedRange
+            // Moving the caret away from a half-typed command has to close the menu, so this
+            // runs here too — but only publishes on an actual change, so an ordinary caret
+            // move still costs nothing.
+            publishSlashContext(in: textView)
+        }
+
+        private func publishSlashContext(in textView: UITextView) {
+            guard let onSlashChanged = parent.onSlashChanged else { return }
+            let context = Self.slashContext(in: textView)
+            guard context != lastSlashContext else { return }
+            lastSlashContext = context
+            onSlashChanged(context)
+        }
+
+        /// Finds a `/command` being typed immediately before the caret.
+        ///
+        /// The slash has to open a word — at the start of a line or after a space — so a URL
+        /// or a date typed mid-sentence never opens a menu. Anything with a space in it has
+        /// stopped being a command and become prose.
+        static func slashContext(in textView: UITextView) -> NoteSlashContext? {
+            let source = textView.text as NSString
+            let caret = textView.selectedRange
+            guard caret.length == 0, caret.location <= source.length else { return nil }
+
+            let line = source.lineRange(for: NSRange(location: caret.location, length: 0))
+            var index = caret.location - 1
+            while index >= line.location {
+                let character = source.character(at: index)
+                if character == 47 { // "/"
+                    let opensWord = index == line.location
+                        || source.character(at: index - 1) == 32
+                        || source.character(at: index - 1) == 10
+                    guard opensWord else { return nil }
+                    let range = NSRange(location: index, length: caret.location - index)
+                    guard let start = textView.selectedTextRange?.start else { return nil }
+                    return NoteSlashContext(
+                        query: source.substring(with: NSRange(
+                            location: index + 1,
+                            length: caret.location - index - 1
+                        )),
+                        range: range,
+                        caretRect: textView.caretRect(for: start)
+                    )
+                }
+                // A space or newline before any slash means the caret is in ordinary prose.
+                if character == 32 || character == 10 { return nil }
+                index -= 1
+            }
+            return nil
         }
 
         public func textViewDidBeginEditing(_ textView: UITextView) {
@@ -291,6 +428,33 @@ private extension UITextView {
 }
 
 public enum NoteEditing {
+    /// Runs a slash command: removes the `/query` that summoned it, then applies the command
+    /// exactly as the matching formatting-bar button would.
+    ///
+    /// The two steps are separate on purpose. Deleting the trigger first means the command
+    /// operates on a line that no longer contains it, so a line command like `# ` measures the
+    /// real line rather than one with a stray `/heading` still in it.
+    public static func applySlash(
+        _ command: NoteSlashCommand,
+        replacing range: NSRange,
+        in text: inout String,
+        selection: NoteSelectionBox
+    ) {
+        let source = text as NSString
+        guard range.location >= 0, range.location + range.length <= source.length else { return }
+        text = source.replacingCharacters(in: range, with: "")
+        selection.range = NSRange(location: range.location, length: 0)
+
+        apply(
+            to: &text,
+            selection: selection,
+            prefix: command.prefix,
+            suffix: command.suffix,
+            placeholder: command.placeholder,
+            isLineCommand: command.isLineCommand
+        )
+    }
+
     /// Runs an editing command against the caret the editor is actually holding, and hands the
     /// resulting caret position back for the text view to adopt.
     public static func apply(

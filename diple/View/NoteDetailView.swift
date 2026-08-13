@@ -55,6 +55,7 @@ public struct NoteDetailView: View {
     @State private var selectedBookId: String?
     @State private var isBookPickerPresented = false
     @State private var isAddingTag = false
+    @State private var slashContext: NoteSlashContext?
     @State private var showDeleteConfirmation = false
     @State private var isBodyFocused = false
     @State private var selection = NoteSelectionBox()
@@ -580,8 +581,19 @@ public struct NoteDetailView: View {
                 // floor was put there to give the text somewhere to live while the tags sat
                 // below it; with the properties moved up there is nothing underneath to hold
                 // apart, and on a two-line note the floor was simply a hole in the page.
-                NoteEditorView(text: $body_, selection: selection, isFocused: $isBodyFocused)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                NoteEditorView(
+                    text: $body_,
+                    selection: selection,
+                    isFocused: $isBodyFocused,
+                    onSlashChanged: { slashContext = $0 }
+                )
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .noteSlashMenu(context: slashContext) { command in
+                    guard let context = slashContext else { return }
+                    NoteEditing.applySlash(command, replacing: context.range, in: &body_, selection: selection)
+                    slashContext = nil
+                    isBodyFocused = true
+                }
             }
         }
     }

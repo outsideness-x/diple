@@ -1142,6 +1142,7 @@ private struct MacNoteInspector: View {
     @State private var selection = NoteSelectionBox()
     @State private var isBodyFocused = false
     @State private var isPreviewing = false
+    @State private var slashContext: NoteSlashContext?
     @State private var isFormulaComposerPresented = false
     @State private var formulaSeed = ""
     @State private var formulaMode: NoteFormulaMode = .inline
@@ -1211,9 +1212,13 @@ private struct MacNoteInspector: View {
                 Circle()
                     .fill(saveState.color)
                     .frame(width: 6, height: 6)
+                    // Matches the phone: the dot swells while a write is pending so saving is
+                    // caught at the edge of vision rather than read.
+                    .scaleEffect(saveState == .saving ? 1.5 : 1)
                 Text(saveState.label)
                     .dipleType(.micro)
                     .foregroundStyle(saveState.color)
+                    .contentTransition(.opacity)
 
                 Spacer()
 
@@ -1303,8 +1308,19 @@ private struct MacNoteInspector: View {
                 } else {
                     VStack(alignment: .leading, spacing: DipleSpace.s) {
                         macFormattingBar
-                        NoteEditorView(text: $bodyText, selection: selection, isFocused: $isBodyFocused)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        NoteEditorView(
+                            text: $bodyText,
+                            selection: selection,
+                            isFocused: $isBodyFocused,
+                            onSlashChanged: { slashContext = $0 }
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .noteSlashMenu(context: slashContext) { command in
+                            guard let context = slashContext else { return }
+                            NoteEditing.applySlash(command, replacing: context.range, in: &bodyText, selection: selection)
+                            slashContext = nil
+                            isBodyFocused = true
+                        }
                     }
                 }
             }
