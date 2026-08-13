@@ -12,7 +12,7 @@ public struct DailyResurfacingItem: Identifiable, Equatable {
 @MainActor
 public final class DailyResurfacingViewModel: ObservableObject {
     @Published public private(set) var item: DailyResurfacingItem?
-    @Published public private(set) var canShowAnother = false
+    @Published public private(set) var dueCount = 0
     @Published public var errorMessage: String?
 
     public init() {
@@ -21,27 +21,17 @@ public final class DailyResurfacingViewModel: ObservableObject {
 
     public func load() {
         do {
-            guard let quote = try DailyResurfacingService.shared.quoteForToday() else {
+            let due = try AppDatabase.shared.fetchDueHighlights(limit: 5)
+            dueCount = due.count
+            guard let quote = due.first else {
                 item = nil
                 return
             }
             item = makeItem(for: quote)
-            canShowAnother = try DailyResurfacingService.shared.hasAnotherQuote()
         } catch {
             item = nil
-            canShowAnother = false
+            dueCount = 0
             errorMessage = "Failed to resurface a quote: \(error.localizedDescription)"
-        }
-    }
-
-    public func showAnother() {
-        do {
-            guard let quote = try DailyResurfacingService.shared.showAnotherQuote() else { return }
-            item = makeItem(for: quote)
-            canShowAnother = try DailyResurfacingService.shared.hasAnotherQuote()
-            HapticManager.shared.impact(.light)
-        } catch {
-            errorMessage = "Failed to resurface another quote: \(error.localizedDescription)"
         }
     }
 

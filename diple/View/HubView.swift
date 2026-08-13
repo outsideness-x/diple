@@ -4,6 +4,7 @@ import SwiftUI
 public struct HubView: View {
     @StateObject private var viewModel = HubViewModel()
     @State private var dailyQuoteDestination: BookQuoteSummary?
+    @State private var isReviewPresented = false
 
     public init() {}
 
@@ -17,9 +18,10 @@ public struct HubView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: DipleSpace.s) {
-                            DailyResurfacingCard { summary in
-                                dailyQuoteDestination = summary
-                            }
+                            DailyResurfacingCard(
+                                onReview: { isReviewPresented = true },
+                                onOpen: { dailyQuoteDestination = $0 }
+                            )
                             .padding(.bottom, DipleSpace.m)
 
                             ForEach(viewModel.summaries) { summary in
@@ -54,6 +56,9 @@ public struct HubView: View {
             }
             .navigationDestination(item: $dailyQuoteDestination) { summary in
                 BookQuotesView(summary: summary)
+            }
+            .navigationDestination(isPresented: $isReviewPresented) {
+                ReviewSessionView()
             }
             .alert("Error", isPresented: $viewModel.showErrorAlert) {
                 Button("OK", role: .cancel) {}
