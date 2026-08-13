@@ -35,11 +35,40 @@ public struct DailyResurfacingCard: View {
             .simultaneousGesture(swipeGesture, including: viewModel.canShowAnother ? .all : .subviews)
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous))
             .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
+            .background(alignment: .bottom) { deck }
             .accessibilityElement(children: .contain)
             .accessibilityAction(named: "Show another highlight") {
                 if viewModel.canShowAnother { showAnother(moving: -1) }
             }
             .onAppear(perform: viewModel.load)
+        }
+    }
+
+    /// The edge of the next card, showing under the current one.
+    ///
+    /// Swiping used to replace the quote in place, which reads as a value changing in a field —
+    /// nothing about the card said there was more behind it, so the gesture had to be
+    /// discovered from the "Another" button. A sliver of a second card underneath says "stack"
+    /// before anything is touched, and rises as the top card is dragged away.
+    ///
+    /// It carries no content on purpose. The view model resurfaces one quote at a time and has
+    /// no next item to show, and inventing one would mean reading ahead in a sequence the
+    /// service is entitled to change. An edge is honest about being an edge.
+    @ViewBuilder
+    private var deck: some View {
+        if viewModel.canShowAnother {
+            let progress = min(abs(dragOffset) / 72, 1)
+            RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
+                .fill(DipleColor.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
+                        .strokeBorder(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                )
+                // Sits a little narrower and a little lower, and closes both gaps as the top
+                // card leaves — the next one coming forward rather than a border appearing.
+                .padding(.horizontal, 14 - 14 * progress)
+                .offset(y: 10 - 4 * progress)
+                .allowsHitTesting(false)
         }
     }
 
