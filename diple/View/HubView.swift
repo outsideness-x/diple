@@ -1,11 +1,20 @@
 import SwiftUI
 
 /// Every highlight from every book in one place. Picking a book opens its full list.
+///
+/// The stack belongs to Home. SwiftUI keeps only the `navigationDestination` for a given type
+/// that is declared closest to the stack's root, so a second declaration here would be
+/// silently discarded — and it was: every book row was dead because Home's own declaration
+/// for `BookQuoteSummary` won and only answered to its own binding. Routes are therefore
+/// registered once, at the root, and this screen pushes onto the shared path.
 public struct HubView: View {
-    @StateObject private var viewModel = HubViewModel()
-    @State private var dailyQuoteDestination: BookQuoteSummary?
+    @Binding public var path: NavigationPath
 
-    public init() {}
+    @StateObject private var viewModel = HubViewModel()
+
+    public init(path: Binding<NavigationPath>) {
+        _path = path
+    }
 
     public var body: some View {
         ZStack {
@@ -16,7 +25,7 @@ public struct HubView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: DipleSpace.s) {
-                        DailyResurfacingCard { dailyQuoteDestination = $0 }
+                        DailyResurfacingCard { path.append($0) }
                             .padding(.bottom, DipleSpace.m)
 
                         ForEach(viewModel.summaries) { summary in
@@ -47,12 +56,6 @@ public struct HubView: View {
                         .monospacedDigit()
                 }
             }
-        }
-        .navigationDestination(for: BookQuoteSummary.self) { summary in
-            BookQuotesView(summary: summary)
-        }
-        .navigationDestination(item: $dailyQuoteDestination) { summary in
-            BookQuotesView(summary: summary)
         }
         .alert("Error", isPresented: $viewModel.showErrorAlert) {
             Button("OK", role: .cancel) {}

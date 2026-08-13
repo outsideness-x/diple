@@ -1,6 +1,13 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Home's own screens, as values rather than inline destination views. A view-based
+/// `NavigationLink` pushes content the stack's `path` cannot describe, which leaves
+/// programmatic and link-driven navigation disagreeing about what is on screen.
+public enum HomeRoute: Hashable {
+    case allHighlights
+}
+
 /// The useful front door to diple: resume something, capture something, or return to an idea.
 ///
 /// Library/Highlights/Notes used to be four equally weighted databases. Home turns the same
@@ -14,7 +21,12 @@ public struct HomeView: View {
     @State private var isImportingFile = false
     @State private var isImportingLink = false
     @State private var isShowingSettings = false
-    @State private var dailyQuoteDestination: BookQuoteSummary?
+    /// Every push in this tab goes through one path. A screen deeper in the stack cannot
+    /// register a route of its own: SwiftUI keeps only the declaration closest to the root
+    /// for a given type and drops the rest, which is exactly how the Highlights rows went
+    /// dead. One path here also lets a callback-driven card push the same route a
+    /// `NavigationLink` uses, instead of needing a parallel binding for the same type.
+    @State private var path = NavigationPath()
     @Namespace private var readingNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -29,7 +41,7 @@ public struct HomeView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
@@ -50,11 +62,9 @@ public struct HomeView: View {
 
                         if highlights.totalQuoteCount > 0 {
                             section("HIGHLIGHTS") {
-                                DailyResurfacingCard { dailyQuoteDestination = $0 }
+                                DailyResurfacingCard { path.append($0) }
 
-                                NavigationLink {
-                                    HubView()
-                                } label: {
+                                NavigationLink(value: HomeRoute.allHighlights) {
                                     HomeOpenCollectionRow(
                                         title: "All highlights",
                                         detail: "\(highlights.totalQuoteCount) saved passages",
@@ -123,8 +133,14 @@ public struct HomeView: View {
                     onDelete: { notes.delete($0) }
                 )
             }
-            .navigationDestination(item: $dailyQuoteDestination) { summary in
+            .navigationDestination(for: BookQuoteSummary.self) { summary in
                 BookQuotesView(summary: summary)
+            }
+            .navigationDestination(for: HomeRoute.self) { route in
+                switch route {
+                case .allHighlights:
+                    HubView(path: $path)
+                }
             }
             .fileImporter(
                 isPresented: $isImportingFile,
