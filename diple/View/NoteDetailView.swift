@@ -234,11 +234,17 @@ public struct NoteDetailView: View {
                         Circle()
                             .fill(saveState.color)
                             .frame(width: 6, height: 6)
+                            // The dot swells while a write is pending and settles when it
+                            // lands, so saving is something the writer catches at the edge of
+                            // vision rather than a word that quietly changes. Scaling leaves
+                            // the dot's own 6pt footprint alone, so the row never reflows.
+                            .scaleEffect(saveState == .saving ? 1.5 : 1)
                         Text(saveState.label)
                             .dipleType(.micro)
                             .foregroundStyle(saveState.color)
+                            .contentTransition(.opacity)
                     }
-                    .animation(DipleMotion.snappy, value: saveState.label)
+                    .animation(DipleMotion.snappy, value: saveState)
                 }
             }
 
