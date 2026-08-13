@@ -22,6 +22,12 @@ public struct BookCoverView: View {
         return CoverImageCache.shared.image(atRelativePath: coverPath)
     }
 
+    /// Sized from the cover rather than the type ramp: this glyph is the artwork, so it has to
+    /// hold the same proportion of a 44pt thumbnail and a full grid cell.
+    private func initialSize(for geometry: GeometryProxy) -> CGFloat {
+        min(geometry.size.width, geometry.size.height) * (isCompact ? 0.5 : 0.42)
+    }
+
     public var body: some View {
         GeometryReader { geometry in
             if let uiImage = loadedImage {
@@ -34,32 +40,31 @@ public struct BookCoverView: View {
             } else {
                 // A placeholder is cover art, not metadata. The full title and author already
                 // sit directly below a library cover; repeating them here creates a visual echo.
+                // What it does need is to be *distinguishable*, which a shared surface colour
+                // never was — see `DipleCoverArt`.
                 ZStack {
-                    LinearGradient(
-                        colors: [DipleColor.surfaceRaised, DipleColor.surface],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    DipleCoverArt.gradient(for: title)
 
-                    AccentWash(diameter: min(geometry.size.width, geometry.size.height))
-                        .offset(x: geometry.size.width * 0.2, y: -geometry.size.height * 0.2)
+                    Text(DipleCoverArt.initial(for: title))
+                        .font(.system(size: initialSize(for: geometry), weight: .semibold))
+                        .foregroundStyle(DipleCoverArt.ink(for: title))
+                        // The letter is a mark, not a word: it holds its size against Dynamic
+                        // Type instead of outgrowing the cover it is printed on.
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
 
-                    VStack(alignment: .leading, spacing: DipleSpace.s) {
-                        DipleMark(size: isCompact ? 18 : 28)
-                            .frame(
-                                maxWidth: isCompact ? .infinity : nil,
-                                maxHeight: isCompact ? .infinity : nil
-                            )
-
-                        if !isCompact {
+                    if !isCompact {
+                        VStack {
+                            HStack {
+                                DipleMark(size: 16)
+                                    .foregroundStyle(DipleCoverArt.ink(for: title))
+                                    .opacity(0.5)
+                                Spacer()
+                            }
                             Spacer()
-
-                            Text(String(title.prefix(1)).uppercased())
-                                .dipleType(.readingTitle)
-                                .foregroundStyle(DipleColor.textSecondary)
                         }
+                        .padding(DipleSpace.m)
                     }
-                    .padding(isCompact ? 0 : DipleSpace.m)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous))
                 .overlay(

@@ -31,10 +31,14 @@ public struct LibraryView: View {
     /// accessibility sizes, where the grid kept its two columns and truncated instead —
     /// "A Simplified View of th…". The card gets a full measure there and the grid gives up a
     /// column, the same trade Notes already makes on a phone.
+    /// `alignment: .top` is load-bearing. `GridItem` centres its cell by default, so a card
+    /// whose title runs to one line sat lower than its neighbour whose title ran to two — the
+    /// covers in a row started at different heights, which is the one thing a grid of covers
+    /// must not do. It reads as a rendering fault rather than as a choice.
     private var columns: [GridItem] {
         dynamicTypeSize.isAccessibilitySize
-            ? [GridItem(.adaptive(minimum: 260), spacing: 20)]
-            : [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20)]
+            ? [GridItem(.adaptive(minimum: 260), spacing: 20, alignment: .top)]
+            : [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 20, alignment: .top)]
     }
 
     public init() {}
