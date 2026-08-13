@@ -825,7 +825,17 @@ public struct NoteDetailView: View {
 
     private func toggleTask(_ task: NoteTask) {
         guard let updated = NoteMarkdown.togglingTask(atLine: task.lineIndex, in: body_) else { return }
-        HapticManager.shared.impact(.light)
+
+        // Clearing the last item is the end of something, not another tick, and the hand
+        // should hear the difference.
+        let progress = NoteMarkdown.taskProgress(in: updated)
+        let finishedTheList = progress.map { $0.completed == $0.total && $0.total > 0 } ?? false
+        if finishedTheList {
+            HapticManager.shared.notification(.success)
+        } else {
+            HapticManager.shared.impact(.light)
+        }
+
         body_ = updated
         saveTask?.cancel()
         _ = save(feedback: false)

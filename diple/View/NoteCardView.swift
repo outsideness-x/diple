@@ -106,17 +106,42 @@ public struct NoteCardView: View {
             }
 
             if let taskProgress {
+                let isDone = taskProgress.total == taskProgress.completed
                 VStack(alignment: .leading, spacing: DipleSpace.xs) {
                     HStack {
                         Text("\(taskProgress.completed) of \(taskProgress.total) complete")
+                            // The count is the thing that changed; rolling the digit says so
+                            // where a redraw only replaced it.
+                            .contentTransition(.numericText())
                         Spacer()
-                        Text(taskProgress.total == taskProgress.completed ? "Done" : "In progress")
+                        Text(isDone ? "Done" : "In progress")
+                            .contentTransition(.opacity)
                     }
                     .dipleType(.nano)
-                    .foregroundStyle(taskProgress.total == taskProgress.completed ? DipleColor.success : DipleColor.textQuaternary)
-                    ProgressView(value: Double(taskProgress.completed), total: Double(taskProgress.total))
-                        .tint(taskProgress.total == taskProgress.completed ? DipleColor.success : DipleColor.accent)
+                    .foregroundStyle(isDone ? DipleColor.success : DipleColor.textQuaternary)
+
+                    // A custom bar rather than ProgressView: the system one animates its own
+                    // way and cannot be brought onto the app's springs, so the last task
+                    // completing looked like a jump on a track that had been easing until then.
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(DipleColor.surfaceOverlay)
+                            Capsule()
+                                .fill(isDone ? DipleColor.success : DipleColor.accent)
+                                .frame(
+                                    width: geo.size.width
+                                        * (Double(taskProgress.completed) / Double(max(taskProgress.total, 1)))
+                                )
+                        }
+                    }
+                    .frame(height: 3)
                 }
+                // Finishing the list is a small event, so the whole group settles at once:
+                // the bar runs to the end, the label turns over and the colour changes
+                // together rather than as three separate redraws.
+                .animation(DipleMotion.standard, value: taskProgress.completed)
+                .animation(DipleMotion.standard, value: isDone)
             }
 
             if !item.tags.isEmpty || item.book != nil {
