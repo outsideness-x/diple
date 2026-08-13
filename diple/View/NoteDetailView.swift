@@ -54,6 +54,7 @@ public struct NoteDetailView: View {
     @State private var tagDraft: String = ""
     @State private var selectedBookId: String?
     @State private var isBookPickerPresented = false
+    @State private var isAddingTag = false
     @State private var showDeleteConfirmation = false
     @State private var isBodyFocused = false
     @State private var selection = NoteSelectionBox()
@@ -186,6 +187,13 @@ public struct NoteDetailView: View {
                 isBodyFocused = true
             }
             .id(formulaSessionID)
+        }
+        .alert("New tag", isPresented: $isAddingTag) {
+            TextField("Tag", text: $tagDraft)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Add") { commitTagDraft() }
+            Button("Cancel", role: .cancel) { tagDraft = "" }
         }
         .alert("Delete Note?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
@@ -532,12 +540,20 @@ public struct NoteDetailView: View {
     // MARK: - Editing
 
     private var editor: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.xxl) {
+        VStack(alignment: .leading, spacing: DipleSpace.l) {
             TextField("Title", text: $title, axis: .vertical)
                 .dipleType(.noteTitle)
                 .foregroundStyle(DipleColor.textPrimary)
                 .textInputAutocapitalization(.sentences)
                 .accessibilityIdentifier("note.title")
+
+            // Properties belong under the title, where a reader looks to find out what a
+            // document *is*, not at the far end of the page after the writing. They were a
+            // form at the bottom: to tag a note you had to scroll past your own text, and on
+            // a short note they floated in the middle of nothing. This is also what the Mac
+            // build has always done with its Properties block — the two were disagreeing
+            // about the same screen.
+            propertiesRow
 
             Rectangle()
                 .fill(DipleColor.separator)
@@ -545,18 +561,107 @@ public struct NoteDetailView: View {
 
             ZStack(alignment: .topLeading) {
                 if body_.isEmpty {
-                    Text("Start writing…")
-                        .dipleType(.noteBody)
-                        .foregroundStyle(DipleColor.textQuaternary)
-                        .allowsHitTesting(false)
+                    // Says what the writer can do, not merely that the field is empty. The
+                    // list rules and the formatting bar are both invisible until used, and a
+                    // blank "Start writing…" taught neither.
+                    VStack(alignment: .leading, spacing: DipleSpace.s) {
+                        Text("Start writing…")
+                            .dipleType(.noteBody)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                        Text("Begin a line with **-** for a list, **- [ ]** for a task, **#** for a heading, or **>** to quote. Return carries the list on.")
+                            .dipleType(.caption)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .allowsHitTesting(false)
                 }
 
+                // The body takes the room that is left rather than reserving 280 pt. That
+                // floor was put there to give the text somewhere to live while the tags sat
+                // below it; with the properties moved up there is nothing underneath to hold
+                // apart, and on a two-line note the floor was simply a hole in the page.
                 NoteEditorView(text: $body_, selection: selection, isFocused: $isBodyFocused)
-                    .frame(minHeight: 280, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+        }
+    }
+
+    /// Tags and the linked source, as one quiet line of properties under the title.
+    private var propertiesRow: some View {
+        FlowLayout(spacing: DipleSpace.s) {
+            ForEach(tags, id: \.self) { tag in
+                Button {
+                    HapticManager.shared.selection()
+                    tags.removeAll { $0 == tag }
+                } label: {
+                    HStack(spacing: DipleSpace.xs) {
+                        Text("#\(tag)")
+                            .dipleType(.caption, weight: .medium)
+                        Image(systemName: "xmark")
+                            .dipleIcon(9, weight: .bold)
+                    }
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .diplePadding(.chip)
+                    .background(DipleColor.surfaceOverlay, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove tag \(tag)")
             }
 
-            tagsSection
-            bookTagSection
+            if let book = selectedBook {
+                Button {
+                    HapticManager.shared.selection()
+                    selectedBookId = nil
+                } label: {
+                    HStack(spacing: DipleSpace.xs) {
+                        Image(systemName: "book.closed")
+                            .dipleIcon(10, weight: .medium)
+                        Text(book.title)
+                            .dipleType(.caption, weight: .medium)
+                            .lineLimit(1)
+                        Image(systemName: "xmark")
+                            .dipleIcon(9, weight: .bold)
+                    }
+                    .foregroundStyle(DipleColor.accent)
+                    .diplePadding(.chip)
+                    .background(DipleColor.accentSoft, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove book \(book.title)")
+            }
+
+            Menu {
+                Button {
+                    isBookPickerPresented = true
+                } label: {
+                    Label(selectedBook == nil ? "Link a source" : "Change source", systemImage: "book.closed")
+                }
+
+                if !unusedSuggestions.isEmpty {
+                    Divider()
+                    ForEach(unusedSuggestions.prefix(8), id: \.self) { tag in
+                        Button("#\(tag)") { tags.append(tag) }
+                    }
+                }
+
+                Divider()
+                Button {
+                    isAddingTag = true
+                } label: {
+                    Label("New tag", systemImage: "number")
+                }
+            } label: {
+                HStack(spacing: DipleSpace.xs) {
+                    Image(systemName: "plus")
+                        .dipleIcon(10, weight: .semibold)
+                    Text(tags.isEmpty && selectedBook == nil ? "Add tags or a source" : "Add")
+                        .dipleType(.caption, weight: .medium)
+                }
+                .foregroundStyle(DipleColor.textTertiary)
+                .diplePadding(.chip)
+                .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
+            }
+            .accessibilityLabel("Add tags or a source")
         }
     }
 
@@ -673,144 +778,6 @@ public struct NoteDetailView: View {
             .padding(.horizontal, DipleSpace.xs)
     }
 
-    private var tagsSection: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
-            sectionLabel("TAGS")
-
-            HStack(spacing: DipleSpace.s) {
-                TextField("Add a tag", text: $tagDraft)
-                    .dipleType(.callout)
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .onSubmit { commitTagDraft() }
-                    .submitLabel(.done)
-                    .diplePadding(.field)
-                    .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-
-                Button {
-                    commitTagDraft()
-                } label: {
-                    Image(systemName: "plus")
-                        .dipleIcon(14, weight: .semibold)
-                        .foregroundStyle(DipleColor.textOnAccent)
-                        .padding(DipleSpace.m)
-                        .background(DipleColor.accent, in: Circle())
-                }
-                .disabled(NoteTag.normalized(tagDraft) == nil)
-                .opacity(NoteTag.normalized(tagDraft) == nil ? 0.4 : 1)
-            }
-
-            if !tags.isEmpty {
-                FlowLayout(spacing: DipleSpace.s) {
-                    ForEach(tags, id: \.self) { tag in
-                        Button {
-                            HapticManager.shared.selection()
-                            tags.removeAll { $0 == tag }
-                        } label: {
-                            HStack(spacing: DipleSpace.xs) {
-                                Text("#\(tag)")
-                                    .dipleType(.caption, weight: .medium)
-                                Image(systemName: "xmark")
-                                    .dipleIcon(9, weight: .bold)
-                            }
-                            .foregroundStyle(DipleColor.textSecondary)
-                            .diplePadding(.chip)
-                            .background(DipleColor.surfaceOverlay, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            if !unusedSuggestions.isEmpty {
-                VStack(alignment: .leading, spacing: DipleSpace.s) {
-                    Text("Used before")
-                        .dipleType(.micro)
-                        .foregroundStyle(DipleColor.textQuaternary)
-
-                    FlowLayout(spacing: DipleSpace.s) {
-                        ForEach(unusedSuggestions, id: \.self) { tag in
-                            Button {
-                                HapticManager.shared.selection()
-                                tags.append(tag)
-                            } label: {
-                                TagChipView(label: tag, kind: .text)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(.top, DipleSpace.xs)
-            }
-        }
-    }
-
-    private var bookTagSection: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
-            sectionLabel("FROM LIBRARY")
-
-            // Two sibling buttons, not one nested in the other's label. The clear control used
-            // to be an onTapGesture inside this row's Button, where it could never fire — the
-            // enclosing Button takes the tap — so the only visible way to unlink a book
-            // silently opened the picker instead.
-            HStack(spacing: DipleSpace.m) {
-                Button {
-                    HapticManager.shared.selection()
-                    isBookPickerPresented = true
-                } label: {
-                    HStack(spacing: DipleSpace.m) {
-                        Image(systemName: "book.closed")
-                            .dipleIcon(14, weight: .medium)
-                            .foregroundStyle(DipleColor.accent)
-
-                        Text(selectedBook?.title ?? "Tag a book or file")
-                            .dipleType(.callout)
-                            .foregroundStyle(
-                                selectedBook == nil
-                                    ? DipleColor.textTertiary
-                                    : DipleColor.textPrimary
-                            )
-                            .lineLimit(1)
-
-                        Spacer(minLength: 0)
-
-                        if selectedBook == nil {
-                            Image(systemName: "chevron.right")
-                                .dipleIcon(12, weight: .semibold)
-                                .foregroundStyle(DipleColor.textQuaternary)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(selectedBook == nil ? "Tag a book or file" : "Change tagged book")
-
-                if selectedBook != nil {
-                    Button {
-                        HapticManager.shared.selection()
-                        selectedBookId = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .dipleIcon(15)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                            .frame(minWidth: 30, minHeight: 30)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.readerControl)
-                    .accessibilityLabel("Remove book tag")
-                }
-            }
-            .diplePadding(.field)
-            .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-        }
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .dipleType(.micro, weight: .semibold)
-            .foregroundStyle(DipleColor.textTertiary)
-    }
 
     // MARK: - Actions
 
