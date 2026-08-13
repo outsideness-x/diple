@@ -68,6 +68,18 @@ public struct GlobalSearchView: View {
         }
     }
 
+    /// Sections arrive one after another rather than all at once.
+    ///
+    /// A query resolves into up to five groups, and dropping them in on the same frame reads
+    /// as a flash — the eye gets no order to follow and has to re-scan from the top. Offsetting
+    /// each group by a beat gives the list a reading direction, and the delay is small enough
+    /// that the whole set is settled well inside the time it takes to look down. It is keyed to
+    /// the group's position, not to its arrival, so a section never re-runs its entrance while
+    /// the reader keeps typing.
+    private func staggerDelay(for kind: GlobalSearchKind) -> Double {
+        Double(GlobalSearchKind.allCases.firstIndex(of: kind) ?? 0) * 0.045
+    }
+
     private var resultsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.xxl) {
@@ -95,12 +107,19 @@ public struct GlobalSearchView: View {
                                 .buttonStyle(.bookCard)
                             }
                         }
+                        .transition(
+                            .opacity.combined(with: .offset(y: 8))
+                            .animation(DipleMotion.gentle.delay(staggerDelay(for: kind)))
+                        )
                     }
                 }
             }
             .padding(.horizontal, DipleSpace.xl)
             .padding(.top, DipleSpace.m)
             .padding(.bottom, DipleSpace.scrollBottom)
+            // Keyed to the results themselves, so a section entering or leaving as the query
+            // narrows is animated, while scrolling an unchanged list is not.
+            .animation(DipleMotion.gentle, value: viewModel.results)
         }
     }
 
