@@ -1,12 +1,39 @@
 import SwiftUI
 import UIKit
 
+/// Where the caret is, held outside SwiftUI's state.
+///
+/// The selection used to be a `@Binding NSRange`, and the caret moves on **every** keystroke.
+/// Each move wrote SwiftUI state, so a single character invalidated the note twice — once for
+/// the text and once for the caret — and each invalidation re-measured the entire note through
+/// `sizeThatFits`, which is a full TextKit layout pass. That is the typing lag.
+///
+/// Nothing on screen renders from the caret: it exists only so the formatting bar can wrap the
+/// words the writer actually selected, and the bar reads it at the moment a button is tapped.
+/// A reference type carries it with no invalidation at all. `pending` is the other direction —
+/// a caret position set by code rather than by the user, which the text view adopts on the next
+/// update and then forgets.
+public final class NoteSelectionBox {
+    public var range: NSRange
+    fileprivate var pending: NSRange?
+
+    public init(range: NSRange = NSRange(location: 0, length: 0)) {
+        self.range = range
+    }
+
+    /// Moves the caret from code. Editing commands use this after rewriting the text.
+    public func move(to range: NSRange) {
+        self.range = range
+        pending = range
+    }
+}
+
 /// A selection-aware Markdown editor. SwiftUI's `TextEditor` does not expose its selection,
 /// which turns formatting controls into append-at-the-end buttons. Keeping the tiny UIKit
 /// bridge here lets bold, links and callouts wrap exactly what the writer selected.
 public struct NoteEditorView: UIViewRepresentable {
     @Binding public var text: String
-    @Binding public var selection: NSRange
+    public let selection: NoteSelectionBox
     @Binding public var isFocused: Bool
     public let minimumHeight: CGFloat
     public let usesMonospacedFont: Bool
@@ -15,7 +42,7 @@ public struct NoteEditorView: UIViewRepresentable {
 
     public init(
         text: Binding<String>,
-        selection: Binding<NSRange>,
+        selection: NoteSelectionBox,
         isFocused: Binding<Bool>,
         minimumHeight: CGFloat = 280,
         usesMonospacedFont: Bool = false,
@@ -23,7 +50,7 @@ public struct NoteEditorView: UIViewRepresentable {
         accessibilityIdentifier: String = "note.body"
     ) {
         _text = text
-        _selection = selection
+        self.selection = selection
         _isFocused = isFocused
         self.minimumHeight = minimumHeight
         self.usesMonospacedFont = usesMonospacedFont
@@ -59,15 +86,32 @@ public struct NoteEditorView: UIViewRepresentable {
 
     public func updateUIView(_ view: UITextView, context: Context) {
         context.coordinator.parent = self
+
+        // Multi-stage input — Hangul jamo composing into a syllable, or any marked text from
+        // a candidate keyboard — lives in the text view until it is committed. Writing `text`
+        // or the selection back mid-composition tears it down and drops what was being typed.
+        guard view.markedTextRange == nil else { return }
+
         if view.text != text {
             view.text = text
+            // Assigning `text` collapses the caret; without a pending position of our own it
+            // belongs at the end of what was just written, not back at zero.
+            if selection.pending == nil {
+                selection.pending = NSRange(location: (text as NSString).length, length: 0)
+            }
         }
-        let safeLocation = min(selection.location, (text as NSString).length)
-        let safeLength = min(selection.length, (text as NSString).length - safeLocation)
-        let safeSelection = NSRange(location: safeLocation, length: safeLength)
-        if view.selectedRange != safeSelection {
-            view.selectedRange = safeSelection
+
+        if let pending = selection.pending {
+            let length = (view.text as NSString).length
+            let location = min(pending.location, length)
+            let safe = NSRange(location: location, length: min(pending.length, length - location))
+            if view.selectedRange != safe {
+                view.selectedRange = safe
+            }
+            selection.range = safe
+            selection.pending = nil
         }
+
         if isFocused && !view.isFirstResponder {
             view.becomeFirstResponder()
         } else if !isFocused && view.isFirstResponder {
@@ -75,25 +119,45 @@ public struct NoteEditorView: UIViewRepresentable {
         }
     }
 
+    /// Measuring a text view is a full layout of every line it holds, and SwiftUI asks for the
+    /// size far more often than the text changes. The answer is cached against the only two
+    /// inputs that can change it.
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
         guard let width = proposal.width else { return nil }
+        let cache = context.coordinator
+        if cache.measuredWidth == width, cache.measuredText == uiView.text, let height = cache.measuredHeight {
+            return CGSize(width: width, height: height)
+        }
         let measured = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        return CGSize(width: width, height: max(measured.height, minimumHeight))
+        let height = max(measured.height, minimumHeight)
+        cache.measuredWidth = width
+        cache.measuredText = uiView.text
+        cache.measuredHeight = height
+        return CGSize(width: width, height: height)
     }
 
     public final class Coordinator: NSObject, UITextViewDelegate {
         var parent: NoteEditorView
+
+        var measuredWidth: CGFloat?
+        var measuredText: String?
+        var measuredHeight: CGFloat?
 
         init(parent: NoteEditorView) {
             self.parent = parent
         }
 
         public func textViewDidChange(_ textView: UITextView) {
+            // Still composing: the text view holds provisional glyphs that are not yet the
+            // note's text, and publishing them starts an edit SwiftUI would try to write back.
+            guard textView.markedTextRange == nil else { return }
+            parent.selection.range = textView.selectedRange
             parent.text = textView.text
         }
 
         public func textViewDidChangeSelection(_ textView: UITextView) {
-            parent.selection = textView.selectedRange
+            // Deliberately does not touch SwiftUI state — see `NoteSelectionBox`.
+            parent.selection.range = textView.selectedRange
         }
 
         public func textViewDidBeginEditing(_ textView: UITextView) {
@@ -101,12 +165,49 @@ public struct NoteEditorView: UIViewRepresentable {
         }
 
         public func textViewDidEndEditing(_ textView: UITextView) {
+            // Composition is committed when editing ends; publish whatever it produced.
+            if parent.text != textView.text {
+                parent.text = textView.text
+            }
             parent.isFocused = false
         }
     }
 }
 
 public enum NoteEditing {
+    /// Runs an editing command against the caret the editor is actually holding, and hands the
+    /// resulting caret position back for the text view to adopt.
+    public static func apply(
+        to text: inout String,
+        selection: NoteSelectionBox,
+        prefix: String,
+        suffix: String = "",
+        placeholder: String,
+        isLineCommand: Bool = false
+    ) {
+        var range = selection.range
+        apply(
+            to: &text,
+            selection: &range,
+            prefix: prefix,
+            suffix: suffix,
+            placeholder: placeholder,
+            isLineCommand: isLineCommand
+        )
+        selection.move(to: range)
+    }
+
+    public static func insertFormula(
+        _ latex: String,
+        mode: NoteFormulaMode,
+        in text: inout String,
+        selection: NoteSelectionBox
+    ) {
+        var range = selection.range
+        insertFormula(latex, mode: mode, in: &text, selection: &range)
+        selection.move(to: range)
+    }
+
     /// Wraps the selection or inserts a useful placeholder, then selects the meaningful part
     /// so the next keystroke replaces it. Line commands operate on the whole current line.
     public static func apply(

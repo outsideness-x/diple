@@ -36,6 +36,11 @@ public struct NoteDetailView: View {
     public let onSave: (Note, [String]) -> Bool
     public let onDelete: (NoteItem) -> Void
 
+    /// The notes a wiki-link can point at. `allNotes` and `route` never change while this
+    /// screen is on screen, so this is settled once in `init` — computing it inside `body`
+    /// re-filtered the whole library and rebuilt a thirty-item menu on every keystroke.
+    private let linkableNotes: [NoteItem]
+
     @Environment(\.dismiss) private var dismiss
 
     @State private var isEditing: Bool
@@ -47,7 +52,7 @@ public struct NoteDetailView: View {
     @State private var isBookPickerPresented = false
     @State private var showDeleteConfirmation = false
     @State private var isBodyFocused = false
-    @State private var selection = NSRange(location: 0, length: 0)
+    @State private var selection = NoteSelectionBox()
     @State private var saveState: NoteSaveState = .saved
     @State private var saveTask: Task<Void, Never>?
     @State private var draftID: String
@@ -71,6 +76,7 @@ public struct NoteDetailView: View {
         self.allNotes = allNotes
         self.onSave = onSave
         self.onDelete = onDelete
+        self.linkableNotes = Array(allNotes.filter { $0.id != route.item?.id }.prefix(30))
 
         let item = route.item
         _isEditing = State(initialValue: item == nil)
@@ -171,7 +177,7 @@ public struct NoteDetailView: View {
         }
         .sheet(isPresented: $isFormulaComposerPresented) {
             NoteFormulaComposer(initialLatex: formulaSeed, initialMode: formulaMode) { mode, latex in
-                NoteEditing.insertFormula(latex, mode: mode, in: &body_, selection: &selection)
+                NoteEditing.insertFormula(latex, mode: mode, in: &body_, selection: selection)
                 isBodyFocused = true
             }
             .id(formulaSessionID)
@@ -206,15 +212,20 @@ public struct NoteDetailView: View {
     private var toolbarContent: some ToolbarContent {
         if isEditing {
             ToolbarItem(placement: .principal) {
-                HStack(spacing: DipleSpace.s) {
-                    Circle()
-                        .fill(saveState.color)
-                        .frame(width: 6, height: 6)
-                    Text(saveState.label)
-                        .dipleType(.micro)
-                        .foregroundStyle(saveState.color)
+                // An empty new note has never been written anywhere, so "Saved" would be a
+                // claim about a row that does not exist. The indicator appears once there is
+                // something a save could actually be about.
+                if canSave || route.item != nil {
+                    HStack(spacing: DipleSpace.s) {
+                        Circle()
+                            .fill(saveState.color)
+                            .frame(width: 6, height: 6)
+                        Text(saveState.label)
+                            .dipleType(.micro)
+                            .foregroundStyle(saveState.color)
+                    }
+                    .animation(DipleMotion.snappy, value: saveState.label)
                 }
-                .animation(DipleMotion.snappy, value: saveState.label)
             }
 
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -514,7 +525,7 @@ public struct NoteDetailView: View {
                         .allowsHitTesting(false)
                 }
 
-                NoteEditorView(text: $body_, selection: $selection, isFocused: $isBodyFocused)
+                NoteEditorView(text: $body_, selection: selection, isFocused: $isBodyFocused)
                     .frame(minHeight: 280, alignment: .topLeading)
             }
 
@@ -552,9 +563,9 @@ public struct NoteDetailView: View {
                 formatButton(systemImage: "link", accessibility: "Link") {
                     apply(prefix: "[", suffix: "](https://)", placeholder: "link title")
                 }
-                if !allNotes.filter({ $0.id != route.item?.id }).isEmpty {
+                if !linkableNotes.isEmpty {
                     Menu {
-                        ForEach(allNotes.filter { $0.id != route.item?.id }.prefix(30)) { note in
+                        ForEach(linkableNotes) { note in
                             Button(note.displayTitle) {
                                 apply(prefix: "[[", suffix: "]]", placeholder: note.displayTitle)
                             }
@@ -844,7 +855,7 @@ public struct NoteDetailView: View {
     ) {
         NoteEditing.apply(
             to: &body_,
-            selection: &selection,
+            selection: selection,
             prefix: prefix,
             suffix: suffix,
             placeholder: placeholder,
@@ -855,8 +866,8 @@ public struct NoteDetailView: View {
 
     private func presentFormulaComposer() {
         let source = body_ as NSString
-        let location = min(selection.location, source.length)
-        let length = min(selection.length, source.length - location)
+        let location = min(selection.range.location, source.length)
+        let length = min(selection.range.length, source.length - location)
         let selected = source.substring(with: NSRange(location: location, length: length))
         let formula = NoteMathParser.formulaSelection(from: selected)
         formulaSeed = formula.latex
@@ -886,7 +897,7 @@ public struct NoteDetailView: View {
             title = Date().formatted(date: .long, time: .omitted)
             body_ = "## What stayed with me\n\n\n\n## What changed my mind\n\n\n\n## What I want to explore next\n\n- [ ] "
         }
-        selection = NSRange(location: (body_ as NSString).length, length: 0)
+        selection.move(to: NSRange(location: (body_ as NSString).length, length: 0))
         isBodyFocused = true
     }
 }

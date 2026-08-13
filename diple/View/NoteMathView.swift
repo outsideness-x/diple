@@ -333,7 +333,7 @@ public struct NoteFormulaComposer: View {
     @Environment(\.dismiss) private var dismiss
     @State private var latex: String
     @State private var mode: NoteFormulaMode
-    @State private var selection = NSRange(location: 0, length: 0)
+    @State private var selection = NoteSelectionBox()
     @State private var isEditorFocused = true
 
     public init(
@@ -371,7 +371,7 @@ public struct NoteFormulaComposer: View {
 
                         NoteEditorView(
                             text: $latex,
-                            selection: $selection,
+                            selection: selection,
                             isFocused: $isEditorFocused,
                             minimumHeight: 116,
                             usesMonospacedFont: true,
@@ -396,7 +396,7 @@ public struct NoteFormulaComposer: View {
                                         HapticManager.shared.selection()
                                         NoteEditing.apply(
                                             to: &latex,
-                                            selection: &selection,
+                                            selection: selection,
                                             prefix: snippet.prefix,
                                             suffix: snippet.suffix,
                                             placeholder: snippet.placeholder

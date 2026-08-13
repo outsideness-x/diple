@@ -1134,7 +1134,7 @@ private struct MacNoteInspector: View {
     @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var isClosing = false
-    @State private var selection = NSRange(location: 0, length: 0)
+    @State private var selection = NoteSelectionBox()
     @State private var isBodyFocused = false
     @State private var isPreviewing = false
     @State private var isFormulaComposerPresented = false
@@ -1278,7 +1278,7 @@ private struct MacNoteInspector: View {
                 } else {
                     VStack(alignment: .leading, spacing: DipleSpace.s) {
                         macFormattingBar
-                        NoteEditorView(text: $bodyText, selection: $selection, isFocused: $isBodyFocused)
+                        NoteEditorView(text: $bodyText, selection: selection, isFocused: $isBodyFocused)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                 }
@@ -1304,7 +1304,7 @@ private struct MacNoteInspector: View {
         }
         .sheet(isPresented: $isFormulaComposerPresented) {
             NoteFormulaComposer(initialLatex: formulaSeed, initialMode: formulaMode) { mode, latex in
-                NoteEditing.insertFormula(latex, mode: mode, in: &bodyText, selection: &selection)
+                NoteEditing.insertFormula(latex, mode: mode, in: &bodyText, selection: selection)
                 isBodyFocused = true
             }
             .id(formulaSessionID)
@@ -1531,7 +1531,7 @@ private struct MacNoteInspector: View {
     ) {
         NoteEditing.apply(
             to: &bodyText,
-            selection: &selection,
+            selection: selection,
             prefix: prefix,
             suffix: suffix,
             placeholder: placeholder,
@@ -1542,8 +1542,8 @@ private struct MacNoteInspector: View {
 
     private func presentFormulaComposer() {
         let source = bodyText as NSString
-        let location = min(selection.location, source.length)
-        let length = min(selection.length, source.length - location)
+        let location = min(selection.range.location, source.length)
+        let length = min(selection.range.length, source.length - location)
         let selected = source.substring(with: NSRange(location: location, length: length))
         let formula = NoteMathParser.formulaSelection(from: selected)
         formulaSeed = formula.latex
