@@ -14,7 +14,6 @@ public struct HomeView: View {
     @State private var isImportingFile = false
     @State private var isImportingLink = false
     @State private var isShowingSettings = false
-    @State private var isReviewPresented = false
     @State private var dailyQuoteDestination: BookQuoteSummary?
 
     public init() {}
@@ -47,11 +46,8 @@ public struct HomeView: View {
                         }
 
                         if highlights.totalQuoteCount > 0 {
-                            section("REVIEW") {
-                                DailyResurfacingCard(
-                                    onReview: { isReviewPresented = true },
-                                    onOpen: { dailyQuoteDestination = $0 }
-                                )
+                            section("HIGHLIGHTS") {
+                                DailyResurfacingCard { dailyQuoteDestination = $0 }
 
                                 NavigationLink {
                                     HubView()
@@ -126,9 +122,6 @@ public struct HomeView: View {
             }
             .navigationDestination(item: $dailyQuoteDestination) { summary in
                 BookQuotesView(summary: summary)
-            }
-            .navigationDestination(isPresented: $isReviewPresented) {
-                ReviewSessionView()
             }
             .fileImporter(
                 isPresented: $isImportingFile,

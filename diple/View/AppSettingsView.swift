@@ -341,7 +341,7 @@ public struct AppSettingsView: View {
                                         Text("Export Diple Data")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Sources, reading positions, highlights, thoughts, reviews and notes in portable JSON")
+                                        Text("Sources, reading positions, highlights, thoughts and notes in portable JSON")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
                                             .multilineTextAlignment(.leading)

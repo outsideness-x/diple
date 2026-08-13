@@ -7,7 +7,6 @@ public nonisolated enum SyncEntityType: String, CaseIterable, Sendable {
     case book
     case bookAsset
     case highlight
-    case highlightReview
     case bookmark
     case note
     case settings

@@ -1,24 +1,14 @@
 import SwiftUI
 
-/// A preview of the next due idea, not a feed. Home and iPhone Highlights start a focused
-/// review session; the Mac fallback can still open the source's quote collection directly.
+/// One saved highlight, given enough room to feel like reading rather than another database
+/// row. It is a rediscovery shortcut only — no scores, scheduling or learning workflow.
 public struct DailyResurfacingCard: View {
     public let onOpen: (BookQuoteSummary) -> Void
-    public let onReview: (() -> Void)?
 
     @StateObject private var viewModel = DailyResurfacingViewModel()
 
     public init(onOpen: @escaping (BookQuoteSummary) -> Void) {
         self.onOpen = onOpen
-        self.onReview = nil
-    }
-
-    public init(
-        onReview: @escaping () -> Void,
-        onOpen: @escaping (BookQuoteSummary) -> Void
-    ) {
-        self.onOpen = onOpen
-        self.onReview = onReview
     }
 
     public var body: some View {
@@ -32,11 +22,11 @@ public struct DailyResurfacingCard: View {
                         Image(systemName: "sparkles")
                             .dipleIcon(12, weight: .semibold)
                             .foregroundStyle(DipleColor.accent)
-                        Text("DUE FOR REVIEW")
+                        Text("TODAY'S HIGHLIGHT")
                             .dipleType(.micro, weight: .semibold)
                             .foregroundStyle(DipleColor.accent)
                         Spacer()
-                        Text("\(viewModel.dueCount) \(viewModel.dueCount == 1 ? "IDEA" : "IDEAS")")
+                        Text("FROM YOUR LIBRARY")
                             .dipleType(.nano)
                             .foregroundStyle(DipleColor.textQuaternary)
                     }
@@ -73,14 +63,10 @@ public struct DailyResurfacingCard: View {
 
                     HStack(spacing: DipleSpace.m) {
                         Button {
-                            if let onReview {
-                                onReview()
-                            } else {
-                                onOpen(item.summary)
-                            }
+                            onOpen(item.summary)
                             HapticManager.shared.selection()
                         } label: {
-                            Label(onReview == nil ? "Open Quotes" : "Start Review", systemImage: "arrow.right")
+                            Label("Open Highlights", systemImage: "arrow.right")
                                 .dipleType(.footnote, weight: .semibold)
                                 .foregroundStyle(DipleColor.textOnAccent)
                                 .diplePadding(.button)
@@ -88,11 +74,8 @@ public struct DailyResurfacingCard: View {
                         }
                         .buttonStyle(.plain)
 
-                        if onReview != nil {
-                            Button("All from source") {
-                                onOpen(item.summary)
-                                HapticManager.shared.selection()
-                            }
+                        if viewModel.canShowAnother {
+                            Button("Another", action: viewModel.showAnother)
                             .dipleType(.footnote, weight: .semibold)
                             .foregroundStyle(DipleColor.textSecondary)
                             .buttonStyle(.plain)

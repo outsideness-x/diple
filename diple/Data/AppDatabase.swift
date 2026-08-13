@@ -309,8 +309,8 @@ public nonisolated final class AppDatabase: Sendable {
             )
         }
 
-        /// Review scheduling is separate from the highlight itself: editing a comment must not
-        /// reset learning progress, and review timestamps should not churn the quote record.
+        /// Historical migration kept so databases that shipped this version preserve their
+        /// migration ledger. v13 removes the feature and its local/sync state.
         migrator.registerMigration("v12_createHighlightReviewTable") { db in
             try db.create(table: "highlightReview") { t in
                 t.column("highlightId", .text).primaryKey()
@@ -319,6 +319,16 @@ public nonisolated final class AppDatabase: Sendable {
                 t.column("intervalDays", .integer).notNull()
                 t.column("reviewCount", .integer).notNull()
             }
+        }
+
+        migrator.registerMigration("v13_removeHighlightReview") { db in
+            try db.drop(table: "highlightReview")
+            try db.execute(
+                sql: "DELETE FROM syncOutbox WHERE entityType = 'highlightReview'"
+            )
+            try db.execute(
+                sql: "DELETE FROM syncMetadata WHERE entityType = 'highlightReview'"
+            )
         }
 
         return migrator
@@ -524,12 +534,6 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
-    public func fetchAllHighlightReviews() throws -> [HighlightReview] {
-        try writer.read { db in
-            try HighlightReview.order(Column("nextReviewAt")).fetchAll(db)
-        }
-    }
-
     /// One row per book id that still holds quotes, grouped straight from `highlight` — a book
     /// row is only consulted afterward, by the caller, so a deleted book still produces a
     /// group instead of silently dropping out of the hub.
@@ -558,90 +562,11 @@ public nonisolated final class AppDatabase: Sendable {
 
     public func deleteHighlight(id: String) throws {
         try writer.write { db in
-            let hadReview = try HighlightReview
-                .filter(Column("highlightId") == id)
-                .deleteAll(db) > 0
             _ = try Highlight.filter(Column("id") == id).deleteAll(db)
             try deleteSearchDocument(type: .highlight, id: id, in: db)
-            let changedAt = Date()
-            try markLocalDelete(.highlight, id: id, at: changedAt, in: db)
-            if hadReview {
-                try markLocalDelete(.highlightReview, id: id, at: changedAt, in: db)
-            }
+            try markLocalDelete(.highlight, id: id, at: Date(), in: db)
         }
         signalSyncIfNeeded()
-    }
-
-    // MARK: - Spaced Review
-
-    /// Due passages only, oldest schedule first. Unreviewed passages sort after overdue ones
-    /// by their original capture date, so a long-neglected thought is never buried by a new
-    /// highlight. Today's highlights wait until tomorrow: resurfacing should create distance,
-    /// not echo what the reader just selected.
-    public func fetchDueHighlights(now: Date = Date(), limit: Int = 5) throws -> [Highlight] {
-        let startOfToday = Calendar.current.startOfDay(for: now)
-        return try writer.read { db in
-            try Highlight.fetchAll(
-                db,
-                sql: """
-                    SELECT highlight.*
-                    FROM highlight
-                    LEFT JOIN highlightReview ON highlightReview.highlightId = highlight.id
-                    WHERE highlight.createdAt < ?
-                      AND (highlightReview.nextReviewAt IS NULL OR highlightReview.nextReviewAt <= ?)
-                    ORDER BY
-                      CASE WHEN highlightReview.nextReviewAt IS NULL THEN 1 ELSE 0 END,
-                      highlightReview.nextReviewAt ASC,
-                      highlight.createdAt ASC,
-                      highlight.id ASC
-                    LIMIT ?
-                    """,
-                arguments: [startOfToday, now, max(1, limit)]
-            )
-        }
-    }
-
-    /// A remembered passage earns increasingly long distance (3, 6, 12… up to 90 days).
-    /// “Again soon” is intentionally non-punitive: it simply returns tomorrow and resets the
-    /// interval, without scores or streaks that turn reflection into a game.
-    @discardableResult
-    public func recordHighlightReview(
-        highlightId: String,
-        response: HighlightReviewResponse,
-        reviewedAt: Date = Date()
-    ) throws -> HighlightReview? {
-        let review = try writer.write { db -> HighlightReview? in
-            guard try Highlight.filter(Column("id") == highlightId).fetchCount(db) > 0 else {
-                return nil
-            }
-            let previous = try HighlightReview
-                .filter(Column("highlightId") == highlightId)
-                .fetchOne(db)
-            let interval: Int
-            switch response {
-            case .againSoon:
-                interval = 1
-            case .remembered:
-                interval = previous.map { min(max($0.intervalDays * 2, 3), 90) } ?? 3
-            }
-            let nextDate = Calendar.current.date(
-                byAdding: .day,
-                value: interval,
-                to: reviewedAt
-            ) ?? reviewedAt.addingTimeInterval(TimeInterval(interval * 86_400))
-            let review = HighlightReview(
-                highlightId: highlightId,
-                lastReviewedAt: reviewedAt,
-                nextReviewAt: nextDate,
-                intervalDays: interval,
-                reviewCount: (previous?.reviewCount ?? 0) + 1
-            )
-            try review.save(db)
-            try markLocalSave(.highlightReview, id: highlightId, at: reviewedAt, in: db)
-            return review
-        }
-        signalSyncIfNeeded()
-        return review
     }
 
     // MARK: - Bookmark CRUD
@@ -1090,9 +1015,6 @@ public nonisolated final class AppDatabase: Sendable {
             for highlight in try Highlight.fetchAll(db) {
                 try markLocalSave(.highlight, id: highlight.id, at: highlight.createdAt, in: db)
             }
-            for review in try HighlightReview.fetchAll(db) {
-                try markLocalSave(.highlightReview, id: review.highlightId, at: review.lastReviewedAt, in: db)
-            }
             for bookmark in try Bookmark.fetchAll(db) {
                 try markLocalSave(.bookmark, id: bookmark.id, at: bookmark.createdAt, in: db)
             }
@@ -1166,12 +1088,6 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
-    public func fetchHighlightReviewForSync(id: String) throws -> HighlightReview? {
-        try writer.read { db in
-            try HighlightReview.filter(Column("highlightId") == id).fetchOne(db)
-        }
-    }
-
     public func fetchBookmarkForSync(id: String) throws -> Bookmark? {
         try writer.read { db in
             try Bookmark.filter(Column("id") == id).fetchOne(db)
@@ -1222,31 +1138,6 @@ public nonisolated final class AppDatabase: Sendable {
             try highlight.save(db)
             try indexHighlight(highlight, book: book, in: db)
             try storeRemoteMetadata(.highlight, id: highlight.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
-            return true
-        }
-    }
-
-    @discardableResult
-    public func applyRemoteHighlightReview(
-        _ review: HighlightReview,
-        modifiedAt: Date,
-        systemFields: Data
-    ) throws -> Bool {
-        try writer.write { db in
-            guard try Highlight.filter(Column("id") == review.highlightId).fetchCount(db) > 0 else {
-                return true
-            }
-            guard try shouldAcceptRemote(.highlightReview, id: review.highlightId, modifiedAt: modifiedAt, in: db) else {
-                return false
-            }
-            try review.save(db)
-            try storeRemoteMetadata(
-                .highlightReview,
-                id: review.highlightId,
-                modifiedAt: modifiedAt,
-                systemFields: systemFields,
-                in: db
-            )
             return true
         }
     }
@@ -1374,11 +1265,8 @@ public nonisolated final class AppDatabase: Sendable {
                     try markLocalSave(.note, id: noteID, at: changedAt, in: db)
                 }
             case .highlight:
-                _ = try HighlightReview.filter(Column("highlightId") == id).deleteAll(db)
                 _ = try Highlight.filter(Column("id") == id).deleteAll(db)
                 try deleteSearchDocument(type: .highlight, id: id, in: db)
-            case .highlightReview:
-                _ = try HighlightReview.filter(Column("highlightId") == id).deleteAll(db)
             case .bookmark:
                 _ = try Bookmark.filter(Column("id") == id).deleteAll(db)
             case .note:

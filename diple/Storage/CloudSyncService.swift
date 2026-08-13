@@ -186,9 +186,6 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             case .highlight:
                 guard let highlight = try database.fetchHighlightForSync(id: key.id) else { return nil }
                 Self.populate(highlight: highlight, record: record)
-            case .highlightReview:
-                guard let review = try database.fetchHighlightReviewForSync(id: key.id) else { return nil }
-                Self.populate(review: review, record: record)
             case .bookmark:
                 guard let bookmark = try database.fetchBookmarkForSync(id: key.id) else { return nil }
                 Self.populate(bookmark: bookmark, record: record)
@@ -228,13 +225,6 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["createdAt"] = highlight.createdAt as CKRecordValue
         record["bookTitle"] = highlight.bookTitle as CKRecordValue?
         record["bookAuthor"] = highlight.bookAuthor as CKRecordValue?
-    }
-
-    private static func populate(review: HighlightReview, record: CKRecord) {
-        record["lastReviewedAt"] = review.lastReviewedAt as CKRecordValue
-        record["nextReviewAt"] = review.nextReviewAt as CKRecordValue
-        record["intervalDays"] = NSNumber(value: review.intervalDays)
-        record["reviewCount"] = NSNumber(value: review.reviewCount)
     }
 
     private static func populate(bookmark: Bookmark, record: CKRecord) {
@@ -381,21 +371,6 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                     createdAt: createdAt,
                     bookTitle: record["bookTitle"] as? String,
                     bookAuthor: record["bookAuthor"] as? String
-                ),
-                modifiedAt: modifiedAt,
-                systemFields: systemFields
-            )
-        case .highlightReview:
-            guard let lastReviewedAt = record["lastReviewedAt"] as? Date,
-                  let nextReviewAt = record["nextReviewAt"] as? Date
-            else { return true }
-            return try database.applyRemoteHighlightReview(
-                HighlightReview(
-                    highlightId: key.id,
-                    lastReviewedAt: lastReviewedAt,
-                    nextReviewAt: nextReviewAt,
-                    intervalDays: (record["intervalDays"] as? NSNumber)?.intValue ?? 1,
-                    reviewCount: (record["reviewCount"] as? NSNumber)?.intValue ?? 1
                 ),
                 modifiedAt: modifiedAt,
                 systemFields: systemFields
@@ -548,7 +523,6 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         case .book: return "DipleBook"
         case .bookAsset: return "DipleBookAsset"
         case .highlight: return "DipleHighlight"
-        case .highlightReview: return "DipleHighlightReview"
         case .bookmark: return "DipleBookmark"
         case .note: return "DipleNote"
         case .settings: return "DipleSettings"

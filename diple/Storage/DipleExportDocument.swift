@@ -4,10 +4,10 @@ import UniformTypeIdentifiers
 
 /// A documented, dependency-free snapshot of everything the reader created in diple. Source
 /// files are intentionally not copied: EPUB/PDF imports already belong to the user, while the
-/// portable value here is reading position, saved passages, reflections, review state and
+/// portable value here is reading position, saved passages, reflections and
 /// notes. Stable ids preserve relationships for a future importer or any outside script.
 public nonisolated struct DipleExportPayload: Codable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
 
     public nonisolated struct Source: Codable, Sendable {
         public let id: String
@@ -31,7 +31,6 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
     public let exportedAt: Date
     public let sources: [Source]
     public let highlights: [Highlight]
-    public let reviewSchedule: [HighlightReview]
     public let notes: [TaggedNote]
 
     public init(database: AppDatabase = .shared, exportedAt: Date = Date()) throws {
@@ -54,7 +53,6 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
             )
         }
         self.highlights = try database.fetchAllHighlights()
-        self.reviewSchedule = try database.fetchAllHighlightReviews()
         self.notes = try database.fetchAllNotes().map {
             TaggedNote(note: $0, tags: tagsByNote[$0.id] ?? [])
         }
@@ -67,7 +65,6 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
             exportedAt: Date(),
             sources: [],
             highlights: [],
-            reviewSchedule: [],
             notes: []
         )
     }
@@ -78,7 +75,6 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         exportedAt: Date,
         sources: [Source],
         highlights: [Highlight],
-        reviewSchedule: [HighlightReview],
         notes: [TaggedNote]
     ) {
         self.format = format
@@ -86,7 +82,6 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         self.exportedAt = exportedAt
         self.sources = sources
         self.highlights = highlights
-        self.reviewSchedule = reviewSchedule
         self.notes = notes
     }
 }
