@@ -170,25 +170,17 @@ public struct HomeView: View {
         }
     }
 
+    /// Just the date. The rotating aphorism under it ("Return to an idea worth keeping.")
+    /// is gone: Notes opened on a near-identical line, and the variant that collided was the
+    /// one shown whenever any highlight existed — which is to say almost always, so tabbing
+    /// between the two screens read the same sentence twice. It also spent the widest type in
+    /// the app on a line that told the reader nothing they could act on. The date stays
+    /// because it orients rather than declaims.
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text(dayTitle.uppercased())
-                .dipleType(.nano, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
-
-            Text(homePrompt)
-                .dipleType(.display)
-                .foregroundStyle(DipleColor.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var homePrompt: String {
-        if library.continueReadingBook != nil { return "Pick up where you left off." }
-        if highlights.totalQuoteCount > 0 { return "Return to an idea worth keeping." }
-        if !notes.items.isEmpty { return "Keep the thought moving." }
-        return "Read closely. Keep what matters."
+        Text(dayTitle.uppercased())
+            .dipleType(.nano, weight: .semibold)
+            .foregroundStyle(DipleColor.accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var quickCapture: some View {

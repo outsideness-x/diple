@@ -131,22 +131,18 @@ public struct NotesView: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
+    /// The label alone. The slogan under it argued a position about note apps every time the
+    /// screen was opened — a manifesto is worth reading once, and this one cost a title line
+    /// above a list a reader visits constantly. That voice already exists where it does some
+    /// work: the empty state, which explains what to write and why. What is left is a label
+    /// for the board below it.
     private var workspaceHeader: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.l) {
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text("CONTINUE THINKING")
-                    .dipleType(.nano, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
-
-                Text("Return to the idea, not the filing system.")
-                    .dipleType(.title)
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-        }
-        .padding(.horizontal, DipleSpace.xl)
-        .padding(.top, DipleSpace.m)
+        Text("CONTINUE THINKING")
+            .dipleType(.nano, weight: .semibold)
+            .foregroundStyle(DipleColor.accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.top, DipleSpace.m)
     }
 
     private var controls: some View {
