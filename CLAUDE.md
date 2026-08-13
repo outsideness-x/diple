@@ -79,6 +79,15 @@
   вводный текст и статистику ради места, приложение не должно снова разворачивать их при
   каждом открытии экрана. Компактная строка `YOUR THINKING SPACE` остаётся точкой возврата.
 
+### Переносимый экспорт
+- Settings экспортирует один versioned JSON, в котором есть source metadata/reading position,
+  highlights с comments, review schedule и notes с tags. Внутренние `filePath`/`coverPath` не
+  выходят наружу: это implementation detail sandbox, бесполезная и потенциально приватная
+  строка. Оригинальные EPUB/PDF не дублируются — они уже принадлежат пользователю; export
+  означает переносимые пользовательские данные, а не тяжёлый архив всей файловой библиотеки.
+- JSON кодируется с ISO-8601 dates, pretty print и sorted keys. `format` + `version` обязательны:
+  будущий import может мигрировать контракт явно, а внешним скриптам не нужно угадывать схему.
+
 ### iCloud-синхронизация
 - SQLite остаётся offline-first источником истины, а `CKSyncEngine` зеркалирует его в
   private CloudKit database. Переезд на Core Data/SwiftData ради `NSPersistentCloudKitContainer`

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 public struct AppSettingsView: View {
     private static let privacyPolicyURL = URL(
@@ -15,6 +16,9 @@ public struct AppSettingsView: View {
     @State private var isDailyResurfacingEnabled = DailyResurfacingService.shared.isNotificationEnabled
     @State private var dailyResurfacingTime = DailyResurfacingService.shared.notificationTime
     @State private var showDailyResurfacingPermissionAlert = false
+    @State private var exportDocument = DipleExportDocument()
+    @State private var isExportPresented = false
+    @State private var exportErrorMessage: String?
 
     public init() {}
 
@@ -311,6 +315,52 @@ public struct AppSettingsView: View {
                             .cornerRadius(DipleRadius.m)
                         }
 
+                        // DATA OWNERSHIP SECTION
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
+                            Text("YOUR DATA")
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
+
+                            Button {
+                                do {
+                                    exportDocument = DipleExportDocument(payload: try DipleExportPayload())
+                                    isExportPresented = true
+                                    HapticManager.shared.selection()
+                                } catch {
+                                    exportErrorMessage = "Couldn’t prepare your export: \(error.localizedDescription)"
+                                }
+                            } label: {
+                                HStack(spacing: DipleSpace.m) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .dipleIcon(17, weight: .medium)
+                                        .foregroundStyle(DipleColor.accent)
+                                        .frame(width: 28)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Export Diple Data")
+                                            .dipleType(.body, weight: .medium)
+                                            .foregroundStyle(DipleColor.textPrimary)
+                                        Text("Sources, reading positions, highlights, thoughts, reviews and notes in portable JSON")
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Image(systemName: "chevron.right")
+                                        .dipleIcon(11, weight: .semibold)
+                                        .foregroundStyle(DipleColor.textQuaternary)
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Creates a JSON file you can save or share")
+                        }
+
                         // PRIVACY SECTION
                         if let privacyPolicyURL = Self.privacyPolicyURL {
                             VStack(alignment: .leading, spacing: DipleSpace.l) {
@@ -383,6 +433,24 @@ public struct AppSettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Allow notifications for diple in iOS Settings to receive your daily quote.")
+            }
+            .alert("Export Failed", isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if !$0 { exportErrorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(exportErrorMessage ?? "An unknown error occurred.")
+            }
+            .fileExporter(
+                isPresented: $isExportPresented,
+                document: exportDocument,
+                contentType: .json,
+                defaultFilename: "diple-export-\(Date.now.formatted(.iso8601.year().month().day()))"
+            ) { result in
+                if case .failure(let error) = result {
+                    exportErrorMessage = "Couldn’t save your export: \(error.localizedDescription)"
+                }
             }
         }
     }

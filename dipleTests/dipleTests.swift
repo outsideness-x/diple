@@ -333,6 +333,39 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(reset.reviewCount, 3)
     }
 
+    func testPortableExportPreservesRelationshipsWithoutPrivateFilePaths() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(
+            id: "export-book",
+            title: "Source",
+            filePath: "Books/private/internal.epub",
+            sourceURL: "https://example.org/source"
+        )
+        let highlight = Highlight(
+            id: "export-highlight",
+            bookId: book.id,
+            locator: "{\"href\":\"chapter.xhtml\"}",
+            text: "A passage",
+            comment: "My thought"
+        )
+        let note = Note(id: "export-note", title: "Idea", body: "Connected", bookId: book.id)
+        try database.saveBook(book)
+        try database.saveHighlight(highlight)
+        try database.saveNote(note, tags: ["idea"])
+        _ = try database.recordHighlightReview(highlightId: highlight.id, response: .remembered)
+
+        let payload = try DipleExportPayload(database: database)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let json = try XCTUnwrap(String(data: encoder.encode(payload), encoding: .utf8))
+
+        XCTAssertEqual(payload.sources.map(\.id), [book.id])
+        XCTAssertEqual(payload.highlights.map(\.bookId), [book.id])
+        XCTAssertEqual(payload.notes.first?.tags, ["idea"])
+        XCTAssertEqual(payload.reviewSchedule.map(\.highlightId), [highlight.id])
+        XCTAssertFalse(json.contains("Books/private/internal.epub"))
+    }
+
     func testGlobalSearchIndexesAndSynchronizesNotesHighlightsAndMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
         let book = Book(
