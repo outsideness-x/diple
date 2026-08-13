@@ -47,6 +47,10 @@
   resurfacing, FTS и CloudKit без временного черновика или новой сущности.
 
 ### Notes workspace
+- `NotesView` всегда держит один `workspace` под `NavigationStack`: нельзя менять корневую
+  ветку empty/workspace в момент autosave первой заметки или удаления последней — активный
+  destination терял identity и визуально исчезал. `NoteDetailView` не скрывает tab bar:
+  скрытие из вложенного destination могло пережить pop в SwiftUI и убрать навигацию у Notes.
 - iPhone Notes не показывает totals/word count/linked count: это vanity metrics без следующего
   действия. Вместо них появляется только actionable row для заметок без source и tags; тап
   сразу включает `.untagged`. Короткий заголовок оставляет контекст, не повторяя onboarding.

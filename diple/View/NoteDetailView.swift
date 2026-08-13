@@ -159,9 +159,6 @@ public struct NoteDetailView: View {
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar { toolbarContent }
-        // A note reads as a page of its own, so the board's tab bar steps out of the way —
-        // the same treatment the reader gets.
-        .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isEditing {
                 formattingBar

@@ -30,13 +30,10 @@ public struct NotesView: View {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    if viewModel.items.isEmpty {
-                        emptyState
-                    } else {
-                        workspace
-                    }
-                }
+                // Keep one stable root under NavigationStack. The previous empty/workspace
+                // swap happened while the first note autosaved (or the last was deleted),
+                // invalidating the active destination and making the editor appear to vanish.
+                workspace
             }
             .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
@@ -96,16 +93,20 @@ public struct NotesView: View {
     private var workspace: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.l, pinnedViews: [.sectionHeaders]) {
-                workspaceHeader
+                if viewModel.items.isEmpty {
+                    emptyState
+                } else {
+                    workspaceHeader
 
-                Section {
-                    if viewModel.filteredItems.isEmpty {
-                        noResults
-                    } else {
-                        notesContent
+                    Section {
+                        if viewModel.filteredItems.isEmpty {
+                            noResults
+                        } else {
+                            notesContent
+                        }
+                    } header: {
+                        controls
                     }
-                } header: {
-                    controls
                 }
             }
             .padding(.bottom, DipleSpace.scrollBottom)
@@ -364,8 +365,6 @@ public struct NotesView: View {
 
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
-            Spacer()
-
             ZStack {
                 AccentWash(diameter: 190)
                 Image(systemName: "note.text")
@@ -401,8 +400,10 @@ public struct NotesView: View {
             .accessibilityIdentifier("notes.new")
             .padding(.top, DipleSpace.s)
 
-            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .containerRelativeFrame(.vertical, alignment: .center) { length, _ in
+            max(length - DipleSpace.scrollBottom, 420)
+        }
     }
 }
