@@ -35,6 +35,10 @@ public struct NoteDetailView: View {
     public let allNotes: [NoteItem]
     public let onSave: (Note, [String]) -> Bool
     public let onDelete: (NoteItem) -> Void
+    /// Following a `[[Wiki link]]` in the reading view. The push belongs to whichever stack
+    /// this page was opened in, so the route goes back out to its owner rather than being
+    /// invented here.
+    public let onOpenNote: ((NoteItem) -> Void)?
 
     /// The notes a wiki-link can point at. `allNotes` and `route` never change while this
     /// screen is on screen, so this is settled once in `init` — computing it inside `body`
@@ -68,7 +72,8 @@ public struct NoteDetailView: View {
         suggestedTags: [String],
         allNotes: [NoteItem] = [],
         onSave: @escaping (Note, [String]) -> Bool,
-        onDelete: @escaping (NoteItem) -> Void = { _ in }
+        onDelete: @escaping (NoteItem) -> Void = { _ in },
+        onOpenNote: ((NoteItem) -> Void)? = nil
     ) {
         self.route = route
         self.books = books
@@ -76,6 +81,7 @@ public struct NoteDetailView: View {
         self.allNotes = allNotes
         self.onSave = onSave
         self.onDelete = onDelete
+        self.onOpenNote = onOpenNote
         self.linkableNotes = Array(allNotes.filter { $0.id != route.item?.id }.prefix(30))
 
         let item = route.item
@@ -193,6 +199,15 @@ public struct NoteDetailView: View {
         } message: {
             Text("This note and its tags will be removed.")
         }
+        .environment(\.openURL, OpenURLAction { url in
+            // Only this app's own wiki-link scheme is intercepted; a real http link in a note
+            // must still open the way the reader expects.
+            guard let title = NoteMarkdown.wikiLinkTitle(from: url) else { return .systemAction }
+            guard let target = note(titled: title), let onOpenNote else { return .handled }
+            HapticManager.shared.selection()
+            onOpenNote(target)
+            return .handled
+        })
         .animation(DipleMotion.standard, value: isEditing)
         .onChange(of: title) { _, _ in scheduleSave() }
         .onChange(of: body_) { _, _ in scheduleSave() }
@@ -782,6 +797,18 @@ public struct NoteDetailView: View {
     /// Ticking a box is a finished decision, not a keystroke, so it is written straight away
     /// rather than through the typing debounce — which is also gated on `isEditing` and would
     /// never fire here, leaving the board's progress bar stale until the page was left.
+    /// Resolves a wiki link's title the same way `NoteKnowledge` does when it builds the
+    /// Connections list, so following a link and appearing in "Linked notes" cannot disagree
+    /// about what a title matches.
+    private func note(titled title: String) -> NoteItem? {
+        let target = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return allNotes.first { candidate in
+            candidate.id != route.item?.id
+                && candidate.displayTitle
+                    .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == target
+        }
+    }
+
     private func toggleTask(_ task: NoteTask) {
         guard let updated = NoteMarkdown.togglingTask(atLine: task.lineIndex, in: body_) else { return }
         HapticManager.shared.impact(.light)

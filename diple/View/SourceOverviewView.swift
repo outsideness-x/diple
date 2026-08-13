@@ -33,6 +33,8 @@ private final class SourceOverviewViewModel: ObservableObject {
 public struct SourceOverviewView: View {
     @StateObject private var viewModel: SourceOverviewViewModel
     @Environment(\.dismiss) private var dismiss
+    /// This sheet owns its own stack, so it needs its own path for a wiki link to push onto.
+    @State private var path = NavigationPath()
     let onReadingUpdated: () -> Void
 
     public init(book: Book, onReadingUpdated: @escaping () -> Void) {
@@ -41,7 +43,7 @@ public struct SourceOverviewView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
@@ -129,7 +131,8 @@ public struct SourceOverviewView: View {
                     onDelete: { item in
                         try? AppDatabase.shared.deleteNote(id: item.id)
                         viewModel.load()
-                    }
+                    },
+                    onOpenNote: { path.append(NoteRoute.existing($0)) }
                 )
             }
             .alert("Source Error", isPresented: Binding(

@@ -130,7 +130,8 @@ public struct HomeView: View {
                     suggestedTags: notes.allTags,
                     allNotes: notes.items,
                     onSave: { note, tags in notes.save(note, tags: tags) },
-                    onDelete: { notes.delete($0) }
+                    onDelete: { notes.delete($0) },
+                    onOpenNote: { path.append(NoteRoute.existing($0)) }
                 )
             }
             .navigationDestination(for: BookQuoteSummary.self) { summary in

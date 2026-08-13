@@ -9,6 +9,10 @@ public struct NotesView: View {
     /// tapped instead of sliding in from the side.
     @Namespace private var cardNamespace
 
+    /// One path for the tab, so a wiki link followed from inside a note pushes onto the same
+    /// stack the cards push onto.
+    @State private var path = NavigationPath()
+
     private let columns = [
         GridItem(.adaptive(minimum: 240, maximum: 360), spacing: DipleSpace.m)
     ]
@@ -26,7 +30,7 @@ public struct NotesView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
@@ -210,7 +214,8 @@ public struct NotesView: View {
             },
             onDelete: { item in
                 viewModel.delete(item)
-            }
+            },
+            onOpenNote: { path.append(NoteRoute.existing($0)) }
         )
 
         switch route {

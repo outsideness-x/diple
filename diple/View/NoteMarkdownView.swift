@@ -359,9 +359,51 @@ public enum NoteMarkdown {
     /// the text as written instead of collapsing it into a single paragraph run.
     public static func inline(_ text: String) -> AttributedString {
         (try? AttributedString(
-            markdown: text,
+            markdown: linkingWikiLinks(in: text),
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(text)
+    }
+
+    /// The scheme a `[[Wiki link]]` is rewritten to so the system Markdown parser produces a
+    /// real link out of syntax it does not know.
+    public static let wikiLinkScheme = "diple-note"
+
+    /// `[[Title]]` is not Markdown, so `AttributedString(markdown:)` left it on screen as
+    /// literal double brackets — notation showing through in the one view that exists to hide
+    /// it, and no way to follow a link the formatting bar itself writes. Rewriting it to a
+    /// link with a private scheme lets the system parser do the work and gives the reading
+    /// view something to open. The stored note is untouched: this is a render-time transform,
+    /// and `[[Title]]` stays what is written to disk, exported and synced.
+    private static func linkingWikiLinks(in text: String) -> String {
+        guard text.contains("[["),
+              let expression = try? NSRegularExpression(pattern: #"\[\[([^\]\n]+)\]\]"#)
+        else { return text }
+
+        let source = text as NSString
+        var result = ""
+        var cursor = 0
+        for match in expression.matches(in: text, range: NSRange(location: 0, length: source.length)) {
+            guard match.numberOfRanges > 1 else { continue }
+            let title = source.substring(with: match.range(at: 1))
+            // Percent-encode against `alphanumerics` rather than a URL component set: a note
+            // title is free text and may hold `?`, `&`, `#` or a space, any of which would
+            // otherwise end the link early or split it into a query.
+            guard let encoded = title.addingPercentEncoding(withAllowedCharacters: .alphanumerics),
+                  !title.trimmingCharacters(in: .whitespaces).isEmpty
+            else { continue }
+            result += source.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            result += "[\(title)](\(wikiLinkScheme):\(encoded))"
+            cursor = match.range.location + match.range.length
+        }
+        result += source.substring(from: cursor)
+        return result
+    }
+
+    /// The note title a rendered wiki link points at, or nil for any other URL.
+    public static func wikiLinkTitle(from url: URL) -> String? {
+        guard url.scheme == wikiLinkScheme else { return nil }
+        let encoded = url.absoluteString.dropFirst(wikiLinkScheme.count + 1)
+        return String(encoded).removingPercentEncoding
     }
 
     /// A clean preview for cards, search and share surfaces. Raw Markdown on a card makes
@@ -383,6 +425,9 @@ public enum NoteMarkdown {
         .replacingOccurrences(of: "__", with: "")
         .replacingOccurrences(of: "~~", with: "")
         .replacingOccurrences(of: "`", with: "")
+        // A card should read "the idea", not "[[the idea]]".
+        .replacingOccurrences(of: "[[", with: "")
+        .replacingOccurrences(of: "]]", with: "")
         .removingNoteMathDelimiters()
     }
 
