@@ -2,10 +2,9 @@ import SwiftUI
 
 /// The metadata line under a title, in the library grid and in the hub.
 ///
-/// An article carries a link glyph. It is the only mark distinguishing a saved page from a
-/// book anywhere in the app, which is deliberate: an imported article *is* a book here — same
-/// reader, same quotes, same progress — and a louder badge would suggest a second class of
-/// thing that behaves differently.
+/// Every source carries one quiet glyph. The glyph answers “what did I save?” at a glance,
+/// while identical typography keeps EPUB, PDF and article at the same level — they all open
+/// in the same reader and feed the same thinking workflow.
 public struct BookSubtitleView: View {
     public let book: Book
 
@@ -17,11 +16,9 @@ public struct BookSubtitleView: View {
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: DipleSpace.xs) {
-            if book.isArticle {
-                Image(systemName: "link")
-                    .dipleIcon(9, weight: .semibold)
-                    .foregroundStyle(DipleColor.textQuaternary)
-            }
+            Image(systemName: book.sourceKind.systemImage)
+                .dipleIcon(9, weight: .semibold)
+                .foregroundStyle(DipleColor.textQuaternary)
 
             Text(book.subtitle)
                 .dipleType(.caption)
@@ -33,6 +30,8 @@ public struct BookSubtitleView: View {
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .truncationMode(.tail)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(book.sourceKind.title), \(book.subtitle)")
     }
 }
 
@@ -50,6 +49,7 @@ public struct BookSubtitleView: View {
             book: Book(title: "Untitled", filePath: "Books/2/article.epub", sourceURL: "https://example.org/x")
         )
         BookSubtitleView(book: Book(title: "Дом, в котором…", author: "Мариам Петросян", filePath: "Books/3/a.epub"))
+        BookSubtitleView(book: Book(title: "Research", filePath: "Books/3/research.pdf"))
         BookSubtitleView(book: Book(title: "No author", filePath: "Books/4/a.epub"))
     }
     .padding(DipleSpace.xl)

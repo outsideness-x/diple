@@ -252,6 +252,10 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(saved[epub.id], .epub)
         XCTAssertEqual(saved[pdf.id], .pdf)
         XCTAssertEqual(saved[article.id], .article)
+        XCTAssertTrue(LibraryFilter.books.includes(epub))
+        XCTAssertFalse(LibraryFilter.books.includes(pdf))
+        XCTAssertTrue(LibraryFilter.pdfs.includes(pdf))
+        XCTAssertTrue(LibraryFilter.articles.includes(article))
     }
 
     func testMarkingBookFinishedPreservesItsSavedLocation() throws {

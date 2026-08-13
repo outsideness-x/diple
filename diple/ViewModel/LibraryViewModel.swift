@@ -5,6 +5,7 @@ import Combine
 public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
     case all = "All"
     case books = "Books"
+    case pdfs = "PDFs"
     case articles = "Articles"
     case unread = "Unread"
     case inProgress = "In Progress"
@@ -15,7 +16,8 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable, Equatab
     public func includes(_ book: Book) -> Bool {
         switch self {
         case .all: return true
-        case .books: return !book.isArticle
+        case .books: return book.sourceKind == .epub
+        case .pdfs: return book.sourceKind == .pdf
         case .articles: return book.isArticle
         case .unread: return book.progress <= 0.001
         case .inProgress: return book.progress > 0.001 && book.progress < 0.995
