@@ -293,6 +293,46 @@ final class DipleTests: XCTestCase {
         XCTAssertNotEqual(first?.id, "new")
     }
 
+    func testSpacedReviewReturnsOnlyDuePassagesAndExpandsRememberedIntervals() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let book = Book(id: "review-book", title: "Book", filePath: "Books/review/book.epub")
+        let quote = Highlight(
+            id: "review-quote",
+            bookId: book.id,
+            locator: "{}",
+            text: "Worth remembering",
+            createdAt: now.addingTimeInterval(-86_400)
+        )
+        try database.saveBook(book)
+        try database.saveHighlight(quote)
+
+        XCTAssertEqual(try database.fetchDueHighlights(now: now).map(\.id), [quote.id])
+        let first = try XCTUnwrap(database.recordHighlightReview(
+            highlightId: quote.id,
+            response: .remembered,
+            reviewedAt: now
+        ))
+        XCTAssertEqual(first.intervalDays, 3)
+        XCTAssertTrue(try database.fetchDueHighlights(now: now).isEmpty)
+
+        let secondDate = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 3, to: now))
+        let second = try XCTUnwrap(database.recordHighlightReview(
+            highlightId: quote.id,
+            response: .remembered,
+            reviewedAt: secondDate
+        ))
+        XCTAssertEqual(second.intervalDays, 6)
+
+        let reset = try XCTUnwrap(database.recordHighlightReview(
+            highlightId: quote.id,
+            response: .againSoon,
+            reviewedAt: secondDate
+        ))
+        XCTAssertEqual(reset.intervalDays, 1)
+        XCTAssertEqual(reset.reviewCount, 3)
+    }
+
     func testGlobalSearchIndexesAndSynchronizesNotesHighlightsAndMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
         let book = Book(
