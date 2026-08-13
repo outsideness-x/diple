@@ -43,6 +43,11 @@ public struct GlobalSearchView: View {
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: "Notes, highlights and library"
             )
+            // A query is not a sentence. The default sentence capitalisation turned "house"
+            // into "House" in the field, and autocorrect is worse than useless over a library
+            // that mixes Russian, Korean and English in one index.
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .onChange(of: viewModel.query) { _, _ in
                 viewModel.scheduleSearch()
             }
@@ -200,7 +205,12 @@ private struct GlobalSearchResultRow: View {
     let result: GlobalSearchResult
 
     private var detail: String {
-        result.snippet.isEmpty ? result.subtitle : result.snippet
+        let text = result.snippet.isEmpty ? result.subtitle : result.snippet
+        // A note is indexed as the Markdown it is stored as, so its snippet arrives with the
+        // syntax still in it — a result reading `keep it.**memory**` while the note itself and
+        // its card on the board both read `memory`. Stripping happens here rather than in the
+        // index because the index is what the query matches against.
+        return result.kind == .note ? NoteMarkdown.plainText(text) : text
     }
 
     var body: some View {

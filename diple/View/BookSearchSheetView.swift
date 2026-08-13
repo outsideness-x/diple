@@ -58,6 +58,10 @@ public struct BookSearchSheetView: View {
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: viewModel.searchPrompt
             )
+            // Searching a book's text is a Cmd+F, not a sentence: neither capitalisation nor
+            // autocorrect belongs on a term being matched against the page.
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .onChange(of: viewModel.query) { _, _ in
                 viewModel.scheduleSearch()
             }

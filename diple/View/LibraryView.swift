@@ -150,6 +150,10 @@ public struct LibraryView: View {
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "Title, author or source"
             )
+            // Titles and authors are matched, not written: sentence capitalisation and
+            // autocorrect only get in the way of a filter typed a letter at a time.
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
