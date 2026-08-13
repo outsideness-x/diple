@@ -10,10 +10,12 @@ public struct HighlightEditorView: View {
     public let onDelete: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedColorHex: String
     @State private var comment: String
     @State private var isDeleteConfirmationPresented = false
     @State private var didCopy = false
+    @State private var isSaving = false
     @FocusState private var isCommentFocused: Bool
 
     public init(
@@ -75,14 +77,17 @@ public struct HighlightEditorView: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(.regularMaterial)
+        .interactiveDismissDisabled(isSaving)
     }
 
     private var quoteCard: some View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Capsule()
                 .fill(selectedColor)
-                .frame(width: 4)
+                .frame(width: isSaving ? 7 : 4)
+                .shadow(color: selectedColor.opacity(isSaving ? 0.8 : 0), radius: isSaving ? 10 : 0)
                 .animation(DipleMotion.snappy, value: selectedColorHex)
+                .animation(DipleMotion.standard, value: isSaving)
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text("SELECTED PASSAGE")
@@ -100,6 +105,13 @@ public struct HighlightEditorView: View {
         }
         .padding(DipleSpace.l)
         .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
+        .overlay {
+            RoundedRectangle(cornerRadius: DipleRadius.l)
+                .stroke(selectedColor.opacity(isSaving ? 0.72 : 0), lineWidth: isSaving ? 1.5 : 0)
+                .shadow(color: selectedColor.opacity(isSaving ? 0.32 : 0), radius: 12)
+        }
+        .scaleEffect(isSaving && !reduceMotion ? 0.99 : 1)
+        .animation(DipleMotion.standard, value: isSaving)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Selected passage: \(quote)")
     }
@@ -218,17 +230,28 @@ public struct HighlightEditorView: View {
             .accessibilityLabel(didCopy ? "Copied" : "Copy passage")
 
             Button {
-                let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
-                onSave(selectedColorHex, trimmed.isEmpty ? nil : trimmed)
-                dismiss()
+                save()
             } label: {
-                Label(isExisting ? "Save Changes" : "Save Highlight", systemImage: "checkmark")
-                    .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.textOnAccent)
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(DipleColor.accent, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                HStack(spacing: DipleSpace.s) {
+                    Image(systemName: isSaving ? "checkmark.circle.fill" : "checkmark")
+                        .dipleIcon(15, weight: .semibold)
+                        .contentTransition(.symbolEffect(.replace))
+                    Text(isSaving ? "Saved" : (isExisting ? "Save Changes" : "Save Highlight"))
+                        .contentTransition(.opacity)
+                }
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.textOnAccent)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .background(
+                    isSaving ? selectedColor : DipleColor.accent,
+                    in: RoundedRectangle(cornerRadius: DipleRadius.m)
+                )
+                .scaleEffect(isSaving && !reduceMotion ? 0.97 : 1)
+                .animation(DipleMotion.snappy, value: isSaving)
             }
             .buttonStyle(.readerControl)
+            .disabled(isSaving)
+            .accessibilityLabel(isSaving ? "Highlight saved" : (isExisting ? "Save changes" : "Save highlight"))
         }
         .padding(.horizontal, DipleSpace.xl)
         .padding(.top, DipleSpace.m)
@@ -238,5 +261,26 @@ public struct HighlightEditorView: View {
 
     private var selectedColor: Color {
         DipleColor.Highlight.color(forHex: selectedColorHex)
+    }
+
+    private func save() {
+        guard !isSaving else { return }
+        let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedComment = trimmed.isEmpty ? nil : trimmed
+
+        guard !reduceMotion else {
+            onSave(selectedColorHex, normalizedComment)
+            dismiss()
+            return
+        }
+
+        isCommentFocused = false
+        withAnimation(DipleMotion.standard) { isSaving = true }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(380))
+            onSave(selectedColorHex, normalizedComment)
+            dismiss()
+        }
     }
 }
