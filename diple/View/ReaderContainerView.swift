@@ -291,6 +291,15 @@ public struct ReaderContainerView: View {
 
             }
         }
+        // The bar hangs in an overlay rather than as another child of the ZStack above. A
+        // ZStack takes the width of its widest child, and this bar has a floor: five 40pt
+        // swatches and two 44pt buttons. On a narrow phone that floor exceeds the screen, and
+        // the stack grew to match — taking the navigator with it, so the web view went wider
+        // than the display, slid left and reflowed the page on every selection. An overlay is
+        // laid out inside its host and cannot resize it.
+        .overlay {
+            selectionLayer
+        }
         .animation(DipleMotion.gentle, value: viewModel.toast)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .task {
@@ -395,14 +404,64 @@ public struct ReaderContainerView: View {
         }
     }
 
+    /// The quote a live selection stands for, or nil when there is nothing worth acting on.
+    private var selectedQuote: String? {
+        guard let quote = viewModel.currentSelection?.locator.text.highlight?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !quote.isEmpty
+        else { return nil }
+        return quote
+    }
+
+    @ViewBuilder
+    private var selectionLayer: some View {
+        if let quote = selectedQuote, highlightEditorTarget == nil {
+            GeometryReader { geo in
+                // Dismissing has to consume the tap. Left to fall through it would also turn
+                // the page or toggle the reader's bars, so closing the bar would never be the
+                // only thing that happened.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { viewModel.currentSelection = nil }
+
+                let bar = ReaderSelectionBar(
+                    chrome: chrome,
+                    onPickColor: { hex in viewModel.createHighlight(colorHex: hex) },
+                    onAddNote: { highlightEditorTarget = .new(UUID(), quote) },
+                    onCopy: { UIPasteboard.general.string = quote }
+                )
+                .fixedSize()
+
+                bar
+                    .padding(.vertical, DipleSpace.xl)
+                    .frame(
+                        width: geo.size.width,
+                        height: geo.size.height,
+                        alignment: selectionIsInLowerHalf(geo) ? .top : .bottom
+                    )
+            }
+            .ignoresSafeArea()
+            .transition(.opacity)
+        }
+    }
+
     private func presentEditor(for selection: Selection?) {
         viewModel.currentSelection = selection
-        guard highlightEditorTarget == nil,
-              let quote = selection?.locator.text.highlight?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !quote.isEmpty
-        else { return }
-        highlightEditorTarget = .new(UUID(), quote)
+    }
+
+    /// Whether the selection sits in the lower half of the page, which sends the bar to the
+    /// top edge — and the other way around.
+    ///
+    /// The bar goes to the far edge of the page rather than hugging the selection. Readium
+    /// reports the bounding rect of the selected characters, and a selection that starts
+    /// mid-line shares that line's top edge with words that are not selected, so a bar placed
+    /// one gap above the rect still lands on top of readable text. Clearing it would take a
+    /// guess at line height, which is a hardcoded padding tuned to one font size. Pinning to
+    /// the opposite edge cannot overlap the passage at any size, and it holds still while the
+    /// selection handles are dragged instead of hopping from one side to the other.
+    private func selectionIsInLowerHalf(_ geo: GeometryProxy) -> Bool {
+        guard let frame = viewModel.currentSelection?.frame else { return false }
+        return frame.midY > geo.size.height / 2
     }
 }
 
