@@ -7,6 +7,8 @@ public struct ReaderContainerView: View {
     @StateObject private var settingsManager = AppSettingsManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isThoughtEditorPresented = false
+    @State private var thoughtColorHex = DipleColor.Highlight.yellow
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
@@ -306,6 +308,13 @@ public struct ReaderContainerView: View {
                         .overlay(alignment: .bottom) {
                             SelectionColorBarView { hexColor in
                                 viewModel.createHighlight(colorHex: hexColor)
+                            } onAddThought: { hexColor in
+                                thoughtColorHex = hexColor
+                                isThoughtEditorPresented = true
+                            } onCopy: {
+                                UIPasteboard.general.string = viewModel.currentSelection?.locator.text.highlight
+                                viewModel.currentSelection = nil
+                                viewModel.showToast("Copied")
                             } onCancel: {
                                 viewModel.currentSelection = nil
                             }
@@ -392,6 +401,13 @@ public struct ReaderContainerView: View {
                 if let locator = hit.parsedLocator {
                     viewModel.navigateToSearchResult(locator)
                 }
+            }
+        }
+        .sheet(isPresented: $isThoughtEditorPresented) {
+            SelectionThoughtEditorView(
+                quote: viewModel.currentSelection?.locator.text.highlight ?? ""
+            ) { thought in
+                viewModel.createHighlight(colorHex: thoughtColorHex, comment: thought)
             }
         }
     }

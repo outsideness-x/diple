@@ -395,7 +395,7 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
 
-    public func createHighlight(colorHex: String) {
+    public func createHighlight(colorHex: String, comment: String? = nil) {
         guard let selection = currentSelection else { return }
         let text = selection.locator.text.highlight ?? ""
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -405,6 +405,7 @@ public final class ReaderViewModel: ObservableObject {
             bookId: book.id,
             locator: locatorJson,
             text: text,
+            comment: comment,
             colorHex: colorHex,
             createdAt: Date()
         )
@@ -413,7 +414,7 @@ public final class ReaderViewModel: ObservableObject {
             try AppDatabase.shared.saveHighlight(highlight)
             loadHighlights()
             HapticManager.shared.impact(.light)
-            showToast("Quote saved")
+            showToast(comment == nil ? "Highlight saved" : "Thought saved")
         } catch {
             Self.log.error("Failed to save highlight: \(error, privacy: .public)")
             showToast("Could not save quote")
