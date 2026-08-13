@@ -1404,6 +1404,36 @@ public nonisolated final class AppDatabase: Sendable {
         return localDate == nil || modifiedAt >= (localDate ?? .distantPast)
     }
 
+    /// Adopts the server's record version without adopting its contents.
+    ///
+    /// A CloudKit save is rejected with `serverRecordChanged` when this device is holding a
+    /// stale record change tag. Resolving that means two separate decisions, and they were
+    /// conflated: *whose data wins* is decided by `modifiedAt`, but *which version of the
+    /// record we are editing from* is not a choice at all — the server's tag is simply the
+    /// truth. Every `applyRemote…` returns early when the local row is newer, which left the
+    /// stale tag in place, so the retry was rebuilt from it and rejected again, forever. A
+    /// local edit could never reach the server once the server copy had moved on — which is
+    /// precisely the case after editing the same note on two devices.
+    ///
+    /// Deliberately does not touch `modifiedAt`, and deliberately does not clear the outbox:
+    /// the local change is still pending and still has to go up.
+    public func updateServerSystemFields(entity: SyncEntityType, id: String, systemFields: Data) throws {
+        try writer.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO syncMetadata(entityType, entityID, modifiedAt, systemFields)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(entityType, entityID)
+                    DO UPDATE SET systemFields = excluded.systemFields
+                    """,
+                // Only reached when no metadata row exists yet. `.distantPast` makes the next
+                // remote change win by default, which is the safe direction for a record this
+                // device has never successfully saved.
+                arguments: [entity.rawValue, id, Date.distantPast, systemFields]
+            )
+        }
+    }
+
     private func storeRemoteMetadata(
         _ entity: SyncEntityType,
         id: String,

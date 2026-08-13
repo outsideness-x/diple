@@ -442,7 +442,19 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             switch failure.error.code {
             case .serverRecordChanged:
                 if let serverRecord = failure.error.serverRecord {
+                    // Whose *data* wins is decided inside, by modifiedAt. Which *version* of
+                    // the record the next attempt is built from is not a choice: the server's
+                    // change tag is the truth either way. Adopting it unconditionally is what
+                    // stops a newer local edit from being retried forever against a stale tag
+                    // and rejected every time — see `updateServerSystemFields`.
                     _ = try? await applyRemoteRecord(serverRecord)
+                    if let systemFields = try? Self.archiveSystemFields(of: serverRecord) {
+                        try? database.updateServerSystemFields(
+                            entity: key.entity,
+                            id: key.id,
+                            systemFields: systemFields
+                        )
+                    }
                 }
                 syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(failure.record.recordID)])
             case .zoneNotFound:
