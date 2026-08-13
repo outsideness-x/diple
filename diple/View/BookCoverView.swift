@@ -1,5 +1,33 @@
 import SwiftUI
 
+/// Shifts a cover slightly against the card it sits in as the grid scrolls.
+///
+/// A grid of covers scrolls as one flat sheet. Letting the art travel a few points slower than
+/// its frame gives the shelf a front and a back, which is most of what makes a scroll feel
+/// physical rather than like a list being redrawn. The offset is deliberately tiny — it should
+/// register as depth, not as artwork sliding around inside a window.
+///
+/// Driven by `visualEffect`, so the position is read during rendering rather than published
+/// into SwiftUI state: a `GeometryReader` writing a scroll offset would invalidate every cell
+/// on every frame of the scroll, which is exactly the cost this effect is not worth.
+private struct CoverParallax: ViewModifier {
+    /// Points of travel between the top of the viewport and the bottom.
+    let travel: CGFloat
+
+    func body(content: Content) -> some View {
+        content.visualEffect { view, proxy in
+            let viewport = proxy.bounds(of: .scrollView)?.height ?? 0
+            // Outside a scroll view there is no scroll to parallax against — the reader's own
+            // cover, for one — and the effect simply does not apply.
+            guard viewport > 0 else { return view.offset(y: 0) }
+            // −1 at the top of the viewport, +1 at the bottom. Clamped so a cell scrolled far
+            // past either edge stops travelling instead of drifting without limit.
+            let position = (proxy.frame(in: .scrollView).midY / viewport) * 2 - 1
+            return view.offset(y: Swift.min(Swift.max(position, -1), 1) * travel)
+        }
+    }
+}
+
 public struct BookCoverView: View {
     public let coverPath: String?
     public let title: String
@@ -30,13 +58,38 @@ public struct BookCoverView: View {
 
     public var body: some View {
         GeometryReader { geometry in
+            art(in: geometry)
+                // Overscan first, so the art has somewhere to travel to and the parallax never
+                // pulls an empty edge into view. The clip and the border sit outside the
+                // effect: the card's own outline must not move, or the whole grid appears to
+                // wobble instead of the art appearing to sit deeper than it.
+                .scaleEffect(isCompact ? 1 : 1.06)
+                .modifier(CoverParallax(travel: isCompact ? 0 : 6))
+                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [DipleColor.insetHighlight, DipleColor.hairline],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: DipleStroke.hairline
+                        )
+                )
+        }
+        .aspectRatio(1 / 1.5, contentMode: .fit)
+    }
+
+    @ViewBuilder
+    private func art(in geometry: GeometryProxy) -> some View {
+        GeometryReader { _ in
             if let uiImage = loadedImage {
                 Image(uiImage: uiImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
             } else {
                 // A placeholder is cover art, not metadata. The full title and author already
                 // sit directly below a library cover; repeating them here creates a visual echo.
@@ -66,21 +119,8 @@ public struct BookCoverView: View {
                         .padding(DipleSpace.m)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [DipleColor.insetHighlight, DipleColor.hairline],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: DipleStroke.hairline
-                        )
-                )
             }
         }
-        .aspectRatio(1 / 1.5, contentMode: .fit)
     }
 }
 
