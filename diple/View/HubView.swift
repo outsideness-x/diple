@@ -53,6 +53,12 @@ public struct HubView: View {
                         .dipleType(.footnote, weight: .semibold)
                         .foregroundStyle(DipleColor.textTertiary)
                         .monospacedDigit()
+                        // Rolls when a quote is deleted here, or when the reader comes back
+                        // from a book having saved one. A count that jumps is a count you have
+                        // to re-read to notice; one that rolls tells you it moved and by how
+                        // much, in the same glance.
+                        .contentTransition(.numericText())
+                        .animation(DipleMotion.standard, value: viewModel.totalQuoteCount)
                 }
             }
         }

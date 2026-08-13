@@ -70,6 +70,11 @@ public struct HomeView: View {
                                         detail: "\(highlights.totalQuoteCount) saved passages",
                                         systemImage: "quote.opening"
                                     )
+                                    // Home is where a reader lands after closing a book, so
+                                    // this is the count most likely to have moved while they
+                                    // were away. Rolling it says what changed in the time they
+                                    // were reading.
+                                    .animation(DipleMotion.standard, value: highlights.totalQuoteCount)
                                 }
                                 .buttonStyle(.bookCard)
                             }
@@ -410,6 +415,8 @@ private struct HomeOpenCollectionRow: View {
                 Text(detail)
                     .dipleType(.caption)
                     .foregroundStyle(DipleColor.textTertiary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
             }
 
             Spacer()

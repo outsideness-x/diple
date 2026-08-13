@@ -84,6 +84,9 @@ public struct BookQuotesView: View {
                 .dipleType(.caption, weight: .medium)
                 .foregroundStyle(DipleColor.accent)
                 .padding(.top, DipleSpace.xs)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(DipleMotion.standard, value: viewModel.quotes.count)
         }
         .padding(.bottom, DipleSpace.s)
     }
