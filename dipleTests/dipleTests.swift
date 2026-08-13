@@ -5,6 +5,89 @@ import GRDB
 @MainActor
 final class DipleTests: XCTestCase {
 
+    // MARK: - Settings merge
+
+    /// The case the whole per-field merge exists for: two devices change two different
+    /// settings, and both changes have to survive.
+    func testMergeKeepsEachDeviceSeparateFieldChange() {
+        let base = AppSettings()
+        let early = Date(timeIntervalSince1970: 1_000)
+        let late = Date(timeIntervalSince1970: 2_000)
+
+        var phone = base
+        phone.accent = .clay
+        phone.stampChanges(against: base, at: early)
+
+        var mac = base
+        mac.appearance = .light
+        mac.stampChanges(against: base, at: late)
+
+        let merged = phone.merging(remote: mac)
+        XCTAssertEqual(merged.accent, .clay, "the phone's accent must survive")
+        XCTAssertEqual(merged.appearance, .light, "the Mac's appearance must survive")
+    }
+
+    /// When both devices touch the *same* field, the later stamp wins regardless of which side
+    /// is local.
+    func testMergeTakesTheNewerValueOfAContestedField() {
+        let base = AppSettings()
+        var mine = base
+        mine.accent = .clay
+        mine.stampChanges(against: base, at: Date(timeIntervalSince1970: 1_000))
+
+        var theirs = base
+        theirs.accent = .mint
+        theirs.stampChanges(against: base, at: Date(timeIntervalSince1970: 2_000))
+
+        XCTAssertEqual(mine.merging(remote: theirs).accent, .mint)
+        XCTAssertEqual(theirs.merging(remote: mine).accent, .mint)
+    }
+
+    /// A tie keeps what the reader is already looking at.
+    func testMergePrefersLocalOnEqualStamps() {
+        let base = AppSettings()
+        let sameMoment = Date(timeIntervalSince1970: 1_000)
+
+        var mine = base
+        mine.accent = .clay
+        mine.stampChanges(against: base, at: sameMoment)
+
+        var theirs = base
+        theirs.accent = .mint
+        theirs.stampChanges(against: base, at: sameMoment)
+
+        XCTAssertEqual(mine.merging(remote: theirs).accent, .clay)
+    }
+
+    /// A payload written before stamps existed carries none, so it must not overwrite a value
+    /// this device is known to have chosen.
+    func testMergeIgnoresUnstampedRemoteValues() {
+        let base = AppSettings()
+        var mine = base
+        mine.accent = .clay
+        mine.stampChanges(against: base, at: Date(timeIntervalSince1970: 1_000))
+
+        var legacy = base
+        legacy.accent = .mint
+        legacy.fieldStamps = [:]
+
+        XCTAssertEqual(mine.merging(remote: legacy).accent, .clay)
+    }
+
+    /// Stamps survive the round trip that actually carries them between devices.
+    func testFieldStampsSurviveCoding() throws {
+        var settings = AppSettings()
+        settings.appearance = .light
+        settings.stampChanges(against: AppSettings(), at: Date(timeIntervalSince1970: 1_234))
+
+        let decoded = try JSONDecoder().decode(
+            AppSettings.self,
+            from: try JSONEncoder().encode(settings)
+        )
+        XCTAssertEqual(decoded.fieldStamps[AppSettings.Field.appearance.rawValue],
+                       Date(timeIntervalSince1970: 1_234))
+    }
+
     // MARK: - Small persisted values
 
     func testTagNormalizationHandlesHashesCaseAndUnicode() {
@@ -66,10 +149,16 @@ final class DipleTests: XCTestCase {
         """
 
         let blocks = NoteMarkdown.parse(markdown)
-        XCTAssertTrue(blocks.contains(.tasks([
-            NoteTask(text: "Search", isCompleted: true),
-            NoteTask(text: "Backlinks", isCompleted: false)
-        ])))
+        // Compared field by field rather than by whole-value equality: a `NoteTask` also
+        // carries the source line it was parsed from, so a task built here would have to guess
+        // a line number to match — which is asserting on the fixture's formatting, not on the
+        // parser. Text and completion are what this test is actually about.
+        let tasks = blocks.compactMap { block -> [NoteTask]? in
+            if case .tasks(let items) = block { return items }
+            return nil
+        }.first
+        XCTAssertEqual(tasks?.map(\.text), ["Search", "Backlinks"])
+        XCTAssertEqual(tasks?.map(\.isCompleted), [true, false])
         XCTAssertTrue(blocks.contains(.callout(
             kind: .tip,
             title: "Keep it focused",

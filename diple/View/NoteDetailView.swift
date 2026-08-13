@@ -136,9 +136,19 @@ public struct NoteDetailView: View {
         suggestedTags.filter { !tags.contains($0) }
     }
 
+    /// The heading the reading view shows.
+    ///
+    /// Falls back to the note's opening line the same way a card does. It did not, so a note
+    /// without a title was called by its first line on the board and "Untitled" the moment it
+    /// was opened — the same note under two names, and the emptier name on the bigger type.
     private var displayTitle: String {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Untitled" : trimmed
+        if !trimmed.isEmpty { return trimmed }
+        return NoteItem(
+            note: Note(id: draftID, title: nil, body: body_, bookId: selectedBookId),
+            tags: tags,
+            book: selectedBook
+        ).displayTitle
     }
 
     public var body: some View {
