@@ -745,44 +745,59 @@ public struct NoteDetailView: View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
             sectionLabel("FROM LIBRARY")
 
-            Button {
-                HapticManager.shared.selection()
-                isBookPickerPresented = true
-            } label: {
-                HStack(spacing: DipleSpace.m) {
-                    Image(systemName: "book.closed")
-                        .dipleIcon(14, weight: .medium)
-                        .foregroundStyle(DipleColor.accent)
+            // Two sibling buttons, not one nested in the other's label. The clear control used
+            // to be an onTapGesture inside this row's Button, where it could never fire — the
+            // enclosing Button takes the tap — so the only visible way to unlink a book
+            // silently opened the picker instead.
+            HStack(spacing: DipleSpace.m) {
+                Button {
+                    HapticManager.shared.selection()
+                    isBookPickerPresented = true
+                } label: {
+                    HStack(spacing: DipleSpace.m) {
+                        Image(systemName: "book.closed")
+                            .dipleIcon(14, weight: .medium)
+                            .foregroundStyle(DipleColor.accent)
 
-                    Text(selectedBook?.title ?? "Tag a book or file")
-                        .dipleType(.callout)
-                        .foregroundStyle(
-                            selectedBook == nil
-                                ? DipleColor.textTertiary
-                                : DipleColor.textPrimary
-                        )
-                        .lineLimit(1)
+                        Text(selectedBook?.title ?? "Tag a book or file")
+                            .dipleType(.callout)
+                            .foregroundStyle(
+                                selectedBook == nil
+                                    ? DipleColor.textTertiary
+                                    : DipleColor.textPrimary
+                            )
+                            .lineLimit(1)
 
-                    Spacer()
+                        Spacer(minLength: 0)
 
-                    if selectedBook != nil {
+                        if selectedBook == nil {
+                            Image(systemName: "chevron.right")
+                                .dipleIcon(12, weight: .semibold)
+                                .foregroundStyle(DipleColor.textQuaternary)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(selectedBook == nil ? "Tag a book or file" : "Change tagged book")
+
+                if selectedBook != nil {
+                    Button {
+                        HapticManager.shared.selection()
+                        selectedBookId = nil
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .dipleIcon(15)
                             .foregroundStyle(DipleColor.textQuaternary)
-                            .onTapGesture {
-                                HapticManager.shared.selection()
-                                selectedBookId = nil
-                            }
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .dipleIcon(12, weight: .semibold)
-                            .foregroundStyle(DipleColor.textQuaternary)
+                            .frame(minWidth: 30, minHeight: 30)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.readerControl)
+                    .accessibilityLabel("Remove book tag")
                 }
-                .diplePadding(.field)
-                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
             }
-            .buttonStyle(.plain)
+            .diplePadding(.field)
+            .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
         }
     }
 

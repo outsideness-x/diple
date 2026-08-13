@@ -52,23 +52,30 @@ public struct AddBookmarkSheetView: View {
                             .foregroundStyle(DipleColor.textTertiary)
                             .padding(.horizontal, DipleSpace.xs)
 
-                        HStack(spacing: DipleSpace.l) {
+                        // Buttons rather than a tap gesture on a 32pt circle: a bare gesture
+                        // carries no button trait for VoiceOver, gives no press feedback, and
+                        // leaves a target well under the 44pt a fingertip needs.
+                        HStack(spacing: DipleSpace.s) {
                             ForEach(Self.availableColors, id: \.hex) { colorOption in
                                 let isSelected = selectedColorHex == colorOption.hex
-                                Circle()
-                                    .fill(Color(hex: colorOption.hex))
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
-                                    )
-                                    .scaleEffect(isSelected ? 1.15 : 1.0)
-                                    .contentShape(Circle())
-                                    .onTapGesture {
-                                        HapticManager.shared.selection()
-                                        selectedColorHex = colorOption.hex
-                                    }
-                                    .accessibilityLabel(colorOption.name)
+                                Button {
+                                    HapticManager.shared.selection()
+                                    selectedColorHex = colorOption.hex
+                                } label: {
+                                    Circle()
+                                        .fill(Color(hex: colorOption.hex))
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
+                                        )
+                                        .scaleEffect(isSelected ? 1.15 : 1.0)
+                                        .frame(maxWidth: .infinity, minHeight: 44)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.readerControl)
+                                .accessibilityLabel(colorOption.name)
+                                .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
                             }
                         }
                         .padding(.vertical, DipleSpace.s)
