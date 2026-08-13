@@ -19,6 +19,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let hasSelection: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
+    public let onHighlightActivated: (String) -> Void
     public let onCenterTap: () -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
@@ -35,6 +36,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
+        onHighlightActivated: @escaping (String) -> Void = { _ in },
         onCenterTap: @escaping () -> Void,
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
@@ -50,6 +52,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.hasSelection = hasSelection
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
+        self.onHighlightActivated = onHighlightActivated
         self.onCenterTap = onCenterTap
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
@@ -81,6 +84,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.lastHighlights = highlights
             context.coordinator.syncScrollTransition(for: navigator)
             applyDecorations(highlights: highlights, to: navigator)
+            navigator.observeDecorationInteractions(inGroup: "highlights") { [weak coordinator = context.coordinator] event in
+                coordinator?.activateHighlight(id: event.decoration.id)
+            }
             return navigator
         } catch {
             // Trapping here would crash the app on a book it simply cannot render.
@@ -163,6 +169,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
         init(_ parent: EPUBNavigatorRepresentable) {
             self.parent = parent
+        }
+
+        func activateHighlight(id: String) {
+            HapticManager.shared.selection()
+            parent.onSelectionChanged(nil)
+            parent.onHighlightActivated(id)
         }
 
         /// `updateUIViewController` runs on every SwiftUI update — including the ones caused
@@ -276,7 +288,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
             HapticManager.shared.selection()
             parent.onSelectionChanged(selection)
-            return true
+            return false
         }
 
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {

@@ -427,9 +427,27 @@ public final class ReaderViewModel: ObservableObject {
         do {
             try AppDatabase.shared.deleteHighlight(id: highlight.id)
             loadHighlights()
+            HapticManager.shared.notification(.success)
+            showToast("Highlight deleted")
         } catch {
             Self.log.error("Failed to delete highlight: \(error, privacy: .public)")
             showToast("Could not delete quote")
+        }
+    }
+
+    public func updateHighlight(_ highlight: Highlight, colorHex: String, comment: String?) {
+        do {
+            try AppDatabase.shared.updateHighlight(
+                id: highlight.id,
+                colorHex: colorHex,
+                comment: comment
+            )
+            loadHighlights()
+            HapticManager.shared.impact(.light)
+            showToast("Highlight updated")
+        } catch {
+            Self.log.error("Failed to update highlight: \(error, privacy: .public)")
+            showToast("Could not update highlight")
         }
     }
 

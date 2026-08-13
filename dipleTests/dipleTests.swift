@@ -278,6 +278,35 @@ final class DipleTests: XCTestCase {
         XCTAssertNotNil(finishedBook.lastOpenedAt)
     }
 
+    func testEditingHighlightUpdatesColorCommentSearchAndSync() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(id: "edit-highlight-book", title: "Source", filePath: "Books/source.epub")
+        let highlight = Highlight(
+            id: "editable-highlight",
+            bookId: book.id,
+            locator: "{}",
+            text: "A selected passage",
+            colorHex: DipleColor.Highlight.yellow
+        )
+        try database.saveBook(book)
+        try database.saveHighlight(highlight)
+
+        try database.updateHighlight(
+            id: highlight.id,
+            colorHex: DipleColor.Highlight.blue,
+            comment: "  New context  "
+        )
+
+        let updated = try XCTUnwrap(database.fetchHighlights(forBookId: book.id).first)
+        XCTAssertEqual(updated.colorHex, DipleColor.Highlight.blue)
+        XCTAssertEqual(updated.comment, "New context")
+        XCTAssertEqual(try database.search("context").map(\.entityID), [highlight.id])
+        XCTAssertEqual(
+            try database.fetchSyncOutbox().first { $0.entity == .highlight }?.entityID,
+            highlight.id
+        )
+    }
+
     func testDailyResurfacingPrefersAnOlderQuoteAndIsStableForTheDay() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let today = Calendar.current.startOfDay(for: now)

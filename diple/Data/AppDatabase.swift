@@ -526,6 +526,30 @@ public nonisolated final class AppDatabase: Sendable {
         signalSyncIfNeeded()
     }
 
+    /// Edits the two user-facing properties of a saved highlight atomically. The locator,
+    /// quote text and capture date remain immutable; changing appearance or adding context
+    /// must not turn the passage into a different object or reset its place in the library.
+    public func updateHighlight(
+        id: String,
+        colorHex: String,
+        comment: String?,
+        changedAt: Date = Date()
+    ) throws {
+        try writer.write { db in
+            guard var highlight = try Highlight.filter(Column("id") == id).fetchOne(db) else {
+                return
+            }
+            let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
+            highlight.colorHex = colorHex
+            highlight.comment = (trimmed?.isEmpty ?? true) ? nil : trimmed
+            try highlight.update(db)
+            let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
+            try indexHighlight(highlight, book: book, in: db)
+            try markLocalSave(.highlight, id: id, at: changedAt, in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
     /// Quotes are deliberately fetched independently of their books: a saved passage may
     /// outlive the publication it came from, and resurfacing should still bring it back.
     public func fetchAllHighlights() throws -> [Highlight] {

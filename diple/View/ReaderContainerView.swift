@@ -7,8 +7,7 @@ public struct ReaderContainerView: View {
     @StateObject private var settingsManager = AppSettingsManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isThoughtEditorPresented = false
-    @State private var thoughtColorHex = DipleColor.Highlight.yellow
+    @State private var highlightEditorTarget: HighlightEditorTarget?
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
@@ -69,7 +68,7 @@ public struct ReaderContainerView: View {
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
-                            viewModel.currentSelection = selection
+                            presentEditor(for: selection)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onCenterTap: {
@@ -103,8 +102,14 @@ public struct ReaderContainerView: View {
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
-                            viewModel.currentSelection = selection
+                            presentEditor(for: selection)
                             ReaderIdleTimerKeeper.shared.poke()
+                        },
+                        onHighlightActivated: { highlightID in
+                            guard let highlight = viewModel.highlights.first(where: { $0.id == highlightID }) else {
+                                return
+                            }
+                            highlightEditorTarget = .existing(highlight)
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
@@ -284,42 +289,6 @@ public struct ReaderContainerView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // Selection Floating Color Bar Overlay.
-                //
-                // Carried by a flexible `Color.clear` and attached as its overlay, because a
-                // `ZStack` sizes itself to its widest child: the bar's row of fixed circles
-                // and its `fixedSize` label give it a minimum width that a narrow phone or a
-                // large Dynamic Type size pushes past the screen, and as a plain sibling that
-                // minimum widened the stack — and with it the navigator — so the page reflowed
-                // under the reader every time a sentence was selected. An overlay is laid out
-                // inside its host and can never resize it.
-                //
-                // That same carrier is what dismisses the bar: a tap anywhere off it drops
-                // the selection, the way any transient popover closes. The tap is consumed
-                // rather than passed to the page, so dismissing never also turns a page or
-                // toggles the reader chrome — and `hasSelection` carries the same drop into
-                // the navigator, so the blue selection and the system edit menu go with it.
-                if viewModel.currentSelection != nil {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { viewModel.currentSelection = nil }
-                        .overlay(alignment: .bottom) {
-                            SelectionColorBarView { hexColor in
-                                viewModel.createHighlight(colorHex: hexColor)
-                            } onAddThought: { hexColor in
-                                thoughtColorHex = hexColor
-                                isThoughtEditorPresented = true
-                            } onCopy: {
-                                UIPasteboard.general.string = viewModel.currentSelection?.locator.text.highlight
-                                viewModel.currentSelection = nil
-                                viewModel.showToast("Copied")
-                            } onCancel: {
-                                viewModel.currentSelection = nil
-                            }
-                            .padding(.bottom, DipleSpace.scrollBottom)
-                        }
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
             }
         }
         .animation(DipleMotion.gentle, value: viewModel.toast)
@@ -401,12 +370,50 @@ public struct ReaderContainerView: View {
                 }
             }
         }
-        .sheet(isPresented: $isThoughtEditorPresented) {
-            SelectionThoughtEditorView(
-                quote: viewModel.currentSelection?.locator.text.highlight ?? ""
-            ) { thought in
-                viewModel.createHighlight(colorHex: thoughtColorHex, comment: thought)
+        .sheet(item: $highlightEditorTarget, onDismiss: {
+            viewModel.currentSelection = nil
+        }) { target in
+            switch target {
+            case .new(_, let quote):
+                HighlightEditorView(quote: quote, isExisting: false) { colorHex, comment in
+                    viewModel.createHighlight(colorHex: colorHex, comment: comment)
+                }
+            case .existing(let highlight):
+                HighlightEditorView(
+                    quote: highlight.text,
+                    initialColorHex: highlight.colorHex,
+                    initialComment: highlight.comment,
+                    isExisting: true,
+                    onSave: { colorHex, comment in
+                        viewModel.updateHighlight(highlight, colorHex: colorHex, comment: comment)
+                    },
+                    onDelete: {
+                        viewModel.deleteHighlight(highlight)
+                    }
+                )
             }
+        }
+    }
+
+    private func presentEditor(for selection: Selection?) {
+        viewModel.currentSelection = selection
+        guard highlightEditorTarget == nil,
+              let quote = selection?.locator.text.highlight?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !quote.isEmpty
+        else { return }
+        highlightEditorTarget = .new(UUID(), quote)
+    }
+}
+
+private enum HighlightEditorTarget: Identifiable {
+    case new(UUID, String)
+    case existing(Highlight)
+
+    var id: String {
+        switch self {
+        case .new(let id, _): return "new:\(id.uuidString)"
+        case .existing(let highlight): return "existing:\(highlight.id)"
         }
     }
 }

@@ -180,7 +180,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
             HapticManager.shared.selection()
             parent.onSelectionChanged(selection)
-            return true
+            return false
         }
 
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
