@@ -13,56 +13,100 @@ import UIKit
 ///   anything laid on it looks pasted rather than lit, and OLED smearing during scroll is
 ///   worse. Every surface carries a cold blue undertone (blue channel above red and green),
 ///   which is what makes a dark UI feel deep rather than muddy.
-/// - **Text is translucent, surfaces are opaque.** Foreground tokens are white at an opacity,
-///   so they composite correctly over any surface in the ramp *and* over the blurred
+/// - **Text is translucent, surfaces are opaque.** Foreground tokens are the theme's ink at an
+///   opacity, so they composite correctly over any surface in the ramp *and* over the blurred
 ///   materials used by the reader bars and sheets — a solid grey that reads right on
 ///   `surface` goes muddy the moment it lands on a material.
+///
+/// Every token is a **dynamic colour**: one value for each appearance, resolved against the
+/// trait collection rather than read from a setting. That is what lets the app carry a light
+/// theme without touching any of the several hundred call sites, and it means the UIKit layers
+/// of the reader repaint on the same signal as the SwiftUI ones.
+///
+/// The two ramps are not inversions of each other. On dark, higher means lighter, and the
+/// canvas is the darkest thing on screen. On light, the canvas is a soft grey and cards are
+/// **white** — paper laid on a desk, not a grey card on a white wall. Inverting the dark ramp
+/// literally would put white behind everything and grey cards on top, which is the arrangement
+/// that makes a light interface look like an unstyled form.
 public enum DipleColor {
+
+    /// One token, two values. `UIColor`'s dynamic provider is the only mechanism that resolves
+    /// per trait collection, so SwiftUI, UIKit and the reader's navigator all read the same
+    /// answer without a parallel lookup.
+    static func adaptive(light: UIColor, dark: UIColor) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
+
+    private static func ink(_ opacity: CGFloat) -> Color {
+        adaptive(
+            light: UIColor(white: 0.05, alpha: opacity),
+            dark: UIColor(white: 1, alpha: opacity)
+        )
+    }
 
     // MARK: - Surfaces
 
     /// The floor of the app. Window and scroll-view backgrounds.
-    public static let canvas = Color(red: 0.043, green: 0.043, blue: 0.059)
+    public static let canvas = adaptive(
+        light: UIColor(red: 0.957, green: 0.957, blue: 0.969, alpha: 1),
+        dark: UIColor(red: 0.043, green: 0.043, blue: 0.059, alpha: 1)
+    )
 
     /// Cards and rows sitting directly on the canvas.
-    public static let surface = Color(red: 0.075, green: 0.075, blue: 0.094)
+    public static let surface = adaptive(
+        light: UIColor(red: 1, green: 1, blue: 1, alpha: 1),
+        dark: UIColor(red: 0.075, green: 0.075, blue: 0.094, alpha: 1)
+    )
 
     /// Sheets, popovers and anything stacked above a card.
-    public static let surfaceRaised = Color(red: 0.102, green: 0.102, blue: 0.129)
+    public static let surfaceRaised = adaptive(
+        light: UIColor(red: 1, green: 1, blue: 1, alpha: 1),
+        dark: UIColor(red: 0.102, green: 0.102, blue: 0.129, alpha: 1)
+    )
 
     /// Controls inside a raised surface: segment backgrounds, chips, progress tracks.
-    public static let surfaceOverlay = Color(red: 0.137, green: 0.137, blue: 0.173)
+    /// On light this goes *down* from the card rather than up: a control set into paper.
+    public static let surfaceOverlay = adaptive(
+        light: UIColor(red: 0.925, green: 0.925, blue: 0.945, alpha: 1),
+        dark: UIColor(red: 0.137, green: 0.137, blue: 0.173, alpha: 1)
+    )
 
     // MARK: - Lines and edges
 
     /// The default one-off border that separates a surface from what is behind it.
-    public static let hairline = Color.white.opacity(0.08)
+    public static let hairline = ink(0.10)
 
     /// For edges that must survive over a light or sepia reader page.
-    public static let hairlineStrong = Color.white.opacity(0.14)
+    public static let hairlineStrong = ink(0.16)
 
-    /// Top-edge highlight of the double-contour treatment: the light that would catch the
-    /// bevel if the card were a physical object. Paired with `hairline`, never used alone.
-    public static let insetHighlight = Color.white.opacity(0.06)
+    /// Top edge of the double-contour treatment. On dark it is the light a bevel would catch;
+    /// on light a white bevel on a white card is invisible, so the gradient runs the other way
+    /// — a soft top edge deepening towards the bottom, which is the same carved read.
+    public static let insetHighlight = adaptive(
+        light: UIColor(white: 0.05, alpha: 0.04),
+        dark: UIColor(white: 1, alpha: 0.06)
+    )
 
     /// Dividers inside a list, which sit lower than a border between two surfaces.
-    public static let separator = Color.white.opacity(0.06)
+    public static let separator = ink(0.08)
 
     // MARK: - Foreground
 
     /// Titles and body copy.
-    public static let textPrimary = Color.white.opacity(0.93)
+    public static let textPrimary = ink(0.93)
 
     /// Supporting copy and active icons.
-    public static let textSecondary = Color.white.opacity(0.72)
+    public static let textSecondary = ink(0.70)
 
     /// Metadata: authors, dates, counts, section headers.
-    public static let textTertiary = Color.white.opacity(0.52)
+    public static let textTertiary = ink(0.52)
 
     /// The quietest readable level: chevrons, disabled controls, timestamps on a card.
-    public static let textQuaternary = Color.white.opacity(0.36)
+    public static let textQuaternary = ink(0.38)
 
-    /// Text and glyphs printed on a filled accent surface.
+    /// Text and glyphs printed on a filled accent surface. Stays dark in both themes: every
+    /// accent is a mid-to-light tint, so dark ink is the legible pairing on all four in either
+    /// appearance, and flipping it to white on light would fail contrast on mint and lilac.
     public static let textOnAccent = Color(red: 0.043, green: 0.043, blue: 0.059)
 
     // MARK: - Accent
@@ -81,8 +125,16 @@ public enum DipleColor {
 
     // MARK: - Status
 
-    public static let destructive = Color(red: 1.0, green: 0.22, blue: 0.37)
-    public static let success = Color(red: 0.19, green: 0.82, blue: 0.35)
+    /// Both are darkened for light: the dark-theme values are tuned to glow against #0B0B0F
+    /// and drop under 3:1 against white, which is below the floor for a control's own colour.
+    public static let destructive = adaptive(
+        light: UIColor(red: 0.84, green: 0.09, blue: 0.24, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.22, blue: 0.37, alpha: 1)
+    )
+    public static let success = adaptive(
+        light: UIColor(red: 0.10, green: 0.58, blue: 0.26, alpha: 1),
+        dark: UIColor(red: 0.19, green: 0.82, blue: 0.35, alpha: 1)
+    )
 
     // MARK: - Highlight palette
 
@@ -120,9 +172,22 @@ public enum DipleColor {
 /// configured with `UIColor`, and duplicating the literals there would put the ramp out of
 /// sync the first time a value is tuned.
 public extension UIColor {
-    static let dipleCanvas = UIColor(red: 0.043, green: 0.043, blue: 0.059, alpha: 1)
-    static let dipleSurface = UIColor(red: 0.075, green: 0.075, blue: 0.094, alpha: 1)
-    static let dipleSurfaceRaised = UIColor(red: 0.102, green: 0.102, blue: 0.129, alpha: 1)
+    private static func dipleAdaptive(light: UIColor, dark: UIColor) -> UIColor {
+        UIColor { $0.userInterfaceStyle == .dark ? dark : light }
+    }
+
+    static let dipleCanvas = dipleAdaptive(
+        light: UIColor(red: 0.957, green: 0.957, blue: 0.969, alpha: 1),
+        dark: UIColor(red: 0.043, green: 0.043, blue: 0.059, alpha: 1)
+    )
+    static let dipleSurface = dipleAdaptive(
+        light: UIColor(red: 1, green: 1, blue: 1, alpha: 1),
+        dark: UIColor(red: 0.075, green: 0.075, blue: 0.094, alpha: 1)
+    )
+    static let dipleSurfaceRaised = dipleAdaptive(
+        light: UIColor(red: 1, green: 1, blue: 1, alpha: 1),
+        dark: UIColor(red: 0.102, green: 0.102, blue: 0.129, alpha: 1)
+    )
 }
 
 #Preview("Colour ramp") {

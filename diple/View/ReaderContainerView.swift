@@ -28,7 +28,7 @@ public struct ReaderContainerView: View {
             if viewModel.isLoading {
                 VStack(spacing: DipleSpace.m) {
                     ProgressView()
-                        .tint(.white)
+                        .tint(DipleColor.accent)
                     Text("Loading book...")
                         .dipleType(.callout, weight: .medium)
                         .foregroundStyle(DipleColor.textSecondary)
@@ -37,21 +37,21 @@ public struct ReaderContainerView: View {
                 VStack(spacing: DipleSpace.l) {
                     Image(systemName: "exclamationmark.triangle")
                         .dipleIcon(32)
-                        .foregroundColor(.red)
+                        .foregroundStyle(DipleColor.destructive)
 
                     Text(errorMessage)
                         .dipleType(.callout, weight: .medium)
-                        .foregroundColor(.white)
+                        .foregroundStyle(DipleColor.textPrimary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, DipleSpace.xxxl)
 
                     Button("Close") {
                         dismiss()
                     }
-                    .foregroundColor(.white)
+                    .foregroundStyle(DipleColor.textPrimary)
                     .padding(.horizontal, DipleSpace.xl)
                     .padding(.vertical, DipleSpace.s)
-                    .background(Color.white.opacity(0.2))
+                    .background(DipleColor.surfaceOverlay)
                     .cornerRadius(DipleRadius.s)
                 }
             } else if let publication = viewModel.publication {
@@ -283,7 +283,7 @@ public struct ReaderContainerView: View {
                 if let toast = viewModel.toast {
                     VStack {
                         Spacer()
-                        ReaderToastView(message: toast)
+                        ReaderToastView(message: toast, chrome: chrome)
                             .padding(.bottom, viewModel.isOverlayVisible ? 110 : 44)
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))

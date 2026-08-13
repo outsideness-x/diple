@@ -37,7 +37,6 @@ public struct BookQuotesView: View {
         .navigationTitle(summary.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .alert("Error", isPresented: $viewModel.showErrorAlert) {
             Button("OK", role: .cancel) {}
         } message: {

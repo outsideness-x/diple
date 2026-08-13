@@ -169,7 +169,6 @@ public struct NoteDetailView: View {
         .navigationTitle(isEditing ? (route.item == nil ? "New Note" : "Editing") : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar { toolbarContent }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isEditing {

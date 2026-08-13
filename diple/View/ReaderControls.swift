@@ -192,23 +192,36 @@ public extension View {
 }
 
 /// Brief confirmation pill shown over the page after an action such as saving a bookmark.
+///
+/// Takes its colours from the page rather than the app. The pill used to force a dark scheme
+/// and then print `DipleColor.textPrimary` on it, which was the same colour twice over while
+/// the app had one appearance. Now that the app has two, that pairing would put dark ink on a
+/// dark blur the moment a reader chose the light interface — and the toast sits over the
+/// *page*, whose theme is a separate choice from the app's anyway.
 public struct ReaderToastView: View {
     public let message: String
+    public let chrome: ReaderChrome
 
-    public init(message: String) {
+    public init(message: String, chrome: ReaderChrome) {
         self.message = message
+        self.chrome = chrome
     }
 
     public var body: some View {
         Text(message)
             .dipleType(.footnote, weight: .semibold)
-            .foregroundStyle(DipleColor.textPrimary)
+            .foregroundStyle(chrome.control)
             .padding(.horizontal, 18)
             .padding(.vertical, DipleSpace.m)
-            .background(.thinMaterial, in: Capsule())
-            .environment(\.colorScheme, .dark)
-            .overlay(Capsule().stroke(DipleColor.hairlineStrong, lineWidth: DipleStroke.hairline))
-            .shadow(color: Color.black.opacity(0.45), radius: 10, y: 4)
+            .background {
+                ZStack {
+                    Capsule().fill(.thinMaterial)
+                    Capsule().fill(chrome.tint)
+                }
+                .environment(\.colorScheme, chrome.colorScheme)
+            }
+            .overlay(Capsule().stroke(chrome.separator, lineWidth: DipleStroke.hairline))
+            .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
     }
 }
 

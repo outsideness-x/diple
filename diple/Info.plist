@@ -13,15 +13,16 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
-	<!-- The interface is dark everywhere; SwiftUI's own `preferredColorScheme` only takes
-	     effect once the first view is on screen, which left the launch screen, system sheets
-	     and the keyboard following the device appearance. On a light-mode phone that read as
-	     a white flash at every launch. -->
-	<key>UIUserInterfaceStyle</key>
-	<string>Dark</string>
+	<!-- No UIUserInterfaceStyle here on purpose. It used to be pinned to Dark, which was
+	     right while the app had one appearance: it kept the launch screen, system sheets and
+	     the keyboard from following a light device. It is also an app-wide override, so with
+	     it in place the reader's own Appearance setting could not produce a light interface at
+	     all. The setting now drives the window instead. -->
 	<!-- Painted with the app's own canvas rather than the system background: `canvas` is
-	     deliberately #0B0B0F and not pure black (see CLAUDE.md), so the generated launch
-	     screen would still have stepped one shade on the way in. -->
+	     deliberately #0B0B0F on dark and a soft grey on light (see CLAUDE.md), so the generated
+	     launch screen would still have stepped one shade on the way in. The asset carries both
+	     appearances. It follows the *device*, not the in-app setting — nothing of ours runs
+	     before it — so choosing Dark on a light phone still shows one light frame at launch. -->
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

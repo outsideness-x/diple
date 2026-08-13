@@ -95,7 +95,7 @@ public struct EditBookMetadataView: View {
 
                                     TextField("Enter book title", text: $title)
                                         .dipleType(.body)
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(DipleColor.textPrimary)
                                         .diplePadding(.field)
                                         .background(DipleColor.surfaceRaised)
                                         .cornerRadius(DipleRadius.m)
@@ -109,7 +109,7 @@ public struct EditBookMetadataView: View {
 
                                     TextField("Enter author name", text: $author)
                                         .dipleType(.body)
-                                        .foregroundColor(.white)
+                                        .foregroundStyle(DipleColor.textPrimary)
                                         .diplePadding(.field)
                                         .background(DipleColor.surfaceRaised)
                                         .cornerRadius(DipleRadius.m)
@@ -125,7 +125,6 @@ public struct EditBookMetadataView: View {
             .navigationTitle("Edit Metadata")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {

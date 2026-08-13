@@ -39,7 +39,7 @@ public struct AddBookmarkSheetView: View {
 
                         TextField("Enter bookmark title", text: $bookmarkName)
                             .dipleType(.body)
-                            .foregroundColor(.white)
+                            .foregroundStyle(DipleColor.textPrimary)
                             .diplePadding(.field)
                             .background(DipleColor.surfaceRaised)
                             .cornerRadius(DipleRadius.m)
@@ -67,7 +67,7 @@ public struct AddBookmarkSheetView: View {
                                         .frame(width: 32, height: 32)
                                         .overlay(
                                             Circle()
-                                                .stroke(Color.white, lineWidth: isSelected ? 3 : 0)
+                                                .stroke(DipleColor.textPrimary, lineWidth: isSelected ? 3 : 0)
                                         )
                                         .scaleEffect(isSelected ? 1.15 : 1.0)
                                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -90,7 +90,6 @@ public struct AddBookmarkSheetView: View {
             .navigationTitle("Add Bookmark")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {

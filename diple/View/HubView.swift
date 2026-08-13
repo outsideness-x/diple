@@ -46,7 +46,6 @@ public struct HubView: View {
         .navigationTitle("Highlights")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             if viewModel.totalQuoteCount > 0 {
                 ToolbarItem(placement: .navigationBarTrailing) {

@@ -14,6 +14,10 @@ public final class AppSettingsManager: ObservableObject {
             // every path that can change `settings` — local edit or an incoming CloudKit
             // payload — has to keep it in lockstep, not just the Settings screen's own setter.
             DipleAccent.current = settings.accent
+            // Same reasoning as the accent: every path that can change `settings` — the
+            // Settings screen or an incoming CloudKit payload — has to reach the window,
+            // not only the one that happens to be on screen when the user taps.
+            DipleAppearance.apply(settings.appearance)
             save()
         }
     }
@@ -26,7 +30,9 @@ public final class AppSettingsManager: ObservableObject {
             self.settings = AppSettings()
         }
         // `didSet` does not fire for a property's own initial assignment inside `init`, so the
-        // holder needs this explicit sync for the very first launch.
+        // holder needs this explicit sync for the very first launch. The appearance is not
+        // applied here: no window exists yet. `preferredColorScheme` at the root covers the
+        // first frame, and `dipleApp` reaches the window once the scene is up.
         DipleAccent.current = settings.accent
     }
 

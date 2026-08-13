@@ -28,7 +28,6 @@ public struct GlobalSearchView: View {
             .navigationTitle("Search")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 if viewModel.isIndexingArticles || viewModel.isIndexingBookContent {
                     ToolbarItem(placement: .navigationBarTrailing) {

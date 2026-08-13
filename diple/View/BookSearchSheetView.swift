@@ -42,7 +42,6 @@ public struct BookSearchSheetView: View {
             .navigationTitle(viewModel.sourceTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {

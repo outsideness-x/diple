@@ -155,7 +155,6 @@ public struct LibraryView: View {
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {

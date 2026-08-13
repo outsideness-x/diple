@@ -428,6 +428,14 @@ public enum NoteMarkdown {
         // A card should read "the idea", not "[[the idea]]".
         .replacingOccurrences(of: "[[", with: "")
         .replacingOccurrences(of: "]]", with: "")
+        // …and "a real link to Readium", not "a real link to [Readium](https://readium.org)".
+        // A preview is a sentence, and a URL in the middle of one is noise the reader cannot
+        // act on: the card is not tappable at that word anyway.
+        .replacingOccurrences(
+            of: #"\[([^\]]*)\]\([^)]*\)"#,
+            with: "$1",
+            options: .regularExpression
+        )
         .removingNoteMathDelimiters()
     }
 

@@ -15,6 +15,7 @@ public struct AppSettings: Codable, Equatable {
     public var defaultScrollReadingMode: Bool
     public var readerSettings: ReaderSettings
     public var accent: DipleAccent
+    public var appearance: DipleAppearance
     public var keepScreenAwakeWhileReading: Bool
 
     public init(
@@ -24,6 +25,7 @@ public struct AppSettings: Codable, Equatable {
         defaultScrollReadingMode: Bool = false,
         readerSettings: ReaderSettings = ReaderSettings(),
         accent: DipleAccent = .lilac,
+        appearance: DipleAppearance = .dark,
         keepScreenAwakeWhileReading: Bool = true
     ) {
         self.isHapticsEnabled = isHapticsEnabled
@@ -32,6 +34,7 @@ public struct AppSettings: Codable, Equatable {
         self.defaultScrollReadingMode = defaultScrollReadingMode
         self.readerSettings = readerSettings
         self.accent = accent
+        self.appearance = appearance
         self.keepScreenAwakeWhileReading = keepScreenAwakeWhileReading
     }
 
@@ -42,6 +45,7 @@ public struct AppSettings: Codable, Equatable {
         case defaultScrollReadingMode
         case readerSettings
         case accent
+        case appearance
         case keepScreenAwakeWhileReading
     }
 
@@ -57,6 +61,10 @@ public struct AppSettings: Codable, Equatable {
         }
         self.readerSettings = loadedReaderSettings
         self.accent = try container.decodeIfPresent(DipleAccent.self, forKey: .accent) ?? .lilac
+        // Absent for everyone who installed before the light theme existed, and they chose an
+        // app that was dark — so the default is `.dark`, not `.system`. Following the device
+        // would have silently turned the interface white on the next launch.
+        self.appearance = try container.decodeIfPresent(DipleAppearance.self, forKey: .appearance) ?? .dark
         self.keepScreenAwakeWhileReading = try container.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeWhileReading) ?? true
     }
 }

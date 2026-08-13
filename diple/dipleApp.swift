@@ -32,21 +32,33 @@ struct dipleApp: App {
                 #if targetEnvironment(macCatalyst)
                 MacRootView()
                     .frame(minWidth: 980, minHeight: 680)
-                    .preferredColorScheme(.dark)
                 #else
                 // A library that would not open used to crash the app on launch. Now the
                 // reader gets told, and nothing that queries the database is put on screen.
                 if let failure = AppDatabase.startupFailure {
                     DatabaseUnavailableView(failure: failure)
-                        .preferredColorScheme(.dark)
                 } else {
                     RootTabView()
-                        .preferredColorScheme(.dark)
                 }
                 #endif
             }
+            // Deliberately not `.preferredColorScheme`. That modifier stamps its own
+            // `overrideUserInterfaceStyle` on the root hosting controller, and a sheet
+            // captures that value when it is presented — so changing the appearance while
+            // the Settings sheet was open turned the screen behind it and left the sheet,
+            // which is where the control lives, on the old theme. The window override below
+            // is the single mechanism; with nothing competing, it cascades live into anything
+            // presented in the window.
             .id(settingsManager.settings.accent)
+            .onChange(of: settingsManager.settings.appearance, initial: true) { _, appearance in
+                DipleAppearance.apply(appearance)
+            }
             .task {
+                // The window exists by now, which it did not when the settings manager was
+                // built. Sheets and the keyboard take the window's style rather than the
+                // SwiftUI preference, so this is what makes the choice cover all of them.
+                DipleAppearance.apply(settingsManager.settings.appearance)
+
                 // Notifications and sync both read the library; with no library to read,
                 // starting them would only mean uploading an empty one over the real thing.
                 guard AppDatabase.startupFailure == nil else { return }

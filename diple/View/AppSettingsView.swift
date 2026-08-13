@@ -37,6 +37,23 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.xs)
 
                             VStack(spacing: 1) {
+                                HStack(spacing: DipleSpace.s) {
+                                    ForEach(DipleAppearance.allCases) { option in
+                                        AppearanceOptionButton(
+                                            option: option,
+                                            isSelected: settingsManager.settings.appearance == option
+                                        ) {
+                                            HapticManager.shared.selection()
+                                            withAnimation(DipleMotion.standard) {
+                                                settingsManager.settings.appearance = option
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
+
                                 HStack(spacing: DipleSpace.xl) {
                                     ForEach(DipleAccent.allCases, id: \.rawValue) { accent in
                                         AccentSwatchButton(
@@ -69,7 +86,7 @@ public struct AppSettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Enable Haptics")
                                             .dipleType(.body, weight: .medium)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(DipleColor.textPrimary)
                                         Text("Vibrate on interactions and events")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
@@ -95,7 +112,7 @@ public struct AppSettingsView: View {
                                     VStack(alignment: .leading, spacing: DipleSpace.m) {
                                         Text("Haptic Intensity")
                                             .dipleType(.callout, weight: .medium)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(DipleColor.textPrimary)
 
                                         HStack(spacing: DipleSpace.m) {
                                             ForEach(HapticIntensity.allCases) { intensity in
@@ -126,7 +143,7 @@ public struct AppSettingsView: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("Chapter Transition Vibration")
                                                 .dipleType(.body, weight: .medium)
-                                                .foregroundColor(.white)
+                                                .foregroundStyle(DipleColor.textPrimary)
                                             Text("Vibrate when moving to next chapter")
                                                 .dipleType(.caption)
                                                 .foregroundStyle(DipleColor.textTertiary)
@@ -161,7 +178,7 @@ public struct AppSettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Default Continuous Scroll")
                                             .dipleType(.body, weight: .medium)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(DipleColor.textPrimary)
                                         Text("Open books in continuous vertical scrolling mode")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
@@ -185,7 +202,7 @@ public struct AppSettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Keep Screen Awake")
                                             .dipleType(.body, weight: .medium)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(DipleColor.textPrimary)
                                         Text("Screen dims after 10 minutes without page turns instead of after a few seconds")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
@@ -219,7 +236,7 @@ public struct AppSettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Daily Quote")
                                             .dipleType(.body, weight: .medium)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(DipleColor.textPrimary)
                                         Text("Return to one saved passage each day")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
@@ -250,7 +267,7 @@ public struct AppSettingsView: View {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("Reminder Time")
                                                 .dipleType(.body, weight: .medium)
-                                                .foregroundColor(.white)
+                                                .foregroundStyle(DipleColor.textPrimary)
                                             Text("A quiet nudge to revisit a saved thought")
                                                 .dipleType(.caption)
                                                 .foregroundStyle(DipleColor.textTertiary)
@@ -284,7 +301,7 @@ public struct AppSettingsView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("iCloud Sync")
                                             .dipleType(.body, weight: .medium)
-                                            .foregroundColor(.white)
+                                            .foregroundStyle(DipleColor.textPrimary)
                                         Text("Sync your library, quotes and notes across your devices")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
@@ -413,7 +430,6 @@ public struct AppSettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
@@ -453,6 +469,39 @@ public struct AppSettingsView: View {
                 }
             }
         }
+    }
+}
+
+/// Light / Dark / System, as three equal segments above the accent swatches.
+///
+/// A segmented row rather than a toggle: "System" is a real third choice, not the absence of
+/// the other two, and a switch labelled "Dark mode" cannot say so. Selection is a filled pill,
+/// the same shape the haptic-intensity row uses for a chosen option on this screen.
+private struct AppearanceOptionButton: View {
+    let option: DipleAppearance
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: DipleSpace.xs) {
+                Image(systemName: option.systemImage)
+                    .dipleIcon(15, weight: .medium)
+                Text(option.title)
+                    .dipleType(.caption, weight: .medium)
+            }
+            .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, DipleSpace.m)
+            .background(
+                isSelected ? DipleColor.accent : DipleColor.surfaceOverlay,
+                in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(option.title)
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }
 
