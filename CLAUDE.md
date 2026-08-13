@@ -44,6 +44,9 @@
   resurfacing, FTS и CloudKit без временного черновика или новой сущности.
 
 ### Notes workspace
+- iPhone Notes не показывает totals/word count/linked count: это vanity metrics без следующего
+  действия. Вместо них появляется только actionable row для заметок без source и tags; тап
+  сразу включает `.untagged`. Короткий заголовок оставляет контекст, не повторяя onboarding.
 - Smart views, поиск, сортировка, оглавление, backlinks и related notes вычисляются поверх
   существующих `Note`/`NoteTag`; для релизного редизайна не добавлялась миграция, поэтому ни
   одна уже синхронизированная заметка не зависит от новой версии схемы.

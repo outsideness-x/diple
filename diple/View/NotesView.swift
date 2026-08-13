@@ -4,7 +4,6 @@ import SwiftUI
 public struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
     @AppStorage("diple_notes_layout") private var storedLayout = NoteLayout.cards.rawValue
-    @AppStorage("diple_notes_overview_expanded") private var isOverviewExpanded = true
 
     /// Ties a card to the page it becomes, so the note expands out of the block the reader
     /// tapped instead of sliding in from the side.
@@ -115,75 +114,57 @@ public struct NotesView: View {
     }
 
     private var workspaceHeader: some View {
-        VStack(alignment: .leading, spacing: isOverviewExpanded ? DipleSpace.l : 0) {
-            Button {
-                HapticManager.shared.selection()
-                withAnimation(DipleMotion.snappy) {
-                    isOverviewExpanded.toggle()
-                }
-            } label: {
-                HStack {
-                    Text("YOUR THINKING SPACE")
-                        .dipleType(.nano)
-                        .foregroundStyle(DipleColor.accent)
+        VStack(alignment: .leading, spacing: DipleSpace.l) {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                Text("CONTINUE THINKING")
+                    .dipleType(.nano, weight: .semibold)
+                    .foregroundStyle(DipleColor.accent)
 
-                    Spacer()
-
-                    Image(systemName: isOverviewExpanded ? "chevron.up" : "chevron.down")
-                        .dipleIcon(12, weight: .semibold)
-                        .foregroundStyle(DipleColor.textTertiary)
-                }
-                .contentShape(Rectangle())
+                Text("Return to the idea, not the filing system.")
+                    .dipleType(.title)
+                    .foregroundStyle(DipleColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isOverviewExpanded ? "Hide notes overview" : "Show notes overview")
 
-            if isOverviewExpanded {
-                VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                    Text("Ideas worth returning to.")
-                        .dipleType(.display)
-                        .foregroundStyle(DipleColor.textPrimary)
+            if viewModel.unsortedCount > 0 {
+                Button {
+                    HapticManager.shared.selection()
+                    withAnimation(DipleMotion.snappy) {
+                        viewModel.query = ""
+                        viewModel.filter = .untagged
+                    }
+                } label: {
+                    HStack(spacing: DipleSpace.m) {
+                        Image(systemName: "tray")
+                            .dipleIcon(14, weight: .semibold)
+                            .foregroundStyle(DipleColor.accent)
+                            .frame(width: 34, height: 34)
+                            .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 
-                    Text("Keep thoughts close to the books that sparked them, then find the thread again in seconds.")
-                        .dipleType(.callout)
-                        .foregroundStyle(DipleColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                            Text("\(viewModel.unsortedCount) \(viewModel.unsortedCount == 1 ? "note needs" : "notes need") context")
+                                .dipleType(.body, weight: .semibold)
+                                .foregroundStyle(DipleColor.textPrimary)
+                            Text("Connect a source or add a tag")
+                                .dipleType(.caption)
+                                .foregroundStyle(DipleColor.textTertiary)
+                        }
+
+                        Spacer(minLength: DipleSpace.s)
+
+                        Image(systemName: "chevron.right")
+                            .dipleIcon(10, weight: .semibold)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
+                    .padding(DipleSpace.m)
+                    .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
                 }
-
-                HStack(spacing: 0) {
-                    metric(value: viewModel.items.count, label: "notes")
-                    metricDivider
-                    metric(value: viewModel.totalWordCount, label: "words")
-                    metricDivider
-                    metric(value: viewModel.linkedCount, label: "linked")
-                }
-                .padding(DipleSpace.l)
-                .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .buttonStyle(.bookCard)
+                .accessibilityHint("Shows notes without a source or tag")
             }
         }
         .padding(.horizontal, DipleSpace.xl)
         .padding(.top, DipleSpace.m)
-    }
-
-    private func metric(value: Int, label: String) -> some View {
-        VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text(value.formatted(.number.notation(value > 9_999 ? .compactName : .automatic)))
-                .dipleType(.headline)
-                .foregroundStyle(DipleColor.textPrimary)
-                .monospacedDigit()
-            Text(label.uppercased())
-                .dipleType(.nano)
-                .foregroundStyle(DipleColor.textQuaternary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var metricDivider: some View {
-        Rectangle()
-            .fill(DipleColor.separator)
-            .frame(width: DipleStroke.hairline, height: 34)
-            .padding(.horizontal, DipleSpace.m)
     }
 
     private var controls: some View {
@@ -393,11 +374,11 @@ public struct NotesView: View {
             }
 
             VStack(spacing: DipleSpace.s) {
-                Text("A home for your thinking")
+                Text("Write the first note")
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 
-                Text("Capture an idea, connect it to what you read, and let your knowledge compound over time.")
+                Text("Start with the thought itself. You can connect a source or add tags when they become useful.")
                     .dipleType(.callout)
                     .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)
