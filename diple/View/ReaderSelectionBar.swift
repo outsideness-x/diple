@@ -22,6 +22,8 @@ public struct ReaderSelectionBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var didCopy = false
     @State private var appeared = false
+    /// The swatch the reader just committed to, held for the length of its exit.
+    @State private var committedHex: String?
 
     public init(
         chrome: ReaderChrome,
@@ -39,7 +41,7 @@ public struct ReaderSelectionBar: View {
         HStack(spacing: DipleSpace.xs) {
             ForEach(DipleColor.Highlight.all, id: \.hex) { item in
                 Button {
-                    onPickColor(item.hex)
+                    commit(item.hex)
                 } label: {
                     Circle()
                         .fill(DipleColor.Highlight.color(forHex: item.hex))
@@ -47,10 +49,17 @@ public struct ReaderSelectionBar: View {
                         .overlay {
                             Circle().stroke(chrome.separator, lineWidth: DipleStroke.hairline)
                         }
+                        // The chosen swatch swells and fades as the bar leaves, so the colour
+                        // reads as going onto the page rather than the bar merely vanishing
+                        // and a highlight appearing somewhere behind it. The others shrink
+                        // away, which leaves the eye on the one that was picked.
+                        .scaleEffect(scale(for: item.hex))
+                        .opacity(opacity(for: item.hex))
                         .frame(width: 40, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.readerControl)
+                .disabled(committedHex != nil)
                 .accessibilityLabel("Highlight \(item.name)")
             }
 
@@ -93,6 +102,38 @@ public struct ReaderSelectionBar: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Selection actions")
+    }
+
+    private func scale(for hex: String) -> CGFloat {
+        guard let committedHex, !reduceMotion else { return 1 }
+        return committedHex == hex ? 2.1 : 0.5
+    }
+
+    /// Every swatch fades on commit; what differs is the direction it leaves in, which
+    /// `scale(for:)` carries — the chosen one outward onto the page, the rest inward.
+    private func opacity(for hex: String) -> Double {
+        committedHex == nil || reduceMotion ? 1 : 0
+    }
+
+    /// Saves, then lets the swatch finish leaving.
+    ///
+    /// The save itself is not delayed — the highlight is written and the decoration appears on
+    /// the page immediately, which is the whole point of a one-tap action. What is held back is
+    /// only this view's own exit, and only for as long as a spring takes to read. At Reduce
+    /// Motion there is nothing to wait for and the call goes straight through.
+    private func commit(_ hex: String) {
+        guard committedHex == nil else { return }
+
+        guard !reduceMotion else {
+            onPickColor(hex)
+            return
+        }
+
+        withAnimation(DipleMotion.snappy) { committedHex = hex }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(180))
+            onPickColor(hex)
+        }
     }
 
     private func action(
