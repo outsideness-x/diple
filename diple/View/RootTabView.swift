@@ -1,31 +1,32 @@
 import SwiftUI
 
-/// Top-level shell of the app: library, cross-book highlights and user notes.
+/// Top-level shell of the app. Home owns the daily reading-to-thinking loop; the remaining
+/// tabs are durable places for the material itself.
 public struct RootTabView: View {
     public enum Tab: Hashable {
+        case home
         case library
-        case highlights
         case notes
         case search
     }
 
-    @State private var selection: Tab = .library
+    @State private var selection: Tab = .home
 
     public init() {}
 
     public var body: some View {
         TabView(selection: $selection) {
+            HomeView()
+                .tabItem {
+                    Label("Home", systemImage: "house")
+                }
+                .tag(Tab.home)
+
             LibraryView()
                 .tabItem {
                     Label("Library", systemImage: "books.vertical")
                 }
                 .tag(Tab.library)
-
-            HubView()
-                .tabItem {
-                    Label("Highlights", systemImage: "quote.opening")
-                }
-                .tag(Tab.highlights)
 
             NotesView()
                 .tabItem {
@@ -47,11 +48,11 @@ public struct RootTabView: View {
             HapticManager.shared.selection()
         }
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
-            selection = .highlights
+            selection = .home
         }
         .onAppear {
             if DailyResurfacingService.shared.consumeOpenRequest() {
-                selection = .highlights
+                selection = .home
             }
         }
     }
