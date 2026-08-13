@@ -8,59 +8,59 @@ public struct HubView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            ZStack {
-                DipleColor.canvas.ignoresSafeArea()
+        ZStack {
+            DipleColor.canvas.ignoresSafeArea()
 
-                if viewModel.summaries.isEmpty {
-                    emptyState
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: DipleSpace.s) {
-                            DailyResurfacingCard { dailyQuoteDestination = $0 }
+            if viewModel.summaries.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: DipleSpace.s) {
+                        DailyResurfacingCard { dailyQuoteDestination = $0 }
                             .padding(.bottom, DipleSpace.m)
 
-                            ForEach(viewModel.summaries) { summary in
-                                NavigationLink(value: summary) {
-                                    HubBookRowView(summary: summary)
-                                }
-                                .buttonStyle(.bookCard)
+                        ForEach(viewModel.summaries) { summary in
+                            NavigationLink(value: summary) {
+                                HubBookRowView(summary: summary)
                             }
+                            .buttonStyle(.bookCard)
                         }
-                        .padding(.horizontal, DipleSpace.xl)
-                        .padding(.top, DipleSpace.m)
-                        .padding(.bottom, DipleSpace.xxxl)
                     }
+                    .padding(.horizontal, DipleSpace.xl)
+                    .padding(.top, DipleSpace.m)
+                    .padding(.bottom, DipleSpace.xxxl)
                 }
             }
-            .navigationTitle("Highlights")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                if viewModel.totalQuoteCount > 0 {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Text("\(viewModel.totalQuoteCount)")
-                            .dipleType(.footnote, weight: .semibold)
-                            .foregroundStyle(DipleColor.textTertiary)
-                            .monospacedDigit()
-                    }
+        }
+        // Home already owns this tab's NavigationStack. A second stack here made the
+        // book route compete with its parent, briefly render black, then reset to Home.
+        .navigationTitle("Highlights")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(DipleColor.canvas, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            if viewModel.totalQuoteCount > 0 {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Text("\(viewModel.totalQuoteCount)")
+                        .dipleType(.footnote, weight: .semibold)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .monospacedDigit()
                 }
             }
-            .navigationDestination(for: BookQuoteSummary.self) { summary in
-                BookQuotesView(summary: summary)
-            }
-            .navigationDestination(item: $dailyQuoteDestination) { summary in
-                BookQuotesView(summary: summary)
-            }
-            .alert("Error", isPresented: $viewModel.showErrorAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.errorMessage ?? "An unknown error occurred.")
-            }
-            .onAppear {
-                viewModel.load()
-            }
+        }
+        .navigationDestination(for: BookQuoteSummary.self) { summary in
+            BookQuotesView(summary: summary)
+        }
+        .navigationDestination(item: $dailyQuoteDestination) { summary in
+            BookQuotesView(summary: summary)
+        }
+        .alert("Error", isPresented: $viewModel.showErrorAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "An unknown error occurred.")
+        }
+        .onAppear {
+            viewModel.load()
         }
     }
 
