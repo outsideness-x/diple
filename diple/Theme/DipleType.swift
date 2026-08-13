@@ -14,9 +14,12 @@ import UIKit
 ///    type is set tight so headings read as one mass; small type is opened up so it stays
 ///    legible. Stored as a *ratio* of the size, per the design rule (−1%…−3% for headings,
 ///    +1%…+3% for small caps), so tracking scales together with the glyphs.
-/// 3. **The family split.** Publication content and quotations are serif; interface and notes
-///    use the system sans face. The role name carries the family, so the choice is made once
-///    and is visible at the call site.
+/// 3. **One family.** Every role in the app is San Francisco. The reading roles below used to
+///    be `design: .serif`, which on iOS is New York — a second typeface appearing without
+///    warning in quote cards, cover placeholders and search results, and one with no Hangul
+///    coverage, so Korean fell back to a third face inside a single line. The reading roles
+///    still exist, because a quoted passage is set differently from a row label, but the
+///    difference is now size, weight and measure rather than a change of typeface.
 public struct DipleTextStyle: Sendable {
     public let size: CGFloat
     public let weight: Font.Weight
@@ -63,14 +66,15 @@ public struct DipleTextStyle: Sendable {
     /// 9 — glyph-adjacent labels inside a chip. Never on its own line.
     public static let tag = DipleTextStyle(size: 9, weight: .semibold, metrics: .caption2, trackingRatio: 0.03)
 
-    // MARK: - Content roles (serif)
+    // MARK: - Content roles
 
-    /// 22 serif — a book title given room, on a cover placeholder or a detail header.
-    public static let readingTitle = DipleTextStyle(size: 22, weight: .semibold, design: .serif, metrics: .title2, trackingRatio: -0.015)
-    /// 15 serif — quoted passages from publications.
-    public static let readingBody = DipleTextStyle(size: 15, weight: .regular, design: .serif, metrics: .subheadline, trackingRatio: 0)
-    /// 13 serif — a quote compressed into a list row.
-    public static let readingCaption = DipleTextStyle(size: 13, weight: .regular, design: .serif, metrics: .footnote, trackingRatio: 0)
+    /// 22 — a book title given room, on a cover placeholder or a detail header.
+    public static let readingTitle = DipleTextStyle(size: 22, weight: .semibold, metrics: .title2, trackingRatio: -0.015)
+    /// 16 — quoted passages from publications. A step above `body`, and set with the open
+    /// tracking of running text rather than the tightened tracking of a label.
+    public static let readingBody = DipleTextStyle(size: 16, weight: .regular, metrics: .subheadline, trackingRatio: 0)
+    /// 14 — a quote compressed into a list row.
+    public static let readingCaption = DipleTextStyle(size: 14, weight: .regular, metrics: .footnote, trackingRatio: 0)
 
     // MARK: - Note roles (system sans)
 
@@ -234,7 +238,7 @@ private struct DipleTypeSpecimen: View {
                 }
 
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
-                    Text("CONTENT — SERIF")
+                    Text("CONTENT")
                         .dipleType(.nano)
                         .foregroundStyle(DipleColor.textTertiary)
 

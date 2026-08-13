@@ -217,8 +217,11 @@ public struct ReaderSettingsView: View {
             HapticManager.shared.selection()
             settings.font = fontOption
         } label: {
+            // The only place in the app that leaves San Francisco, and it has to: this
+            // label is a swatch for the family the page itself will be set in. Taking the
+            // size from a `TextStyle` rather than a point size keeps it on Dynamic Type.
             Text(fontOption.title)
-                .dipleType(fontOption == .serif ? .readingBody : .body, weight: .medium)
+                .font(.system(.subheadline, design: fontOption == .serif ? .serif : .default, weight: .medium))
                 .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DipleSpace.m)

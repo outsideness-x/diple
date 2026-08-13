@@ -259,7 +259,7 @@ public struct NoteMathBlockView: View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
             HStack(spacing: DipleSpace.s) {
                 Text("ƒx")
-                    .font(.system(size: 13, weight: .semibold, design: .serif))
+                    .dipleType(.footnote, weight: .semibold)
                     .foregroundStyle(DipleColor.accent)
                 Text("EQUATION")
                     .dipleType(.nano)
@@ -404,7 +404,7 @@ public struct NoteFormulaComposer: View {
                                         isEditorFocused = true
                                     } label: {
                                         Text(snippet.label)
-                                            .font(.system(size: 15, weight: .medium, design: .serif))
+                                            .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textSecondary)
                                             .frame(minWidth: 42, minHeight: 36)
                                             .padding(.horizontal, DipleSpace.xs)
