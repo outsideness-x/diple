@@ -304,7 +304,7 @@ public struct NoteDetailView: View {
             }
 
             if !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                NoteMarkdownView(markdown: body_)
+                NoteMarkdownView(markdown: body_, onToggleTask: toggleTask)
                     .textSelection(.enabled)
                     .padding(.top, DipleSpace.s)
             }
@@ -478,14 +478,20 @@ public struct NoteDetailView: View {
         }
     }
 
+    /// Counted over the prose, not the notation. Splitting the raw Markdown counted `##` and
+    /// `[ ]` as words — and ticking a checkbox changed the total, because `[ ]` is two tokens
+    /// and `[x]` is one.
+    private var wordCount: Int {
+        NoteMarkdown.plainText(body_).split { $0.isWhitespace || $0.isNewline }.count
+    }
+
     private var wordCountLabel: String {
-        let words = body_.split { $0.isWhitespace || $0.isNewline }.count
+        let words = wordCount
         return words == 1 ? "1 word" : "\(words) words"
     }
 
     private var readingTimeLabel: String {
-        let words = body_.split { $0.isWhitespace || $0.isNewline }.count
-        let minutes = max(1, Int(ceil(Double(words) / 220)))
+        let minutes = max(1, Int(ceil(Double(wordCount) / 220)))
         return "\(minutes) min read"
     }
 
@@ -772,6 +778,17 @@ public struct NoteDetailView: View {
     }
 
     // MARK: - Actions
+
+    /// Ticking a box is a finished decision, not a keystroke, so it is written straight away
+    /// rather than through the typing debounce — which is also gated on `isEditing` and would
+    /// never fire here, leaving the board's progress bar stale until the page was left.
+    private func toggleTask(_ task: NoteTask) {
+        guard let updated = NoteMarkdown.togglingTask(atLine: task.lineIndex, in: body_) else { return }
+        HapticManager.shared.impact(.light)
+        body_ = updated
+        saveTask?.cancel()
+        _ = save(feedback: false)
+    }
 
     private func commitTagDraft() {
         guard let tag = NoteTag.normalized(tagDraft) else { return }

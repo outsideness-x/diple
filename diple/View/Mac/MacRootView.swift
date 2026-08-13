@@ -1270,7 +1270,14 @@ private struct MacNoteInspector: View {
 
                 if isPreviewing {
                     ScrollView {
-                        NoteMarkdownView(markdown: bodyText)
+                        NoteMarkdownView(markdown: bodyText) { task in
+                            guard let updated = NoteMarkdown.togglingTask(
+                                atLine: task.lineIndex,
+                                in: bodyText
+                            ) else { return }
+                            bodyText = updated
+                            saveImmediately()
+                        }
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.bottom, DipleSpace.xxxl)
@@ -1446,7 +1453,10 @@ private struct MacNoteInspector: View {
     }
 
     private var wordCountLabel: String {
-        let count = bodyText.split { $0.isWhitespace || $0.isNewline }.count
+        // Over the prose, not the notation — see `NoteDetailView.wordCount`.
+        let count = NoteMarkdown.plainText(bodyText)
+            .split { $0.isWhitespace || $0.isNewline }
+            .count
         return count == 1 ? "1 word" : "\(count) words"
     }
 

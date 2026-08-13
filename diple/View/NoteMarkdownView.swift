@@ -37,6 +37,16 @@ public enum NoteBlock: Identifiable, Equatable {
 public struct NoteTask: Equatable {
     public let text: String
     public let isCompleted: Bool
+    /// Where this item came from in the raw note, so ticking it rewrites the line it was
+    /// parsed from. Two items can carry identical text — "Follow the thread" under two
+    /// different headings — and matching on text alone would tick the wrong one.
+    public let lineIndex: Int
+
+    public init(text: String, isCompleted: Bool, lineIndex: Int = 0) {
+        self.text = text
+        self.isCompleted = isCompleted
+        self.lineIndex = lineIndex
+    }
 }
 
 public enum NoteCallout: String, Equatable {
@@ -121,7 +131,7 @@ public enum NoteMarkdown {
             flushQuote()
         }
 
-        for line in raw.components(separatedBy: .newlines) {
+        for (lineIndex, line) in raw.components(separatedBy: .newlines).enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if trimmed.hasPrefix("```") {
@@ -185,7 +195,7 @@ public enum NoteMarkdown {
                 continue
             }
 
-            if let task = taskItem(from: trimmed) {
+            if let task = taskItem(from: trimmed, at: lineIndex) {
                 flushParagraph()
                 flushBullets()
                 flushNumbers()
@@ -275,18 +285,49 @@ public enum NoteMarkdown {
         return nil
     }
 
-    private static func taskItem(from line: String) -> NoteTask? {
+    private static func taskItem(from line: String, at lineIndex: Int) -> NoteTask? {
         for marker in ["- [ ] ", "* [ ] ", "+ [ ] "] where line.hasPrefix(marker) {
             return NoteTask(
                 text: String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces),
-                isCompleted: false
+                isCompleted: false,
+                lineIndex: lineIndex
             )
         }
         for marker in ["- [x] ", "- [X] ", "* [x] ", "* [X] ", "+ [x] ", "+ [X] "] where line.hasPrefix(marker) {
             return NoteTask(
                 text: String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces),
-                isCompleted: true
+                isCompleted: true,
+                lineIndex: lineIndex
             )
+        }
+        return nil
+    }
+
+    /// Flips one checkbox and hands back the whole note.
+    ///
+    /// Rewrites only the box on `lineIndex`, leaving that line's indentation, marker and text
+    /// exactly as the writer left them — the note stays the portable Markdown it was, so the
+    /// change survives export, FTS and CloudKit without a second representation of "done".
+    public static func togglingTask(atLine lineIndex: Int, in raw: String) -> String? {
+        var lines = raw.components(separatedBy: .newlines)
+        guard lines.indices.contains(lineIndex) else { return nil }
+
+        let line = lines[lineIndex]
+        let indentation = line.prefix { $0 == " " || $0 == "\t" }
+        let rest = line.dropFirst(indentation.count)
+
+        for marker in ["- ", "* ", "+ "] where rest.hasPrefix(marker) {
+            let afterMarker = rest.dropFirst(marker.count)
+            let replacement: String
+            if afterMarker.hasPrefix("[ ] ") {
+                replacement = "[x] " + afterMarker.dropFirst(4)
+            } else if afterMarker.lowercased().hasPrefix("[x] ") {
+                replacement = "[ ] " + afterMarker.dropFirst(4)
+            } else {
+                return nil
+            }
+            lines[lineIndex] = indentation + marker + replacement
+            return lines.joined(separator: "\n")
         }
         return nil
     }
@@ -373,9 +414,14 @@ public enum NoteMarkdown {
 /// denser than Latin and run together at the line height Latin is comfortable at.
 public struct NoteMarkdownView: View {
     public let markdown: String
+    /// Ticking a box off. When nil the checkboxes are drawn but inert, which is right for a
+    /// preview or a specimen and wrong everywhere the note itself is on screen — a control
+    /// that looks like a checkbox and cannot be tapped is worse than a bullet.
+    public let onToggleTask: ((NoteTask) -> Void)?
 
-    public init(markdown: String) {
+    public init(markdown: String, onToggleTask: ((NoteTask) -> Void)? = nil) {
         self.markdown = markdown
+        self.onToggleTask = onToggleTask
     }
 
     private var blocks: [NoteBlock] {
@@ -396,6 +442,27 @@ public struct NoteMarkdownView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The whole row is the target, not just the 16pt glyph: a checkbox is tapped with a
+    /// thumb, and `contentShape` makes the gap between the box and the text count too.
+    private func taskRow(_ task: NoteTask) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
+            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
+                .foregroundStyle(task.isCompleted ? DipleColor.accent : DipleColor.textQuaternary)
+                .contentTransition(.symbolEffect(.replace))
+
+            NoteInlineMathText(task.text, style: .noteBody)
+                .dipleType(.noteBody)
+                .foregroundStyle(task.isCompleted ? DipleColor.textTertiary : DipleColor.textPrimary)
+                .strikethrough(task.isCompleted, color: DipleColor.textQuaternary)
+                .lineSpacing(script.swiftUILineSpacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: 32)
+        .contentShape(Rectangle())
+        .animation(DipleMotion.snappy, value: task.isCompleted)
     }
 
     @ViewBuilder
@@ -430,17 +497,17 @@ public struct NoteMarkdownView: View {
         case .tasks(let items):
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, task in
-                    HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
-                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                            .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
-                            .foregroundStyle(task.isCompleted ? DipleColor.accent : DipleColor.textQuaternary)
-
-                        NoteInlineMathText(task.text, style: .noteBody)
-                            .dipleType(.noteBody)
-                            .foregroundStyle(task.isCompleted ? DipleColor.textTertiary : DipleColor.textPrimary)
-                            .strikethrough(task.isCompleted, color: DipleColor.textQuaternary)
-                            .lineSpacing(script.swiftUILineSpacing)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if let onToggleTask {
+                        Button {
+                            onToggleTask(task)
+                        } label: {
+                            taskRow(task)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(task.isCompleted ? [.isButton, .isSelected] : .isButton)
+                        .accessibilityHint(task.isCompleted ? "Mark as not done" : "Mark as done")
+                    } else {
+                        taskRow(task)
                     }
                 }
             }
