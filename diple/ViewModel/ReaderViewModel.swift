@@ -47,7 +47,7 @@ public final class ReaderViewModel: ObservableObject {
     /// `print` goes nowhere in a shipped build. These are the failures behind a quote that
     /// did not save or a position that did not stick, which is exactly what a bug report
     /// needs to name.
-    fileprivate static let log = Logger(
+    fileprivate nonisolated static let log = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "diple",
         category: "reader"
     )
