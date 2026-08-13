@@ -51,9 +51,9 @@
   ветку empty/workspace в момент autosave первой заметки или удаления последней — активный
   destination терял identity и визуально исчезал. `NoteDetailView` не скрывает tab bar:
   скрытие из вложенного destination могло пережить pop в SwiftUI и убрать навигацию у Notes.
-- iPhone Notes не показывает totals/word count/linked count: это vanity metrics без следующего
-  действия. Вместо них появляется только actionable row для заметок без source и tags; тап
-  сразу включает `.untagged`. Короткий заголовок оставляет контекст, не повторяя onboarding.
+- iPhone Notes не показывает totals/word count/linked count: это vanity metrics. Заметка без
+  source и tags не считается незавершённой и не получает предупреждающую карточку — обе связи
+  полностью необязательны; `.untagged` остаётся лишь добровольным фильтром.
 - Smart views, поиск, сортировка, оглавление, backlinks и related notes вычисляются поверх
   существующих `Note`/`NoteTag`; для релизного редизайна не добавлялась миграция, поэтому ни
   одна уже синхронизированная заметка не зависит от новой версии схемы.

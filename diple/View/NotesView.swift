@@ -127,42 +127,6 @@ public struct NotesView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if viewModel.unsortedCount > 0 {
-                Button {
-                    HapticManager.shared.selection()
-                    withAnimation(DipleMotion.snappy) {
-                        viewModel.query = ""
-                        viewModel.filter = .untagged
-                    }
-                } label: {
-                    HStack(spacing: DipleSpace.m) {
-                        Image(systemName: "tray")
-                            .dipleIcon(14, weight: .semibold)
-                            .foregroundStyle(DipleColor.accent)
-                            .frame(width: 34, height: 34)
-                            .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
-
-                        VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                            Text("\(viewModel.unsortedCount) \(viewModel.unsortedCount == 1 ? "note needs" : "notes need") context")
-                                .dipleType(.body, weight: .semibold)
-                                .foregroundStyle(DipleColor.textPrimary)
-                            Text("Connect a source or add a tag")
-                                .dipleType(.caption)
-                                .foregroundStyle(DipleColor.textTertiary)
-                        }
-
-                        Spacer(minLength: DipleSpace.s)
-
-                        Image(systemName: "chevron.right")
-                            .dipleIcon(10, weight: .semibold)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                    }
-                    .padding(DipleSpace.m)
-                    .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
-                }
-                .buttonStyle(.bookCard)
-                .accessibilityHint("Shows notes without a source or tag")
-            }
         }
         .padding(.horizontal, DipleSpace.xl)
         .padding(.top, DipleSpace.m)

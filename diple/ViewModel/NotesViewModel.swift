@@ -192,12 +192,6 @@ public final class NotesViewModel: ObservableObject {
 
     public var linkedCount: Int { items.filter { $0.book != nil }.count }
 
-    /// Notes with neither source nor tag are the only count that implies a useful next action.
-    /// A standalone tagged note is already organized; a raw capture is the one worth surfacing.
-    public var unsortedCount: Int {
-        items.filter { $0.book == nil && $0.tags.isEmpty }.count
-    }
-
     private func displayTitle(for item: NoteItem) -> String {
         let title = item.note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !title.isEmpty { return title }
