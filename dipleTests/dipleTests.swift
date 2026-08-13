@@ -483,6 +483,19 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(bodyResults.first?.bookID, article.id)
         XCTAssertTrue(try database.fetchArticlesMissingTextIndex().isEmpty)
 
+        // Reader search may build precise navigable chunks for an article on demand. Global
+        // search must still return its original article document only once.
+        try database.indexBookContent(book: article, chunks: [
+            BookContentChunk(
+                href: "article.xhtml",
+                chapterTitle: article.title,
+                locatorJSON: #"{"href":"article.xhtml","type":"application/xhtml+xml","locations":{"progression":0}}"#,
+                body: "A distinctive passage about compositional architecture."
+            )
+        ])
+        XCTAssertEqual(try database.searchBookContent(bookID: article.id, query: "compositional").count, 1)
+        XCTAssertEqual(try database.search("compositional").map(\.kind), [.article])
+
         try database.deleteBook(id: article.id)
         XCTAssertTrue(try database.search("compositional").isEmpty)
     }

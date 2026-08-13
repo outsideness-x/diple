@@ -18,7 +18,10 @@ public nonisolated final class BookContentIndexer: Sendable {
     /// Indexes one freshly-imported book. Fire-and-forget: the caller (`EPUBImporter`) does
     /// not await this, so import never waits on a full pass over the book it just copied in.
     public func indexBook(_ book: Book) {
-        guard book.sourceURL == nil else { return }
+        // Articles already have a compact global-search document and do not need eager full
+        // parsing. They are indexed here only on demand through `indexBookAwaiting`, when the
+        // reader explicitly opens Find in Article.
+        guard !book.isArticle else { return }
         Task.detached(priority: .utility) { [self] in
             await index(book)
         }
@@ -31,7 +34,6 @@ public nonisolated final class BookContentIndexer: Sendable {
     /// drives `indexMissingBooks` today.
     @discardableResult
     public func indexBookAwaiting(_ book: Book) async -> Bool {
-        guard book.sourceURL == nil else { return false }
         return await Task.detached(priority: .userInitiated) { [self] in
             await index(book)
         }.value

@@ -182,17 +182,15 @@ public struct ReaderContainerView: View {
                             // control (search) from crowding the title out at large Dynamic
                             // Type sizes.
                             HStack(spacing: DipleSpace.m) {
-                                if !viewModel.book.isArticle {
-                                    Button {
-                                        HapticManager.shared.selection()
-                                        viewModel.isSearchPresented = true
-                                    } label: {
-                                        Image(systemName: "magnifyingglass")
-                                            .dipleIcon(16, weight: .regular)
-                                            .foregroundStyle(chrome.control)
-                                    }
-                                    .buttonStyle(.readerControl)
+                                Button {
+                                    HapticManager.shared.selection()
+                                    viewModel.isSearchPresented = true
+                                } label: {
+                                    Image(systemName: "magnifyingglass")
+                                        .dipleIcon(16, weight: .regular)
+                                        .foregroundStyle(chrome.control)
                                 }
+                                .buttonStyle(.readerControl)
 
                                 Button {
                                     HapticManager.shared.selection()

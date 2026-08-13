@@ -356,6 +356,9 @@
   видел.
 
 ### Поиск внутри открытой книги
+- Find доступен и для articles. Статья не индексируется в `bookContent` eagerly: её компактный
+  текст уже есть в global `searchIndex`; точные navigable chunks строятся только при первом
+  открытии Find. Global query исключает article chunks, поэтому один текст не появляется дважды.
 - Индекс `bookContent` (task 7), отфильтрованный по `bookID`, выбран вместо
   `publication.search(...)` из Readium — и это не отказ от неудобного API, а прочитанный
   исходник. `EPUBParser.swift`/`PDFParser.swift` (`swift-toolkit`, `Sources/Streamer/Parser/`)

@@ -39,7 +39,7 @@ public struct BookSearchSheetView: View {
                     resultsList
                 }
             }
-            .navigationTitle("Search in Book")
+            .navigationTitle(viewModel.sourceTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -56,7 +56,7 @@ public struct BookSearchSheetView: View {
             .searchable(
                 text: $viewModel.query,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Find in this book"
+                prompt: viewModel.searchPrompt
             )
             .onChange(of: viewModel.query) { _, _ in
                 viewModel.scheduleSearch()
@@ -114,7 +114,7 @@ public struct BookSearchSheetView: View {
                 .foregroundStyle(DipleColor.accent)
 
             VStack(spacing: DipleSpace.s) {
-                Text("Search This Book")
+                Text(viewModel.invitationTitle)
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 
@@ -150,7 +150,7 @@ public struct BookSearchSheetView: View {
             Spacer()
             ProgressView()
                 .tint(DipleColor.accent)
-            Text("Indexing This Book…")
+            Text("Preparing Search…")
                 .dipleType(.headline)
                 .foregroundStyle(DipleColor.textPrimary)
             Text("This only happens once — search will be instant after.")

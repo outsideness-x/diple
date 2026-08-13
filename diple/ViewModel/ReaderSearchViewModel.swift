@@ -21,6 +21,10 @@ public final class ReaderSearchViewModel: ObservableObject {
         ensureIndexed()
     }
 
+    public var sourceTitle: String { book.isArticle ? "Search in Article" : "Search in Book" }
+    public var searchPrompt: String { book.isArticle ? "Find in this article" : "Find in this book" }
+    public var invitationTitle: String { book.isArticle ? "Search This Article" : "Search This Book" }
+
     /// Groups results by the chapter they were found in, in the order they first appear —
     /// reading order, the same order `searchBookContent` already returns them in, not a
     /// re-sort by relevance.

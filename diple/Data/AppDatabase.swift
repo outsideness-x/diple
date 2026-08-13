@@ -950,10 +950,11 @@ public nonisolated final class AppDatabase: Sendable {
                     FROM bookContent
                     JOIN book ON book.id = bookContent.bookID
                     WHERE bookContent MATCH ?
+                      AND book.sourceKind != ?
                     ORDER BY bm25(bookContent, 0.0, 0.0, 3.0, 0.0, 0.0, 1.0)
                     LIMIT ?
                     """,
-                arguments: [matchQuery, max(1, limit)]
+                arguments: [matchQuery, PublicationKind.article.rawValue, max(1, limit)]
             )
 
             let contentResults: [GlobalSearchResult] = contentRows.compactMap { row in
