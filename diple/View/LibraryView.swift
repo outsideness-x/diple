@@ -2,9 +2,19 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 public struct LibraryView: View {
+    /// One book is visible in the hero and in the shelf at the same time, and a zoom
+    /// transition needs an unambiguous source — so the placement is part of the id.
     private enum BookPlacement: String, Hashable {
         case continueReading
         case grid
+        case list
+    }
+
+    /// Covers or rows. Persisted, like Notes' own layout choice, because it is a working
+    /// preference rather than a navigation state.
+    private enum LibraryLayout: String {
+        case grid
+        case list
     }
 
     private struct BookRoute: Hashable {
@@ -28,6 +38,7 @@ public struct LibraryView: View {
     @State private var selectedTags: Set<String> = []
     @State private var tagEditingBook: Book?
     @State private var sort: LibrarySort = .recentlyOpened
+    @AppStorage("diple_library_layout") private var layout: LibraryLayout = .grid
     @Namespace private var bookNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -87,94 +98,10 @@ public struct LibraryView: View {
                         onImportFile: { isFileImporterPresented = true },
                         onSaveLink: { isLinkImporterPresented = true }
                     )
+                } else if layout == .grid {
+                    gridBrowser
                 } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: DipleSpace.xxxl) {
-                            if isDefaultBrowse, let book = viewModel.continueReadingBook {
-                                VStack(alignment: .leading, spacing: DipleSpace.m) {
-                                    sectionHeading("CONTINUE READING")
-
-                                    let route = BookRoute(book: book, placement: .continueReading)
-                                    NavigationLink(value: route) {
-                                        ContinueReadingCard(book: book)
-                                    }
-                                    .buttonStyle(.bookCard)
-                                    .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
-                                    .accessibilityHint("Opens at your last reading position")
-                                }
-                            }
-
-                            locationPicker
-
-                            if viewModel.books.count > 1 {
-                                filterBar
-                            }
-
-                            if !viewModel.allTags.isEmpty {
-                                tagBar
-                            }
-
-                            VStack(alignment: .leading, spacing: DipleSpace.m) {
-                                HStack(alignment: .firstTextBaseline) {
-                                    sectionHeading(isDefaultBrowse ? location.title.uppercased() : "RESULTS")
-
-                                    Spacer()
-
-                                    Text("\(visibleBooks.count)")
-                                        .dipleType(.micro)
-                                        .foregroundStyle(DipleColor.textQuaternary)
-                                        .monospacedDigit()
-
-                                    filterMenu
-                                }
-
-                                if visibleBooks.isEmpty {
-                                    // An empty shelf and a search that found nothing are
-                                    // different facts, and "Nothing Found" over a cleared inbox
-                                    // reads as a failure rather than as the goal.
-                                    if isDefaultBrowse {
-                                        emptyLocation
-                                    } else {
-                                        noResults
-                                    }
-                                } else {
-                                    LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
-                                        ForEach(visibleBooks) { book in
-                                            let route = BookRoute(book: book, placement: .grid)
-                                            NavigationLink(value: route) {
-                                                BookItemView(
-                                                    book: book,
-                                                    onMarkAsFinished: {
-                                                        viewModel.markAsFinished(book)
-                                                    },
-                                                    onShowOverview: {
-                                                        overviewBook = book
-                                                    },
-                                                    onMove: { destination in
-                                                        viewModel.move(book, to: destination)
-                                                    },
-                                                    onEditTags: {
-                                                        tagEditingBook = book
-                                                    },
-                                                    onEdit: {
-                                                        viewModel.bookToEdit = book
-                                                    },
-                                                    onDelete: {
-                                                        viewModel.confirmDelete(book)
-                                                    }
-                                                )
-                                            }
-                                            .buttonStyle(.bookCard)
-                                            .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.horizontal, DipleSpace.xl)
-                        .padding(.top, DipleSpace.l)
-                        .padding(.bottom, DipleSpace.scrollBottom)
-                    }
+                    listBrowser
                 }
 
                 if viewModel.isImporting {
@@ -307,6 +234,199 @@ public struct LibraryView: View {
                 selectInitialLocationIfNeeded()
             }
         }
+    }
+
+    // MARK: - Browsers
+
+    /// Covers. The default, because a library is recognised by its spines before its titles.
+    private var gridBrowser: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DipleSpace.xxxl) {
+                continueSection
+                browseControls
+
+                VStack(alignment: .leading, spacing: DipleSpace.m) {
+                    shelfHeader
+
+                    if visibleBooks.isEmpty {
+                        emptyShelf
+                    } else {
+                        LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
+                            ForEach(visibleBooks) { book in
+                                let route = BookRoute(book: book, placement: .grid)
+                                NavigationLink(value: route) {
+                                    BookItemView(
+                                        book: book,
+                                        onMarkAsFinished: { viewModel.markAsFinished(book) },
+                                        onShowOverview: { overviewBook = book },
+                                        onMove: { viewModel.move(book, to: $0) },
+                                        onEditTags: { tagEditingBook = book },
+                                        onEdit: { viewModel.bookToEdit = book },
+                                        onDelete: { viewModel.confirmDelete(book) }
+                                    )
+                                }
+                                .buttonStyle(.bookCard)
+                                .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.top, DipleSpace.l)
+            .padding(.bottom, DipleSpace.scrollBottom)
+        }
+    }
+
+    /// Rows, for triage rather than for browsing.
+    ///
+    /// This has to be a real `List`: `swipeActions` exists nowhere else, and filing a source
+    /// with a thumb is the whole reason the layout exists. That is also why the hero and the
+    /// control rows move *inside* it — a `List` nested in a `ScrollView` scrolls against
+    /// itself — with their list chrome stripped off so they still read as part of the page
+    /// rather than as rows of it.
+    private var listBrowser: some View {
+        List {
+            Group {
+                continueSection
+                browseControls
+                shelfHeader
+
+                if visibleBooks.isEmpty {
+                    emptyShelf
+                }
+            }
+            .listRowInsets(EdgeInsets(
+                top: DipleSpace.s,
+                leading: DipleSpace.xl,
+                bottom: DipleSpace.s,
+                trailing: DipleSpace.xl
+            ))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+
+            ForEach(visibleBooks) { book in
+                let route = BookRoute(book: book, placement: .list)
+                NavigationLink(value: route) {
+                    LibraryRowView(book: book, tags: viewModel.tagsByBook[book.id] ?? [])
+                }
+                .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+                .listRowInsets(EdgeInsets(
+                    top: DipleSpace.s,
+                    leading: DipleSpace.xl,
+                    bottom: DipleSpace.s,
+                    trailing: DipleSpace.xl
+                ))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    ForEach(BookLocation.allCases.filter { $0 != book.location }, id: \.self) { destination in
+                        Button {
+                            viewModel.move(book, to: destination)
+                        } label: {
+                            Label(destination.title, systemImage: destination.systemImage)
+                        }
+                        .tint(destination == .archive ? DipleColor.textTertiary : DipleColor.accent)
+                    }
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    // Routed through the confirmation the grid already uses. A full swipe that
+                    // deleted a book and its file outright would be the one destructive action
+                    // in the app without a second thought attached to it.
+                    Button(role: .destructive) {
+                        viewModel.confirmDelete(book)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+
+                    Button {
+                        tagEditingBook = book
+                    } label: {
+                        Label("Tags", systemImage: "number")
+                    }
+                    .tint(DipleColor.surfaceOverlay)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .contentMargins(.bottom, DipleSpace.scrollBottom, for: .scrollContent)
+    }
+
+    @ViewBuilder
+    private var continueSection: some View {
+        if isDefaultBrowse, let book = viewModel.continueReadingBook {
+            VStack(alignment: .leading, spacing: DipleSpace.m) {
+                sectionHeading("CONTINUE READING")
+
+                let route = BookRoute(book: book, placement: .continueReading)
+                NavigationLink(value: route) {
+                    ContinueReadingCard(book: book)
+                }
+                .buttonStyle(.bookCard)
+                .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+                .accessibilityHint("Opens at your last reading position")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var browseControls: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.l) {
+            locationPicker
+
+            if viewModel.books.count > 1 {
+                filterBar
+            }
+
+            if !viewModel.allTags.isEmpty {
+                tagBar
+            }
+        }
+    }
+
+    private var shelfHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            sectionHeading(isDefaultBrowse ? location.title.uppercased() : "RESULTS")
+
+            Spacer()
+
+            Text("\(visibleBooks.count)")
+                .dipleType(.micro)
+                .foregroundStyle(DipleColor.textQuaternary)
+                .monospacedDigit()
+
+            layoutToggle
+            filterMenu
+        }
+    }
+
+    /// An empty shelf and a search that found nothing are different facts, and "Nothing Found"
+    /// over a cleared inbox reads as a failure rather than as the goal.
+    @ViewBuilder
+    private var emptyShelf: some View {
+        if isDefaultBrowse {
+            emptyLocation
+        } else {
+            noResults
+        }
+    }
+
+    private var layoutToggle: some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) {
+                layout = layout == .grid ? .list : .grid
+            }
+        } label: {
+            Image(systemName: layout == .grid ? "list.bullet" : "square.grid.2x2")
+                .dipleIcon(11, weight: .semibold)
+                .foregroundStyle(DipleColor.textSecondary)
+                .diplePadding(.chip)
+                .background(DipleColor.surfaceOverlay, in: Capsule())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(layout == .grid ? "Switch to list" : "Switch to covers")
     }
 
     private func sectionHeading(_ title: String) -> some View {
