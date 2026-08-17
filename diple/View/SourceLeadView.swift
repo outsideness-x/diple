@@ -31,6 +31,10 @@ public struct SourceLeadView: View {
     /// size a cover has stopped helping anyone recognise the book and started hiding its name.
     @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 72
 
+    /// Grows with the type beside it, but not without limit: past about half again its size the
+    /// disc stops being a mark on the page and starts being a second block.
+    @ScaledMetric(relativeTo: .body) private var goSize: CGFloat = 40
+
     public init(book: Book, characters: Int? = nil) {
         self.book = book
         self.characters = characters
@@ -58,10 +62,10 @@ public struct SourceLeadView: View {
     }
 
     public var body: some View {
-        // Centred, not top-aligned. The progress moved out of this column and into the rule
-        // below, which left the title and dateline filling the top third of a cover-height row
-        // and a hole under them. Two lines of text set against the middle of the cover reads as
-        // one block; the same two lines pinned to its top edge read as something missing.
+        // Cover, then the words, then the way out — the arrangement an editorial block uses,
+        // and the reason nothing here needs a bar across it. Centred rather than top-aligned:
+        // the title and dateline are shorter than a 1.5-ratio cover, and pinning them to its
+        // top edge leaves a hole underneath that reads as a missing element.
         HStack(alignment: .center, spacing: DipleSpace.l) {
             // The lead keeps its cover; the entries below it do not. That is the difference in
             // rank, and it is the one a front page uses: the lead story carries the picture,
@@ -94,25 +98,10 @@ public struct SourceLeadView: View {
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                     .truncationMode(.tail)
 
-                Spacer(minLength: DipleSpace.s)
-
-                // Not a button of its own: the whole lead is already the tap target, and a
-                // control nested inside another control is the trap recorded in CLAUDE.md.
-                // This is the accent telling you where the page wants you to go.
-                HStack(spacing: DipleSpace.s) {
-                    Text("Continue")
-                    Image(systemName: "arrow.right")
-                        .dipleIcon(13, weight: .semibold)
-                }
-                    // Weighted to match its rank. It is the only thing on this screen that
-                    // continues what the reader was already doing, and it was set two steps
-                    // below a passage that could not be acted on at all.
-                    .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.textOnAccent)
-                    .diplePadding(.buttonLarge)
-                    .background(DipleColor.accent, in: Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            goMark
         }
         .padding(.vertical, DipleSpace.m)
         .overlay(alignment: .bottom) { progressRule }
@@ -120,6 +109,31 @@ public struct SourceLeadView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(book.title). \(dateline)")
         .accessibilityHint("Opens at your last reading position")
+    }
+
+    /// The accent, given a shape instead of a slab.
+    ///
+    /// It was a filled capsule reading "Continue", which was three faults at once. The section
+    /// above is already headed CONTINUE, so the word was the same label twice — the tautology
+    /// just removed from the highlights block. A wide filled bar is the vocabulary of a call to
+    /// action on a landing page and fights a page set as a catalogue. And it was the largest
+    /// object in the lead, competing with the title for a rank it does not hold.
+    ///
+    /// A disc says the same thing in a fraction of the room: one saturated mark, the only one
+    /// on the screen, sitting where the eye leaves the block. The glyph is the same
+    /// `arrow.right` the app uses for "go" everywhere else, so the vocabulary does not fork.
+    ///
+    /// Not a `Button`: the whole lead is already the tap target, and a control nested inside
+    /// another control does not receive taps — the trap recorded in the UI section of
+    /// CLAUDE.md. This is the affordance; the lead is the mechanism. It is hidden from
+    /// VoiceOver for the same reason: the block already carries one label and one action.
+    private var goMark: some View {
+        Image(systemName: "arrow.right")
+            .dipleIcon(15, weight: .semibold)
+            .foregroundStyle(DipleColor.textOnAccent)
+            .frame(width: min(goSize, 60), height: min(goSize, 60))
+            .background(DipleColor.accent, in: Circle())
+            .accessibilityHidden(true)
     }
 
     private var progressRule: some View {
