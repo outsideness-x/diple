@@ -19,9 +19,9 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable, Equatab
         case .books: return book.sourceKind == .epub
         case .pdfs: return book.sourceKind == .pdf
         case .articles: return book.isArticle
-        case .unread: return book.progress <= 0.001
-        case .inProgress: return book.progress > 0.001 && book.progress < 0.995
-        case .finished: return book.progress >= 0.995
+        case .unread: return book.furthestProgress <= 0.001
+        case .inProgress: return book.furthestProgress > 0.001 && book.furthestProgress < 0.995
+        case .finished: return book.furthestProgress >= 0.995
         }
     }
 }
@@ -67,7 +67,7 @@ public final class LibraryViewModel: ObservableObject {
     /// truth; this is a presentation over the same rows rather than a second persisted shelf.
     public var continueReadingBook: Book? {
         books
-            .filter { $0.lastOpenedAt != nil && $0.progress > 0.001 && $0.progress < 0.995 }
+            .filter { $0.lastOpenedAt != nil && $0.furthestProgress > 0.001 && $0.furthestProgress < 0.995 }
             .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }
     }
 
@@ -167,7 +167,7 @@ public final class LibraryViewModel: ObservableObject {
     /// Marks the publication complete without disturbing its saved reading location. The
     /// locator is retained so a reader can still reopen the last passage if they choose.
     public func markAsFinished(_ book: Book) {
-        guard book.progress < 0.995 else { return }
+        guard book.furthestProgress < 0.995 else { return }
 
         do {
             try AppDatabase.shared.updateReadingProgress(

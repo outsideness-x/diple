@@ -305,7 +305,9 @@ private struct HomeContinueReadingCard: View {
     let book: Book
     @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 70
 
-    private var progress: Double { min(max(book.progress, 0), 1) }
+    // Furthest-read, not the live saved position — see "Прогресс чтения: `furthestProgress` и
+    // live-позиция" in CLAUDE.md.
+    private var progress: Double { min(max(book.furthestProgress, 0), 1) }
 
     var body: some View {
         HStack(spacing: DipleSpace.l) {

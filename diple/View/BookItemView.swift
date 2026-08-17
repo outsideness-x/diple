@@ -23,8 +23,10 @@ public struct BookItemView: View {
         self.onDelete = onDelete
     }
 
+    // The card shows how far the book has ever been read, not where the saved position
+    // currently sits — see "Прогресс чтения: `furthestProgress` и live-позиция" in CLAUDE.md.
     private var clampedProgress: CGFloat {
-        CGFloat(min(max(book.progress, 0.0), 1.0))
+        CGFloat(min(max(book.furthestProgress, 0.0), 1.0))
     }
 
     public var body: some View {
@@ -75,7 +77,7 @@ public struct BookItemView: View {
                 Label("Source Overview", systemImage: "info.circle")
             }
 
-            if book.progress < 0.995 {
+            if book.furthestProgress < 0.995 {
                 Button {
                     onMarkAsFinished()
                 } label: {

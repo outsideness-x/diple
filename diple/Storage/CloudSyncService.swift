@@ -211,6 +211,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["addedAt"] = book.addedAt as CKRecordValue
         record["lastOpenedAt"] = book.lastOpenedAt as CKRecordValue?
         record["progress"] = NSNumber(value: book.progress)
+        record["furthestProgress"] = NSNumber(value: book.furthestProgress)
         record["locator"] = book.locator as CKRecordValue?
         record["sourceURL"] = book.sourceURL as CKRecordValue?
         record["sourceKind"] = book.sourceKind.rawValue as CKRecordValue
@@ -315,6 +316,10 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 addedAt: addedAt,
                 lastOpenedAt: record["lastOpenedAt"] as? Date,
                 progress: (record["progress"] as? NSNumber)?.doubleValue ?? 0,
+                // Absent on a record saved before this field existed; `Book.init` falls back to
+                // `progress` itself in that case rather than a bare 0, so an old record cannot
+                // erase a synced reader's history.
+                furthestProgress: (record["furthestProgress"] as? NSNumber)?.doubleValue,
                 locator: record["locator"] as? String,
                 sourceURL: record["sourceURL"] as? String,
                 sourceKind: (record["sourceKind"] as? String).flatMap(PublicationKind.init(rawValue:))

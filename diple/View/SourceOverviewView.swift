@@ -165,8 +165,8 @@ public struct SourceOverviewView: View {
                     .foregroundStyle(DipleColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 BookSubtitleView(book: viewModel.book)
-                if viewModel.book.progress > 0.001 {
-                    ProgressView(value: min(max(viewModel.book.progress, 0), 1))
+                if viewModel.book.furthestProgress > 0.001 {
+                    ProgressView(value: min(max(viewModel.book.furthestProgress, 0), 1))
                         .tint(DipleColor.accent)
                 }
             }
@@ -177,7 +177,7 @@ public struct SourceOverviewView: View {
     private var actions: some View {
         HStack(spacing: DipleSpace.s) {
             NavigationLink(value: viewModel.book) {
-                Label(viewModel.book.progress > 0.001 ? "Continue" : "Start reading", systemImage: "book.pages")
+                Label(viewModel.book.furthestProgress > 0.001 ? "Continue" : "Start reading", systemImage: "book.pages")
                     .dipleType(.footnote, weight: .semibold)
                     .foregroundStyle(DipleColor.textOnAccent)
                     .frame(maxWidth: .infinity, minHeight: 48)

@@ -42,6 +42,12 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
     public var addedAt: Date
     public var lastOpenedAt: Date?
     public var progress: Double
+    /// The high-water mark of `progress`: how far the reader has actually travelled through
+    /// the book, distinct from `progress`'s "where the saved position currently sits". Scrolling
+    /// back to reread a chapter moves `progress` backwards, but a library card showing that as
+    /// lost ground reads as a bug, not a feature — see "Прогресс чтения: `furthestProgress` и
+    /// live-позиция" in CLAUDE.md.
+    public var furthestProgress: Double
     public var locator: String?
     /// The web page an imported article was read from; `nil` for a file the reader imported.
     /// It remains distinct from `sourceKind`: the kind drives presentation, while this value
@@ -58,6 +64,7 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
         addedAt: Date = Date(),
         lastOpenedAt: Date? = nil,
         progress: Double = 0.0,
+        furthestProgress: Double? = nil,
         locator: String? = nil,
         sourceURL: String? = nil,
         sourceKind: PublicationKind? = nil
@@ -70,6 +77,12 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
         self.addedAt = addedAt
         self.lastOpenedAt = lastOpenedAt
         self.progress = progress
+        // A caller that does not know about the high-water mark — a CloudKit record saved
+        // before this field existed, a test fixture, an importer — must never regress it to a
+        // bare 0 and erase a synced reader's history. Falling back to `progress` keeps the
+        // invariant `furthestProgress >= progress` true for every `Book` this initializer can
+        // produce, not only ones built by `updateReadingProgress`.
+        self.furthestProgress = max(progress, furthestProgress ?? 0)
         self.locator = locator
         self.sourceURL = sourceURL
         self.sourceKind = sourceKind ?? PublicationKind.inferred(filePath: filePath, sourceURL: sourceURL)

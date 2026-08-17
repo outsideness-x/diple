@@ -363,8 +363,10 @@ private struct ContinueReadingCard: View {
         min(coverWidth, 108)
     }
 
+    // Furthest-read, not the live saved position — see "Прогресс чтения: `furthestProgress` и
+    // live-позиция" in CLAUDE.md.
     private var clampedProgress: CGFloat {
-        CGFloat(min(max(book.progress, 0), 1))
+        CGFloat(min(max(book.furthestProgress, 0), 1))
     }
 
     var body: some View {

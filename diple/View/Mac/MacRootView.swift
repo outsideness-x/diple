@@ -471,7 +471,7 @@ private struct MacLibraryCollection: View {
                                         }
                                         .contextMenu {
                                             Button("Open") { onOpen(book) }
-                                            if book.progress < 0.995 {
+                                            if book.furthestProgress < 0.995 {
                                                 Button("Mark as Finished") { onMarkAsFinished(book) }
                                             }
                                             Button("Edit Metadata") { onEdit(book) }
@@ -575,7 +575,7 @@ private struct MacBookTile: View {
                     )
                     .shadow(color: .black.opacity(0.24), radius: 12, y: 7)
 
-                    if book.progress > 0.001 {
+                    if book.furthestProgress > 0.001 {
                         GeometryReader { proxy in
                             VStack {
                                 Spacer()
@@ -583,7 +583,7 @@ private struct MacBookTile: View {
                                     Rectangle().fill(.black.opacity(0.5))
                                     Rectangle()
                                         .fill(DipleColor.accent)
-                                        .frame(width: proxy.size.width * min(max(book.progress, 0), 1))
+                                        .frame(width: proxy.size.width * min(max(book.furthestProgress, 0), 1))
                                 }
                                 .frame(height: 3)
                             }
@@ -643,13 +643,13 @@ private struct MacContinueReadingCard: View {
                         .dipleType(.caption)
                         .foregroundStyle(DipleColor.textTertiary)
 
-                    ProgressView(value: book.progress)
+                    ProgressView(value: book.furthestProgress)
                         .tint(DipleColor.accent)
                 }
 
                 Spacer()
 
-                Text(book.progress.formatted(.percent.precision(.fractionLength(0))))
+                Text(book.furthestProgress.formatted(.percent.precision(.fractionLength(0))))
                     .dipleType(.micro)
                     .foregroundStyle(DipleColor.textTertiary)
                     .monospacedDigit()
@@ -980,8 +980,8 @@ private struct MacBookInspector: View {
 
                 Button(action: onRead) {
                     HStack {
-                        Image(systemName: book.progress > 0.001 ? "book.pages" : "book")
-                        Text(book.progress > 0.001 ? "Continue Reading" : "Start Reading")
+                        Image(systemName: book.furthestProgress > 0.001 ? "book.pages" : "book")
+                        Text(book.furthestProgress > 0.001 ? "Continue Reading" : "Start Reading")
                         Spacer()
                         Image(systemName: "arrow.right")
                     }
@@ -997,9 +997,9 @@ private struct MacBookInspector: View {
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
                     MacMetadataRow(label: "Progress") {
                         HStack(spacing: DipleSpace.s) {
-                            ProgressView(value: book.progress)
+                            ProgressView(value: book.furthestProgress)
                                 .tint(DipleColor.accent)
-                            Text(book.progress.formatted(.percent.precision(.fractionLength(0))))
+                            Text(book.furthestProgress.formatted(.percent.precision(.fractionLength(0))))
                                 .monospacedDigit()
                         }
                     }

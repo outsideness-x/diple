@@ -331,6 +331,18 @@ public nonisolated final class AppDatabase: Sendable {
             )
         }
 
+        /// `progress` is the last saved position, so scrolling back to reread a chapter walks
+        /// it backwards — fine for the reader's own bar, but a library card doing the same
+        /// reads as a bug. `furthestProgress` is a separate high-water mark that only moves
+        /// forward; every existing row backfills it from its current `progress`, which is the
+        /// furthest each of them has actually reached so far.
+        migrator.registerMigration("v14_addBookFurthestProgress") { db in
+            try db.alter(table: "book") { t in
+                t.add(column: "furthestProgress", .double).notNull().defaults(to: 0.0)
+            }
+            try db.execute(sql: "UPDATE book SET furthestProgress = progress")
+        }
+
         return migrator
     }
 
@@ -376,6 +388,9 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.write { db in
             if var book = try Book.filter(Column("id") == id).fetchOne(db) {
                 book.progress = progress
+                // High-water mark: reading backwards to reread a chapter must not un-cover a
+                // library card that already showed this book further along.
+                book.furthestProgress = max(book.furthestProgress, progress)
                 book.locator = locator
                 book.lastOpenedAt = lastOpenedAt
                 try book.update(db)
@@ -1147,6 +1162,22 @@ public nonisolated final class AppDatabase: Sendable {
             guard try shouldAcceptRemote(.book, id: book.id, modifiedAt: modifiedAt, in: db) else {
                 return false
             }
+            var book = book
+            // The whole-record accept check above is last-write-wins on `modifiedAt`, which is
+            // right for title/author/locator — but `furthestProgress` is a cross-device
+            // high-water mark, not a field like any other. A device that only renamed the book
+            // can win the record on a newer timestamp while still carrying a stale, lower
+            // furthestProgress than the one already sitting on this device from a later reading
+            // session elsewhere; adopting it verbatim would roll the mark backwards. Folding in
+            // the local value here — the one place this function still has it in hand before
+            // overwriting the row — keeps the mark monotonic regardless of which device's edit
+            // happens to be newest.
+            let localFurthestProgress = try Double.fetchOne(
+                db,
+                sql: "SELECT furthestProgress FROM book WHERE id = ?",
+                arguments: [book.id]
+            ) ?? 0
+            book.furthestProgress = max(book.furthestProgress, localFurthestProgress)
             try book.save(db)
             try indexBook(book, in: db)
             try storeRemoteMetadata(.book, id: book.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)

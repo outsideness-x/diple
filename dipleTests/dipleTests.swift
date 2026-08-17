@@ -347,6 +347,82 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(LibraryFilter.articles.includes(article))
     }
 
+    /// `v14_addBookFurthestProgress` has to run against libraries that already have reading
+    /// history: a row saved before the column existed carries only `progress`, and the
+    /// migration's backfill (`UPDATE book SET furthestProgress = progress`) is what keeps that
+    /// history from silently resetting to 0. Seeding through a throwaway migrator that only
+    /// knows `v1_createBookTable` — under the identical name and schema `AppDatabase` itself
+    /// registers it under — marks that one migration as already applied in GRDB's own ledger,
+    /// so `AppDatabase`'s real migrator skips recreating the table and runs its own v2…v14
+    /// (including the real backfill) against this pre-existing, pre-v14 row.
+    func testFurthestProgressMigrationBackfillsExistingRows() throws {
+        let dbQueue = try DatabaseQueue()
+        var seedMigrator = DatabaseMigrator()
+        seedMigrator.registerMigration("v1_createBookTable") { db in
+            try db.create(table: "book") { t in
+                t.column("id", .text).primaryKey()
+                t.column("title", .text).notNull()
+                t.column("author", .text)
+                t.column("filePath", .text).notNull()
+                t.column("coverPath", .text)
+                t.column("addedAt", .datetime).notNull()
+                t.column("lastOpenedAt", .datetime)
+                t.column("progress", .double).notNull().defaults(to: 0.0)
+                t.column("locator", .text)
+            }
+        }
+        try seedMigrator.migrate(dbQueue)
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "INSERT INTO book (id, title, filePath, addedAt, progress) VALUES (?, ?, ?, ?, ?)",
+                arguments: ["legacy-book", "Legacy Book", "Books/legacy-book/book.epub", Date(timeIntervalSince1970: 1_000), 0.73]
+            )
+        }
+
+        let database = try AppDatabase(dbQueue)
+        let migrated = try XCTUnwrap(database.fetchBook(id: "legacy-book"))
+        XCTAssertEqual(migrated.progress, 0.73, accuracy: 0.0001)
+        XCTAssertEqual(migrated.furthestProgress, 0.73, accuracy: 0.0001)
+    }
+
+    func testFurthestProgressIsAHighWaterMarkThatSurvivesScrollingBack() throws {
+        // `Book.init` itself must never let the mark sit below the live position, whether the
+        // caller (a CloudKit record predating this field, an importer, a test fixture) passes
+        // no value at all or an explicit one that is already stale.
+        XCTAssertEqual(Book(id: "a", title: "A", filePath: "f").furthestProgress, 0)
+        XCTAssertEqual(Book(id: "b", title: "B", filePath: "f", progress: 0.5).furthestProgress, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(
+            Book(id: "c", title: "C", filePath: "f", progress: 0.5, furthestProgress: 0.2).furthestProgress,
+            0.5, accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            Book(id: "d", title: "D", filePath: "f", progress: 0.2, furthestProgress: 0.9).furthestProgress,
+            0.9, accuracy: 0.0001
+        )
+
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(id: "scrollback-book", title: "Scrollback", filePath: "Books/scrollback-book/book.epub")
+        try database.saveBook(book)
+
+        try database.updateReadingProgress(id: book.id, progress: 0.62, locator: nil)
+        var fetched = try XCTUnwrap(database.fetchBook(id: book.id))
+        XCTAssertEqual(fetched.progress, 0.62, accuracy: 0.0001)
+        XCTAssertEqual(fetched.furthestProgress, 0.62, accuracy: 0.0001)
+
+        // Scrolling back to reread an earlier chapter moves the live position backwards, same
+        // as always, but must not erase how far the book has already been read.
+        try database.updateReadingProgress(id: book.id, progress: 0.2, locator: nil)
+        fetched = try XCTUnwrap(database.fetchBook(id: book.id))
+        XCTAssertEqual(fetched.progress, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(fetched.furthestProgress, 0.62, accuracy: 0.0001, "the high-water mark must not decrease")
+
+        // Reading past the old high-water mark moves it forward again.
+        try database.updateReadingProgress(id: book.id, progress: 0.9, locator: nil)
+        fetched = try XCTUnwrap(database.fetchBook(id: book.id))
+        XCTAssertEqual(fetched.progress, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(fetched.furthestProgress, 0.9, accuracy: 0.0001)
+    }
+
     func testMarkingBookFinishedPreservesItsSavedLocation() throws {
         let database = try AppDatabase(DatabaseQueue())
         let originalLocator = #"{"href":"chapter-8.xhtml","locations":{"progression":0.42}}"#
@@ -764,6 +840,57 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(survivingHighlight.bookAuthor, book.author)
         XCTAssertFalse(
             try database.fetchSyncOutbox().contains { $0.entity == .highlight && $0.pendingOperation == .delete }
+        )
+    }
+
+    /// A remote book record is accepted or rejected as a whole on `modifiedAt` — right for
+    /// title/author/locator, which really do belong to whichever edit is newest. But
+    /// `furthestProgress` is a high-water mark shared across every device that has ever opened
+    /// the book, not a field like any other: a device that only renamed the book, and syncs
+    /// that rename after this device finished a long reading session elsewhere, must not roll
+    /// the mark back down to its own, lower value just because its edit happens to be newest.
+    func testCloudSyncKeepsFurthestProgressAsAHighWaterMarkAcrossDevices() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(
+            id: "furthest-merge-book",
+            title: "Original Title",
+            filePath: "Books/furthest-merge-book/book.epub",
+            addedAt: Date(timeIntervalSince1970: 100)
+        )
+        try database.saveBook(book)
+        try database.updateReadingProgress(
+            id: book.id,
+            progress: 0.8,
+            locator: nil,
+            lastOpenedAt: Date(timeIntervalSince1970: 200)
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(database.fetchBook(id: book.id)).furthestProgress, 0.8, accuracy: 0.0001
+        )
+
+        // The incoming record: renamed on another device, whose own furthest read is genuinely
+        // only 30%. Its `modifiedAt` is newer, so the whole-record accept check must let it in.
+        let remoteBook = Book(
+            id: book.id,
+            title: "Renamed Elsewhere",
+            filePath: book.filePath,
+            addedAt: book.addedAt,
+            progress: 0.3,
+            furthestProgress: 0.3
+        )
+        let accepted = try database.applyRemoteBook(
+            remoteBook,
+            modifiedAt: Date(timeIntervalSince1970: 300),
+            systemFields: Data()
+        )
+        XCTAssertTrue(accepted)
+
+        let merged = try XCTUnwrap(database.fetchBook(id: book.id))
+        XCTAssertEqual(merged.title, "Renamed Elsewhere")
+        XCTAssertEqual(merged.progress, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(
+            merged.furthestProgress, 0.8, accuracy: 0.0001,
+            "a lower remote high-water mark must not roll back a higher local one"
         )
     }
 
