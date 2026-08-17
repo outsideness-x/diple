@@ -12,6 +12,13 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var publication: Publication? = nil
     @Published public var initialLocator: Locator? = nil
     @Published public var currentProgress: Double = 0.0
+    /// Prose length of this source, resolved once when the book opens.
+    ///
+    /// The navigator reports a location on every scrolled pixel (see the Readium notes in
+    /// CLAUDE.md), so this cannot be a lookup the bottom bar performs while rendering — that
+    /// would be a database read per pixel. `nil` means the indexer has not measured this source
+    /// yet, and the bar must then print nothing rather than a placeholder.
+    @Published public private(set) var contentCharacters: Int?
     @Published public var isOverlayVisible: Bool = false
     @Published public var isSettingsPresented: Bool = false
     @Published public var isOutlinePresented: Bool = false
@@ -141,6 +148,10 @@ public final class ReaderViewModel: ObservableObject {
                 }
             }
             self.isLoading = false
+            self.contentCharacters = try? AppDatabase.shared.contentCharacterCount(
+                bookID: book.id,
+                isArticle: book.isArticle
+            )
 
             // Computing positions can take a moment on large books; the reader is usable
             // without them, only the progress bar cannot be dragged yet.

@@ -250,6 +250,20 @@ public struct ReaderContainerView: View {
                                     .contentTransition(.numericText())
                                     .animation(DipleMotion.standard, value: percentage)
 
+                                // Time left sits next to the percentage — the same fact, in the
+                                // unit a reader actually plans around — and before the chapter
+                                // title, which is the one thing here allowed to truncate.
+                                if let remaining = ReadingEstimate.remaining(
+                                    characters: viewModel.contentCharacters,
+                                    progress: viewModel.currentProgress
+                                ) {
+                                    Text(remaining)
+                                        .dipleType(.footnote, weight: .regular)
+                                        .foregroundStyle(chrome.secondary)
+                                        .lineLimit(1)
+                                        .layoutPriority(1)
+                                }
+
                                 if let chapter = viewModel.currentLocator?.title,
                                    !chapter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                     Text(chapter)

@@ -6,6 +6,7 @@ private final class SourceOverviewViewModel: ObservableObject {
     @Published var highlights: [Highlight] = []
     @Published var notes: [NoteItem] = []
     @Published var tags: [String] = []
+    @Published var characters: Int?
     @Published var errorMessage: String?
 
     let book: Book
@@ -19,6 +20,10 @@ private final class SourceOverviewViewModel: ObservableObject {
         do {
             highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
             tags = try AppDatabase.shared.fetchTags(forBookId: book.id)
+            characters = try AppDatabase.shared.contentCharacterCount(
+                bookID: book.id,
+                isArticle: book.isArticle
+            )
             let tagsByNote = try AppDatabase.shared.fetchTagsByNote()
             notes = try AppDatabase.shared.fetchAllNotes()
                 .filter { $0.bookId == book.id }
@@ -179,6 +184,13 @@ public struct SourceOverviewView: View {
                 if viewModel.book.furthestProgress > 0.001 {
                     ProgressView(value: min(max(viewModel.book.furthestProgress, 0), 1))
                         .tint(DipleColor.accent)
+                }
+                // The whole length rather than what is left: this screen is about what the
+                // source *is*, and the reader's position through it is one line above.
+                if let total = ReadingEstimate.total(characters: viewModel.characters) {
+                    Text(total)
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

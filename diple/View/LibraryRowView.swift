@@ -9,18 +9,30 @@ import SwiftUI
 public struct LibraryRowView: View {
     public let book: Book
     public let tags: [String]
+    /// Prose length, when the indexer has reached this source. `nil` prints nothing at all.
+    public let characters: Int?
 
     /// The thumbnail tracks the text beside it, so the row keeps its proportions under Dynamic
     /// Type instead of leaving a stamp next to giant titles — as `HubBookRowView` already does.
     @ScaledMetric(relativeTo: .subheadline) private var thumbnailWidth: CGFloat = 44
 
-    public init(book: Book, tags: [String] = []) {
+    public init(book: Book, tags: [String] = [], characters: Int? = nil) {
         self.book = book
         self.tags = tags
+        self.characters = characters
     }
 
     private var clampedProgress: CGFloat {
         CGFloat(min(max(book.furthestProgress, 0), 1))
+    }
+
+    /// What is left once started, the whole length before that. A row is scanned to decide
+    /// what to read next, and "40 min" answers that for an untouched source the way "12 min
+    /// left" answers it for one already underway.
+    private var estimate: String? {
+        clampedProgress > 0
+            ? ReadingEstimate.remaining(characters: characters, progress: Double(clampedProgress))
+            : ReadingEstimate.total(characters: characters)
     }
 
     public var body: some View {
@@ -71,6 +83,12 @@ public struct LibraryRowView: View {
                             .foregroundStyle(DipleColor.accent)
                     }
                     .padding(.top, DipleSpace.hair)
+                }
+
+                if let estimate {
+                    Text(estimate)
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.textQuaternary)
                 }
             }
         }

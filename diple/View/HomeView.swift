@@ -53,7 +53,7 @@ public struct HomeView: View {
                         if let book = library.continueReadingBook {
                             section("CONTINUE") {
                                 NavigationLink(value: book) {
-                                    HomeContinueReadingCard(book: book)
+                                    HomeContinueReadingCard(book: book, characters: library.charactersByBook[book.id])
                                 }
                                 .buttonStyle(.bookCard)
                                 .matchedTransitionSource(id: book.id, in: readingNamespace)
@@ -303,6 +303,7 @@ private struct HomeQuickAction: View {
 
 private struct HomeContinueReadingCard: View {
     let book: Book
+    let characters: Int?
     @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 70
 
     // Furthest-read, not the live saved position — see "Прогресс чтения: `furthestProgress` и
@@ -336,6 +337,14 @@ private struct HomeContinueReadingCard: View {
                 HStack {
                     Text("\(Int((progress * 100).rounded()))%")
                         .monospacedDigit()
+
+                    // Nothing at all when the source has not been measured yet.
+                    if let remaining = ReadingEstimate.remaining(characters: characters, progress: progress) {
+                        Text(remaining)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .lineLimit(1)
+                    }
+
                     Spacer()
                     Label("Continue", systemImage: "arrow.right")
                 }

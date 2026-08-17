@@ -36,7 +36,9 @@ public nonisolated enum BookContentExtractor {
     /// Target chunk size in characters. ~1.5 kB reads as two or three paragraphs — enough for
     /// a snippet to carry real context, small enough that a search hit lands close to the
     /// actual passage instead of "somewhere in this chapter."
-    private static let targetChunkSize = 1500
+    /// Also read by `AppDatabase.contentCharacterCount` as the fallback length of a book
+    /// indexed before `characterCount` was stored.
+    static let targetChunkSize = 1500
 
     public static func extractChunks(from book: Book) async throws -> [BookContentChunk] {
         let fileURL = BookStorageService.shared.absoluteURL(for: book.filePath)

@@ -308,7 +308,11 @@ public struct LibraryView: View {
             ForEach(visibleBooks) { book in
                 let route = BookRoute(book: book, placement: .list)
                 NavigationLink(value: route) {
-                    LibraryRowView(book: book, tags: viewModel.tagsByBook[book.id] ?? [])
+                    LibraryRowView(
+                        book: book,
+                        tags: viewModel.tagsByBook[book.id] ?? [],
+                        characters: viewModel.charactersByBook[book.id]
+                    )
                 }
                 .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
                 .listRowInsets(EdgeInsets(
@@ -361,7 +365,7 @@ public struct LibraryView: View {
 
                 let route = BookRoute(book: book, placement: .continueReading)
                 NavigationLink(value: route) {
-                    ContinueReadingCard(book: book)
+                    ContinueReadingCard(book: book, characters: viewModel.charactersByBook[book.id])
                 }
                 .buttonStyle(.bookCard)
                 .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
@@ -637,6 +641,7 @@ public struct LibraryView: View {
 /// a reading state: cover, identity, progress and a single continuation affordance.
 private struct ContinueReadingCard: View {
     let book: Book
+    let characters: Int?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 72
@@ -698,6 +703,18 @@ private struct ContinueReadingCard: View {
                         .dipleType(.micro, weight: .semibold)
                         .foregroundStyle(DipleColor.accent)
                         .monospacedDigit()
+
+                    // Silent when the indexer has not measured this source yet: a book nobody
+                    // has counted must say nothing rather than claim to be nearly over.
+                    if let remaining = ReadingEstimate.remaining(
+                        characters: characters,
+                        progress: Double(clampedProgress)
+                    ) {
+                        Text(remaining)
+                            .dipleType(.micro)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .lineLimit(1)
+                    }
                 }
 
                 HStack(spacing: DipleSpace.xs) {

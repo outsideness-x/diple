@@ -360,6 +360,23 @@ public nonisolated final class AppDatabase: Sendable {
             )
         }
 
+        /// How long a book actually is, to the nearest character.
+        ///
+        /// `chunkCount * targetChunkSize` is a usable guess but a bad one at the ends — the
+        /// last chunk is a remainder, and a book of very short chapters is all remainders. The
+        /// extractor already hands over every chunk, so summing them costs nothing at index
+        /// time and turns "about seven chunks long" into a real number. Nullable, because rows
+        /// written before this exist and are not worth reindexing the library over; readers of
+        /// the column fall back to the old estimate for those.
+        ///
+        /// `bookContentIndex` is a derived local index (see the search section below): not
+        /// synced, not backed up, safe to drop and rebuild. This migration is therefore free.
+        migrator.registerMigration("v17_addBookContentCharacterCount") { db in
+            try db.alter(table: "bookContentIndex") { t in
+                t.add(column: "characterCount", .integer)
+            }
+        }
+
         /// Mirrors `noteTag` from v4 exactly, down to the index on `tag`. Sources and notes
         /// keep separate vocabularies (see `BookTag`), but there is no reason for their storage
         /// to have a second shape.
@@ -844,13 +861,14 @@ public nonisolated final class AppDatabase: Sendable {
             }
             try db.execute(
                 sql: """
-                    INSERT INTO bookContentIndex(bookID, indexedAt, chunkCount)
-                    VALUES (?, ?, ?)
+                    INSERT INTO bookContentIndex(bookID, indexedAt, chunkCount, characterCount)
+                    VALUES (?, ?, ?, ?)
                     ON CONFLICT(bookID) DO UPDATE SET
                         indexedAt = excluded.indexedAt,
-                        chunkCount = excluded.chunkCount
+                        chunkCount = excluded.chunkCount,
+                        characterCount = excluded.characterCount
                     """,
-                arguments: [book.id, Date(), chunks.count]
+                arguments: [book.id, Date(), chunks.count, chunks.reduce(0) { $0 + $1.body.count }]
             )
         }
     }
@@ -867,6 +885,63 @@ public nonisolated final class AppDatabase: Sendable {
                 sql: "SELECT EXISTS(SELECT 1 FROM bookContentIndex WHERE bookID = ?)",
                 arguments: [bookID]
             ) ?? false
+        }
+    }
+
+    /// How many characters of prose a source holds, or `nil` when that is not known yet.
+    ///
+    /// Three cases, and they are not the same: a row with `characterCount` is the real figure;
+    /// a row written before v17 falls back to `chunkCount * targetChunkSize`; no row at all
+    /// means the indexer has not reached this book, and the answer is `nil` rather than zero —
+    /// a book nobody has measured must say nothing, not claim to be empty.
+    ///
+    /// Imported articles are deliberately absent from `bookContent` (their text lives in
+    /// `searchIndex` as a single `article` document), so they are measured from there instead.
+    public func contentCharacterCount(bookID: String, isArticle: Bool) throws -> Int? {
+        try writer.read { db in
+            if isArticle {
+                return try Int.fetchOne(
+                    db,
+                    sql: "SELECT length(body) FROM searchIndex WHERE entityType = 'article' AND bookID = ?",
+                    arguments: [bookID]
+                )
+            }
+            guard let row = try Row.fetchOne(
+                db,
+                sql: "SELECT chunkCount, characterCount FROM bookContentIndex WHERE bookID = ?",
+                arguments: [bookID]
+            ) else { return nil }
+            if let characters: Int = row["characterCount"] { return characters }
+            let chunkCount: Int = row["chunkCount"] ?? 0
+            return chunkCount * BookContentExtractor.targetChunkSize
+        }
+    }
+
+    /// Lengths for the whole library in one read, so a card can print an estimate without a
+    /// query per row — the same reason covers are cached rather than decoded inside `body`.
+    /// Sources the indexer has not reached are simply absent from the result.
+    public func contentCharacterCounts() throws -> [String: Int] {
+        try writer.read { db in
+            var counts: [String: Int] = [:]
+            for row in try Row.fetchAll(
+                db,
+                sql: "SELECT bookID, chunkCount, characterCount FROM bookContentIndex"
+            ) {
+                guard let id: String = row["bookID"] else { continue }
+                if let characters: Int = row["characterCount"] {
+                    counts[id] = characters
+                } else {
+                    counts[id] = (row["chunkCount"] ?? 0) * BookContentExtractor.targetChunkSize
+                }
+            }
+            for row in try Row.fetchAll(
+                db,
+                sql: "SELECT bookID, length(body) AS characters FROM searchIndex WHERE entityType = 'article'"
+            ) {
+                guard let id: String = row["bookID"], let characters: Int = row["characters"] else { continue }
+                counts[id] = characters
+            }
+            return counts
         }
     }
 

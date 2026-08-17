@@ -544,6 +544,75 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(try database.fetchAllBookTags(), [])
     }
 
+    func testReadingEstimateStaysSilentWhenItDoesNotKnow() {
+        // A book nobody has measured must say nothing — not "0 min", which is a claim.
+        XCTAssertNil(ReadingEstimate.remaining(characters: nil, progress: 0.5))
+        XCTAssertNil(ReadingEstimate.total(characters: nil))
+        XCTAssertNil(ReadingEstimate.minutes(characters: 0))
+        // And neither must a two-line article round up into a claim of its own.
+        XCTAssertNil(ReadingEstimate.minutes(characters: 200))
+
+        XCTAssertEqual(ReadingEstimate.format(minutes: 14), "14 min")
+        XCTAssertEqual(ReadingEstimate.format(minutes: 140), "2 h 20 min")
+        XCTAssertEqual(ReadingEstimate.format(minutes: 180), "3 h", "no trailing zero minutes")
+
+        // 12 000 characters ÷ 6 per word ÷ 200 wpm = 10 minutes; half read leaves five.
+        XCTAssertEqual(ReadingEstimate.total(characters: 12_000), "10 min")
+        XCTAssertEqual(ReadingEstimate.remaining(characters: 12_000, progress: 0.5), "5 min left")
+        XCTAssertNil(
+            ReadingEstimate.remaining(characters: 12_000, progress: 1),
+            "a finished book has nothing left to promise"
+        )
+    }
+
+    func testContentLengthFallsBackToChunksAndReadsArticlesFromTheirOwnDocument() throws {
+        // The queue is created here rather than inline so the test can reach past `AppDatabase`
+        // to simulate a row written before v17 — the column is nullable precisely because such
+        // rows exist in the wild.
+        let dbQueue = try DatabaseQueue()
+        let database = try AppDatabase(dbQueue)
+        let book = Book(id: "measured-book", title: "Measured", filePath: "Books/measured-book/book.epub")
+        try database.saveBook(book)
+
+        // Unindexed is not the same as empty.
+        XCTAssertNil(try database.contentCharacterCount(bookID: book.id, isArticle: false))
+
+        try database.indexBookContent(
+            book: book,
+            chunks: [
+                BookContentChunk(href: "c1.xhtml", chapterTitle: "One", locatorJSON: "{}", body: String(repeating: "а", count: 900)),
+                BookContentChunk(href: "c2.xhtml", chapterTitle: "Two", locatorJSON: "{}", body: String(repeating: "b", count: 600)),
+            ]
+        )
+        XCTAssertEqual(try database.contentCharacterCount(bookID: book.id, isArticle: false), 1_500)
+        XCTAssertEqual(try database.contentCharacterCounts()[book.id], 1_500)
+
+        // A row written before v17 has no `characterCount`, and falls back to the old estimate
+        // rather than reporting a book of zero length.
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE bookContentIndex SET characterCount = NULL WHERE bookID = ?",
+                arguments: [book.id]
+            )
+        }
+        XCTAssertEqual(
+            try database.contentCharacterCount(bookID: book.id, isArticle: false),
+            2 * BookContentExtractor.targetChunkSize
+        )
+
+        // Articles are deliberately absent from `bookContent`, so they are measured from the
+        // single `article` document they do have in `searchIndex`.
+        let article = Book(
+            id: "measured-article",
+            title: "Measured Article",
+            filePath: "Books/measured-article/article.epub",
+            sourceURL: "https://example.com/a"
+        )
+        try database.saveArticle(article, searchableText: String(repeating: "x", count: 4_200))
+        XCTAssertEqual(try database.contentCharacterCount(bookID: article.id, isArticle: true), 4_200)
+        XCTAssertEqual(try database.contentCharacterCounts()[article.id], 4_200)
+    }
+
     func testMarkingBookFinishedPreservesItsSavedLocation() throws {
         let database = try AppDatabase(DatabaseQueue())
         let originalLocator = #"{"href":"chapter-8.xhtml","locations":{"progression":0.42}}"#

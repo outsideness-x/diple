@@ -79,6 +79,9 @@ public final class LibraryViewModel: ObservableObject {
     @Published public private(set) var tagsByBook: [String: [String]] = [:]
     /// Every tag in use across the library, for the filter row and for suggestions.
     @Published public private(set) var allTags: [String] = []
+    /// Prose length per source, for the reading estimates on cards. Fetched with the library
+    /// rather than per row: reading it inside a card's `body` would mean a query per scroll.
+    @Published public private(set) var charactersByBook: [String: Int] = [:]
     @Published public var isImporting: Bool = false
     @Published public var errorMessage: String? = nil
     @Published public var showErrorAlert: Bool = false
@@ -171,6 +174,7 @@ public final class LibraryViewModel: ObservableObject {
             self.books = try AppDatabase.shared.fetchAllBooks()
             self.tagsByBook = try AppDatabase.shared.fetchTagsByBook()
             self.allTags = try AppDatabase.shared.fetchAllBookTags()
+            self.charactersByBook = try AppDatabase.shared.contentCharacterCounts()
         } catch {
             self.errorMessage = "Failed to load library: \(error.localizedDescription)"
             self.showErrorAlert = true
