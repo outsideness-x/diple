@@ -311,10 +311,14 @@ public struct ReaderContainerView: View {
         // the stack grew to match — taking the navigator with it, so the web view went wider
         // than the display, slid left and reflowed the page on every selection. An overlay is
         // laid out inside its host and cannot resize it.
+        .overlay(alignment: .bottom) {
+            restingProgressLine
+        }
         .overlay {
             selectionLayer
         }
         .animation(DipleMotion.gentle, value: viewModel.toast)
+        .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .task {
             await viewModel.openBook()
@@ -415,6 +419,39 @@ public struct ReaderContainerView: View {
                     }
                 )
             }
+        }
+    }
+
+    /// Where you are, while the bars are away.
+    ///
+    /// Tapping the centre hides both bars, which is the right state for reading and also the
+    /// state in which the only indication of position disappears. A hairline at the very bottom
+    /// keeps the answer available without putting a control back on the page: it is the same
+    /// number the bottom bar prints, drawn rather than written.
+    ///
+    /// It hangs in an `.overlay` rather than as another `ZStack` child for the reason recorded
+    /// at length above — a sibling can widen the stack and take the navigator with it — and it
+    /// takes no touches at all, so a tap here still turns the page. It stands down for a live
+    /// selection, whose bar pins to this same edge.
+    @ViewBuilder
+    private var restingProgressLine: some View {
+        if viewModel.publication != nil,
+           !viewModel.isOverlayVisible,
+           viewModel.currentSelection == nil {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(chrome.track)
+                    Rectangle()
+                        .fill(DipleColor.accent)
+                        .frame(width: geo.size.width * min(max(viewModel.currentProgress, 0), 1))
+                }
+            }
+            .frame(height: DipleStroke.progressLine)
+            .ignoresSafeArea(edges: .bottom)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+            .accessibilityHidden(true)
         }
     }
 

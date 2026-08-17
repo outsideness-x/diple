@@ -54,6 +54,10 @@ public enum DipleStroke {
     public static let hairline: CGFloat = 0.5
     /// 1 — an edge that must survive over an unpredictable background (a book page).
     public static let regular: CGFloat = 1
+    /// 2 — the reader's resting progress line. Thicker than a separator on purpose: it is not
+    /// an edge between two surfaces but a mark that has to be legible at a glance, over paper,
+    /// sepia or night, without becoming a bar.
+    public static let progressLine: CGFloat = 2
 }
 
 /// Padding for interactive elements.
