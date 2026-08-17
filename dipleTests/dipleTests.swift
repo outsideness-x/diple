@@ -423,6 +423,73 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(fetched.furthestProgress, 0.9, accuracy: 0.0001)
     }
 
+    /// `v15_addBookLocation` must not use its own column default for the backfill. Dumping an
+    /// existing library into an inbox turns the feature into a chore on first launch, and
+    /// filing an already-finished book as unsorted is simply false.
+    func testLocationMigrationSortsAnExistingLibraryRatherThanInboxingIt() throws {
+        let dbQueue = try DatabaseQueue()
+        var seedMigrator = DatabaseMigrator()
+        seedMigrator.registerMigration("v1_createBookTable") { db in
+            try db.create(table: "book") { t in
+                t.column("id", .text).primaryKey()
+                t.column("title", .text).notNull()
+                t.column("author", .text)
+                t.column("filePath", .text).notNull()
+                t.column("coverPath", .text)
+                t.column("addedAt", .datetime).notNull()
+                t.column("lastOpenedAt", .datetime)
+                t.column("progress", .double).notNull().defaults(to: 0.0)
+                t.column("locator", .text)
+            }
+        }
+        try seedMigrator.migrate(dbQueue)
+        try dbQueue.write { db in
+            for (id, progress) in [("finished-book", 1.0), ("half-read-book", 0.4), ("untouched-book", 0.0)] {
+                try db.execute(
+                    sql: "INSERT INTO book (id, title, filePath, addedAt, progress) VALUES (?, ?, ?, ?, ?)",
+                    arguments: [id, id, "Books/\(id)/book.epub", Date(timeIntervalSince1970: 1_000), progress]
+                )
+            }
+        }
+
+        let database = try AppDatabase(dbQueue)
+        XCTAssertEqual(try XCTUnwrap(database.fetchBook(id: "finished-book")).location, .archive)
+        XCTAssertEqual(try XCTUnwrap(database.fetchBook(id: "half-read-book")).location, .later)
+        // Never opened is not the same as newly saved: it predates the queue, so it waits in
+        // Later with the rest of the backlog rather than appearing as something to triage.
+        XCTAssertEqual(try XCTUnwrap(database.fetchBook(id: "untouched-book")).location, .later)
+    }
+
+    func testNewSourcesLandInTheInboxAndCanBeMovedOut() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(id: "fresh-save", title: "Fresh Save", filePath: "Books/fresh-save/article.epub")
+        XCTAssertEqual(book.location, .inbox, "a new save is the one thing that belongs in the inbox")
+        try database.saveBook(book)
+
+        try database.updateBookLocation(id: book.id, location: .later)
+        XCTAssertEqual(try XCTUnwrap(database.fetchBook(id: book.id)).location, .later)
+
+        // Filing is about intention only — archiving something half-read must not also throw
+        // away where the reader stopped.
+        let locator = #"{"href":"chapter-3.xhtml","locations":{"progression":0.31}}"#
+        try database.updateReadingProgress(id: book.id, progress: 0.31, locator: locator)
+        try database.updateBookLocation(id: book.id, location: .archive)
+        let archived = try XCTUnwrap(database.fetchBook(id: book.id))
+        XCTAssertEqual(archived.location, .archive)
+        XCTAssertEqual(archived.locator, locator)
+        XCTAssertEqual(archived.furthestProgress, 0.31, accuracy: 0.0001)
+    }
+
+    /// A record saved before the queue existed carries no `location`. `Book.init` defaults to
+    /// `.inbox`, which is right for a fresh save and wrong here: this is a book from a library
+    /// that predates the concept, so sync must apply the same rule the v15 backfill does rather
+    /// than filling someone's inbox from another device.
+    func testRemoteBookWithoutALocationIsSortedRatherThanInboxed() throws {
+        XCTAssertEqual(BookLocation.inferred(progress: 1.0), .archive)
+        XCTAssertEqual(BookLocation.inferred(progress: 0.4), .later)
+        XCTAssertEqual(BookLocation.inferred(progress: 0.0), .later)
+    }
+
     func testMarkingBookFinishedPreservesItsSavedLocation() throws {
         let database = try AppDatabase(DatabaseQueue())
         let originalLocator = #"{"href":"chapter-8.xhtml","locations":{"progression":0.42}}"#

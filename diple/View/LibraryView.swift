@@ -21,6 +21,8 @@ public struct LibraryView: View {
     @State private var isAppSettingsPresented = false
     @State private var overviewBook: Book?
     @State private var searchText = ""
+    @State private var location: BookLocation = .inbox
+    @State private var hasResolvedInitialLocation = false
     @State private var filter: LibraryFilter = .all
     @State private var sort: LibrarySort = .recentlyOpened
     @Namespace private var bookNamespace
@@ -44,11 +46,24 @@ public struct LibraryView: View {
     public init() {}
 
     private var visibleBooks: [Book] {
-        viewModel.visibleBooks(query: searchText, filter: filter, sort: sort)
+        viewModel.visibleBooks(query: searchText, location: location, filter: filter, sort: sort)
     }
 
     private var isDefaultBrowse: Bool {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filter == .all
+    }
+
+    /// Opening the library on an empty inbox is the normal state of an upgraded install — the
+    /// v15 backfill deliberately leaves the inbox empty — and it would look like the library
+    /// had been wiped. So the first appearance lands on the first location that actually holds
+    /// something. It runs once: after the reader has touched the picker, their choice stands
+    /// even when they empty the shelf they are standing on.
+    private func selectInitialLocationIfNeeded() {
+        guard !hasResolvedInitialLocation, !viewModel.books.isEmpty else { return }
+        hasResolvedInitialLocation = true
+        if let first = BookLocation.allCases.first(where: { viewModel.count(in: $0) > 0 }) {
+            location = first
+        }
     }
 
     public var body: some View {
@@ -78,13 +93,15 @@ public struct LibraryView: View {
                                 }
                             }
 
+                            locationPicker
+
                             if viewModel.books.count > 1 {
                                 filterBar
                             }
 
                             VStack(alignment: .leading, spacing: DipleSpace.m) {
                                 HStack(alignment: .firstTextBaseline) {
-                                    sectionHeading(isDefaultBrowse ? "LIBRARY" : "RESULTS")
+                                    sectionHeading(isDefaultBrowse ? location.title.uppercased() : "RESULTS")
 
                                     Spacer()
 
@@ -97,7 +114,14 @@ public struct LibraryView: View {
                                 }
 
                                 if visibleBooks.isEmpty {
-                                    noResults
+                                    // An empty shelf and a search that found nothing are
+                                    // different facts, and "Nothing Found" over a cleared inbox
+                                    // reads as a failure rather than as the goal.
+                                    if isDefaultBrowse {
+                                        emptyLocation
+                                    } else {
+                                        noResults
+                                    }
                                 } else {
                                     LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
                                         ForEach(visibleBooks) { book in
@@ -110,6 +134,9 @@ public struct LibraryView: View {
                                                     },
                                                     onShowOverview: {
                                                         overviewBook = book
+                                                    },
+                                                    onMove: { destination in
+                                                        viewModel.move(book, to: destination)
                                                     },
                                                     onEdit: {
                                                         viewModel.bookToEdit = book
@@ -246,6 +273,12 @@ public struct LibraryView: View {
                     viewModel.loadBooks()
                 }
             }
+            .onAppear(perform: selectInitialLocationIfNeeded)
+            .onChange(of: viewModel.books.count) { _, _ in
+                // The library loads asynchronously and can still be empty on first appearance,
+                // in which case the initial choice has not been made yet.
+                selectInitialLocationIfNeeded()
+            }
         }
     }
 
@@ -265,6 +298,65 @@ public struct LibraryView: View {
             reader
         } else {
             reader.navigationTransition(.zoom(sourceID: route.sourceID, in: bookNamespace))
+        }
+    }
+
+    /// The queue, as three places rather than three filters.
+    ///
+    /// A segmented control rather than another chip row: location is where you *are*, and the
+    /// chips below narrow what you see once you are there. Two rows of identical capsules would
+    /// have flattened that difference into one undifferentiated wall of filters.
+    ///
+    /// The count rides inside the segment label instead of a badge beside it, because a badge
+    /// would either be clipped by the segment or push the label out of it at large Dynamic Type.
+    private var locationPicker: some View {
+        Picker("Location", selection: $location) {
+            ForEach(BookLocation.allCases, id: \.self) { option in
+                let count = viewModel.count(in: option)
+                Text(count > 0 ? "\(option.title) \(count)" : option.title)
+                    .tag(option)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: location) { _, _ in
+            HapticManager.shared.selection()
+        }
+        .accessibilityLabel("Reading queue")
+    }
+
+    private var emptyLocation: some View {
+        VStack(spacing: DipleSpace.m) {
+            Image(systemName: location.systemImage)
+                .dipleIcon(24, weight: .light)
+                .foregroundStyle(DipleColor.accent)
+
+            Text(emptyLocationTitle)
+                .dipleType(.headline)
+                .foregroundStyle(DipleColor.textPrimary)
+
+            Text(emptyLocationDetail)
+                .dipleType(.callout)
+                .foregroundStyle(DipleColor.textTertiary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DipleSpace.xxxl)
+    }
+
+    private var emptyLocationTitle: String {
+        switch location {
+        case .inbox: return "Inbox is clear"
+        case .later: return "Nothing saved for later"
+        case .archive: return "Archive is empty"
+        }
+    }
+
+    private var emptyLocationDetail: String {
+        switch location {
+        case .inbox: return "Everything you saved has been sorted. New links and files land here first."
+        case .later: return "Move something here from the inbox and it will wait for you without nagging."
+        case .archive: return "Finished with something? Archive it and the library stops offering it back."
         }
     }
 

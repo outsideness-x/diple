@@ -262,6 +262,7 @@ public struct MacRootView: View {
                 onOpen: { readerBook = $0 },
                 onEdit: { library.bookToEdit = $0 },
                 onMarkAsFinished: { library.markAsFinished($0) },
+                onMove: { library.move($0, to: $1) },
                 onDelete: { library.confirmDelete($0) },
                 onImportFile: { isImportingFile = true },
                 onImportLink: { isImportingLink = true }
@@ -388,6 +389,7 @@ private struct MacLibraryCollection: View {
     let onOpen: (Book) -> Void
     let onEdit: (Book) -> Void
     let onMarkAsFinished: (Book) -> Void
+    let onMove: (Book, BookLocation) -> Void
     let onDelete: (Book) -> Void
     let onImportFile: () -> Void
     let onImportLink: () -> Void
@@ -475,6 +477,19 @@ private struct MacLibraryCollection: View {
                                                 Button("Mark as Finished") { onMarkAsFinished(book) }
                                             }
                                             Button("Edit Metadata") { onEdit(book) }
+                                            Divider()
+                                            // The desktop sidebar does not split by location
+                                            // yet, so this is the only place on the Mac where
+                                            // the queue can be sorted at all — and a source
+                                            // filed on the phone has to be reachable here.
+                                            ForEach(
+                                                BookLocation.allCases.filter { $0 != book.location },
+                                                id: \.self
+                                            ) { destination in
+                                                Button("Move to \(destination.title)") {
+                                                    onMove(book, destination)
+                                                }
+                                            }
                                             Divider()
                                             Button("Delete", role: .destructive) { onDelete(book) }
                                         }

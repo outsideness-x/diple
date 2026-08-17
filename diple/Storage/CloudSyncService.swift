@@ -215,6 +215,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["locator"] = book.locator as CKRecordValue?
         record["sourceURL"] = book.sourceURL as CKRecordValue?
         record["sourceKind"] = book.sourceKind.rawValue as CKRecordValue
+        record["location"] = book.location.rawValue as CKRecordValue
     }
 
     private static func populate(highlight: Highlight, record: CKRecord) {
@@ -322,7 +323,13 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 furthestProgress: (record["furthestProgress"] as? NSNumber)?.doubleValue,
                 locator: record["locator"] as? String,
                 sourceURL: record["sourceURL"] as? String,
-                sourceKind: (record["sourceKind"] as? String).flatMap(PublicationKind.init(rawValue:))
+                sourceKind: (record["sourceKind"] as? String).flatMap(PublicationKind.init(rawValue:)),
+                // Absent on a record saved before the queue existed. `Book.init` defaults to
+                // `.inbox`, which is right for a fresh save and wrong here — this is a book
+                // from a library that predates the concept, so it gets the same rule the v15
+                // backfill applies rather than being dumped into someone's inbox by sync.
+                location: (record["location"] as? String).flatMap(BookLocation.init(rawValue:))
+                    ?? .inferred(progress: (record["progress"] as? NSNumber)?.doubleValue ?? 0)
             )
             return try database.applyRemoteBook(book, modifiedAt: modifiedAt, systemFields: systemFields)
         case .bookAsset:

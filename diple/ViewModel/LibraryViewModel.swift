@@ -65,17 +65,39 @@ public final class LibraryViewModel: ObservableObject {
 
     /// The unfinished book the reader touched most recently. The library remains the source of
     /// truth; this is a presentation over the same rows rather than a second persisted shelf.
+    ///
+    /// Archived sources are excluded even when half-read: archiving is the reader saying they
+    /// are done with it for now, and an app that keeps offering it back has not listened.
     public var continueReadingBook: Book? {
         books
-            .filter { $0.lastOpenedAt != nil && $0.furthestProgress > 0.001 && $0.furthestProgress < 0.995 }
+            .filter {
+                $0.location != .archive
+                    && $0.lastOpenedAt != nil
+                    && $0.furthestProgress > 0.001
+                    && $0.furthestProgress < 0.995
+            }
             .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }
+    }
+
+    /// How many sources sit in each location. Drives the counts on the library's location
+    /// picker, which is the only place a reader can see an inbox filling up without opening it.
+    public func count(in location: BookLocation) -> Int {
+        books.lazy.filter { $0.location == location }.count
     }
 
     /// Search, filtering and ordering are projections over the in-memory library. Opening the
     /// screen still costs one database read, and typing never issues a query per keystroke.
-    public func visibleBooks(query: String, filter: LibraryFilter, sort: LibrarySort) -> [Book] {
+    public func visibleBooks(
+        query: String,
+        location: BookLocation,
+        filter: LibraryFilter,
+        sort: LibrarySort
+    ) -> [Book] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let matching = books.filter { book in
+            // The location is navigation, not a filter, so it binds before everything else:
+            // searching inside the inbox must not start returning archived results.
+            guard book.location == location else { return false }
             guard filter.includes(book) else { return false }
             guard !needle.isEmpty else { return true }
             return [book.title, book.author, book.sourceHost, book.sourceURL]
@@ -156,6 +178,19 @@ public final class LibraryViewModel: ObservableObject {
             self.errorMessage = "Failed to update metadata: \(error.localizedDescription)"
             self.showErrorAlert = true
             return false
+        }
+    }
+
+    public func move(_ book: Book, to location: BookLocation) {
+        guard book.location != location else { return }
+
+        do {
+            try AppDatabase.shared.updateBookLocation(id: book.id, location: location)
+            loadBooks()
+            HapticManager.shared.notification(.success)
+        } catch {
+            self.errorMessage = "Failed to move this source: \(error.localizedDescription)"
+            self.showErrorAlert = true
         }
     }
 

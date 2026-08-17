@@ -4,6 +4,7 @@ public struct BookItemView: View {
     public let book: Book
     public let onMarkAsFinished: () -> Void
     public let onShowOverview: () -> Void
+    public let onMove: (BookLocation) -> Void
     public let onEdit: () -> Void
     public let onDelete: () -> Void
 
@@ -13,12 +14,14 @@ public struct BookItemView: View {
         book: Book,
         onMarkAsFinished: @escaping () -> Void,
         onShowOverview: @escaping () -> Void,
+        onMove: @escaping (BookLocation) -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.book = book
         self.onMarkAsFinished = onMarkAsFinished
         self.onShowOverview = onShowOverview
+        self.onMove = onMove
         self.onEdit = onEdit
         self.onDelete = onDelete
     }
@@ -82,6 +85,16 @@ public struct BookItemView: View {
                     onMarkAsFinished()
                 } label: {
                     Label("Mark as Finished", systemImage: "checkmark.circle")
+                }
+            }
+
+            // Only the places this source is not already in — an action that would do nothing
+            // is one more thing to read past every time the menu opens.
+            ForEach(BookLocation.allCases.filter { $0 != book.location }, id: \.self) { destination in
+                Button {
+                    onMove(destination)
+                } label: {
+                    Label("Move to \(destination.title)", systemImage: destination.systemImage)
                 }
             }
 

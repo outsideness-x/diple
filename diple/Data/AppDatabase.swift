@@ -343,6 +343,23 @@ public nonisolated final class AppDatabase: Sendable {
             try db.execute(sql: "UPDATE book SET furthestProgress = progress")
         }
 
+        /// Intention, alongside the fact that `progress` already records. The column default is
+        /// `inbox` because that is where a *new* save belongs, but the backfill deliberately
+        /// does not use it: an existing library dumped wholesale into an inbox turns the
+        /// feature into a chore on first launch, and calling an already-finished book "unsorted"
+        /// is simply false. Finished goes to the archive, everything else to Later — the
+        /// anti-library of things one might read eventually — and the inbox starts empty,
+        /// which is exactly the state it is supposed to return to.
+        migrator.registerMigration("v15_addBookLocation") { db in
+            try db.alter(table: "book") { t in
+                t.add(column: "location", .text).notNull().defaults(to: BookLocation.inbox.rawValue)
+            }
+            try db.execute(
+                sql: "UPDATE book SET location = CASE WHEN furthestProgress >= 0.995 THEN ? ELSE ? END",
+                arguments: [BookLocation.archive.rawValue, BookLocation.later.rawValue]
+            )
+        }
+
         return migrator
     }
 
@@ -395,6 +412,21 @@ public nonisolated final class AppDatabase: Sendable {
                 book.lastOpenedAt = lastOpenedAt
                 try book.update(db)
                 try markLocalSave(.book, id: id, at: lastOpenedAt, in: db)
+            }
+        }
+        signalSyncIfNeeded()
+    }
+
+    /// Moves a source between inbox, later and archive. Reading position is untouched — the
+    /// queue is about intention, and archiving something half-read must not also throw away
+    /// where the reader stopped.
+    public func updateBookLocation(id: String, location: BookLocation) throws {
+        try writer.write { db in
+            if var book = try Book.filter(Column("id") == id).fetchOne(db) {
+                guard book.location != location else { return }
+                book.location = location
+                try book.update(db)
+                try markLocalSave(.book, id: id, at: Date(), in: db)
             }
         }
         signalSyncIfNeeded()

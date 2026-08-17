@@ -33,6 +33,41 @@ public enum PublicationKind: String, Codable, CaseIterable, Sendable, Hashable {
     }
 }
 
+/// Where a source sits in the reader's queue — an intention, not a fact.
+///
+/// Progress already answers "have I read this". What it cannot answer is "do I mean to". A
+/// freshly saved article and a book abandoned two years ago are both at 0%, and the library
+/// had no way to tell them apart: the default sort keyed off `lastOpenedAt`, so anything never
+/// opened sank below everything already read and the newest save landed at the very bottom.
+public enum BookLocation: String, Codable, CaseIterable, Sendable, Hashable {
+    case inbox
+    case later
+    case archive
+
+    public var title: String {
+        switch self {
+        case .inbox: return "Inbox"
+        case .later: return "Later"
+        case .archive: return "Archive"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .inbox: return "tray"
+        case .later: return "clock"
+        case .archive: return "archivebox"
+        }
+    }
+
+    /// Where a source belongs when nobody has said. Used by the v15 backfill and by CloudKit
+    /// records saved before the column existed: both describe libraries that predate the
+    /// concept, and calling an already-finished book "inbox" would be a lie about it.
+    public static func inferred(progress: Double) -> Self {
+        progress >= 0.995 ? .archive : .later
+    }
+}
+
 public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable, Sendable {
     public var id: String
     public var title: String
@@ -54,6 +89,8 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
     /// is the canonical address a reader can reopen or copy.
     public var sourceURL: String?
     public var sourceKind: PublicationKind
+    /// Where this source sits in the queue. New saves arrive in `.inbox`; see `BookLocation`.
+    public var location: BookLocation
 
     public init(
         id: String = UUID().uuidString,
@@ -67,7 +104,12 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
         furthestProgress: Double? = nil,
         locator: String? = nil,
         sourceURL: String? = nil,
-        sourceKind: PublicationKind? = nil
+        sourceKind: PublicationKind? = nil,
+        // Not optional-with-inference like `sourceKind`: a brand new save genuinely belongs in
+        // the inbox, and only the CloudKit path — where a missing field means "saved before the
+        // concept existed" — wants `BookLocation.inferred(progress:)`. Making that the default
+        // here would quietly file every fresh import under Later instead.
+        location: BookLocation = .inbox
     ) {
         self.id = id
         self.title = title
@@ -86,6 +128,7 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
         self.locator = locator
         self.sourceURL = sourceURL
         self.sourceKind = sourceKind ?? PublicationKind.inferred(filePath: filePath, sourceURL: sourceURL)
+        self.location = location
     }
 
     /// Whether this row came from the web rather than from a file.
