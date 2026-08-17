@@ -2,10 +2,18 @@ import SwiftUI
 
 /// The one source most likely to be opened next, set as the lead entry of the page.
 ///
-/// Same register as `LibraryRowView` — spine, title, dateline, a rule that doubles as the
-/// progress mark — at the size a lead gets. It is not a card: a card above a column of
-/// catalogue entries reads as a different kind of object, and this is the same kind of object,
-/// only first.
+/// Same register as `LibraryRowView` — title, dateline, a rule that doubles as the progress
+/// mark — at the size a lead gets. It is not a card: a card above a column of catalogue entries
+/// reads as a different kind of object, and this is the same kind of object, only first.
+///
+/// Rank shows in size, not in whether there is a picture: the lead's cover is the largest in
+/// the app, the entries below carry the same cover small. A library is recognised by its
+/// covers, and dropping them from a shelf to make it look like a catalogue trades the thing
+/// that makes it *this* library for a resemblance to somebody else's app.
+///
+/// It also carries the one accent-filled action on Home. The primary action of a reading app's
+/// front page is to carry on reading, and an action needs something to press — a progress rule
+/// reports, it does not invite.
 ///
 /// It replaces two near-identical continue cards, one in `HomeView` and one in `LibraryView`.
 /// Two implementations of the same idea drift, and these two already had: different cover
@@ -16,6 +24,12 @@ public struct SourceLeadView: View {
     public let characters: Int?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The cover scales with the title beside it so the lead keeps its proportions under
+    /// Dynamic Type — but only so far. Unclamped it reached ~140 pt at accessibility sizes and
+    /// took the measure the title needed, leaving a word per line. Past about half again its
+    /// size a cover has stopped helping anyone recognise the book and started hiding its name.
+    @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 72
 
     public init(book: Book, characters: Int? = nil) {
         self.book = book
@@ -44,10 +58,22 @@ public struct SourceLeadView: View {
     }
 
     public var body: some View {
-        HStack(alignment: .top, spacing: DipleSpace.m) {
-            Capsule()
-                .fill(DipleCoverArt.spine(for: book.title))
-                .frame(width: DipleStroke.spine)
+        // Centred, not top-aligned. The progress moved out of this column and into the rule
+        // below, which left the title and dateline filling the top third of a cover-height row
+        // and a hole under them. Two lines of text set against the middle of the cover reads as
+        // one block; the same two lines pinned to its top edge read as something missing.
+        HStack(alignment: .center, spacing: DipleSpace.l) {
+            // The lead keeps its cover; the entries below it do not. That is the difference in
+            // rank, and it is the one a front page uses: the lead story carries the picture,
+            // the column under it carries marks. A spine here as well would be the same fact
+            // stated twice, since the cover already is the colour.
+            BookCoverView(
+                coverPath: book.coverPath,
+                title: book.title,
+                author: book.author,
+                isCompact: true
+            )
+            .frame(width: min(coverWidth, 108), height: min(coverWidth, 108) * 1.5)
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text(book.title)
@@ -63,6 +89,21 @@ public struct SourceLeadView: View {
                     .monospacedDigit()
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                     .truncationMode(.tail)
+
+                Spacer(minLength: DipleSpace.s)
+
+                // Not a button of its own: the whole lead is already the tap target, and a
+                // control nested inside another control is the trap recorded in CLAUDE.md.
+                // This is the accent telling you where the page wants you to go.
+                HStack(spacing: DipleSpace.xs) {
+                    Text("Continue")
+                    Image(systemName: "arrow.right")
+                        .dipleIcon(11, weight: .semibold)
+                }
+                    .dipleType(.footnote, weight: .semibold)
+                    .foregroundStyle(DipleColor.textOnAccent)
+                    .diplePadding(.button)
+                    .background(DipleColor.accent, in: Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

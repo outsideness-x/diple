@@ -34,21 +34,6 @@ public enum DipleCoverArt {
         return CGFloat(hash % 24) / 24
     }
 
-    /// A single solid stop of the same hue, for surfaces too small to carry a gradient.
-    ///
-    /// The library's list rows drop the thumbnail entirely — a catalogue is read by its lines,
-    /// not its pictures — but a book keeps the colour it has on the shelf, as a spine mark at
-    /// the leading edge. Same seed, same hue, so a title recognised by colour in the grid is
-    /// recognised by the same colour in the list. Saturation is pushed above the gradient's
-    /// because two points of width has far less area to say it with.
-    public static func spine(for seed: String) -> Color {
-        let hue = hue(for: seed)
-        return DipleColor.adaptive(
-            light: UIColor(hue: hue, saturation: 0.55, brightness: 0.72, alpha: 1),
-            dark: UIColor(hue: hue, saturation: 0.58, brightness: 0.62, alpha: 1)
-        )
-    }
-
     /// The two stops of the cover's field.
     ///
     /// Light keeps the tint pale enough to carry dark ink; dark keeps it deep enough not to

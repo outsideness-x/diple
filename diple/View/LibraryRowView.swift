@@ -4,8 +4,8 @@ import SwiftUI
 ///
 /// The grid card is for recognising a book — a cover you can read across a table. A row is for
 /// deciding about one, and it is set the way a catalogue is set rather than the way an app is:
-/// no card, no thumbnail, no chips. A rule below, a dateline under the title, and the whole
-/// gutter of the page to breathe in.
+/// no card, no chips. A cover, a rule below, a dateline under the title, and the whole gutter of
+/// the page to breathe in.
 ///
 /// Three things were removed rather than restyled, which is the point. The byline, the
 /// standalone estimate and the tag capsules collapse into one line of small caps; the progress
@@ -18,6 +18,10 @@ public struct LibraryRowView: View {
     public let characters: Int?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The thumbnail tracks the text beside it, so a row keeps its proportions under Dynamic
+    /// Type instead of leaving a stamp next to giant titles — as `HubBookRowView` already does.
+    @ScaledMetric(relativeTo: .subheadline) private var coverWidth: CGFloat = 44
 
     public init(book: Book, tags: [String] = [], characters: Int? = nil) {
         self.book = book
@@ -59,13 +63,22 @@ public struct LibraryRowView: View {
     }
 
     public var body: some View {
-        HStack(alignment: .top, spacing: DipleSpace.m) {
-            // The colour the book has on the shelf, carried into a register a catalogue can
-            // use. Same seed, same hue: a title recognised by colour in the grid is recognised
-            // by the same colour here.
-            Capsule()
-                .fill(DipleCoverArt.spine(for: book.title))
-                .frame(width: DipleStroke.spine)
+        // Centred against the thumbnail: a title and a dateline are shorter than a 1.5-ratio
+        // cover, and top-aligning them leaves a hole under the text that reads as a missing
+        // element. When the title runs to two lines the text is the taller side and nothing
+        // moves.
+        HStack(alignment: .center, spacing: DipleSpace.m) {
+            // The same cover as the grid, small. A library is recognised by its covers, and a
+            // list that drops them to look more like a catalogue has traded the thing that
+            // makes it this library for a resemblance to somebody else's app. Rank shows in
+            // size — the lead's cover is the largest in the app, this one is a thumbnail.
+            BookCoverView(
+                coverPath: book.coverPath,
+                title: book.title,
+                author: book.author,
+                isCompact: true
+            )
+            .frame(width: coverWidth, height: coverWidth * 1.5)
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(book.title)
