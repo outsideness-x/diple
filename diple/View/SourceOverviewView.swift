@@ -5,6 +5,7 @@ import Combine
 private final class SourceOverviewViewModel: ObservableObject {
     @Published var highlights: [Highlight] = []
     @Published var notes: [NoteItem] = []
+    @Published var tags: [String] = []
     @Published var errorMessage: String?
 
     let book: Book
@@ -17,6 +18,7 @@ private final class SourceOverviewViewModel: ObservableObject {
     func load() {
         do {
             highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
+            tags = try AppDatabase.shared.fetchTags(forBookId: book.id)
             let tagsByNote = try AppDatabase.shared.fetchTagsByNote()
             notes = try AppDatabase.shared.fetchAllNotes()
                 .filter { $0.bookId == book.id }
@@ -165,6 +167,15 @@ public struct SourceOverviewView: View {
                     .foregroundStyle(DipleColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 BookSubtitleView(book: viewModel.book)
+                if !viewModel.tags.isEmpty {
+                    // The one screen that answers "what is this source and what have I made
+                    // from it", so the shelf it was put on belongs here too.
+                    FlowLayout(spacing: DipleSpace.xs) {
+                        ForEach(viewModel.tags, id: \.self) { tag in
+                            TagChipView(label: tag, kind: .text)
+                        }
+                    }
+                }
                 if viewModel.book.furthestProgress > 0.001 {
                     ProgressView(value: min(max(viewModel.book.furthestProgress, 0), 1))
                         .tint(DipleColor.accent)

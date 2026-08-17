@@ -166,7 +166,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             switch key.entity {
             case .book:
                 guard let book = try database.fetchBookForSync(id: key.id) else { return nil }
-                Self.populate(book: book, record: record)
+                Self.populate(book: book, tags: try database.fetchTags(forBookId: key.id), record: record)
             case .bookAsset:
                 guard let book = try database.fetchBookForSync(id: key.id) else { return nil }
                 let publicationURL = BookStorageService.shared.absoluteURL(for: book.filePath)
@@ -203,7 +203,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         }
     }
 
-    private static func populate(book: Book, record: CKRecord) {
+    private static func populate(book: Book, tags: [String], record: CKRecord) {
         record["title"] = book.title as CKRecordValue
         record["author"] = book.author as CKRecordValue?
         record["fileName"] = URL(fileURLWithPath: book.filePath).lastPathComponent as CKRecordValue
@@ -216,6 +216,9 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["sourceURL"] = book.sourceURL as CKRecordValue?
         record["sourceKind"] = book.sourceKind.rawValue as CKRecordValue
         record["location"] = book.location.rawValue as CKRecordValue
+        // A string list on the record itself, exactly as `DipleNote` already carries a note's
+        // tags — a source's tags are part of what the source *is*, not a second synced entity.
+        record["tags"] = tags as CKRecordValue
     }
 
     private static func populate(highlight: Highlight, record: CKRecord) {
@@ -331,7 +334,15 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 location: (record["location"] as? String).flatMap(BookLocation.init(rawValue:))
                     ?? .inferred(progress: (record["progress"] as? NSNumber)?.doubleValue ?? 0)
             )
-            return try database.applyRemoteBook(book, modifiedAt: modifiedAt, systemFields: systemFields)
+            return try database.applyRemoteBook(
+                book,
+                // Absent means "saved before sources could be tagged", which is not the same as
+                // "this source has no tags" — passing `[]` there would let one un-upgraded
+                // device strip the tags off the whole library.
+                tags: record["tags"] as? [String],
+                modifiedAt: modifiedAt,
+                systemFields: systemFields
+            )
         case .bookAsset:
             guard try database.shouldAcceptRemoteChange(entity: .bookAsset, id: key.id, modifiedAt: modifiedAt) else {
                 return false

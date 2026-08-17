@@ -68,6 +68,26 @@ public enum BookLocation: String, Codable, CaseIterable, Sendable, Hashable {
     }
 }
 
+/// A reader's own word attached to a source.
+///
+/// Deliberately a separate table from `noteTag` rather than one shared tag vocabulary: a note's
+/// tags describe a thought, a source's tags describe where a text belongs on the shelf, and
+/// merging them would make every tag typed on one side appear as a suggestion on the other.
+/// What the two do share is `TagName.normalized`, so "are these the same tag" has one answer.
+public struct BookTag: Codable, FetchableRecord, PersistableRecord, Equatable, Hashable, Sendable {
+    public var bookId: String
+    public var tag: String
+
+    public init(bookId: String, tag: String) {
+        self.bookId = bookId
+        self.tag = tag
+    }
+
+    public static func normalized(_ raw: String) -> String? {
+        TagName.normalized(raw)
+    }
+}
+
 public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, Equatable, Hashable, Sendable {
     public var id: String
     public var title: String

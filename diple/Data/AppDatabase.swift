@@ -360,6 +360,18 @@ public nonisolated final class AppDatabase: Sendable {
             )
         }
 
+        /// Mirrors `noteTag` from v4 exactly, down to the index on `tag`. Sources and notes
+        /// keep separate vocabularies (see `BookTag`), but there is no reason for their storage
+        /// to have a second shape.
+        migrator.registerMigration("v16_createBookTagTable") { db in
+            try db.create(table: "bookTag") { t in
+                t.column("bookId", .text).notNull()
+                t.column("tag", .text).notNull()
+                t.primaryKey(["bookId", "tag"])
+            }
+            try db.create(index: "bookTag_on_tag", on: "bookTag", columns: ["tag"])
+        }
+
         return migrator
     }
 
@@ -432,6 +444,37 @@ public nonisolated final class AppDatabase: Sendable {
         signalSyncIfNeeded()
     }
 
+    /// Replaces a source's tag set in one transaction, then reindexes it, so a source is never
+    /// visible with a half-applied set. Mirrors `saveNote(_:tags:)`.
+    public func setTags(_ tags: [String], forBookId id: String) throws {
+        try writer.write { db in
+            guard let book = try Book.filter(Column("id") == id).fetchOne(db) else { return }
+            _ = try BookTag.filter(Column("bookId") == id).deleteAll(db)
+            for tag in Set(tags.compactMap(BookTag.normalized)) {
+                try BookTag(bookId: id, tag: tag).insert(db)
+            }
+            try indexBook(book, in: db)
+            try markLocalSave(.book, id: id, at: Date(), in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
+    /// Tags for every source at once — the library renders a chip row over the whole shelf, and
+    /// one query per card would mean a query per scroll.
+    public func fetchTagsByBook() throws -> [String: [String]] {
+        try writer.read { db in
+            try BookTag.order(Column("tag")).fetchAll(db).reduce(into: [String: [String]]()) {
+                $0[$1.bookId, default: []].append($1.tag)
+            }
+        }
+    }
+
+    public func fetchAllBookTags() throws -> [String] {
+        try writer.read { db in
+            try String.fetchAll(db, sql: "SELECT DISTINCT tag FROM bookTag ORDER BY tag")
+        }
+    }
+
     public func updateBookMetadata(id: String, title: String, author: String?, coverPath: String? = nil) throws {
         try writer.write { db in
             if var book = try Book.filter(Column("id") == id).fetchOne(db) {
@@ -487,6 +530,9 @@ public nonisolated final class AppDatabase: Sendable {
             let book = try Book.filter(Column("id") == id).fetchOne(db)
 
             _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
+            // Tags go with the source, unlike its quotes: a tag is a shelf label, and
+            // there is no shelf left to label once the book is gone.
+            _ = try BookTag.filter(Column("bookId") == id).deleteAll(db)
 
             // Quotes outlive the book they were cut from: only the bookmark and the library
             // row disappear here. `bookId` is left dangling on purpose — there is no foreign
@@ -1003,16 +1049,26 @@ public nonisolated final class AppDatabase: Sendable {
 
     private func indexBook(_ book: Book, in db: Database) throws {
         try deleteSearchDocument(type: .book, id: book.id, in: db)
+        // Read straight from `bookTag` rather than taking tags as a parameter: `indexBook` is
+        // called from a dozen places — import, metadata edit, remote apply, location move — and
+        // only one of them has a tag set in hand. Threading it through all of them would mean
+        // every caller that forgot became a source whose tags silently fell out of the index.
+        let tags = try String.fetchAll(
+            db,
+            sql: "SELECT tag FROM bookTag WHERE bookId = ? ORDER BY tag",
+            arguments: [book.id]
+        )
         try db.execute(
             sql: """
                 INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
-                VALUES ('book', ?, ?, ?, ?, '', '')
+                VALUES ('book', ?, ?, ?, ?, '', ?)
                 """,
             arguments: [
                 book.id,
                 book.id,
                 book.title,
-                [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " ")
+                [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " "),
+                tags.joined(separator: " ")
             ]
         )
     }
@@ -1163,6 +1219,12 @@ public nonisolated final class AppDatabase: Sendable {
 
     public func fetchBookForSync(id: String) throws -> Book? { try fetchBook(id: id) }
 
+    public func fetchTags(forBookId id: String) throws -> [String] {
+        try writer.read { db in
+            try BookTag.filter(Column("bookId") == id).order(Column("tag")).fetchAll(db).map(\.tag)
+        }
+    }
+
     public func fetchHighlightForSync(id: String) throws -> Highlight? {
         try writer.read { db in
             try Highlight.filter(Column("id") == id).fetchOne(db)
@@ -1189,7 +1251,16 @@ public nonisolated final class AppDatabase: Sendable {
 
     /// Returns false when an unsent local edit is newer than the server record.
     @discardableResult
-    public func applyRemoteBook(_ book: Book, modifiedAt: Date, systemFields: Data) throws -> Bool {
+    ///
+    /// `tags` is `nil` for a record saved before sources could be tagged. That is not the same
+    /// as an empty set: treating "this record knows nothing about tags" as "this source has no
+    /// tags" would let one un-upgraded device strip the tags off the whole library.
+    public func applyRemoteBook(
+        _ book: Book,
+        tags: [String]?,
+        modifiedAt: Date,
+        systemFields: Data
+    ) throws -> Bool {
         try writer.write { db in
             guard try shouldAcceptRemote(.book, id: book.id, modifiedAt: modifiedAt, in: db) else {
                 return false
@@ -1211,6 +1282,13 @@ public nonisolated final class AppDatabase: Sendable {
             ) ?? 0
             book.furthestProgress = max(book.furthestProgress, localFurthestProgress)
             try book.save(db)
+            if let tags {
+                _ = try BookTag.filter(Column("bookId") == book.id).deleteAll(db)
+                for tag in Set(tags.compactMap(BookTag.normalized)) {
+                    try BookTag(bookId: book.id, tag: tag).insert(db)
+                }
+            }
+            // After the tag rows, never before: `indexBook` reads them back out of the table.
             try indexBook(book, in: db)
             try storeRemoteMetadata(.book, id: book.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
             return true
@@ -1320,6 +1398,9 @@ public nonisolated final class AppDatabase: Sendable {
                 )
                 let book = try Book.filter(Column("id") == id).fetchOne(db)
                 _ = try Bookmark.filter(Column("bookId") == id).deleteAll(db)
+            // Tags go with the source, unlike its quotes: a tag is a shelf label, and
+            // there is no shelf left to label once the book is gone.
+            _ = try BookTag.filter(Column("bookId") == id).deleteAll(db)
                 if let book {
                     let subtitle = [book.author, book.sourceURL].compactMap { $0 }.joined(separator: " ")
                     try db.execute(

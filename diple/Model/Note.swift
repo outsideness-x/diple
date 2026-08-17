@@ -40,12 +40,8 @@ public struct NoteTag: Codable, FetchableRecord, PersistableRecord, Equatable, H
     }
 
     /// Tags are matched case-insensitively, so they are stored in a single normalized form.
+    /// The rule itself lives in `TagName`, shared with `BookTag`.
     public static func normalized(_ raw: String) -> String? {
-        let trimmed = raw
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return trimmed.lowercased()
+        TagName.normalized(raw)
     }
 }

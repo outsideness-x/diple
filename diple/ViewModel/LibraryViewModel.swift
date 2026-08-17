@@ -49,6 +49,10 @@ public enum LibrarySort: String, CaseIterable, Identifiable, Sendable, Equatable
 @MainActor
 public final class LibraryViewModel: ObservableObject {
     @Published public private(set) var books: [Book] = []
+    /// Tags for every source, fetched once per load rather than per card.
+    @Published public private(set) var tagsByBook: [String: [String]] = [:]
+    /// Every tag in use across the library, for the filter row and for suggestions.
+    @Published public private(set) var allTags: [String] = []
     @Published public var isImporting: Bool = false
     @Published public var errorMessage: String? = nil
     @Published public var showErrorAlert: Bool = false
@@ -91,6 +95,7 @@ public final class LibraryViewModel: ObservableObject {
         query: String,
         location: BookLocation,
         filter: LibraryFilter,
+        tags selectedTags: Set<String> = [],
         sort: LibrarySort
     ) -> [Book] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -99,6 +104,12 @@ public final class LibraryViewModel: ObservableObject {
             // searching inside the inbox must not start returning archived results.
             guard book.location == location else { return false }
             guard filter.includes(book) else { return false }
+            // Selecting two tags means both, not either: tags narrow, and an OR would make
+            // each extra tag return *more*, which is the opposite of what picking one more
+            // filter looks like it should do.
+            if !selectedTags.isEmpty {
+                guard selectedTags.isSubset(of: Set(tagsByBook[book.id] ?? [])) else { return false }
+            }
             guard !needle.isEmpty else { return true }
             return [book.title, book.author, book.sourceHost, book.sourceURL]
                 .compactMap { $0 }
@@ -131,6 +142,8 @@ public final class LibraryViewModel: ObservableObject {
     public func loadBooks() {
         do {
             self.books = try AppDatabase.shared.fetchAllBooks()
+            self.tagsByBook = try AppDatabase.shared.fetchTagsByBook()
+            self.allTags = try AppDatabase.shared.fetchAllBookTags()
         } catch {
             self.errorMessage = "Failed to load library: \(error.localizedDescription)"
             self.showErrorAlert = true
@@ -190,6 +203,16 @@ public final class LibraryViewModel: ObservableObject {
             HapticManager.shared.notification(.success)
         } catch {
             self.errorMessage = "Failed to move this source: \(error.localizedDescription)"
+            self.showErrorAlert = true
+        }
+    }
+
+    public func setTags(_ tags: [String], for book: Book) {
+        do {
+            try AppDatabase.shared.setTags(tags, forBookId: book.id)
+            loadBooks()
+        } catch {
+            self.errorMessage = "Failed to save tags: \(error.localizedDescription)"
             self.showErrorAlert = true
         }
     }

@@ -24,6 +24,8 @@ public struct LibraryView: View {
     @State private var location: BookLocation = .inbox
     @State private var hasResolvedInitialLocation = false
     @State private var filter: LibraryFilter = .all
+    @State private var selectedTags: Set<String> = []
+    @State private var tagEditingBook: Book?
     @State private var sort: LibrarySort = .recentlyOpened
     @Namespace private var bookNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,11 +48,17 @@ public struct LibraryView: View {
     public init() {}
 
     private var visibleBooks: [Book] {
-        viewModel.visibleBooks(query: searchText, location: location, filter: filter, sort: sort)
+        viewModel.visibleBooks(
+            query: searchText,
+            location: location,
+            filter: filter,
+            tags: selectedTags,
+            sort: sort
+        )
     }
 
     private var isDefaultBrowse: Bool {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filter == .all
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filter == .all && selectedTags.isEmpty
     }
 
     /// Opening the library on an empty inbox is the normal state of an upgraded install — the
@@ -99,6 +107,10 @@ public struct LibraryView: View {
                                 filterBar
                             }
 
+                            if !viewModel.allTags.isEmpty {
+                                tagBar
+                            }
+
                             VStack(alignment: .leading, spacing: DipleSpace.m) {
                                 HStack(alignment: .firstTextBaseline) {
                                     sectionHeading(isDefaultBrowse ? location.title.uppercased() : "RESULTS")
@@ -137,6 +149,9 @@ public struct LibraryView: View {
                                                     },
                                                     onMove: { destination in
                                                         viewModel.move(book, to: destination)
+                                                    },
+                                                    onEditTags: {
+                                                        tagEditingBook = book
                                                     },
                                                     onEdit: {
                                                         viewModel.bookToEdit = book
@@ -273,6 +288,15 @@ public struct LibraryView: View {
                     viewModel.loadBooks()
                 }
             }
+            .sheet(item: $tagEditingBook) { book in
+                BookTagsSheetView(
+                    book: book,
+                    tags: viewModel.tagsByBook[book.id] ?? [],
+                    suggestions: viewModel.allTags
+                ) { tags in
+                    viewModel.setTags(tags, for: book)
+                }
+            }
             .onAppear(perform: selectInitialLocationIfNeeded)
             .onChange(of: viewModel.books.count) { _, _ in
                 // The library loads asynchronously and can still be empty on first appearance,
@@ -383,6 +407,37 @@ public struct LibraryView: View {
         }
         .contentMargins(.horizontal, 0, for: .scrollContent)
         .accessibilityLabel("Library filters")
+    }
+
+    /// Tags get a row of their own rather than joining the type chips above.
+    ///
+    /// They are a different axis: type asks what a source *is*, a tag is what the reader
+    /// decided it is about, and a source has exactly one type but any number of tags. Mixing
+    /// them into one strip of identical capsules would say they are alternatives to each other,
+    /// and tapping two of them would then look like it should widen the result rather than
+    /// narrow it. Multi-select and the outline treatment both come from that.
+    private var tagBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DipleSpace.s) {
+                ForEach(viewModel.allTags, id: \.self) { tag in
+                    Button {
+                        HapticManager.shared.selection()
+                        withAnimation(DipleMotion.standard) {
+                            if selectedTags.contains(tag) {
+                                selectedTags.remove(tag)
+                            } else {
+                                selectedTags.insert(tag)
+                            }
+                        }
+                    } label: {
+                        TagChipView(label: tag, kind: .text, isSelected: selectedTags.contains(tag))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .contentMargins(.horizontal, 0, for: .scrollContent)
+        .accessibilityLabel("Tag filters")
     }
 
     private var sortMenu: some View {

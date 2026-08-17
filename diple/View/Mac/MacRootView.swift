@@ -72,6 +72,7 @@ public struct MacRootView: View {
     @State private var isImportingFile = false
     @State private var isImportingLink = false
     @State private var isShowingSettings = false
+    @State private var tagEditingBook: Book?
 
     public init() {}
 
@@ -263,10 +264,22 @@ public struct MacRootView: View {
                 onEdit: { library.bookToEdit = $0 },
                 onMarkAsFinished: { library.markAsFinished($0) },
                 onMove: { library.move($0, to: $1) },
+                onEditTags: { tagEditingBook = $0 },
                 onDelete: { library.confirmDelete($0) },
                 onImportFile: { isImportingFile = true },
                 onImportLink: { isImportingLink = true }
             )
+            .sheet(item: $tagEditingBook) { book in
+                // Tags set on the phone have to be readable and editable here too, and the
+                // desktop sidebar has no tag section yet — so the tile's menu is the only door.
+                BookTagsSheetView(
+                    book: book,
+                    tags: library.tagsByBook[book.id] ?? [],
+                    suggestions: library.allTags
+                ) { tags in
+                    library.setTags(tags, for: book)
+                }
+            }
             .sheet(item: $library.bookToEdit) { book in
                 EditBookMetadataView(book: book) { title, author, coverData in
                     library.updateMetadata(for: book.id, title: title, author: author, coverData: coverData)
@@ -390,6 +403,7 @@ private struct MacLibraryCollection: View {
     let onEdit: (Book) -> Void
     let onMarkAsFinished: (Book) -> Void
     let onMove: (Book, BookLocation) -> Void
+    let onEditTags: (Book) -> Void
     let onDelete: (Book) -> Void
     let onImportFile: () -> Void
     let onImportLink: () -> Void
@@ -476,6 +490,7 @@ private struct MacLibraryCollection: View {
                                             if book.furthestProgress < 0.995 {
                                                 Button("Mark as Finished") { onMarkAsFinished(book) }
                                             }
+                                            Button("Tags…") { onEditTags(book) }
                                             Button("Edit Metadata") { onEdit(book) }
                                             Divider()
                                             // The desktop sidebar does not split by location

@@ -490,6 +490,47 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(BookLocation.inferred(progress: 0.0), .later)
     }
 
+    func testSourceTagsAreNormalizedSearchableAndSurviveRemoteRecordsThatPredateThem() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(id: "tagged-book", title: "Пиранези", filePath: "Books/tagged-book/book.epub")
+        try database.saveBook(book)
+
+        // One rule for what a tag is, shared with notes: case folded, `#` stripped, blanks
+        // dropped, duplicates collapsed.
+        try database.setTags(["#Fiction", "fiction", "  Долгое чтение ", "#", ""], forBookId: book.id)
+        XCTAssertEqual(try database.fetchTags(forBookId: book.id), ["fiction", "долгое чтение"].sorted())
+        XCTAssertEqual(try database.fetchAllBookTags(), ["fiction", "долгое чтение"].sorted())
+        XCTAssertEqual(try database.fetchTagsByBook()[book.id]?.sorted(), ["fiction", "долгое чтение"].sorted())
+
+        // A tag is a way back to the source, so it belongs in the source's search document.
+        XCTAssertEqual(try database.search("fiction").first?.entityID, book.id)
+
+        // A record saved before sources could be tagged carries no `tags` key at all. Treating
+        // that as "no tags" would let one un-upgraded device strip the whole library.
+        _ = try database.applyRemoteBook(
+            Book(id: book.id, title: "Piranesi", filePath: book.filePath, addedAt: book.addedAt),
+            tags: nil,
+            modifiedAt: Date(timeIntervalSince1970: 500),
+            systemFields: Data()
+        )
+        XCTAssertEqual(try database.fetchTags(forBookId: book.id), ["fiction", "долгое чтение"].sorted())
+        XCTAssertEqual(try database.search("fiction").first?.entityID, book.id)
+
+        // An explicit set does replace them, and the index follows.
+        _ = try database.applyRemoteBook(
+            Book(id: book.id, title: "Piranesi", filePath: book.filePath, addedAt: book.addedAt),
+            tags: ["Reference"],
+            modifiedAt: Date(timeIntervalSince1970: 600),
+            systemFields: Data()
+        )
+        XCTAssertEqual(try database.fetchTags(forBookId: book.id), ["reference"])
+        XCTAssertTrue(try database.search("fiction").isEmpty)
+
+        // Tags go with the source: there is no shelf left to label once the book is gone.
+        try database.deleteBook(id: book.id)
+        XCTAssertEqual(try database.fetchAllBookTags(), [])
+    }
+
     func testMarkingBookFinishedPreservesItsSavedLocation() throws {
         let database = try AppDatabase(DatabaseQueue())
         let originalLocator = #"{"href":"chapter-8.xhtml","locations":{"progression":0.42}}"#
@@ -947,6 +988,7 @@ final class DipleTests: XCTestCase {
         )
         let accepted = try database.applyRemoteBook(
             remoteBook,
+            tags: nil,
             modifiedAt: Date(timeIntervalSince1970: 300),
             systemFields: Data()
         )

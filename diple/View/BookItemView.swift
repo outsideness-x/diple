@@ -5,6 +5,7 @@ public struct BookItemView: View {
     public let onMarkAsFinished: () -> Void
     public let onShowOverview: () -> Void
     public let onMove: (BookLocation) -> Void
+    public let onEditTags: () -> Void
     public let onEdit: () -> Void
     public let onDelete: () -> Void
 
@@ -15,6 +16,7 @@ public struct BookItemView: View {
         onMarkAsFinished: @escaping () -> Void,
         onShowOverview: @escaping () -> Void,
         onMove: @escaping (BookLocation) -> Void,
+        onEditTags: @escaping () -> Void,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
@@ -22,6 +24,7 @@ public struct BookItemView: View {
         self.onMarkAsFinished = onMarkAsFinished
         self.onShowOverview = onShowOverview
         self.onMove = onMove
+        self.onEditTags = onEditTags
         self.onEdit = onEdit
         self.onDelete = onDelete
     }
@@ -96,6 +99,12 @@ public struct BookItemView: View {
                 } label: {
                     Label("Move to \(destination.title)", systemImage: destination.systemImage)
                 }
+            }
+
+            Button {
+                onEditTags()
+            } label: {
+                Label("Tags…", systemImage: "number")
             }
 
             Button {
