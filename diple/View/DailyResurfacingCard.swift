@@ -108,7 +108,11 @@ public struct DailyResurfacingCard: View {
                 }
             }
         }
-        .padding(DipleSpace.l)
+        // Vertical only. The all-round inset was the card's padding, and it outlived the card:
+        // with nothing drawn around it, it simply pushed the quote 16 pt to the right of the
+        // section heading above it and of the lead above that — a page whose left edge steps in
+        // and out for no reason the reader can see.
+        .padding(.vertical, DipleSpace.m)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 

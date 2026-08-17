@@ -4,6 +4,7 @@ import ReadiumNavigator
 public struct ReaderSettingsView: View {
     @Binding public var settings: ReaderSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(settings: Binding<ReaderSettings>) {
         self._settings = settings
@@ -20,6 +21,16 @@ public struct ReaderSettingsView: View {
         // sheet size itself instead.
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// Two equal columns, one at accessibility sizes — the same trade the library grid and the
+    /// notes board already make. Two columns of "Hyperlegible" at those sizes is two truncated
+    /// labels, and the label *is* the specimen: a font option whose name cannot be read has
+    /// nothing left to offer.
+    private var typographyColumns: [GridItem] {
+        dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible()), GridItem(.flexible())]
     }
 
     private var settingsContent: some View {
@@ -115,19 +126,17 @@ public struct ReaderSettingsView: View {
                     .dipleType(.micro, weight: .semibold)
                     .foregroundStyle(DipleColor.textTertiary)
 
-                // Four options do not fit one row, and squeezing them there would truncate the
-                // labels — which are the specimens. `FlowLayout` wraps instead, and keeps
-                // wrapping as Dynamic Type grows.
-                FlowLayout(spacing: DipleSpace.m) {
+                // A grid of equal cells, not a flow of intrinsic ones. `FlowLayout` sizes each
+                // option to its own label, so the four boxes came out at four widths and only
+                // *looked* like a grid because "Serif" and "Hyperlegible" happen to measure
+                // about the same — a coincidence the first longer name or one step of Dynamic
+                // Type would end. Equal cells also match the Reading Mode pair below, which is
+                // the same kind of choice and should not be set two different ways.
+                LazyVGrid(columns: typographyColumns, spacing: DipleSpace.m) {
                     ForEach(ReaderFont.allCases) { readerFont in
                         fontFamilyButton(fontOption: readerFont)
                     }
                 }
-                // `FlowLayout` reports the width of its content, not the width it was offered,
-                // and the sheet's outer stack is centre-aligned — so without this the whole
-                // section, its `TYPOGRAPHY` heading included, sat indented from the gutter that
-                // THEME and PAGE MARGINS line up on.
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             // Reading Mode selector (Paginated vs Continuous Scroll)
@@ -249,8 +258,8 @@ public struct ReaderSettingsView: View {
                 .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(minWidth: 88)
-                .padding(.horizontal, DipleSpace.m)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, DipleSpace.s)
                 .padding(.vertical, DipleSpace.m)
                 .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
                 .cornerRadius(DipleRadius.m)
