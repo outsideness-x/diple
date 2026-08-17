@@ -518,24 +518,29 @@ final class DipleTests: XCTestCase {
         // A tag is a way back to the source, so it belongs in the source's search document.
         XCTAssertEqual(try database.search("fiction").first?.entityID, book.id)
 
+        // Both incoming records have to be *newer* than the local edit made a moment ago, or
+        // `shouldAcceptRemote` rejects them on the timestamp and the assertions below would
+        // pass for the wrong reason.
+        let laterThanLocal = Date().addingTimeInterval(60)
+
         // A record saved before sources could be tagged carries no `tags` key at all. Treating
         // that as "no tags" would let one un-upgraded device strip the whole library.
-        _ = try database.applyRemoteBook(
+        XCTAssertTrue(try database.applyRemoteBook(
             Book(id: book.id, title: "Piranesi", filePath: book.filePath, addedAt: book.addedAt),
             tags: nil,
-            modifiedAt: Date(timeIntervalSince1970: 500),
+            modifiedAt: laterThanLocal,
             systemFields: Data()
-        )
+        ))
         XCTAssertEqual(try database.fetchTags(forBookId: book.id), ["fiction", "долгое чтение"].sorted())
         XCTAssertEqual(try database.search("fiction").first?.entityID, book.id)
 
         // An explicit set does replace them, and the index follows.
-        _ = try database.applyRemoteBook(
+        XCTAssertTrue(try database.applyRemoteBook(
             Book(id: book.id, title: "Piranesi", filePath: book.filePath, addedAt: book.addedAt),
             tags: ["Reference"],
-            modifiedAt: Date(timeIntervalSince1970: 600),
+            modifiedAt: laterThanLocal.addingTimeInterval(60),
             systemFields: Data()
-        )
+        ))
         XCTAssertEqual(try database.fetchTags(forBookId: book.id), ["reference"])
         XCTAssertTrue(try database.search("fiction").isEmpty)
 
