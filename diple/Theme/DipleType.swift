@@ -73,6 +73,12 @@ public struct DipleTextStyle: Sendable {
     /// 16 — quoted passages from publications. A step above `body`, and set with the open
     /// tracking of running text rather than the tightened tracking of a label.
     public static let readingBody = DipleTextStyle(size: 16, weight: .regular, metrics: .subheadline, trackingRatio: 0)
+    /// 19 — a passage set as a pull quote: the one thing on the page that is meant to be read
+    /// rather than scanned. A step above `readingBody` and deliberately *not* a step towards
+    /// `readingTitle` — weight is what a heading uses to be a heading, and a quote borrowing it
+    /// starts announcing itself instead of speaking. Size and the open tracking of running text
+    /// do the work; the weight stays regular.
+    public static let readingQuote = DipleTextStyle(size: 19, weight: .regular, metrics: .body, trackingRatio: 0)
     /// 14 — a quote compressed into a list row.
     public static let readingCaption = DipleTextStyle(size: 14, weight: .regular, metrics: .footnote, trackingRatio: 0)
 
@@ -219,7 +225,8 @@ private struct DipleTypeSpecimen: View {
         ("caption", .caption), ("micro", .micro), ("nano", .nano), ("tag", .tag)
     ]
     private let content: [(String, DipleTextStyle)] = [
-        ("readingTitle", .readingTitle), ("readingBody", .readingBody), ("readingCaption", .readingCaption)
+        ("readingTitle", .readingTitle), ("readingQuote", .readingQuote),
+        ("readingBody", .readingBody), ("readingCaption", .readingCaption)
     ]
 
     var body: some View {

@@ -381,7 +381,7 @@ public struct LibraryView: View {
                 Button {
                     path.append(route)
                 } label: {
-                    ContinueReadingCard(book: book, characters: viewModel.charactersByBook[book.id])
+                    SourceLeadView(book: book, characters: viewModel.charactersByBook[book.id])
                 }
                 .buttonStyle(.bookCard)
                 .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
@@ -650,101 +650,5 @@ public struct LibraryView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DipleSpace.xxxl)
-    }
-}
-
-/// The one unfinished publication most likely to be opened next. Unlike a grid tile, this is
-/// a reading state: cover, identity, progress and a single continuation affordance.
-private struct ContinueReadingCard: View {
-    let book: Book
-    let characters: Int?
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 72
-
-    /// The thumbnail scales with Dynamic Type so it stays in proportion to the title beside
-    /// it, but only up to a point: this is a side-by-side card, and every point the cover
-    /// takes comes out of the text's measure. Unclamped it reached ~140 pt at accessibility
-    /// sizes, leaving the title barely a word per line — "A" over "Simplifie…" — and the
-    /// byline truncated to "James O'…". Past about half again its size the cover has stopped
-    /// helping anyone recognise the book and started hiding its name.
-    private var clampedCoverWidth: CGFloat {
-        min(coverWidth, 108)
-    }
-
-    // Furthest-read, not the live saved position — see "Прогресс чтения: `furthestProgress` и
-    // live-позиция" in CLAUDE.md.
-    private var clampedProgress: CGFloat {
-        CGFloat(min(max(book.furthestProgress, 0), 1))
-    }
-
-    var body: some View {
-        HStack(spacing: DipleSpace.l) {
-            BookCoverView(
-                coverPath: book.coverPath,
-                title: book.title,
-                author: book.author,
-                isCompact: true
-            )
-            .frame(width: clampedCoverWidth, height: clampedCoverWidth * 1.5)
-
-            VStack(alignment: .leading, spacing: DipleSpace.s) {
-                VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                    Text(book.title)
-                        .dipleType(.headline)
-                        .foregroundStyle(DipleColor.textPrimary)
-                        // Two lines hold a title at normal sizes and cut one in half at
-                        // accessibility sizes; the card is free to grow taller instead.
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
-                        .multilineTextAlignment(.leading)
-
-                    BookSubtitleView(book: book)
-                }
-
-                Spacer(minLength: DipleSpace.xs)
-
-                HStack(spacing: DipleSpace.s) {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(DipleColor.surfaceOverlay)
-                            Capsule()
-                                .fill(DipleColor.accent)
-                                .frame(width: geometry.size.width * clampedProgress)
-                        }
-                    }
-                    .frame(height: DipleSpace.xs)
-
-                    Text("\(Int((clampedProgress * 100).rounded()))%")
-                        .dipleType(.micro, weight: .semibold)
-                        .foregroundStyle(DipleColor.textTertiary)
-                        .monospacedDigit()
-
-                    // Silent when the indexer has not measured this source yet: a book nobody
-                    // has counted must say nothing rather than claim to be nearly over.
-                    if let remaining = ReadingEstimate.remaining(
-                        characters: characters,
-                        progress: Double(clampedProgress)
-                    ) {
-                        Text(remaining)
-                            .dipleType(.micro)
-                            .foregroundStyle(DipleColor.textTertiary)
-                            .lineLimit(1)
-                    }
-                }
-
-                HStack(spacing: DipleSpace.xs) {
-                    Text("Continue")
-                        .dipleType(.footnote, weight: .semibold)
-                    Image(systemName: "arrow.right")
-                        .dipleIcon(11, weight: .semibold)
-                }
-                .foregroundStyle(DipleColor.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(DipleSpace.m)
-        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
-        .accessibilityElement(children: .combine)
-        .accessibilityValue("\(Int((clampedProgress * 100).rounded())) percent read")
     }
 }

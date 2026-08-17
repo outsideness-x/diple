@@ -53,7 +53,7 @@ public struct HomeView: View {
                         if let book = library.continueReadingBook {
                             section("CONTINUE") {
                                 NavigationLink(value: book) {
-                                    HomeContinueReadingCard(book: book, characters: library.charactersByBook[book.id])
+                                    SourceLeadView(book: book, characters: library.charactersByBook[book.id])
                                 }
                                 .buttonStyle(.bookCard)
                                 .matchedTransitionSource(id: book.id, in: readingNamespace)
@@ -82,7 +82,7 @@ public struct HomeView: View {
 
                         if !recentNotes.isEmpty {
                             section("RECENT NOTES") {
-                                VStack(spacing: DipleSpace.s) {
+                                VStack(spacing: 0) {
                                     ForEach(recentNotes) { item in
                                         NavigationLink(value: NoteRoute.existing(item)) {
                                             HomeRecentNoteRow(item: item)
@@ -201,10 +201,14 @@ public struct HomeView: View {
             NavigationLink(value: NoteRoute.new) {
                 Label("New note", systemImage: "square.and.pencil")
                     .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.textOnAccent)
+                    .foregroundStyle(DipleColor.textSecondary)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 44)
-                    .background(DipleColor.accent, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                    .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DipleRadius.m)
+                            .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                    }
             }
             .buttonStyle(.readerControl)
             .accessibilityIdentifier("home.newNote")
@@ -301,65 +305,6 @@ private struct HomeQuickAction: View {
     }
 }
 
-private struct HomeContinueReadingCard: View {
-    let book: Book
-    let characters: Int?
-    @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 70
-
-    // Furthest-read, not the live saved position — see "Прогресс чтения: `furthestProgress` и
-    // live-позиция" in CLAUDE.md.
-    private var progress: Double { min(max(book.furthestProgress, 0), 1) }
-
-    var body: some View {
-        HStack(spacing: DipleSpace.l) {
-            BookCoverView(
-                coverPath: book.coverPath,
-                title: book.title,
-                author: book.author,
-                isCompact: true
-            )
-            .frame(width: min(coverWidth, 104), height: min(coverWidth, 104) * 1.5)
-
-            VStack(alignment: .leading, spacing: DipleSpace.s) {
-                Text(book.title)
-                    .dipleType(.headline)
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-
-                BookSubtitleView(book: book)
-
-                Spacer(minLength: DipleSpace.xs)
-
-                ProgressView(value: progress)
-                    .tint(DipleColor.accent)
-
-                HStack {
-                    Text("\(Int((progress * 100).rounded()))%")
-                        .monospacedDigit()
-
-                    // Nothing at all when the source has not been measured yet.
-                    if let remaining = ReadingEstimate.remaining(characters: characters, progress: progress) {
-                        Text(remaining)
-                            .foregroundStyle(DipleColor.textTertiary)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-                    Label("Continue", systemImage: "arrow.right")
-                }
-                .dipleType(.footnote, weight: .semibold)
-                .foregroundStyle(DipleColor.textSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(DipleSpace.m)
-        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
-        .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens at your last reading position")
-    }
-}
-
 private struct HomeRecentNoteRow: View {
     let item: NoteItem
 
@@ -397,8 +342,13 @@ private struct HomeRecentNoteRow: View {
                 .foregroundStyle(DipleColor.textQuaternary)
                 .padding(.top, DipleSpace.s)
         }
-        .padding(DipleSpace.m)
-        .craftSurface()
+        .padding(.vertical, DipleSpace.m)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DipleColor.hairline)
+                .frame(height: DipleStroke.hairline)
+        }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 }
@@ -433,8 +383,13 @@ private struct HomeOpenCollectionRow: View {
                 .dipleIcon(10, weight: .semibold)
                 .foregroundStyle(DipleColor.textQuaternary)
         }
-        .padding(DipleSpace.m)
-        .craftSurface()
+        .padding(.vertical, DipleSpace.m)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DipleColor.hairline)
+                .frame(height: DipleStroke.hairline)
+        }
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 }
