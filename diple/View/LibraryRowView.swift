@@ -1,20 +1,23 @@
 import SwiftUI
 
-/// One source as a row, for the library's list layout.
+/// One source as an entry in a catalogue.
 ///
-/// The grid card is for recognising a book — a cover at a size you can read across a table.
-/// A row is for deciding about one: it trades the cover for a thumbnail and spends the width it
-/// gains on the title, the byline, the shelf it is on and how far it got, so a shelf can be
-/// triaged without opening anything.
+/// The grid card is for recognising a book — a cover you can read across a table. A row is for
+/// deciding about one, and it is set the way a catalogue is set rather than the way an app is:
+/// no card, no thumbnail, no chips. A rule below, a dateline under the title, and the whole
+/// gutter of the page to breathe in.
+///
+/// Three things were removed rather than restyled, which is the point. The byline, the
+/// standalone estimate and the tag capsules collapse into one line of small caps; the progress
+/// capsule and its percentage collapse into the rule itself. What is left is a title, a line of
+/// metadata, and a mark showing how far in you are.
 public struct LibraryRowView: View {
     public let book: Book
     public let tags: [String]
     /// Prose length, when the indexer has reached this source. `nil` prints nothing at all.
     public let characters: Int?
 
-    /// The thumbnail tracks the text beside it, so the row keeps its proportions under Dynamic
-    /// Type instead of leaving a stamp next to giant titles — as `HubBookRowView` already does.
-    @ScaledMetric(relativeTo: .subheadline) private var thumbnailWidth: CGFloat = 44
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(book: Book, tags: [String] = [], characters: Int? = nil) {
         self.book = book
@@ -26,9 +29,29 @@ public struct LibraryRowView: View {
         CGFloat(min(max(book.furthestProgress, 0), 1))
     }
 
-    /// What is left once started, the whole length before that. A row is scanned to decide
-    /// what to read next, and "40 min" answers that for an untouched source the way "12 min
-    /// left" answers it for one already underway.
+    /// `BOOK · СЮЗАННА КЛАРК · 3 H 20 MIN · #FICTION`.
+    ///
+    /// Ordered by how much each part narrows down which source this is. The kind reads as a
+    /// section label the way a newspaper's does; the byline or the site is the identity — for an
+    /// article the site especially, since two saved headlines are told apart by where they came
+    /// from. Length decides whether there is time for this now. Tags come last because they are
+    /// the one part also visible in the filter row above, which makes them the right thing to
+    /// lose to truncation.
+    private var dateline: String {
+        var parts: [String] = [book.sourceKind.title]
+        if let identity = book.sourceHost ?? book.author, !identity.isEmpty {
+            parts.append(identity)
+        }
+        if let estimate {
+            parts.append(estimate)
+        }
+        parts.append(contentsOf: tags.map { "#\($0)" })
+        return parts.joined(separator: " · ").uppercased()
+    }
+
+    /// What is left once started, the whole length before that. A row is scanned to decide what
+    /// to read next, and "40 min" answers that for an untouched source the way "12 min left"
+    /// answers it for one already underway.
     private var estimate: String? {
         clampedProgress > 0
             ? ReadingEstimate.remaining(characters: characters, progress: Double(clampedProgress))
@@ -37,13 +60,12 @@ public struct LibraryRowView: View {
 
     public var body: some View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
-            BookCoverView(
-                coverPath: book.coverPath,
-                title: book.title,
-                author: book.author,
-                isCompact: true
-            )
-            .frame(width: thumbnailWidth, height: thumbnailWidth * 1.5)
+            // The colour the book has on the shelf, carried into a register a catalogue can
+            // use. Same seed, same hue: a title recognised by colour in the grid is recognised
+            // by the same colour here.
+            Capsule()
+                .fill(DipleCoverArt.spine(for: book.title))
+                .frame(width: DipleStroke.spine)
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(book.title)
@@ -52,57 +74,78 @@ public struct LibraryRowView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                BookSubtitleView(book: book)
-
-                if !tags.isEmpty {
-                    FlowLayout(spacing: DipleSpace.xs) {
-                        ForEach(tags, id: \.self) { tag in
-                            TagChipView(label: tag, kind: .text)
-                        }
-                    }
-                }
-
-                if clampedProgress > 0 {
-                    HStack(spacing: DipleSpace.s) {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(DipleColor.surfaceOverlay)
-                                    .frame(height: 2)
-                                Capsule()
-                                    .fill(DipleColor.accent)
-                                    .frame(width: geo.size.width * clampedProgress, height: 2)
-                            }
-                            .frame(maxHeight: .infinity, alignment: .center)
-                        }
-                        .frame(height: DipleSpace.s)
-
-                        Text("\(Int((clampedProgress * 100).rounded()))%")
-                            .dipleType(.nano)
-                            .monospacedDigit()
-                            .foregroundStyle(DipleColor.accent)
-                    }
-                    .padding(.top, DipleSpace.hair)
-                }
-
-                if let estimate {
-                    Text(estimate)
-                        .dipleType(.nano)
-                        .foregroundStyle(DipleColor.textQuaternary)
-                }
+                Text(dateline)
+                    .dipleType(.nano, weight: .medium)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    // Tabular figures, so durations line up down a column instead of shifting
+                    // by a digit's width from one row to the next.
+                    .monospacedDigit()
+                    // One line keeps the dateline subordinate to the title. At accessibility
+                    // sizes one line holds about two words, which stops saying anything.
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .truncationMode(.tail)
             }
-            // Load-bearing. Without it the row sizes to its own content, and since the progress
-            // bar is a greedy `GeometryReader`, a source that has been started stretches to the
-            // full width while an untouched one — no bar, no tags — stops at its title. Two
-            // neighbouring rows then have visibly different widths, which reads as a rendering
-            // fault rather than as a difference in content.
+            // Without this the row sizes to its own content, and two neighbouring rows end at
+            // different places — which reads as a rendering fault, not as a difference in
+            // content.
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(DipleSpace.m)
-        .craftSurface()
+        .padding(.vertical, DipleSpace.m)
+        // The rule separates this row from the next *and* says how far into the source the
+        // reader has got: one line doing both jobs, instead of a capsule track plus a
+        // percentage that repeat what the accent segment already shows.
+        .overlay(alignment: .bottom) { progressRule }
         // The whole row is the target, not just the glyphs in it.
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(book.title). \(dateline)")
         .accessibilityValue("\(Int((clampedProgress * 100).rounded())) percent read")
     }
+
+    private var progressRule: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(DipleColor.hairline)
+                Rectangle()
+                    .fill(DipleColor.accent)
+                    .frame(width: geo.size.width * clampedProgress)
+            }
+        }
+        .frame(height: DipleStroke.regular)
+    }
+}
+
+#Preview("Catalogue rows") {
+    VStack(spacing: 0) {
+        LibraryRowView(
+            book: Book(
+                id: "1",
+                title: "Пиранези",
+                author: "Сюзанна Кларк",
+                filePath: "Books/1/a.epub",
+                furthestProgress: 0.78
+            ),
+            tags: ["fiction"],
+            characters: 318_000
+        )
+        LibraryRowView(
+            book: Book(
+                id: "2",
+                title: "Why Interfaces Get Slower Than the Machines They Run On",
+                author: "Karl Voit",
+                filePath: "Books/2/article.epub",
+                sourceURL: "https://towardsdatascience.com/why"
+            ),
+            characters: 21_000
+        )
+        LibraryRowView(
+            book: Book(id: "3", title: "한국어 문법 입문", author: "국립국어원", filePath: "Books/3/a.epub"),
+            tags: ["reference"],
+            characters: 142_000
+        )
+    }
+    .padding(.horizontal, DipleSpace.xl)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(DipleColor.canvas)
+    .preferredColorScheme(.dark)
 }

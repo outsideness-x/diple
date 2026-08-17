@@ -58,7 +58,7 @@ public struct HighlightRowView: View {
                 HStack(alignment: .top, spacing: DipleSpace.s) {
                     Image(systemName: "bubble.left")
                         .dipleIcon(10, weight: .medium)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.textQuaternary)
 
                     Text(comment)
                         .dipleType(.caption)

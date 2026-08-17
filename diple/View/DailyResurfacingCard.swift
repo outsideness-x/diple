@@ -9,7 +9,6 @@ public struct DailyResurfacingCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dragOffset: CGFloat = 0
     @State private var swapDirection: CGFloat = -1
-    @State private var accentPhase: CGFloat = 1
     @State private var isSwapping = false
 
     public init(onOpen: @escaping (BookQuoteSummary) -> Void) {
@@ -19,10 +18,6 @@ public struct DailyResurfacingCard: View {
     public var body: some View {
         if let item = viewModel.item {
             ZStack(alignment: .topTrailing) {
-                AccentWash(diameter: 250)
-                    .offset(x: 64 + accentPhase * 16, y: -76)
-                    .animation(DipleMotion.gentle, value: accentPhase)
-
                 cardContent(for: item)
                     .id(item.id)
                     .offset(x: dragOffset)
@@ -77,10 +72,10 @@ public struct DailyResurfacingCard: View {
             HStack(spacing: DipleSpace.s) {
                 Image(systemName: "sparkles")
                     .dipleIcon(12, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.textTertiary)
                 Text("TODAY'S HIGHLIGHT")
                     .dipleType(.micro, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.textTertiary)
                 Spacer()
                 Text("FROM YOUR LIBRARY")
                     .dipleType(.nano)
@@ -98,7 +93,7 @@ public struct DailyResurfacingCard: View {
                 HStack(alignment: .top, spacing: DipleSpace.s) {
                     Image(systemName: "bubble.left")
                         .dipleIcon(10, weight: .medium)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.textQuaternary)
                     Text(comment)
                         .dipleType(.caption)
                         .foregroundStyle(DipleColor.textSecondary)
@@ -124,9 +119,9 @@ public struct DailyResurfacingCard: View {
                 } label: {
                     Label("Open Highlights", systemImage: "arrow.right")
                         .dipleType(.footnote, weight: .semibold)
-                        .foregroundStyle(DipleColor.textOnAccent)
+                        .foregroundStyle(DipleColor.textSecondary)
                         .diplePadding(.button)
-                        .background(DipleColor.accent, in: Capsule())
+                        .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
                 }
                 .buttonStyle(.plain)
 
@@ -190,7 +185,6 @@ public struct DailyResurfacingCard: View {
         } else {
             isSwapping = true
             withAnimation(DipleMotion.gentle) {
-                accentPhase *= -1
                 viewModel.showAnother()
             }
             Task { @MainActor in

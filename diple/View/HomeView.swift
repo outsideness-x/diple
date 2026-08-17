@@ -227,7 +227,7 @@ public struct HomeView: View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
             Image(systemName: "arrow.down.left.and.arrow.up.right")
                 .dipleIcon(22, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.textTertiary)
 
             Text("Start with something real")
                 .dipleType(.headline)
@@ -354,9 +354,6 @@ private struct HomeContinueReadingCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(DipleSpace.m)
-        .background(alignment: .topTrailing) {
-            AccentWash(diameter: 180).offset(x: 56, y: -68)
-        }
         .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
         .accessibilityElement(children: .combine)
         .accessibilityHint("Opens at your last reading position")
@@ -374,9 +371,9 @@ private struct HomeRecentNoteRow: View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Image(systemName: "note.text")
                 .dipleIcon(13, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.textTertiary)
                 .frame(width: 32, height: 32)
-                .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+                .background(DipleColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(item.displayTitle)
@@ -415,9 +412,9 @@ private struct HomeOpenCollectionRow: View {
         HStack(spacing: DipleSpace.m) {
             Image(systemName: systemImage)
                 .dipleIcon(14, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.textTertiary)
                 .frame(width: 32, height: 32)
-                .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+                .background(DipleColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(title)

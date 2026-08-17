@@ -326,10 +326,13 @@ public struct LibraryView: View {
                 }
                 .buttonStyle(.bookCard)
                 .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+                // No vertical inset: the rows carry their own vertical padding and meet along
+                // their rules, the way entries in a catalogue do. Spacing between cards would
+                // reintroduce exactly the gaps the cards were removed to close.
                 .listRowInsets(EdgeInsets(
-                    top: DipleSpace.s,
+                    top: 0,
                     leading: DipleSpace.xl,
-                    bottom: DipleSpace.s,
+                    bottom: 0,
                     trailing: DipleSpace.xl
                 ))
                 .listRowBackground(Color.clear)
@@ -707,14 +710,13 @@ private struct ContinueReadingCard: View {
                             Capsule()
                                 .fill(DipleColor.accent)
                                 .frame(width: geometry.size.width * clampedProgress)
-                                .craftGlow(DipleColor.accent.opacity(0.5), radius: DipleSpace.xs)
                         }
                     }
                     .frame(height: DipleSpace.xs)
 
                     Text("\(Int((clampedProgress * 100).rounded()))%")
                         .dipleType(.micro, weight: .semibold)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.textTertiary)
                         .monospacedDigit()
 
                     // Silent when the indexer has not measured this source yet: a book nobody
@@ -741,14 +743,6 @@ private struct ContinueReadingCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(DipleSpace.m)
-        .background(alignment: .topTrailing) {
-            RadialGradient(
-                colors: [DipleColor.accent.opacity(0.12), .clear],
-                center: .topTrailing,
-                startRadius: 0,
-                endRadius: 180
-            )
-        }
         .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
         .accessibilityElement(children: .combine)
         .accessibilityValue("\(Int((clampedProgress * 100).rounded())) percent read")

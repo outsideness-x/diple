@@ -41,7 +41,6 @@ public struct EmptyLibraryView: View {
                     .foregroundStyle(DipleColor.textOnAccent)
                     .diplePadding(.buttonLarge)
                     .background(DipleColor.accent, in: Capsule())
-                    .craftGlow(radius: 16)
                 }
                 .buttonStyle(.readerControl)
 

@@ -27,59 +27,10 @@ public struct CraftSurface: ViewModifier {
     }
 }
 
-/// Light rather than paint.
-///
-/// A saturated fill shouts; a glow points. Used behind interactive elements and under the
-/// accent so the eye is led to them instead of being flagged down.
-public struct CraftGlow: ViewModifier {
-    let color: Color
-    let radius: CGFloat
-
-    public func body(content: Content) -> some View {
-        content
-            .background(
-                color
-                    .blur(radius: radius)
-                    .opacity(0.55)
-                    .allowsHitTesting(false)
-            )
-    }
-}
-
 public extension View {
     /// A card: surface, carved edge, nothing beneath it.
     func craftSurface(_ fill: Color = DipleColor.surface, radius: CGFloat = DipleRadius.m) -> some View {
         modifier(CraftSurface(fill: fill, radius: radius))
-    }
-
-    /// A soft halo of the given colour, for elements that should draw the eye.
-    func craftGlow(_ color: Color = DipleColor.accentGlow, radius: CGFloat = 12) -> some View {
-        modifier(CraftGlow(color: color, radius: radius))
-    }
-}
-
-/// A corner wash inside a card.
-///
-/// It belongs behind card content, where the card's own bounds clip the falloff into a tint
-/// along one corner. Placed loose on a screen — behind the icon of an empty state, say — the
-/// full circle is visible instead, and a soft accent disc floating in the middle of a dark
-/// screen reads as a smudge rather than as light.
-public struct AccentWash: View {
-    public var diameter: CGFloat = 220
-
-    public init(diameter: CGFloat = 220) {
-        self.diameter = diameter
-    }
-
-    public var body: some View {
-        RadialGradient(
-            colors: [DipleColor.accent.opacity(0.16), DipleColor.accent.opacity(0)],
-            center: .center,
-            startRadius: 0,
-            endRadius: diameter / 2
-        )
-        .frame(width: diameter, height: diameter)
-        .allowsHitTesting(false)
     }
 }
 
@@ -98,13 +49,6 @@ public struct AccentWash: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(DipleSpace.m)
             .craftSurface(DipleColor.surfaceRaised)
-
-        Text("Glowing")
-            .dipleType(.body, weight: .semibold)
-            .foregroundStyle(DipleColor.textOnAccent)
-            .diplePadding(.buttonLarge)
-            .background(DipleColor.accent, in: Capsule())
-            .craftGlow()
     }
     .padding(DipleSpace.xl)
     .frame(maxWidth: .infinity, maxHeight: .infinity)

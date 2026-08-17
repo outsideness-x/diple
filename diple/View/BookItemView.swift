@@ -60,7 +60,6 @@ public struct BookItemView: View {
                         Capsule()
                             .fill(DipleColor.accent)
                             .frame(width: geo.size.width * clampedProgress, height: 2)
-                            .craftGlow(DipleColor.accent.opacity(0.6), radius: 4)
                     }
                     .frame(maxHeight: .infinity, alignment: .center)
                 }
@@ -70,7 +69,7 @@ public struct BookItemView: View {
                     Text("\(Int((clampedProgress * 100).rounded()))%")
                         .dipleType(.nano)
                         .monospacedDigit()
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.textTertiary)
                 }
             }
             .padding(.top, DipleSpace.hair)

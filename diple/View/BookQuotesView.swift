@@ -82,7 +82,7 @@ public struct BookQuotesView: View {
 
             Text("\(viewModel.quotes.count) \(viewModel.quotes.count == 1 ? "quote" : "quotes")")
                 .dipleType(.caption, weight: .medium)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.textTertiary)
                 .padding(.top, DipleSpace.xs)
                 .monospacedDigit()
                 .contentTransition(.numericText())

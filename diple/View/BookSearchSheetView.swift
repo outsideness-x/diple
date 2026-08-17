@@ -85,6 +85,7 @@ public struct BookSearchSheetView: View {
 
                             Text("\(group.hits.count)")
                                 .dipleType(.nano)
+                                .monospacedDigit()
                                 .foregroundStyle(DipleColor.textQuaternary)
                                 .monospacedDigit()
                         }

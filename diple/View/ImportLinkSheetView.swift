@@ -163,7 +163,6 @@ public struct ImportLinkSheetView: View {
                     .frame(maxWidth: .infinity)
                     .diplePadding(.buttonLarge)
                     .background(DipleColor.accent, in: Capsule())
-                    .craftGlow(radius: 16)
             }
             .buttonStyle(.readerControl)
             .disabled(viewModel.resolvedURL == nil)

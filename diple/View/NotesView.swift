@@ -369,7 +369,6 @@ public struct NotesView: View {
                 .foregroundStyle(DipleColor.textOnAccent)
                 .diplePadding(.buttonLarge)
                 .background(DipleColor.accent, in: Capsule())
-                .craftGlow(radius: 16)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("notes.new")

@@ -76,7 +76,7 @@ public struct HubView: View {
         VStack(spacing: DipleSpace.xl) {
             Image(systemName: "quote.opening")
                 .dipleIcon(30, weight: .thin)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.textTertiary)
 
             VStack(spacing: DipleSpace.s) {
                 Text("No Quotes Yet")
@@ -136,7 +136,7 @@ public struct HubBookRowView: View {
 
             Text("\(summary.quoteCount)")
                 .dipleType(.footnote, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.textTertiary)
                 .monospacedDigit()
 
             Image(systemName: "chevron.right")
