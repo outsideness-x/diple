@@ -63,14 +63,9 @@ public struct ImportLinkSheetView: View {
 
     private var header: some View {
         VStack(spacing: DipleSpace.l) {
-            ZStack {
-                AccentWash(diameter: 140)
-
-                Image(systemName: "link")
-                    .dipleIcon(26, weight: .light)
-                    .foregroundStyle(DipleColor.accent)
-                    .craftGlow(DipleColor.accent.opacity(0.5), radius: 16)
-            }
+            Image(systemName: "link")
+                .dipleIcon(26, weight: .light)
+                .foregroundStyle(DipleColor.accent)
 
             Text("Paste the address of an article. diple keeps the text, the images and the headings — and leaves the banners behind.")
                 .dipleType(.callout)

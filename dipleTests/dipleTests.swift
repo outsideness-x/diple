@@ -613,9 +613,35 @@ final class DipleTests: XCTestCase {
         let results = try database.search("Дворы")
         XCTAssertEqual(results.map(\.kind), [.bookContent])
         XCTAssertEqual(results.first?.bookID, book.id)
-        XCTAssertEqual(results.first?.title, "Пиранези — Сюзанна Кларк.epub")
+        // The passage is labelled with the book's own title — the name the library, the hub and
+        // the reader's bar all use — not with the file it happens to be stored in.
+        XCTAssertEqual(results.first?.title, "Пиранези")
         XCTAssertEqual(results.first?.subtitle, "Зала Первая")
         XCTAssertNotNil(results.first?.parsedLocator)
+
+        // A blank title has nothing to show, so the filename remains the fallback.
+        let untitled = Book(
+            id: "untitled-book",
+            title: "",
+            filePath: "Books/untitled-book/anonymous.epub"
+        )
+        try database.saveBook(untitled)
+        try database.indexBookContent(
+            book: untitled,
+            chunks: [
+                BookContentChunk(
+                    href: "chapter1.xhtml",
+                    chapterTitle: "",
+                    locatorJSON: #"{"href":"chapter1.xhtml","type":"application/xhtml+xml","locations":{"progression":0}}"#,
+                    body: "Дворы и Лестницы без числа."
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            try database.search("Дворы").first(where: { $0.bookID == untitled.id })?.title,
+            "anonymous.epub"
+        )
+        try database.indexBookContent(book: untitled, chunks: [])
 
         // Re-indexing (the resumable sweep landing on a book a second time, or a future
         // edition) replaces the old chunks wholesale rather than appending duplicates.

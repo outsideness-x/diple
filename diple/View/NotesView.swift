@@ -343,12 +343,9 @@ public struct NotesView: View {
 
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
-            ZStack {
-                AccentWash(diameter: 190)
-                Image(systemName: "note.text")
+            Image(systemName: "note.text")
                 .dipleIcon(30, weight: .thin)
                 .foregroundStyle(DipleColor.accent)
-            }
 
             VStack(spacing: DipleSpace.s) {
                 Text("Write the first note")

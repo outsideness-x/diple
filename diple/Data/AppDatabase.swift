@@ -894,6 +894,7 @@ public nonisolated final class AppDatabase: Sendable {
                         bookContent.bookID,
                         bookContent.chapterTitle,
                         bookContent.locatorJSON,
+                        book.title AS bookTitle,
                         book.filePath AS bookFilePath,
                         snippet(bookContent, 5, '', '', ' … ', 20) AS snippet
                     FROM bookContent
@@ -913,13 +914,22 @@ public nonisolated final class AppDatabase: Sendable {
                 else { return nil }
 
                 let chapterTitle: String = row["chapterTitle"] ?? ""
+                // The title the reader gave the book, not the file it happens to live in:
+                // `book.title` is what the library, the hub and the reader's own bar say, and
+                // an editable one at that, so a passage hit labelled `Dracula.epub` names a
+                // source the rest of the app never mentions. The filename stays as the
+                // fallback for a row whose title was somehow left blank.
+                let bookTitle = (row["bookTitle"] as String? ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 let bookFilePath: String = row["bookFilePath"] ?? ""
                 let bookFileName = URL(fileURLWithPath: bookFilePath).lastPathComponent
+                let displayTitle = !bookTitle.isEmpty ? bookTitle
+                    : (bookFileName.isEmpty ? "Untitled" : bookFileName)
                 return GlobalSearchResult(
                     kind: .bookContent,
                     entityID: String(chunkID),
                     bookID: bookID,
-                    title: bookFileName.isEmpty ? "Untitled" : bookFileName,
+                    title: displayTitle,
                     subtitle: chapterTitle,
                     snippet: row["snippet"] ?? "",
                     locatorJSON: locatorJSON

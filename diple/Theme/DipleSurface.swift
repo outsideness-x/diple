@@ -58,10 +58,12 @@ public extension View {
     }
 }
 
-/// The wash behind an empty state.
+/// A corner wash inside a card.
 ///
-/// A flat disc of tinted accent reads as a placeholder shape. A radial falloff reads as light
-/// coming from somewhere, which is what gives an otherwise bare screen a sense of depth.
+/// It belongs behind card content, where the card's own bounds clip the falloff into a tint
+/// along one corner. Placed loose on a screen — behind the icon of an empty state, say — the
+/// full circle is visible instead, and a soft accent disc floating in the middle of a dark
+/// screen reads as a smudge rather than as light.
 public struct AccentWash: View {
     public var diameter: CGFloat = 220
 

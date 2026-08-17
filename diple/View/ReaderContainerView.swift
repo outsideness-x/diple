@@ -416,31 +416,40 @@ public struct ReaderContainerView: View {
     @ViewBuilder
     private var selectionLayer: some View {
         if let quote = selectedQuote, highlightEditorTarget == nil {
+            // The reader measures the selection against the whole display — its navigator
+            // ignores the safe area — but the bar must not be placed there. This geometry
+            // therefore keeps the safe area: `geo.size` is the safe rect, so aligning the bar
+            // to its top edge puts it below the Dynamic Island by construction, with no inset
+            // arithmetic and nothing tuned to one device. It matters more than tidiness: the
+            // island's band takes no touches at all, so a bar drawn under it left every
+            // selection in the lower half of a page with controls that could not be hit.
+            // Reading the insets off the proxy inside an `ignoresSafeArea` container does not
+            // work — they are already spent by the time the proxy reports them.
             GeometryReader { geo in
-                // Dismissing has to consume the tap. Left to fall through it would also turn
-                // the page or toggle the reader's bars, so closing the bar would never be the
-                // only thing that happened.
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { viewModel.currentSelection = nil }
+                ZStack {
+                    // Dismissing has to consume the tap. Left to fall through it would also
+                    // turn the page or toggle the reader's bars, so closing the bar would never
+                    // be the only thing that happened. This one layer does span the display.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { viewModel.currentSelection = nil }
+                        .ignoresSafeArea()
 
-                let bar = ReaderSelectionBar(
-                    chrome: chrome,
-                    onPickColor: { hex in viewModel.createHighlight(colorHex: hex) },
-                    onAddNote: { highlightEditorTarget = .new(UUID(), quote) },
-                    onCopy: { UIPasteboard.general.string = quote }
-                )
-                .fixedSize()
-
-                bar
+                    ReaderSelectionBar(
+                        chrome: chrome,
+                        onPickColor: { hex in viewModel.createHighlight(colorHex: hex) },
+                        onAddNote: { highlightEditorTarget = .new(UUID(), quote) },
+                        onCopy: { UIPasteboard.general.string = quote }
+                    )
+                    .fixedSize()
                     .padding(.vertical, DipleSpace.xl)
                     .frame(
                         width: geo.size.width,
                         height: geo.size.height,
                         alignment: selectionIsInLowerHalf(geo) ? .top : .bottom
                     )
+                }
             }
-            .ignoresSafeArea()
             .transition(.opacity)
         }
     }
@@ -459,9 +468,13 @@ public struct ReaderContainerView: View {
     /// guess at line height, which is a hardcoded padding tuned to one font size. Pinning to
     /// the opposite edge cannot overlap the passage at any size, and it holds still while the
     /// selection handles are dragged instead of hopping from one side to the other.
+    /// `geo` measures the safe rect, while the selection was reported against the display the
+    /// navigator draws on, so the insets are added back before the halves are compared —
+    /// otherwise the dividing line sits ~24 pt above the middle of the page.
     private func selectionIsInLowerHalf(_ geo: GeometryProxy) -> Bool {
         guard let frame = viewModel.currentSelection?.frame else { return false }
-        return frame.midY > geo.size.height / 2
+        let pageHeight = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+        return frame.midY > pageHeight / 2
     }
 }
 
