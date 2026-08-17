@@ -12,6 +12,13 @@ public struct LibraryView: View {
 
     /// Covers or rows. Persisted, like Notes' own layout choice, because it is a working
     /// preference rather than a navigation state.
+    ///
+    /// Rows are the default. The grid shows a cover, a title, a byline and a bar; the row shows
+    /// all of that plus what kind of source it is, how long is left in it and what it was tagged
+    /// with — and it can be filed with a thumb. Opening the library is far more often "what do I
+    /// read next, and is there time" than "which spine am I looking for", and the answer to the
+    /// first question is the one the shelf could not give. The grid stays a tap away, and stays
+    /// the better view for recognising a book by its colour.
     private enum LibraryLayout: String {
         case grid
         case list
@@ -44,7 +51,10 @@ public struct LibraryView: View {
     /// margin twice the left one. It is also the wrong texture: the card already reads as
     /// pressable, and the chevron is a second, louder claim to the same thing.
     @State private var path = NavigationPath()
-    @AppStorage("diple_library_layout") private var layout: LibraryLayout = .grid
+    // Only the default moves. A reader who has already chosen a layout has that choice stored,
+    // and a stored choice must outrank a changed default — otherwise shipping an opinion
+    // silently overrides theirs.
+    @AppStorage("diple_library_layout") private var layout: LibraryLayout = .list
     @Namespace private var bookNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
