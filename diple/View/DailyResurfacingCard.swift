@@ -3,7 +3,7 @@ import SwiftUI
 /// One saved highlight, given enough room to feel like reading rather than another database
 /// row. It is a rediscovery shortcut only — no scores, scheduling or learning workflow.
 public struct DailyResurfacingCard: View {
-    public let onOpen: (BookQuoteSummary) -> Void
+    public let onOpen: (DailyResurfacingItem) -> Void
 
     @StateObject private var viewModel = DailyResurfacingViewModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -11,7 +11,7 @@ public struct DailyResurfacingCard: View {
     @State private var swapDirection: CGFloat = -1
     @State private var isSwapping = false
 
-    public init(onOpen: @escaping (BookQuoteSummary) -> Void) {
+    public init(onOpen: @escaping (DailyResurfacingItem) -> Void) {
         self.onOpen = onOpen
     }
 
@@ -27,6 +27,14 @@ public struct DailyResurfacingCard: View {
                     .transition(highlightTransition)
             }
             .contentShape(Rectangle())
+            // The block was the only thing on the page that could not be acted on, and it was
+            // the largest. Tapping it now opens the passage where it was written — which is
+            // what resurfacing is for, and what the old "Open Highlights" button did not do
+            // (it led to a list, duplicating the All highlights row right underneath).
+            .onTapGesture {
+                HapticManager.shared.selection()
+                onOpen(item)
+            }
             .simultaneousGesture(swipeGesture, including: viewModel.canShowAnother ? .all : .subviews)
             .overlay(alignment: .bottom) {
                 Rectangle()
@@ -41,27 +49,32 @@ public struct DailyResurfacingCard: View {
         }
     }
 
+    /// `A SIMPLIFIED VIEW OF THE JACOBIAN CONJECTURE · JAMES O'BRIEN` — the same dateline the
+    /// library's entries use, so a quote is attributed the way a source is identified.
+    private func attribution(for item: DailyResurfacingItem) -> String {
+        [item.summary.title, item.summary.author]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+            .uppercased()
+    }
+
     private func cardContent(for item: DailyResurfacingItem) -> some View {
         VStack(alignment: .leading, spacing: DipleSpace.l) {
-            HStack(spacing: DipleSpace.s) {
-                Image(systemName: "sparkles")
-                    .dipleIcon(12, weight: .semibold)
-                    .foregroundStyle(DipleColor.textTertiary)
-                Text("TODAY'S HIGHLIGHT")
-                    .dipleType(.micro, weight: .semibold)
-                    .foregroundStyle(DipleColor.textTertiary)
-                Spacer()
-                Text("FROM YOUR LIBRARY")
-                    .dipleType(.nano)
-                    .foregroundStyle(DipleColor.textQuaternary)
-            }
-
+            // No label of its own. The section above already says HIGHLIGHTS; a second heading
+            // saying TODAY'S HIGHLIGHT under it is the same word twice, and FROM YOUR LIBRARY
+            // answered a question nobody had — there is nowhere else a highlight could be from.
             Text(item.quote.text)
-                .dipleType(.readingQuote)
+                .dipleType(.readingBody)
                 .readingLineSpacing(for: item.quote.text)
                 .foregroundStyle(DipleColor.textPrimary)
                 .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+                // A ceiling, because an unclamped quote is not a block on the page — it *is*
+                // the page. Eight lines of a long passage pushed everything else below the fold
+                // and gave the largest mass on a reading app's front page to the one thing that
+                // could not be acted on. Five lines is enough to recognise an idea; the rest is
+                // one tap away, in the book, where it was written.
+                .lineLimit(5)
 
             if let comment = item.quote.comment, !comment.isEmpty {
                 HStack(alignment: .top, spacing: DipleSpace.s) {
@@ -75,30 +88,12 @@ public struct DailyResurfacingCard: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text(item.summary.title)
-                    .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.textSecondary)
-                if let author = item.summary.author, !author.isEmpty {
-                    Text(author)
-                        .dipleType(.caption)
-                        .foregroundStyle(DipleColor.textTertiary)
-                }
-            }
+            Text(attribution(for: item))
+                .dipleType(.nano, weight: .medium)
+                .foregroundStyle(DipleColor.textTertiary)
+                .lineLimit(2)
 
             HStack(spacing: DipleSpace.m) {
-                Button {
-                    onOpen(item.summary)
-                    HapticManager.shared.selection()
-                } label: {
-                    Label("Open Highlights", systemImage: "arrow.right")
-                        .dipleType(.footnote, weight: .semibold)
-                        .foregroundStyle(DipleColor.textSecondary)
-                        .diplePadding(.button)
-                        .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
-                }
-                .buttonStyle(.plain)
-
                 if viewModel.canShowAnother {
                     Button {
                         showAnother(moving: -1)

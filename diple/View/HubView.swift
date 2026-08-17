@@ -25,7 +25,16 @@ public struct HubView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: DipleSpace.s) {
-                        DailyResurfacingCard { path.append($0) }
+                        // Same rule as Home: the quote opens where it was written, and falls
+                        // back to its group when the book is gone. The route is registered at
+                        // Home's root, which owns this stack.
+                        DailyResurfacingCard { item in
+                            if let book = item.summary.book, item.quote.parsedLocator != nil {
+                                path.append(HomeRoute.passage(book: book, locatorJSON: item.quote.locator))
+                            } else {
+                                path.append(item.summary)
+                            }
+                        }
                             .padding(.bottom, DipleSpace.m)
 
                         ForEach(viewModel.summaries) { summary in

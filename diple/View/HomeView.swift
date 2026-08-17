@@ -1,11 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import ReadiumShared
 
 /// Home's own screens, as values rather than inline destination views. A view-based
 /// `NavigationLink` pushes content the stack's `path` cannot describe, which leaves
 /// programmatic and link-driven navigation disagreeing about what is on screen.
 public enum HomeRoute: Hashable {
     case allHighlights
+    /// A saved passage, opened where it was written rather than in a list of passages.
+    /// The locator travels as its stored JSON because `Locator` is not `Hashable`, and a
+    /// navigation value must be.
+    case passage(book: Book, locatorJSON: String)
 }
 
 /// The useful front door to diple: resume something, capture something, or return to an idea.
@@ -62,7 +67,7 @@ public struct HomeView: View {
 
                         if highlights.totalQuoteCount > 0 {
                             section("HIGHLIGHTS") {
-                                DailyResurfacingCard { path.append($0) }
+                                DailyResurfacingCard { openResurfaced($0) }
 
                                 NavigationLink(value: HomeRoute.allHighlights) {
                                     HomeOpenCollectionRow(
@@ -145,6 +150,8 @@ public struct HomeView: View {
                 switch route {
                 case .allHighlights:
                     HubView(path: $path)
+                case let .passage(book, locatorJSON):
+                    passageDestination(book: book, locatorJSON: locatorJSON)
                 }
             }
             .fileImporter(
@@ -266,6 +273,34 @@ public struct HomeView: View {
         library.loadBooks()
         highlights.load()
         notes.load()
+    }
+
+    /// Where a resurfaced quote goes when it is tapped.
+    ///
+    /// Into the book, at the passage — the point of resurfacing is to return to an idea in its
+    /// place, and a list of quotes is not its place. A quote whose book has been deleted still
+    /// exists (see the highlights section of CLAUDE.md) and has nowhere to open, so it falls
+    /// back to the group it belongs to.
+    ///
+    /// The two branches append **concrete** types rather than one erased value. `NavigationPath`
+    /// keys its destinations on the dynamic type of what was appended, so an `AnyHashable`
+    /// wrapping a `BookQuoteSummary` is looked up as `AnyHashable` — matching nothing, and
+    /// SwiftUI renders its yellow "no destination" placeholder instead of the screen.
+    private func openResurfaced(_ item: DailyResurfacingItem) {
+        if let book = item.summary.book, item.quote.parsedLocator != nil {
+            path.append(HomeRoute.passage(book: book, locatorJSON: item.quote.locator))
+        } else {
+            path.append(item.summary)
+        }
+    }
+
+    @ViewBuilder
+    private func passageDestination(book: Book, locatorJSON: String) -> some View {
+        ReaderContainerView(
+            book: book,
+            startingLocator: Locator.from(jsonString: locatorJSON),
+            onReadingUpdated: reload
+        )
     }
 
     @ViewBuilder

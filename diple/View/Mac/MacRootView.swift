@@ -719,7 +719,10 @@ private struct MacHighlightsCollection: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
                         MacCollectionHeader(title: "Highlights", count: model.totalQuoteCount)
-                        DailyResurfacingCard(onOpen: onSelect)
+                        // The desktop shell has no reader route of its own for a passage — the
+                        // reader opens as a full-window cover from a `Book`, not from a path —
+                        // so here the quote selects its group, which is the inspector's job.
+                        DailyResurfacingCard { onSelect($0.summary) }
                         ForEach(model.summaries) { summary in
                             Button { onSelect(summary) } label: {
                                 HStack(spacing: DipleSpace.m) {

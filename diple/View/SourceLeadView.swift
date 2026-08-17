@@ -77,7 +77,11 @@ public struct SourceLeadView: View {
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text(book.title)
-                    .dipleType(.title)
+                    // The largest text on the page, and by more than a point. It shares the
+                    // screen with a resurfaced quote, and whichever of the two is set larger is
+                    // the one the screen is about — a reading app's front page is about the
+                    // book you are in the middle of.
+                    .dipleType(.display)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 3)
                     .multilineTextAlignment(.leading)
@@ -95,14 +99,17 @@ public struct SourceLeadView: View {
                 // Not a button of its own: the whole lead is already the tap target, and a
                 // control nested inside another control is the trap recorded in CLAUDE.md.
                 // This is the accent telling you where the page wants you to go.
-                HStack(spacing: DipleSpace.xs) {
+                HStack(spacing: DipleSpace.s) {
                     Text("Continue")
                     Image(systemName: "arrow.right")
-                        .dipleIcon(11, weight: .semibold)
+                        .dipleIcon(13, weight: .semibold)
                 }
-                    .dipleType(.footnote, weight: .semibold)
+                    // Weighted to match its rank. It is the only thing on this screen that
+                    // continues what the reader was already doing, and it was set two steps
+                    // below a passage that could not be acted on at all.
+                    .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.textOnAccent)
-                    .diplePadding(.button)
+                    .diplePadding(.buttonLarge)
                     .background(DipleColor.accent, in: Capsule())
             }
             .frame(maxWidth: .infinity, alignment: .leading)
