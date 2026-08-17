@@ -2,14 +2,17 @@ import Foundation
 import SwiftUI
 import Combine
 
-public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
+/// What a source *is*. Exactly one of these is true of any given source.
+///
+/// Type and status used to be one enum, which made them alternatives to each other: choosing
+/// "Articles" cleared "Unread" and there was no way to ask for unread articles. They are
+/// orthogonal — one describes the file, the other describes the reader's history with it — so
+/// they are two selections applied together.
+public enum LibraryTypeFilter: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
     case all = "All"
     case books = "Books"
     case pdfs = "PDFs"
     case articles = "Articles"
-    case unread = "Unread"
-    case inProgress = "In Progress"
-    case finished = "Finished"
 
     public var id: Self { self }
 
@@ -19,8 +22,31 @@ public enum LibraryFilter: String, CaseIterable, Identifiable, Sendable, Equatab
         case .books: return book.sourceKind == .epub
         case .pdfs: return book.sourceKind == .pdf
         case .articles: return book.isArticle
+        }
+    }
+}
+
+/// How far the reader has got. Measured against `furthestProgress`, not the live position —
+/// see "Прогресс чтения" in CLAUDE.md.
+public enum LibraryStatusFilter: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
+    case any = "Any status"
+    case unread = "Unread"
+    case reading = "Reading"
+    case finished = "Finished"
+
+    public var id: Self { self }
+
+    /// Shown on the filter menu's own label, where "Any status" would be noise but a chosen
+    /// status has to be visible — a filter you cannot see is a library that looks broken.
+    public var compactTitle: String? {
+        self == .any ? nil : rawValue
+    }
+
+    public func includes(_ book: Book) -> Bool {
+        switch self {
+        case .any: return true
         case .unread: return book.furthestProgress <= 0.001
-        case .inProgress: return book.furthestProgress > 0.001 && book.furthestProgress < 0.995
+        case .reading: return book.furthestProgress > 0.001 && book.furthestProgress < 0.995
         case .finished: return book.furthestProgress >= 0.995
         }
     }
@@ -94,7 +120,8 @@ public final class LibraryViewModel: ObservableObject {
     public func visibleBooks(
         query: String,
         location: BookLocation,
-        filter: LibraryFilter,
+        type: LibraryTypeFilter = .all,
+        status: LibraryStatusFilter = .any,
         tags selectedTags: Set<String> = [],
         sort: LibrarySort
     ) -> [Book] {
@@ -103,7 +130,7 @@ public final class LibraryViewModel: ObservableObject {
             // The location is navigation, not a filter, so it binds before everything else:
             // searching inside the inbox must not start returning archived results.
             guard book.location == location else { return false }
-            guard filter.includes(book) else { return false }
+            guard type.includes(book), status.includes(book) else { return false }
             // Selecting two tags means both, not either: tags narrow, and an OR would make
             // each extra tag return *more*, which is the opposite of what picking one more
             // filter looks like it should do.

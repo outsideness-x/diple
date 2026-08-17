@@ -341,10 +341,23 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(saved[epub.id], .epub)
         XCTAssertEqual(saved[pdf.id], .pdf)
         XCTAssertEqual(saved[article.id], .article)
-        XCTAssertTrue(LibraryFilter.books.includes(epub))
-        XCTAssertFalse(LibraryFilter.books.includes(pdf))
-        XCTAssertTrue(LibraryFilter.pdfs.includes(pdf))
-        XCTAssertTrue(LibraryFilter.articles.includes(article))
+        XCTAssertTrue(LibraryTypeFilter.books.includes(epub))
+        XCTAssertFalse(LibraryTypeFilter.books.includes(pdf))
+        XCTAssertTrue(LibraryTypeFilter.pdfs.includes(pdf))
+        XCTAssertTrue(LibraryTypeFilter.articles.includes(article))
+
+        // The point of the split: type and status are independent, so "unread articles" —
+        // unaskable while both lived in one enum — is now an ordinary pair of selections.
+        var unreadArticle = article
+        unreadArticle.furthestProgress = 0
+        var finishedArticle = article
+        finishedArticle.furthestProgress = 1
+        XCTAssertTrue(LibraryTypeFilter.articles.includes(unreadArticle)
+                      && LibraryStatusFilter.unread.includes(unreadArticle))
+        XCTAssertFalse(LibraryStatusFilter.unread.includes(finishedArticle))
+        XCTAssertTrue(LibraryStatusFilter.finished.includes(finishedArticle))
+        XCTAssertNil(LibraryStatusFilter.any.compactTitle, "a default filter has nothing to announce")
+        XCTAssertEqual(LibraryStatusFilter.unread.compactTitle, "Unread")
     }
 
     /// `v14_addBookFurthestProgress` has to run against libraries that already have reading

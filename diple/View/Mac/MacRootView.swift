@@ -41,12 +41,15 @@ public struct MacRootView: View {
             }
         }
 
-        var filter: LibraryFilter? {
+        /// The sidebar's shelves are each a *pair* of the two filter axes, now that type and
+        /// status are no longer alternatives to one another. `nil` means the shelf is not a
+        /// library shelf at all.
+        var filters: (type: LibraryTypeFilter, status: LibraryStatusFilter)? {
             switch self {
-            case .library: return .all
-            case .unread: return .unread
-            case .reading: return .inProgress
-            case .articles: return .articles
+            case .library: return (.all, .any)
+            case .unread: return (.all, .unread)
+            case .reading: return (.all, .reading)
+            case .articles: return (.articles, .any)
             case .highlights, .notes, .search: return nil
             }
         }
@@ -185,9 +188,9 @@ public struct MacRootView: View {
         List(selection: $source) {
             Section {
                 sourceRow(.library, badge: library.books.count)
-                sourceRow(.unread, badge: count(for: .unread))
-                sourceRow(.reading, badge: count(for: .inProgress))
-                sourceRow(.articles, badge: count(for: .articles))
+                sourceRow(.unread, badge: count(status: .unread))
+                sourceRow(.reading, badge: count(status: .reading))
+                sourceRow(.articles, badge: count(type: .articles))
             } header: {
                 Text("Library")
             }
@@ -256,7 +259,8 @@ public struct MacRootView: View {
             MacLibraryCollection(
                 title: source?.title ?? "Library",
                 books: library.books,
-                filter: source?.filter ?? .all,
+                type: source?.filters?.type ?? .all,
+                status: source?.filters?.status ?? .any,
                 continueReading: source == .library ? library.continueReadingBook : nil,
                 isImporting: library.isImporting,
                 onSelect: { detail = .book($0) },
@@ -370,8 +374,8 @@ public struct MacRootView: View {
         detail = .note(item)
     }
 
-    private func count(for filter: LibraryFilter) -> Int {
-        library.books.filter(filter.includes).count
+    private func count(type: LibraryTypeFilter = .all, status: LibraryStatusFilter = .any) -> Int {
+        library.books.filter { type.includes($0) && status.includes($0) }.count
     }
 
     private func currentBook(matching book: Book) -> Book? {
@@ -395,7 +399,8 @@ public struct MacRootView: View {
 private struct MacLibraryCollection: View {
     let title: String
     let books: [Book]
-    let filter: LibraryFilter
+    let type: LibraryTypeFilter
+    let status: LibraryStatusFilter
     let continueReading: Book?
     let isImporting: Bool
     let onSelect: (Book) -> Void
@@ -423,7 +428,7 @@ private struct MacLibraryCollection: View {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return books
             .filter { book in
-                guard filter.includes(book) else { return false }
+                guard type.includes(book), status.includes(book) else { return false }
                 guard !needle.isEmpty else { return true }
                 return [book.title, book.author, book.sourceHost]
                     .compactMap { $0 }
@@ -453,7 +458,7 @@ private struct MacLibraryCollection: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: DipleSpace.xxxl) {
-                            if let continueReading, filter == .all, query.isEmpty {
+                            if let continueReading, type == .all, status == .any, query.isEmpty {
                                 MacContinueReadingCard(book: continueReading) {
                                     onOpen(continueReading)
                                 }

@@ -23,7 +23,8 @@ public struct LibraryView: View {
     @State private var searchText = ""
     @State private var location: BookLocation = .inbox
     @State private var hasResolvedInitialLocation = false
-    @State private var filter: LibraryFilter = .all
+    @State private var type: LibraryTypeFilter = .all
+    @State private var status: LibraryStatusFilter = .any
     @State private var selectedTags: Set<String> = []
     @State private var tagEditingBook: Book?
     @State private var sort: LibrarySort = .recentlyOpened
@@ -51,14 +52,16 @@ public struct LibraryView: View {
         viewModel.visibleBooks(
             query: searchText,
             location: location,
-            filter: filter,
+            type: type,
+            status: status,
             tags: selectedTags,
             sort: sort
         )
     }
 
     private var isDefaultBrowse: Bool {
-        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && filter == .all && selectedTags.isEmpty
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && type == .all && status == .any && selectedTags.isEmpty
     }
 
     /// Opening the library on an empty inbox is the normal state of an upgraded install — the
@@ -122,7 +125,7 @@ public struct LibraryView: View {
                                         .foregroundStyle(DipleColor.textQuaternary)
                                         .monospacedDigit()
 
-                                    sortMenu
+                                    filterMenu
                                 }
 
                                 if visibleBooks.isEmpty {
@@ -387,18 +390,18 @@ public struct LibraryView: View {
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DipleSpace.s) {
-                ForEach(LibraryFilter.allCases) { option in
+                ForEach(LibraryTypeFilter.allCases) { option in
                     Button {
                         HapticManager.shared.selection()
                         withAnimation(DipleMotion.standard) {
-                            filter = option
+                            type = option
                         }
                     } label: {
                         Text(option.rawValue)
                             .dipleType(.micro)
-                            .foregroundStyle(filter == option ? DipleColor.textOnAccent : DipleColor.textTertiary)
+                            .foregroundStyle(type == option ? DipleColor.textOnAccent : DipleColor.textTertiary)
                             .diplePadding(.chip)
-                            .background(filter == option ? DipleColor.accent : DipleColor.surfaceOverlay)
+                            .background(type == option ? DipleColor.accent : DipleColor.surfaceOverlay)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -440,8 +443,24 @@ public struct LibraryView: View {
         .accessibilityLabel("Tag filters")
     }
 
-    private var sortMenu: some View {
+    /// Status and sort in one menu, not two controls.
+    ///
+    /// Location, type and tags each already have a visible row; putting status and sort out as
+    /// separate chips too would give the header four controls, and at accessibility text sizes
+    /// the section heading and the count lose that fight long before the controls do. They pair
+    /// naturally anyway — both answer "how should this shelf be presented" rather than "what is
+    /// on it".
+    ///
+    /// The label prints the chosen status when there is one. A filter that is on but invisible
+    /// is a library that looks broken.
+    private var filterMenu: some View {
         Menu {
+            Picker("Status", selection: $status) {
+                ForEach(LibraryStatusFilter.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+
             Picker("Sort Library", selection: $sort) {
                 ForEach(LibrarySort.allCases) { option in
                     Text(option.rawValue).tag(option)
@@ -449,18 +468,18 @@ public struct LibraryView: View {
             }
         } label: {
             HStack(spacing: DipleSpace.xs) {
-                Image(systemName: "arrow.up.arrow.down")
+                Image(systemName: status == .any ? "arrow.up.arrow.down" : "line.3.horizontal.decrease")
                     .dipleIcon(10, weight: .semibold)
-                Text(sort.compactTitle)
+                Text(status.compactTitle ?? sort.compactTitle)
                     .dipleType(.micro, weight: .semibold)
             }
-            .foregroundStyle(DipleColor.textSecondary)
+            .foregroundStyle(status == .any ? DipleColor.textSecondary : DipleColor.textOnAccent)
             .diplePadding(.chip)
-            .background(DipleColor.surfaceOverlay, in: Capsule())
+            .background(status == .any ? DipleColor.surfaceOverlay : DipleColor.accent, in: Capsule())
         }
         .buttonStyle(.readerControl)
-        .accessibilityLabel("Sort Library")
-        .accessibilityValue(sort.rawValue)
+        .accessibilityLabel("Filter and sort")
+        .accessibilityValue("\(status.rawValue), \(sort.rawValue)")
     }
 
     private var noResults: some View {
@@ -480,7 +499,9 @@ public struct LibraryView: View {
 
             Button("Clear Search and Filters") {
                 searchText = ""
-                filter = .all
+                type = .all
+                status = .any
+                selectedTags = []
                 HapticManager.shared.selection()
             }
             .dipleType(.footnote, weight: .semibold)
