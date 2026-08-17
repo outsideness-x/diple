@@ -13,6 +13,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let highlights: [Highlight]
     public let tableOfContents: [ReadiumShared.Link]
     public let preferences: EPUBPreferences
+    /// Line-breaking rules for the book's script. Not a user preference, so it travels
+    /// separately from `preferences` and is read only when the navigator is created.
+    public let rsProperties: CSSRSProperties
     /// Whether the app still considers a selection active. Dropping it clears the
     /// publication's own selection too, so dismissing the highlight bar takes the blue
     /// selection and the system edit menu with it.
@@ -33,6 +36,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         highlights: [Highlight] = [],
         tableOfContents: [ReadiumShared.Link] = [],
         preferences: EPUBPreferences,
+        rsProperties: CSSRSProperties = CSSRSProperties(),
         hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
@@ -49,6 +53,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.highlights = highlights
         self.tableOfContents = tableOfContents
         self.preferences = preferences
+        self.rsProperties = rsProperties
         self.hasSelection = hasSelection
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
@@ -73,7 +78,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             // Declared once, for every family the picker offers rather than only the selected
             // one: this is read when the navigator is built, and a live switch goes through
             // `submitPreferences`, which never revisits it.
-            fontFamilyDeclarations: ReaderFontDeclarations.all
+            fontFamilyDeclarations: ReaderFontDeclarations.all,
+            readiumCSSRSProperties: rsProperties
         )
 
         do {

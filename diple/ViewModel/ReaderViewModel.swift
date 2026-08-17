@@ -186,6 +186,13 @@ public final class ReaderViewModel: ObservableObject {
         settings.epubPreferences(for: script)
     }
 
+    /// Reading-system CSS for this book's script — line breaking, which is not a user
+    /// preference and has no `EPUBPreferences` field. Read once, when the navigator is built;
+    /// a book does not change the script it is written in halfway through.
+    public var readiumCSSRSProperties: CSSRSProperties {
+        CSSRSProperties(overrides: script.cssOverrides)
+    }
+
     /// `totalProgression` is only present when the publication exposes a position list.
     /// Otherwise we approximate it from the resource index inside the reading order.
     private func progress(for locator: Locator) -> Double {

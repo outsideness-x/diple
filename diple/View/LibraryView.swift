@@ -38,6 +38,12 @@ public struct LibraryView: View {
     @State private var selectedTags: Set<String> = []
     @State private var tagEditingBook: Book?
     @State private var sort: LibrarySort = .recentlyOpened
+    /// Rows push through this rather than through a `NavigationLink`. Inside a `List` a link
+    /// draws a system disclosure chevron and reserves the gutter for it, which left the rows
+    /// and the hero measurably narrower than the search field and chips above them — a right
+    /// margin twice the left one. It is also the wrong texture: the card already reads as
+    /// pressable, and the chevron is a second, louder claim to the same thing.
+    @State private var path = NavigationPath()
     @AppStorage("diple_library_layout") private var layout: LibraryLayout = .grid
     @Namespace private var bookNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -89,7 +95,7 @@ public struct LibraryView: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
@@ -254,7 +260,9 @@ public struct LibraryView: View {
                         LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
                             ForEach(visibleBooks) { book in
                                 let route = BookRoute(book: book, placement: .grid)
-                                NavigationLink(value: route) {
+                                Button {
+                                    path.append(route)
+                                } label: {
                                     BookItemView(
                                         book: book,
                                         onMarkAsFinished: { viewModel.markAsFinished(book) },
@@ -307,13 +315,16 @@ public struct LibraryView: View {
 
             ForEach(visibleBooks) { book in
                 let route = BookRoute(book: book, placement: .list)
-                NavigationLink(value: route) {
+                Button {
+                    path.append(route)
+                } label: {
                     LibraryRowView(
                         book: book,
                         tags: viewModel.tagsByBook[book.id] ?? [],
                         characters: viewModel.charactersByBook[book.id]
                     )
                 }
+                .buttonStyle(.bookCard)
                 .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
                 .listRowInsets(EdgeInsets(
                     top: DipleSpace.s,
@@ -364,7 +375,9 @@ public struct LibraryView: View {
                 sectionHeading("CONTINUE READING")
 
                 let route = BookRoute(book: book, placement: .continueReading)
-                NavigationLink(value: route) {
+                Button {
+                    path.append(route)
+                } label: {
                     ContinueReadingCard(book: book, characters: viewModel.charactersByBook[book.id])
                 }
                 .buttonStyle(.bookCard)

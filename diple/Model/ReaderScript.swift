@@ -28,6 +28,31 @@ public enum ReaderScript {
         }
     }
 
+    /// Reading-system CSS the page needs before any user preference is applied.
+    ///
+    /// Korean is written with spaces between 어절, and Korean typesetting breaks lines at those
+    /// spaces. A web view does not: its default `word-break` treats every Hangul syllable as a
+    /// break opportunity, so a paragraph breaks mid-word — `계단을 세었다. 조` / `수는 천천히` —
+    /// which no Korean book does. `keep-all` restores the convention.
+    ///
+    /// Readium's own `cjk-horizontal` stylesheet does not cover this: it sets `line-break:
+    /// strict`, which governs where breaks are *forbidden* around kana and small signs, not
+    /// whether Hangul may break between syllables at all. It is also selected from publication
+    /// metadata alone, and CLAUDE.md already records how often that metadata is wrong.
+    ///
+    /// `overflow-wrap: break-word` rides along because `keep-all` on its own has no escape
+    /// hatch: an unspaced run longer than the measure — a URL, a long compound — would push
+    /// past the page edge rather than break.
+    ///
+    /// Applied to Latin text this is a no-op in practice: Latin already breaks at spaces, and
+    /// `keep-all` only additionally suppresses breaks inside hyphenated words.
+    public var cssOverrides: [String: String?] {
+        switch self {
+        case .latin: return [:]
+        case .cjk: return ["word-break": "keep-all", "overflow-wrap": "break-word"]
+        }
+    }
+
     /// Extra leading for text drawn by SwiftUI rather than the web view — quotes, note bodies.
     public var swiftUILineSpacing: CGFloat {
         switch self {

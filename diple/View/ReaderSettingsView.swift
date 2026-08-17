@@ -123,6 +123,11 @@ public struct ReaderSettingsView: View {
                         fontFamilyButton(fontOption: readerFont)
                     }
                 }
+                // `FlowLayout` reports the width of its content, not the width it was offered,
+                // and the sheet's outer stack is centre-aligned — so without this the whole
+                // section, its `TYPOGRAPHY` heading included, sat indented from the gutter that
+                // THEME and PAGE MARGINS line up on.
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             // Reading Mode selector (Paginated vs Continuous Scroll)

@@ -96,6 +96,7 @@ public struct ReaderContainerView: View {
                         highlights: viewModel.highlights,
                         tableOfContents: viewModel.tableOfContents,
                         preferences: viewModel.epubPreferences,
+                        rsProperties: viewModel.readiumCSSRSProperties,
                         hasSelection: viewModel.currentSelection != nil,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)

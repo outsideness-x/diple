@@ -91,6 +91,12 @@ public struct LibraryRowView: View {
                         .foregroundStyle(DipleColor.textQuaternary)
                 }
             }
+            // Load-bearing. Without it the row sizes to its own content, and since the progress
+            // bar is a greedy `GeometryReader`, a source that has been started stretches to the
+            // full width while an untouched one — no bar, no tags — stops at its title. Two
+            // neighbouring rows then have visibly different widths, which reads as a rendering
+            // fault rather than as a difference in content.
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(DipleSpace.m)
         .craftSurface()
