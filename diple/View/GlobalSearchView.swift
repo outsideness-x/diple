@@ -5,8 +5,19 @@ import SwiftUI
 public struct GlobalSearchView: View {
     @StateObject private var viewModel = GlobalSearchViewModel()
     @StateObject private var notesViewModel = NotesViewModel()
+    /// `nil` is "everything". A scope is a way to read one kind of answer without the others in
+    /// the way, not a second query — the search itself already returned every kind.
+    @State private var scope: GlobalSearchKind?
 
     public init() {}
+
+    private func count(of kind: GlobalSearchKind) -> Int {
+        viewModel.results.lazy.filter { $0.kind == kind }.count
+    }
+
+    private var shownKinds: [GlobalSearchKind] {
+        scope.map { [$0] } ?? GlobalSearchKind.allCases
+    }
 
     private var trimmedQuery: String {
         viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -22,7 +33,10 @@ public struct GlobalSearchView: View {
                 } else if viewModel.results.isEmpty {
                     noResults
                 } else {
-                    resultsList
+                    VStack(spacing: 0) {
+                        scopeBar
+                        resultsList
+                    }
                 }
             }
             .navigationTitle("Search")
@@ -49,6 +63,11 @@ public struct GlobalSearchView: View {
             .autocorrectionDisabled()
             .onChange(of: viewModel.query) { _, _ in
                 viewModel.scheduleSearch()
+                // Clearing the field is starting over. Leaving a scope armed would make the
+                // next query silently answer less than it found.
+                if viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    scope = nil
+                }
             }
             .onAppear {
                 viewModel.reloadContext()
@@ -77,27 +96,84 @@ public struct GlobalSearchView: View {
     /// the group's position, not to its arrival, so a section never re-runs its entrance while
     /// the reader keeps typing.
     private func staggerDelay(for kind: GlobalSearchKind) -> Double {
-        Double(GlobalSearchKind.allCases.firstIndex(of: kind) ?? 0) * 0.045
+        // A scoped list is one section, and its position in `allCases` is meaningless there:
+        // picking "In Books" would otherwise hold the only thing on screen back by four beats
+        // for a reading order that no longer exists.
+        guard scope == nil else { return 0 }
+        return Double(GlobalSearchKind.allCases.firstIndex(of: kind) ?? 0) * 0.045
+    }
+
+    /// Narrows the answer, not the query.
+    ///
+    /// Filtering happens over results already in hand — one query returns every kind, so a
+    /// scope costs nothing and cannot disagree with what the index found. A chip whose kind has
+    /// no hits is dimmed rather than removed: chips that appear and vanish on each keystroke
+    /// make the row jump under the finger that is aiming at one.
+    private var scopeBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DipleSpace.s) {
+                scopeChip(title: "All", count: viewModel.results.count, kind: nil)
+
+                ForEach(GlobalSearchKind.allCases, id: \.self) { kind in
+                    scopeChip(title: kind.title, count: count(of: kind), kind: kind)
+                }
+            }
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.vertical, DipleSpace.s)
+        }
+        .contentMargins(.horizontal, 0, for: .scrollContent)
+        .accessibilityLabel("Search scope")
+    }
+
+    private func scopeChip(title: String, count: Int, kind: GlobalSearchKind?) -> some View {
+        let isSelected = scope == kind
+        let isEmpty = count == 0
+        return Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) { scope = kind }
+        } label: {
+            HStack(spacing: DipleSpace.xs) {
+                Text(title)
+                    .dipleType(.micro, weight: .semibold)
+                Text("\(count)")
+                    .dipleType(.nano)
+                    .monospacedDigit()
+            }
+            .foregroundStyle(
+                isSelected ? DipleColor.textOnAccent
+                    : (isEmpty ? DipleColor.textQuaternary : DipleColor.textTertiary)
+            )
+            .diplePadding(.chip)
+            .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(isEmpty && kind != nil)
+        .accessibilityLabel("\(title), \(count) results")
     }
 
     private var resultsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.xxl) {
-                ForEach(GlobalSearchKind.allCases, id: \.self) { kind in
+                ForEach(shownKinds, id: \.self) { kind in
                     let results = viewModel.results.filter { $0.kind == kind }
                     if !results.isEmpty {
                         VStack(alignment: .leading, spacing: DipleSpace.s) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(kind.title.uppercased())
-                                    .dipleType(.micro, weight: .semibold)
-                                    .foregroundStyle(DipleColor.textTertiary)
+                            // With one kind selected the chip above already names it, and a
+                            // heading repeating it is a label for a group of one group.
+                            if scope == nil {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(kind.title.uppercased())
+                                        .dipleType(.micro, weight: .semibold)
+                                        .foregroundStyle(DipleColor.textTertiary)
 
-                                Spacer()
+                                    Spacer()
 
-                                Text("\(results.count)")
-                                    .dipleType(.nano)
-                                    .foregroundStyle(DipleColor.textQuaternary)
-                                    .monospacedDigit()
+                                    Text("\(results.count)")
+                                        .dipleType(.nano)
+                                        .foregroundStyle(DipleColor.textQuaternary)
+                                        .monospacedDigit()
+                                }
                             }
 
                             ForEach(results) { result in
