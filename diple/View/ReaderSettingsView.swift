@@ -115,7 +115,10 @@ public struct ReaderSettingsView: View {
                     .dipleType(.micro, weight: .semibold)
                     .foregroundStyle(DipleColor.textTertiary)
 
-                HStack(spacing: DipleSpace.m) {
+                // Four options do not fit one row, and squeezing them there would truncate the
+                // labels — which are the specimens. `FlowLayout` wraps instead, and keeps
+                // wrapping as Dynamic Type grows.
+                FlowLayout(spacing: DipleSpace.m) {
                     ForEach(ReaderFont.allCases) { readerFont in
                         fontFamilyButton(fontOption: readerFont)
                     }
@@ -211,6 +214,21 @@ public struct ReaderSettingsView: View {
         }
     }
 
+    /// A specimen of the family it selects. The two generics have no app-side font to name, so
+    /// they take a system face; the shipped ones are named through `UIAppFonts`, which is a
+    /// separate registration from the one Readium performs for the page itself.
+    private func fontOptionLabel(_ fontOption: ReaderFont) -> Text {
+        guard let family = fontOption.registeredFamilyName else {
+            return Text(fontOption.title)
+                .font(.system(
+                    .subheadline,
+                    design: fontOption == .serif ? .serif : .default,
+                    weight: .medium
+                ))
+        }
+        return Text(fontOption.title).font(.custom(family, size: 15, relativeTo: .subheadline))
+    }
+
     private func fontFamilyButton(fontOption: ReaderFont) -> some View {
         let isSelected = settings.font == fontOption
         return Button {
@@ -219,11 +237,15 @@ public struct ReaderSettingsView: View {
         } label: {
             // The only place in the app that leaves San Francisco, and it has to: this
             // label is a swatch for the family the page itself will be set in. Taking the
-            // size from a `TextStyle` rather than a point size keeps it on Dynamic Type.
-            Text(fontOption.title)
-                .font(.system(.subheadline, design: fontOption == .serif ? .serif : .default, weight: .medium))
+            // size from a `TextStyle` rather than a point size keeps it on Dynamic Type —
+            // including for the shipped faces, where `Font.custom(_:relativeTo:)` is the
+            // scaling form and the bare `Font.custom(_:size:)` is not.
+            fontOptionLabel(fontOption)
                 .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
-                .frame(maxWidth: .infinity)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(minWidth: 88)
+                .padding(.horizontal, DipleSpace.m)
                 .padding(.vertical, DipleSpace.m)
                 .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
                 .cornerRadius(DipleRadius.m)

@@ -15,6 +15,8 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     // Raw values are the persisted representation and must not be renamed.
     case serif = "Serif"
     case sanFrancisco = "San Francisco"
+    case atkinson = "Atkinson Hyperlegible"
+    case openDyslexic = "OpenDyslexic"
 
     public var id: String { rawValue }
 
@@ -24,6 +26,8 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .serif: return "Serif"
         case .sanFrancisco: return "Sans"
+        case .atkinson: return "Hyperlegible"
+        case .openDyslexic: return "Dyslexic"
         }
     }
 
@@ -33,6 +37,50 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
             return .serif
         case .sanFrancisco:
             return .sansSerif
+        case .atkinson:
+            return FontFamily(rawValue: "Atkinson Hyperlegible")
+        case .openDyslexic:
+            return FontFamily(rawValue: "OpenDyslexic")
+        }
+    }
+
+    /// The family name UIKit knows this face by, for the picker's own label. `nil` for the two
+    /// options that are CSS generics rather than shipped files — there is no app-side font to
+    /// name, and the label falls back to a system face.
+    public var registeredFamilyName: String? {
+        switch self {
+        case .serif, .sanFrancisco: return nil
+        case .atkinson: return "Atkinson Hyperlegible"
+        case .openDyslexic: return "OpenDyslexic"
+        }
+    }
+
+    /// The four files that make up a shipped family, or none for a generic.
+    ///
+    /// Both faces are Latin-only for practical purposes — Atkinson carries no Cyrillic at all
+    /// and neither carries Hangul — so every declaration lists `sansSerif` as its alternate.
+    /// Readium turns that into a real CSS stack (`"Atkinson Hyperlegible", sans-serif`), and
+    /// per-glyph fallback covers Russian and Korean exactly as the plain Sans option already
+    /// does. This is a different situation from the `-apple-system` keyword recorded in
+    /// CLAUDE.md, where the *first* family was resolved specially by the web view.
+    var bundledFaces: [(file: String, isBold: Bool, isItalic: Bool)] {
+        switch self {
+        case .serif, .sanFrancisco:
+            return []
+        case .atkinson:
+            return [
+                ("AtkinsonHyperlegible-Regular", false, false),
+                ("AtkinsonHyperlegible-Bold", true, false),
+                ("AtkinsonHyperlegible-Italic", false, true),
+                ("AtkinsonHyperlegible-BoldItalic", true, true),
+            ]
+        case .openDyslexic:
+            return [
+                ("OpenDyslexic-Regular", false, false),
+                ("OpenDyslexic-Bold", true, false),
+                ("OpenDyslexic-Italic", false, true),
+                ("OpenDyslexic-BoldItalic", true, true),
+            ]
         }
     }
 }

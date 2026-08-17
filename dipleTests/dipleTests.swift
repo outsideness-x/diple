@@ -544,6 +544,30 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(try database.fetchAllBookTags(), [])
     }
 
+    /// The failure this guards against is silent: drop a font file from the bundle and the
+    /// picker still offers the option, the page still renders — in the fallback — and nothing
+    /// anywhere says the family was never declared.
+    func testShippedReadingFacesResolveToRealFilesInTheBundle() {
+        for font in ReaderFont.allCases {
+            for face in font.bundledFaces {
+                XCTAssertNotNil(
+                    Bundle.main.url(forResource: face.file, withExtension: "otf"),
+                    "\(face.file).otf is declared by \(font.rawValue) but missing from the bundle"
+                )
+            }
+        }
+
+        let declared = ReaderFont.allCases.filter { !$0.bundledFaces.isEmpty }
+        XCTAssertEqual(ReaderFontDeclarations.all.count, declared.count)
+        XCTAssertEqual(declared.map(\.rawValue), ["Atkinson Hyperlegible", "OpenDyslexic"])
+
+        // The two generics stay generics: they have no files, and declaring an empty family
+        // would name something with nothing behind it.
+        XCTAssertTrue(ReaderFont.serif.bundledFaces.isEmpty)
+        XCTAssertTrue(ReaderFont.sanFrancisco.bundledFaces.isEmpty)
+        XCTAssertNil(ReaderFont.sanFrancisco.registeredFamilyName)
+    }
+
     func testReadingEstimateStaysSilentWhenItDoesNotKnow() {
         // A book nobody has measured must say nothing — not "0 min", which is a claim.
         XCTAssertNil(ReadingEstimate.remaining(characters: nil, progress: 0.5))

@@ -69,7 +69,11 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             // In continuous scroll mode reading is vertical, so a horizontal swipe silently
             // skipping a chapter is never what the reader meant. Chapters are changed by
             // pulling past the end of the text instead (see ChapterPullTransitionController).
-            disablePageTurnsWhileScrolling: true
+            disablePageTurnsWhileScrolling: true,
+            // Declared once, for every family the picker offers rather than only the selected
+            // one: this is read when the navigator is built, and a live switch goes through
+            // `submitPreferences`, which never revisits it.
+            fontFamilyDeclarations: ReaderFontDeclarations.all
         )
 
         do {

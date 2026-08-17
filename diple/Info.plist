@@ -13,6 +13,22 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- The reader's own page gets these through Readium's `fontFaces`, which serves the files
+	     to the web view and needs nothing here. This registers the same files with UIKit, which
+	     is a separate matter: the font picker's labels are set in the face they stand for, and
+	     `Font.custom` cannot resolve a family the app has not registered. Bundling the files is
+	     not enough on its own. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>AtkinsonHyperlegible-Regular.otf</string>
+		<string>AtkinsonHyperlegible-Bold.otf</string>
+		<string>AtkinsonHyperlegible-Italic.otf</string>
+		<string>AtkinsonHyperlegible-BoldItalic.otf</string>
+		<string>OpenDyslexic-Regular.otf</string>
+		<string>OpenDyslexic-Bold.otf</string>
+		<string>OpenDyslexic-Italic.otf</string>
+		<string>OpenDyslexic-BoldItalic.otf</string>
+	</array>
 	<!-- No UIUserInterfaceStyle here on purpose. It used to be pinned to Dark, which was
 	     right while the app had one appearance: it kept the launch screen, system sheets and
 	     the keyboard from following a light device. It is also an app-wide override, so with
