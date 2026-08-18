@@ -251,6 +251,26 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             ReaderLog.navigator.error("EPUB navigator error: \(error, privacy: .public)")
         }
 
+        /// A typographic margin, and nothing else.
+        ///
+        /// Readium's own default is `max(window.safeAreaInsets, config.contentInset)` — it reads
+        /// the *window's* insets deliberately, so an app's bars cannot shrink the margin it
+        /// keeps for the notch (`EPUBNavigatorViewController.spreadViewContentInset`). The
+        /// navigator's view no longer reaches the notch: `readerPageArea()` hands it the safe
+        /// rect, because in scroll mode Readium's inset is a scroll inset and text slides under
+        /// it instead of stopping. Left to the default, the same 59 pt would then be spent
+        /// twice — once by the frame and once inside it — which in paginated mode is a fifth of
+        /// the page given to blank paper.
+        ///
+        /// Returning a value here takes precedence over the whole computation
+        /// (`VisualNavigatorDelegate.navigatorContentInset`), so what is left is the reason a
+        /// content inset exists at all once the hardware is accounted for: room to breathe above
+        /// the first line and below the last. It is the app's own gutter, not a number picked to
+        /// look right on one handset.
+        public func navigatorContentInset(_ navigator: VisualNavigator) -> UIEdgeInsets? {
+            UIEdgeInsets(top: DipleSpace.xl, left: 0, bottom: DipleSpace.xl, right: 0)
+        }
+
         public func navigator(_ navigator: EPUBNavigatorViewController, setupUserScripts userContentController: WKUserContentController) {
             // Called while a new spread web view is being built. It is not in the view
             // hierarchy yet, so pick it up on the next runloop turn.

@@ -25,6 +25,14 @@ public struct ReaderChrome: Equatable {
     public let separator: SwiftUI.Color
     /// Unfilled part of the progress track.
     public let track: SwiftUI.Color
+    /// The page's own ground, opaque.
+    ///
+    /// The navigator stops at the safe area, so two bands of screen are not the page and have
+    /// to be painted as if they were: the one the status bar sits in and the one the resting
+    /// progress line sits on. Filling them with the app canvas put a dark strip above a white
+    /// page; filling them with `tint` — which is translucent by design, since it works by
+    /// pulling a material towards the page — put a paler one there instead.
+    public let page: SwiftUI.Color
 
     public static func forTheme(_ theme: ReadiumNavigator.Theme) -> ReaderChrome {
         switch theme {
@@ -35,7 +43,8 @@ public struct ReaderChrome: Equatable {
                 control: DipleColor.textPrimary,
                 secondary: DipleColor.textSecondary,
                 separator: SwiftUI.Color.white.opacity(0.10),
-                track: SwiftUI.Color.white.opacity(0.18)
+                track: SwiftUI.Color.white.opacity(0.18),
+                page: DipleColor.Page.darkBackground
             )
         case .light:
             return ReaderChrome(
@@ -44,7 +53,8 @@ public struct ReaderChrome: Equatable {
                 control: SwiftUI.Color.black.opacity(0.85),
                 secondary: SwiftUI.Color.black.opacity(0.5),
                 separator: SwiftUI.Color.black.opacity(0.10),
-                track: SwiftUI.Color.black.opacity(0.14)
+                track: SwiftUI.Color.black.opacity(0.14),
+                page: DipleColor.Page.lightBackground
             )
         case .sepia:
             return ReaderChrome(
@@ -53,7 +63,8 @@ public struct ReaderChrome: Equatable {
                 control: DipleColor.Page.sepiaText.opacity(0.9),
                 secondary: DipleColor.Page.sepiaText.opacity(0.6),
                 separator: DipleColor.Page.sepiaText.opacity(0.15),
-                track: DipleColor.Page.sepiaText.opacity(0.18)
+                track: DipleColor.Page.sepiaText.opacity(0.18),
+                page: DipleColor.Page.sepiaBackground
             )
         }
     }
@@ -174,7 +185,13 @@ public struct ReaderBarBackground: ViewModifier {
                     Rectangle().fill(chrome.tint)
                 }
                 .environment(\.colorScheme, chrome.colorScheme)
-                .ignoresSafeArea(edges: .horizontal)
+                // The blur runs past its own screen edge and under whatever the system draws
+                // there — the clock and the battery at the top, the home indicator at the
+                // bottom. The bar content itself stays inside the safe area, so nothing the
+                // reader can press moves; only the glass reaches further. Without this the bar
+                // stopped at the safe area and left a band of bare page between it and the
+                // bezel, with the status bar printed straight onto the text.
+                .ignoresSafeArea(edges: edge == .top ? [.horizontal, .top] : [.horizontal, .bottom])
             }
             .overlay(alignment: edge == .top ? .bottom : .top) {
                 Rectangle()

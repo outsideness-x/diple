@@ -162,8 +162,16 @@ public enum DipleColor {
 
     /// Page colours for the reader's own themes. These describe a sheet of paper, not the
     /// app chrome, so they sit outside the cold ramp above by design.
+    ///
+    /// The three grounds are ReadiumCSS's `--RS__backgroundColor` for each appearance, to the
+    /// byte (`ReadiumCSS-before.css` for day, `ReadiumCSS-after.css` for sepia and night).
+    /// Since the page no longer covers the whole display — it stops at the safe area, so the
+    /// status bar and the resting progress line have a band of their own — anything short of an
+    /// exact match would draw a seam across the top and bottom of every page.
     public enum Page {
-        public static let sepiaBackground = Color(red: 0.98, green: 0.95, blue: 0.90)
+        public static let lightBackground = Color(red: 1, green: 1, blue: 1)
+        public static let sepiaBackground = Color(red: 250 / 255, green: 244 / 255, blue: 232 / 255)
+        public static let darkBackground = Color(red: 0, green: 0, blue: 0)
         public static let sepiaText = Color(red: 0.2, green: 0.15, blue: 0.1)
     }
 }

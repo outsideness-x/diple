@@ -23,7 +23,13 @@ public struct ReaderContainerView: View {
 
     public var body: some View {
         ZStack {
-            DipleColor.canvas.ignoresSafeArea()
+            // The page stops at the safe area, so the bands the status bar and the resting
+            // progress line occupy are painted here instead — in the page's own ground, so the
+            // sheet still runs bezel to bezel and the reader sees one surface. Before a book is
+            // open there is no page to match, and the app canvas is the right backdrop for a
+            // spinner or an error.
+            (viewModel.publication == nil ? DipleColor.canvas : chrome.page)
+                .ignoresSafeArea()
 
             if viewModel.isLoading {
                 VStack(spacing: DipleSpace.m) {
@@ -86,7 +92,7 @@ public struct ReaderContainerView: View {
                             viewModel.errorMessage = message
                         }
                     )
-                    .ignoresSafeArea()
+                    .readerPageArea()
                 } else {
                     EPUBNavigatorRepresentable(
                         publication: publication,
@@ -127,7 +133,7 @@ public struct ReaderContainerView: View {
                             viewModel.errorMessage = message
                         }
                     )
-                    .ignoresSafeArea()
+                    .readerPageArea()
                 }
 
                 // Floating Return-from-Link Back Button
@@ -426,9 +432,18 @@ public struct ReaderContainerView: View {
     /// Where you are, while the bars are away.
     ///
     /// Tapping the centre hides both bars, which is the right state for reading and also the
-    /// state in which the only indication of position disappears. A hairline at the very bottom
+    /// state in which the only indication of position disappears. A line on the very bottom edge
     /// keeps the answer available without putting a control back on the page: it is the same
     /// number the bottom bar prints, drawn rather than written.
+    ///
+    /// **The bottom edge means the edge of the display, not of the safe area.** Placed at the
+    /// bottom of the safe rect it floated a home indicator's height above the bezel with page
+    /// text still running underneath it — a mark hanging in the middle of the last paragraph
+    /// rather than a rule under the page. `ignoresSafeArea` alone does not move a fixed-height
+    /// view, so the line rides the bottom of a full-height stack that ignores the inset: the
+    /// stack grows into the indicator band and the `Spacer` hands the line the last 3 points of
+    /// it. The horizontal inset goes with it so the rule still spans the display in landscape.
+    /// The page itself stops above that band (see the navigator), so the two never overlap.
     ///
     /// It hangs in an `.overlay` rather than as another `ZStack` child for the reason recorded
     /// at length above — a sibling can widen the stack and take the navigator with it — and it
@@ -439,17 +454,21 @@ public struct ReaderContainerView: View {
         if viewModel.publication != nil,
            !viewModel.isOverlayVisible,
            viewModel.currentSelection == nil {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(chrome.track)
-                    Rectangle()
-                        .fill(DipleColor.accent)
-                        .frame(width: geo.size.width * min(max(viewModel.currentProgress, 0), 1))
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(chrome.track)
+                        Rectangle()
+                            .fill(DipleColor.accent)
+                            .frame(width: geo.size.width * min(max(viewModel.currentProgress, 0), 1))
+                    }
                 }
+                .frame(height: DipleStroke.progressLine)
             }
-            .frame(height: DipleStroke.progressLine)
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: [.horizontal, .bottom])
             .allowsHitTesting(false)
             .transition(.opacity)
             .accessibilityHidden(true)
@@ -468,15 +487,13 @@ public struct ReaderContainerView: View {
     @ViewBuilder
     private var selectionLayer: some View {
         if let quote = selectedQuote, highlightEditorTarget == nil {
-            // The reader measures the selection against the whole display — its navigator
-            // ignores the safe area — but the bar must not be placed there. This geometry
-            // therefore keeps the safe area: `geo.size` is the safe rect, so aligning the bar
-            // to its top edge puts it below the Dynamic Island by construction, with no inset
-            // arithmetic and nothing tuned to one device. It matters more than tidiness: the
-            // island's band takes no touches at all, so a bar drawn under it left every
+            // This geometry keeps the safe area: `geo.size` is the safe rect, so aligning the
+            // bar to its top edge puts it below the Dynamic Island by construction, with no
+            // inset arithmetic and nothing tuned to one device. It matters more than tidiness:
+            // the island's band takes no touches at all, so a bar drawn under it left every
             // selection in the lower half of a page with controls that could not be hit.
-            // Reading the insets off the proxy inside an `ignoresSafeArea` container does not
-            // work — they are already spent by the time the proxy reports them.
+            // The page now measures the same rect, which is what lets `selectionIsInLowerHalf`
+            // compare Readium's frame against it directly.
             GeometryReader { geo in
                 ZStack {
                     // Dismissing has to consume the tap. Left to fall through it would also
@@ -520,13 +537,34 @@ public struct ReaderContainerView: View {
     /// guess at line height, which is a hardcoded padding tuned to one font size. Pinning to
     /// the opposite edge cannot overlap the passage at any size, and it holds still while the
     /// selection handles are dragged instead of hopping from one side to the other.
-    /// `geo` measures the safe rect, while the selection was reported against the display the
-    /// navigator draws on, so the insets are added back before the halves are compared —
-    /// otherwise the dividing line sits ~24 pt above the middle of the page.
+    /// Readium reports `Selection.frame` "in the coordinate of the navigator view"
+    /// (`SelectableNavigator.swift`), and the navigator view is now exactly the safe rect —
+    /// `geo` measures the same thing — so the two are already in the same space. This used to
+    /// add the insets back, which was right while the navigator spanned the whole display;
+    /// doing it now would push the dividing line a status bar's height below the middle of the
+    /// page and send half the selections to the wrong edge.
     private func selectionIsInLowerHalf(_ geo: GeometryProxy) -> Bool {
         guard let frame = viewModel.currentSelection?.frame else { return false }
-        let pageHeight = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-        return frame.midY > pageHeight / 2
+        return frame.midY > geo.size.height / 2
+    }
+}
+
+/// The slice of screen the book is drawn on: everything but the status bar and the home
+/// indicator, and the full width regardless.
+///
+/// The navigator used to take the whole display. In paginated mode Readium insets its own
+/// content by the window's safe area and nothing overlapped, but in scroll mode the same inset
+/// is `scrollView.contentInset` (`EPUBReflowableSpreadView.swift`), which text scrolls *under*
+/// rather than stopping at — so the clock and the battery sat on the middle of a paragraph, and
+/// the resting progress line had text running below it. An inset cannot fix that; only a
+/// smaller view can, because clipping is what a bounds does and a scroll inset does not.
+///
+/// Horizontally it still spans the display: the reader's side margins are Readium's
+/// `pageMargins`, a typographic measure the reader sets, and letting a landscape notch push
+/// them around would put the column somewhere else on each rotation.
+private extension View {
+    func readerPageArea() -> some View {
+        ignoresSafeArea(edges: .horizontal)
     }
 }
 
