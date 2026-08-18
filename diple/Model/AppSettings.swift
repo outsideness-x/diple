@@ -17,6 +17,10 @@ public struct AppSettings: Codable, Equatable {
     public var accent: DipleAccent
     public var appearance: DipleAppearance
     public var keepScreenAwakeWhileReading: Bool
+    /// This reader's own measured pace, per script. Derived rather than chosen, and the one
+    /// field here nobody sets on a screen — it rides along because it is a fact about the
+    /// person, not the device, and this is what already syncs.
+    public var readingSpeed: ReadingSpeed
     /// When each field was last changed, by whichever device changed it.
     ///
     /// Settings used to sync as one blob under last-writer-wins, so changing *different*
@@ -39,6 +43,7 @@ public struct AppSettings: Codable, Equatable {
         accent: DipleAccent = .lilac,
         appearance: DipleAppearance = .dark,
         keepScreenAwakeWhileReading: Bool = true,
+        readingSpeed: ReadingSpeed = ReadingSpeed(),
         fieldStamps: [String: Date] = [:]
     ) {
         self.isHapticsEnabled = isHapticsEnabled
@@ -49,6 +54,7 @@ public struct AppSettings: Codable, Equatable {
         self.accent = accent
         self.appearance = appearance
         self.keepScreenAwakeWhileReading = keepScreenAwakeWhileReading
+        self.readingSpeed = readingSpeed
         self.fieldStamps = fieldStamps
     }
 
@@ -61,6 +67,7 @@ public struct AppSettings: Codable, Equatable {
         case accent
         case appearance
         case keepScreenAwakeWhileReading
+        case readingSpeed
         case fieldStamps
     }
 
@@ -81,6 +88,10 @@ public struct AppSettings: Codable, Equatable {
         // would have silently turned the interface white on the next launch.
         self.appearance = try container.decodeIfPresent(DipleAppearance.self, forKey: .appearance) ?? .dark
         self.keepScreenAwakeWhileReading = try container.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeWhileReading) ?? true
+        // Absent for everyone who installed before the app measured anything, and an empty
+        // `ReadingSpeed` is exactly the right thing for them: no evidence, so every estimate
+        // comes from the same defaults as before and starts moving once they read.
+        self.readingSpeed = try container.decodeIfPresent(ReadingSpeed.self, forKey: .readingSpeed) ?? ReadingSpeed()
         self.fieldStamps = try container.decodeIfPresent([String: Date].self, forKey: .fieldStamps) ?? [:]
     }
 
@@ -100,6 +111,13 @@ public struct AppSettings: Codable, Equatable {
         case accent
         case appearance
         case keepScreenAwakeWhileReading
+        /// Merged wholesale like the rest, so the device that read most recently wins the
+        /// figure rather than the two being averaged. Reading in parallel on two devices
+        /// therefore drops one side's session — which is invisible in practice, because the
+        /// figure is a moving average that re-converges within about twenty minutes of
+        /// reading, and an arithmetic merge of two moving averages is not a moving average of
+        /// anything.
+        case readingSpeed
     }
 
     /// Whether two settings differ in a given field.
@@ -113,6 +131,7 @@ public struct AppSettings: Codable, Equatable {
         case .accent: return accent != other.accent
         case .appearance: return appearance != other.appearance
         case .keepScreenAwakeWhileReading: return keepScreenAwakeWhileReading != other.keepScreenAwakeWhileReading
+        case .readingSpeed: return readingSpeed != other.readingSpeed
         }
     }
 
@@ -126,6 +145,7 @@ public struct AppSettings: Codable, Equatable {
         case .accent: accent = other.accent
         case .appearance: appearance = other.appearance
         case .keepScreenAwakeWhileReading: keepScreenAwakeWhileReading = other.keepScreenAwakeWhileReading
+        case .readingSpeed: readingSpeed = other.readingSpeed
         }
     }
 

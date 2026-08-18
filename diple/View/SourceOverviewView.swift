@@ -187,7 +187,10 @@ public struct SourceOverviewView: View {
                 }
                 // The whole length rather than what is left: this screen is about what the
                 // source *is*, and the reader's position through it is one line above.
-                if let total = ReadingEstimate.total(characters: viewModel.characters) {
+                if let total = ReadingEstimate.total(
+                    characters: viewModel.characters,
+                    script: viewModel.book.script
+                ) {
                     Text(total)
                         .dipleType(.caption)
                         .foregroundStyle(DipleColor.textTertiary)

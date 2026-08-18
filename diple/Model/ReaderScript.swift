@@ -7,9 +7,11 @@ import SwiftUI
 /// box: at the leading Latin is comfortable at, consecutive lines close up and the block turns
 /// into a grey slab that is slow to read. The fix is vertical, not horizontal — more leading,
 /// and more air between paragraphs.
-public enum ReaderScript {
-    case latin
-    case cjk
+public enum ReaderScript: String {
+    // Raw values are a persisted key — `ReadingSpeed` files each measured pace under one — so
+    // they are written out rather than left to follow the case names.
+    case latin = "latin"
+    case cjk = "cjk"
 
     /// Leading for the reader's page. Only sent to Readium for CJK, which is the case where
     /// the publisher's own value is the problem.
@@ -109,5 +111,24 @@ public extension View {
     /// Leading for a block of the reader's own words, set from the script it is written in.
     func readingLineSpacing(for text: String) -> some View {
         lineSpacing(ReaderScript.detect(in: text).swiftUILineSpacing)
+    }
+}
+
+public extension Book {
+    /// Which script this source is set in, as far as the library can tell without opening it.
+    ///
+    /// The reader has the publication's own metadata and uses it (`ReaderViewModel.script`);
+    /// a shelf does not, and opening every book to lay out a list is not on the table. Title
+    /// and byline are what the row has, and they are a good signal for the same reason the
+    /// reader falls back to the title at all: a book called `해변의 카프카` is a Korean book
+    /// whatever its OPF claims.
+    ///
+    /// **Everything that prints an estimate uses this one, including the reader's own bar.**
+    /// The reader could do better for itself, and deliberately does not: the same book must not
+    /// say "4 h left" on the shelf and "1 h 40 min left" once opened. What the more precise
+    /// signal is used for is the measurement — see `ReadingSpeed` — where a sample filed under
+    /// the wrong script corrupts the figure for the whole library rather than one row.
+    var script: ReaderScript {
+        ReaderScript.detect(in: author.map { "\(title) \($0)" } ?? title)
     }
 }

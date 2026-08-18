@@ -58,8 +58,12 @@ public struct LibraryRowView: View {
     /// answers it for one already underway.
     private var estimate: String? {
         clampedProgress > 0
-            ? ReadingEstimate.remaining(characters: characters, progress: Double(clampedProgress))
-            : ReadingEstimate.total(characters: characters)
+            ? ReadingEstimate.remaining(
+                characters: characters,
+                progress: Double(clampedProgress),
+                script: book.script
+            )
+            : ReadingEstimate.total(characters: characters, script: book.script)
     }
 
     public var body: some View {

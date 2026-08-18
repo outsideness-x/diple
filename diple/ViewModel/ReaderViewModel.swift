@@ -23,8 +23,17 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var isSettingsPresented: Bool = false
     @Published public var isOutlinePresented: Bool = false
     @Published public var isSearchPresented: Bool = false
-    @Published public var targetLink: ReadiumShared.Link? = nil
-    @Published public var targetLocator: Locator? = nil
+    // Every deliberate move through the book — outline, search hit, bookmark, a drag of the
+    // progress bar, a step back through link history — ends by setting one of these two. That
+    // makes them the one place the speed sampler has to be told, instead of five call sites a
+    // sixth can be added beside without noticing. Clearing them back to nil is the navigator
+    // reporting the jump handled, which is not itself a jump.
+    @Published public var targetLink: ReadiumShared.Link? = nil {
+        didSet { if targetLink != nil { abandonSpeedSample() } }
+    }
+    @Published public var targetLocator: Locator? = nil {
+        didSet { if targetLocator != nil { abandonSpeedSample() } }
+    }
     @Published public var tableOfContents: [ReadiumShared.Link] = []
     @Published public var highlights: [Highlight] = []
     @Published public var bookmarks: [Bookmark] = []
@@ -47,6 +56,20 @@ public final class ReaderViewModel: ObservableObject {
 
     private var persistTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
+
+    /// Watches the positions the navigator reports and picks out the stretches that were
+    /// actually read. `nil` until the book's length is known, and for sources the indexer has
+    /// never measured — there is no way to turn a fraction of an unknown length into
+    /// characters.
+    private var speedSampler: ReadingSpeedSampler? = nil
+    /// This session's accepted samples, summed rather than written one at a time.
+    ///
+    /// Folding each sample into `AppSettings` as it arrived would put a UserDefaults write and
+    /// a CloudKit outbox row on roughly every two pages, for a number nobody is waiting on. One
+    /// session is also the better statistical unit: its average is taken over the whole sitting
+    /// instead of over whichever two pages happened to close a window.
+    private var sessionCharacters: Double = 0
+    private var sessionSeconds: Double = 0
     /// The reading position is written on a timer as the page scrolls, so a failing write
     /// fails repeatedly. The reader is told once and then left to read.
     private var hasReportedProgressFailure = false
@@ -152,6 +175,7 @@ public final class ReaderViewModel: ObservableObject {
                 bookID: book.id,
                 isArticle: book.isArticle
             )
+            self.speedSampler = ReadingSpeedSampler(totalCharacters: self.contentCharacters)
 
             // Computing positions can take a moment on large books; the reader is usable
             // without them, only the progress bar cannot be dragged yet.
@@ -165,14 +189,48 @@ public final class ReaderViewModel: ObservableObject {
     public func saveLocation(_ locator: Locator) {
         self.currentLocator = locator
         self.currentProgress = progress(for: locator)
+        if let sample = speedSampler?.observe(progress: currentProgress) {
+            sessionCharacters += sample.characters
+            sessionSeconds += sample.seconds
+        }
         schedulePersist()
     }
 
-    /// Reading progress in `0...1` for the given locator.
+    /// Drops the stretch being measured without counting it. Every deliberate move through the
+    /// book is one of these: it covers ground in no time and would read as impossibly fast.
+    private func abandonSpeedSample() {
+        speedSampler?.invalidate()
+    }
+
+    /// Writes this session's measured pace into the reader's own figure.
     ///
-    /// The script the book is set in, resolved once the publication is open. Metadata is the
-    /// reliable signal; the title is the fallback for the many EPUBs that declare no language
-    /// or declare the wrong one.
+    /// Called when the reader closes and when the app leaves the foreground, which are the two
+    /// moments the session is over — the second because a session that ends by being killed in
+    /// the background would otherwise be lost. Safe to call repeatedly: the totals are cleared
+    /// as they are spent, so a second call with nothing new folds nothing.
+    public func flushReadingSpeed() {
+        abandonSpeedSample()
+        guard sessionCharacters > 0, sessionSeconds > 0 else { return }
+        let characters = sessionCharacters
+        let seconds = sessionSeconds
+        sessionCharacters = 0
+        sessionSeconds = 0
+        AppSettingsManager.shared.settings.readingSpeed.record(
+            characters: characters,
+            seconds: seconds,
+            // The publication's own metadata, not the title heuristic the shelf falls back to:
+            // a sample filed under the wrong script is wrong for the whole library, where a row
+            // guessed wrong is wrong for one row. See `Book.script`.
+            script: script
+        )
+    }
+
+    /// The script the book is set in, resolved once the publication is open.
+    ///
+    /// Metadata is the reliable signal; the title is the fallback for the many EPUBs that
+    /// declare no language or declare the wrong one. This is the precise answer, and it is what
+    /// a *measurement* is filed under — what the interface prints estimates with is the shelf's
+    /// own `Book.script`, for the reasons recorded there.
     public var script: ReaderScript {
         ReaderScript.detect(
             languages: publication?.metadata.languages ?? [],
@@ -228,6 +286,7 @@ public final class ReaderViewModel: ObservableObject {
     public func flushPendingProgress() {
         persistTask?.cancel()
         persistTask = nil
+        flushReadingSpeed()
         guard let payload = progressPayload() else { return }
         // Called as the reader closes: there is no longer a page to put a toast on, and the
         // failure is already in the log.

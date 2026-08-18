@@ -574,24 +574,145 @@ final class DipleTests: XCTestCase {
     }
 
     func testReadingEstimateStaysSilentWhenItDoesNotKnow() {
+        let latin = ReadingSpeed.latinDefault
+
         // A book nobody has measured must say nothing — not "0 min", which is a claim.
-        XCTAssertNil(ReadingEstimate.remaining(characters: nil, progress: 0.5))
-        XCTAssertNil(ReadingEstimate.total(characters: nil))
-        XCTAssertNil(ReadingEstimate.minutes(characters: 0))
+        XCTAssertNil(ReadingEstimate.remaining(characters: nil, progress: 0.5, charactersPerMinute: latin))
+        XCTAssertNil(ReadingEstimate.total(characters: nil, charactersPerMinute: latin))
+        XCTAssertNil(ReadingEstimate.minutes(characters: 0, charactersPerMinute: latin))
         // And neither must a two-line article round up into a claim of its own.
-        XCTAssertNil(ReadingEstimate.minutes(characters: 200))
+        XCTAssertNil(ReadingEstimate.minutes(characters: 200, charactersPerMinute: latin))
 
         XCTAssertEqual(ReadingEstimate.format(minutes: 14), "14 min")
         XCTAssertEqual(ReadingEstimate.format(minutes: 140), "2 h 20 min")
         XCTAssertEqual(ReadingEstimate.format(minutes: 180), "3 h", "no trailing zero minutes")
 
-        // 12 000 characters ÷ 6 per word ÷ 200 wpm = 10 minutes; half read leaves five.
-        XCTAssertEqual(ReadingEstimate.total(characters: 12_000), "10 min")
-        XCTAssertEqual(ReadingEstimate.remaining(characters: 12_000, progress: 0.5), "5 min left")
+        // 12 000 characters ÷ 1200 a minute = 10 minutes; half read leaves five.
+        XCTAssertEqual(ReadingEstimate.total(characters: 12_000, charactersPerMinute: latin), "10 min")
+        XCTAssertEqual(
+            ReadingEstimate.remaining(characters: 12_000, progress: 0.5, charactersPerMinute: latin),
+            "5 min left"
+        )
         XCTAssertNil(
-            ReadingEstimate.remaining(characters: 12_000, progress: 1),
+            ReadingEstimate.remaining(characters: 12_000, progress: 1, charactersPerMinute: latin),
             "a finished book has nothing left to promise"
         )
+    }
+
+    // MARK: - Measured reading speed
+
+    /// The whole point: a reader who is faster than the shipped constant must end up being told
+    /// a shorter time, and the figure must be *theirs* rather than a nudge towards theirs.
+    func testMeasuredSpeedReplacesTheDefaultOnceThereIsEvidence() {
+        var speed = ReadingSpeed()
+        XCTAssertEqual(speed.rate(for: .latin), ReadingSpeed.latinDefault, accuracy: 0.001,
+                       "with nothing measured the answer is the shipped default")
+
+        // Twice the default pace, over comfortably more than the evidence needed to be trusted.
+        let characters = ReadingSpeed.trustedCharacters * 2
+        speed.record(characters: characters, seconds: characters / (ReadingSpeed.latinDefault * 2) * 60,
+                     script: .latin)
+
+        XCTAssertEqual(speed.rate(for: .latin), ReadingSpeed.latinDefault * 2, accuracy: 1)
+        XCTAssertEqual(speed.rate(for: .cjk), ReadingSpeed.cjkDefault, accuracy: 0.001,
+                       "reading Russian says nothing about how fast this person reads Korean")
+    }
+
+    /// A first, small sample must move the estimate without hijacking it: the reader has read a
+    /// couple of pages, not proven anything.
+    func testAShortFirstSampleOnlyPartlyDisplacesTheDefault() {
+        var speed = ReadingSpeed()
+        let characters = ReadingSpeed.trustedCharacters / 4
+        speed.record(characters: characters, seconds: characters / (ReadingSpeed.latinDefault * 2) * 60,
+                     script: .latin)
+
+        let rate = speed.rate(for: .latin)
+        XCTAssertGreaterThan(rate, ReadingSpeed.latinDefault)
+        XCTAssertLessThan(rate, ReadingSpeed.latinDefault * 2)
+    }
+
+    /// Skimming for a half-remembered passage, and a page left open on the kitchen table, are
+    /// both rates — and neither is a reading speed.
+    func testImplausibleSamplesAreRefused() {
+        var speed = ReadingSpeed()
+        speed.record(characters: 50_000, seconds: 60, script: .latin)
+        XCTAssertNil(speed.measuredPace(for: .latin), "skimming is not reading")
+
+        speed.record(characters: 1_000, seconds: 60 * 60, script: .latin)
+        XCTAssertNil(speed.measuredPace(for: .latin), "an abandoned page is not reading either")
+
+        XCTAssertEqual(speed.rate(for: .latin), ReadingSpeed.latinDefault, accuracy: 0.001)
+    }
+
+    /// The sampler exists to throw things away. These are the things.
+    func testSamplerRefusesEverythingThatIsNotReading() throws {
+        let start = Date(timeIntervalSince1970: 0)
+        var sampler = try XCTUnwrap(ReadingSpeedSampler(totalCharacters: 100_000))
+
+        // The first report is only an anchor; nothing has been observed yet.
+        XCTAssertNil(sampler.observe(progress: 0.0, now: start))
+
+        // A jump from the table of contents: a fifth of the book in a moment. The caller is
+        // expected to say so, and after that the ground covered is not counted.
+        sampler.invalidate()
+        XCTAssertNil(sampler.observe(progress: 0.2, now: start.addingTimeInterval(0.04)))
+
+        // Reading on from there, far enough to be worth something. The step has to stay under
+        // the idle timeout: it is the gap between two *reports* that says somebody left, so a
+        // single silent jump of five minutes is by definition not five minutes of reading.
+        let sample = try XCTUnwrap(
+            sampler.observe(progress: 0.25, now: start.addingTimeInterval(0.04 + 150))
+        )
+        XCTAssertEqual(sample.characters, 5_000, accuracy: 0.001)
+        XCTAssertEqual(sample.seconds, 150, accuracy: 0.001)
+
+        // Put the phone down for an hour, then move: the gap is not reading time.
+        XCTAssertNil(sampler.observe(progress: 0.30, now: start.addingTimeInterval(4_000)))
+        // And going backwards to re-read is not new ground.
+        XCTAssertNil(sampler.observe(progress: 0.28, now: start.addingTimeInterval(4_100)))
+    }
+
+    /// A scrolled pixel is not a sample. The window has to keep growing across reports rather
+    /// than restarting at each one, or nothing would ever be measured in scroll mode.
+    func testSamplerAccumulatesAcrossManySmallReports() throws {
+        let start = Date(timeIntervalSince1970: 0)
+        var sampler = try XCTUnwrap(ReadingSpeedSampler(totalCharacters: 100_000))
+        XCTAssertNil(sampler.observe(progress: 0, now: start))
+
+        var emitted: ReadingSpeedSampler.Sample?
+        for step in 1 ... 20 {
+            let progress = Double(step) * 0.002 // 200 characters a step
+            if let sample = sampler.observe(progress: progress, now: start.addingTimeInterval(Double(step) * 10)) {
+                emitted = sample
+            }
+        }
+
+        let sample = try XCTUnwrap(emitted, "twenty small reports add up to a real one")
+        XCTAssertEqual(sample.characters, ReadingSpeedSampler.minimumSampleCharacters, accuracy: 1)
+    }
+
+    /// A source the indexer has never measured cannot be sampled at all — there is no length to
+    /// turn a fraction into characters against.
+    func testSamplerRefusesASourceOfUnknownLength() {
+        XCTAssertNil(ReadingSpeedSampler(totalCharacters: nil))
+        XCTAssertNil(ReadingSpeedSampler(totalCharacters: 0))
+    }
+
+    /// The pace is a field of the settings like any other, so it has to survive the same merge.
+    func testReadingSpeedMergesLikeAnyOtherField() {
+        let base = AppSettings()
+        var phone = base
+        phone.readingSpeed.record(characters: 30_000, seconds: 30_000 / 1_500 * 60, script: .latin)
+        phone.stampChanges(against: base, at: Date(timeIntervalSince1970: 2_000))
+
+        var mac = base
+        mac.accent = .clay
+        mac.stampChanges(against: base, at: Date(timeIntervalSince1970: 1_000))
+
+        let merged = mac.merging(remote: phone)
+        XCTAssertEqual(merged.accent, .clay, "the Mac's accent survives")
+        XCTAssertNotNil(merged.readingSpeed.measuredPace(for: .latin),
+                        "and the phone brings the pace it measured")
     }
 
     func testContentLengthFallsBackToChunksAndReadsArticlesFromTheirOwnDocument() throws {

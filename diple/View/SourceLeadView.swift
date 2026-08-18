@@ -65,7 +65,8 @@ public struct SourceLeadView: View {
         var parts = ["\(Int((clampedProgress * 100).rounded()))%"]
         if let remaining = ReadingEstimate.remaining(
             characters: characters,
-            progress: Double(clampedProgress)
+            progress: Double(clampedProgress),
+            script: book.script
         ) {
             parts.append(remaining)
         }

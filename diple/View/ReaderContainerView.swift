@@ -262,7 +262,11 @@ public struct ReaderContainerView: View {
                                 // title, which is the one thing here allowed to truncate.
                                 if let remaining = ReadingEstimate.remaining(
                                     characters: viewModel.contentCharacters,
-                                    progress: viewModel.currentProgress
+                                    progress: viewModel.currentProgress,
+                                    // `book.script`, not the publication's own — the bar and
+                                    // the shelf must not disagree about the same book. See
+                                    // `Book.script`.
+                                    script: viewModel.book.script
                                 ) {
                                     Text(remaining)
                                         .dipleType(.footnote, weight: .regular)
@@ -350,6 +354,11 @@ public struct ReaderContainerView: View {
                 }
             } else {
                 ReaderIdleTimerKeeper.shared.end()
+                // Leaving the foreground ends the sitting: banking it here is what keeps a
+                // session that is never returned to — the app killed in the background — from
+                // being lost, and it stops the clock before the time in someone's pocket can
+                // be mistaken for slow reading.
+                viewModel.flushReadingSpeed()
             }
         }
         .onChange(of: settingsManager.settings.keepScreenAwakeWhileReading) { _, isEnabled in

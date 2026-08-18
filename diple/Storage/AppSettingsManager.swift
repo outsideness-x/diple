@@ -34,6 +34,12 @@ public final class AppSettingsManager: ObservableObject {
             // Settings screen or an incoming CloudKit payload — has to reach the window,
             // not only the one that happens to be on screen when the user taps.
             DipleAppearance.apply(settings.appearance)
+            // And again for the measured reading pace, which every printed estimate reads
+            // through `ReadingSpeed.current` rather than through this object — a shelf of rows
+            // has no other business with the settings and should not rebuild when the accent
+            // changes. A device that has just synced someone's pace from their iPad must start
+            // estimating with it here, not after the next launch.
+            ReadingSpeed.current = settings.readingSpeed
             save()
         }
     }
@@ -50,6 +56,7 @@ public final class AppSettingsManager: ObservableObject {
         // applied here: no window exists yet. `preferredColorScheme` at the root covers the
         // first frame, and `dipleApp` reaches the window once the scene is up.
         DipleAccent.current = settings.accent
+        ReadingSpeed.current = settings.readingSpeed
     }
 
     private func save() {
