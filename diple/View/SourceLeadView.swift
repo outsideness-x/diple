@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The one source most likely to be opened next, set as the lead entry of the page.
 ///
-/// Same register as `LibraryRowView` — title, dateline, a rule that doubles as the progress
+/// Same register as `LibraryRowView` — title, byline, a rule that doubles as the progress
 /// mark — at the size a lead gets. It is not a card: a card above a column of catalogue entries
 /// reads as a different kind of object, and this is the same kind of object, only first.
 ///
@@ -44,14 +44,25 @@ public struct SourceLeadView: View {
         CGFloat(min(max(book.furthestProgress, 0), 1))
     }
 
+    /// What kind of thing this is and who made it.
+    ///
+    /// Unbounded by nature — an author's name or a site's host is however long it is — so this
+    /// is the one line here allowed to wrap, and to truncate once even two lines are not
+    /// enough.
+    private var identity: String {
+        var parts: [String] = [book.sourceKind.title]
+        if let name = book.sourceHost ?? book.author, !name.isEmpty {
+            parts.append(name)
+        }
+        return parts.joined(separator: " · ").uppercased()
+    }
+
+    /// How far in, and how much is left.
+    ///
     /// The lead says what is left, never the total: by definition this is something already
     /// started, and "3 h 20 min" would answer a question nobody standing here is asking.
-    private var dateline: String {
-        var parts: [String] = [book.sourceKind.title]
-        if let identity = book.sourceHost ?? book.author, !identity.isEmpty {
-            parts.append(identity)
-        }
-        parts.append("\(Int((clampedProgress * 100).rounded()))%")
+    private var status: String {
+        var parts = ["\(Int((clampedProgress * 100).rounded()))%"]
         if let remaining = ReadingEstimate.remaining(
             characters: characters,
             progress: Double(clampedProgress)
@@ -64,8 +75,8 @@ public struct SourceLeadView: View {
     public var body: some View {
         // Cover, then the words, then the way out — the arrangement an editorial block uses,
         // and the reason nothing here needs a bar across it. Centred rather than top-aligned:
-        // the title and dateline are shorter than a 1.5-ratio cover, and pinning them to its
-        // top edge leaves a hole underneath that reads as a missing element.
+        // the title and the two metadata lines are shorter than a 1.5-ratio cover, and pinning
+        // them to its top edge leaves a hole underneath that reads as a missing element.
         HStack(alignment: .center, spacing: DipleSpace.l) {
             // The lead keeps its cover; the entries below it do not. That is the difference in
             // rank, and it is the one a front page uses: the lead story carries the picture,
@@ -91,13 +102,35 @@ public struct SourceLeadView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text(dateline)
-                    .dipleType(.nano, weight: .medium)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .monospacedDigit()
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
-                    .truncationMode(.tail)
+                // Two lines, not one joined by separators.
+                //
+                // `BOOK · ХАРУКИ МУРАКАМИ · 87% · 5 H 12 MIN LEFT` does not fit the column left
+                // between a cover and the go mark at any Dynamic Type size, and a single line
+                // truncating at the tail loses it from the right — that is, it eats the
+                // percentage and the time remaining, the two facts this block exists to report,
+                // and keeps the one already written on the cover beside it. Split by length
+                // rather than by meaning: the unbounded half wraps, the bounded half never has
+                // to. They sit closer to each other than to the title, so the pair still reads
+                // as one dateline under it rather than as two separate rows.
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    Text(identity)
+                        .dipleType(.nano, weight: .medium)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
+                        .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true)
 
+                    // Bounded by construction — a percentage and at most `12 H 34 MIN LEFT` — so
+                    // it gets the room to print in full, and is set a step brighter than the
+                    // byline above it. It answers "have I got time for this before bed", which
+                    // is the question actually being asked of a Continue block.
+                    Text(status)
+                        .dipleType(.nano, weight: .medium)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .monospacedDigit()
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -107,7 +140,7 @@ public struct SourceLeadView: View {
         .overlay(alignment: .bottom) { progressRule }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(book.title). \(dateline)")
+        .accessibilityLabel("\(book.title). \(identity). \(status)")
         .accessibilityHint("Opens at your last reading position")
     }
 
