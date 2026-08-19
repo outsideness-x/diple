@@ -349,9 +349,9 @@ final class DipleTests: XCTestCase {
         // The point of the split: type and status are independent, so "unread articles" —
         // unaskable while both lived in one enum — is now an ordinary pair of selections.
         var unreadArticle = article
-        unreadArticle.furthestProgress = 0
+        unreadArticle.progress = 0
         var finishedArticle = article
-        finishedArticle.furthestProgress = 1
+        finishedArticle.progress = 1
         XCTAssertTrue(LibraryTypeFilter.articles.includes(unreadArticle)
                       && LibraryStatusFilter.unread.includes(unreadArticle))
         XCTAssertFalse(LibraryStatusFilter.unread.includes(finishedArticle))

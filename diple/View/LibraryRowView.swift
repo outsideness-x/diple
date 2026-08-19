@@ -29,8 +29,10 @@ public struct LibraryRowView: View {
         self.characters = characters
     }
 
+    /// Where the saved position sits, not the furthest point ever reached: the row prints the
+    /// same number the reader's own bar does, so a shelf and the book it opens never disagree.
     private var clampedProgress: CGFloat {
-        CGFloat(min(max(book.furthestProgress, 0), 1))
+        CGFloat(min(max(book.progress, 0), 1))
     }
 
     /// `BOOK · СЮЗАННА КЛАРК · 3 H 20 MIN · #FICTION`.
@@ -140,7 +142,7 @@ public struct LibraryRowView: View {
                 title: "Пиранези",
                 author: "Сюзанна Кларк",
                 filePath: "Books/1/a.epub",
-                furthestProgress: 0.78
+                progress: 0.78
             ),
             tags: ["fiction"],
             characters: 318_000

@@ -26,8 +26,9 @@ public enum LibraryTypeFilter: String, CaseIterable, Identifiable, Sendable, Equ
     }
 }
 
-/// How far the reader has got. Measured against `furthestProgress`, not the live position —
-/// see "Прогресс чтения" in CLAUDE.md.
+/// How far the reader has got, measured against the saved position — the same number every
+/// shelf prints and the reader's own bar shows. A row reading `12%` filed under Finished is the
+/// shelf and the book disagreeing about the same fact. See "Прогресс чтения" in CLAUDE.md.
 public enum LibraryStatusFilter: String, CaseIterable, Identifiable, Sendable, Equatable, Hashable {
     case any = "Any status"
     case unread = "Unread"
@@ -45,9 +46,9 @@ public enum LibraryStatusFilter: String, CaseIterable, Identifiable, Sendable, E
     public func includes(_ book: Book) -> Bool {
         switch self {
         case .any: return true
-        case .unread: return book.furthestProgress <= 0.001
-        case .reading: return book.furthestProgress > 0.001 && book.furthestProgress < 0.995
-        case .finished: return book.furthestProgress >= 0.995
+        case .unread: return book.progress <= 0.001
+        case .reading: return book.progress > 0.001 && book.progress < 0.995
+        case .finished: return book.progress >= 0.995
         }
     }
 }
@@ -106,8 +107,8 @@ public final class LibraryViewModel: ObservableObject {
             .filter {
                 $0.location != .archive
                     && $0.lastOpenedAt != nil
-                    && $0.furthestProgress > 0.001
-                    && $0.furthestProgress < 0.995
+                    && $0.progress > 0.001
+                    && $0.progress < 0.995
             }
             .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }
     }
@@ -256,7 +257,7 @@ public final class LibraryViewModel: ObservableObject {
     /// Marks the publication complete without disturbing its saved reading location. The
     /// locator is retained so a reader can still reopen the last passage if they choose.
     public func markAsFinished(_ book: Book) {
-        guard book.furthestProgress < 0.995 else { return }
+        guard book.progress < 0.995 else { return }
 
         do {
             try AppDatabase.shared.updateReadingProgress(

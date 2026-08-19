@@ -40,8 +40,11 @@ public struct SourceLeadView: View {
         self.characters = characters
     }
 
+    /// Where the reader will land, which is the only position this block can honestly report:
+    /// the arrow opens the saved locator, so the percentage and the time left are measured from
+    /// it rather than from the furthest point the book has ever been scrolled to.
     private var clampedProgress: CGFloat {
-        CGFloat(min(max(book.furthestProgress, 0), 1))
+        CGFloat(min(max(book.progress, 0), 1))
     }
 
     /// What kind of thing this is and who made it.
@@ -191,7 +194,7 @@ public struct SourceLeadView: View {
                 title: "Образец / 표본 / Specimen",
                 author: "diple",
                 filePath: "Books/1/a.epub",
-                furthestProgress: 0.42
+                progress: 0.42
             ),
             characters: 62_000
         )
@@ -201,7 +204,7 @@ public struct SourceLeadView: View {
                 title: "Пиранези",
                 author: "Сюзанна Кларк",
                 filePath: "Books/2/a.epub",
-                furthestProgress: 0.78
+                progress: 0.78
             ),
             characters: 318_000
         )
