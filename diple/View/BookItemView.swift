@@ -2,37 +2,17 @@ import SwiftUI
 
 public struct BookItemView: View {
     public let book: Book
-    public let onMarkAsFinished: () -> Void
-    public let onShowOverview: () -> Void
-    public let onMove: (BookLocation) -> Void
-    public let onEditTags: () -> Void
-    public let onEdit: () -> Void
-    public let onDelete: () -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    public init(
-        book: Book,
-        onMarkAsFinished: @escaping () -> Void,
-        onShowOverview: @escaping () -> Void,
-        onMove: @escaping (BookLocation) -> Void,
-        onEditTags: @escaping () -> Void,
-        onEdit: @escaping () -> Void,
-        onDelete: @escaping () -> Void
-    ) {
+    public init(book: Book) {
         self.book = book
-        self.onMarkAsFinished = onMarkAsFinished
-        self.onShowOverview = onShowOverview
-        self.onMove = onMove
-        self.onEditTags = onEditTags
-        self.onEdit = onEdit
-        self.onDelete = onDelete
     }
 
-    // The card shows how far the book has ever been read, not where the saved position
-    // currently sits — see "Прогресс чтения: `furthestProgress` и live-позиция" in CLAUDE.md.
+    // Where the saved position sits — the same number the reader's own bar prints, and the
+    // place this card opens at. See "Прогресс чтения" in CLAUDE.md.
     private var clampedProgress: CGFloat {
-        CGFloat(min(max(book.furthestProgress, 0.0), 1.0))
+        CGFloat(min(max(book.progress, 0.0), 1.0))
     }
 
     public var body: some View {
@@ -74,49 +54,6 @@ public struct BookItemView: View {
             }
             .padding(.top, DipleSpace.hair)
             .animation(DipleMotion.standard, value: clampedProgress)
-        }
-        .contextMenu {
-            Button {
-                onShowOverview()
-            } label: {
-                Label("Source Overview", systemImage: "info.circle")
-            }
-
-            if book.furthestProgress < 0.995 {
-                Button {
-                    onMarkAsFinished()
-                } label: {
-                    Label("Mark as Finished", systemImage: "checkmark.circle")
-                }
-            }
-
-            // Only the places this source is not already in — an action that would do nothing
-            // is one more thing to read past every time the menu opens.
-            ForEach(BookLocation.allCases.filter { $0 != book.location }, id: \.self) { destination in
-                Button {
-                    onMove(destination)
-                } label: {
-                    Label("Move to \(destination.title)", systemImage: destination.systemImage)
-                }
-            }
-
-            Button {
-                onEditTags()
-            } label: {
-                Label("Tags…", systemImage: "number")
-            }
-
-            Button {
-                onEdit()
-            } label: {
-                Label("Edit Metadata", systemImage: "pencil")
-            }
-
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
         }
     }
 }

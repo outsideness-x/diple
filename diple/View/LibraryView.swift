@@ -273,15 +273,16 @@ public struct LibraryView: View {
                                 Button {
                                     path.append(route)
                                 } label: {
-                                    BookItemView(
-                                        book: book,
-                                        onMarkAsFinished: { viewModel.markAsFinished(book) },
-                                        onShowOverview: { overviewBook = book },
-                                        onMove: { viewModel.move(book, to: $0) },
-                                        onEditTags: { tagEditingBook = book },
-                                        onEdit: { viewModel.bookToEdit = book },
-                                        onDelete: { viewModel.confirmDelete(book) }
-                                    )
+                                    BookItemView(book: book)
+                                        .bookActionsMenu(
+                                            for: book,
+                                            onShowOverview: { overviewBook = book },
+                                            onMarkAsFinished: { viewModel.markAsFinished(book) },
+                                            onMove: { viewModel.move(book, to: $0) },
+                                            onEditTags: { tagEditingBook = book },
+                                            onEdit: { viewModel.bookToEdit = book },
+                                            onDelete: { viewModel.confirmDelete(book) }
+                                        )
                                 }
                                 .buttonStyle(.bookCard)
                                 .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
@@ -332,6 +333,20 @@ public struct LibraryView: View {
                         book: book,
                         tags: viewModel.tagsByBook[book.id] ?? [],
                         characters: viewModel.charactersByBook[book.id]
+                    )
+                    // The same menu the grid carries, on the same gesture. A row that answered
+                    // a long press with three of the seven actions was the layout switch
+                    // quietly taking Source Overview, Mark as Finished and Edit Metadata away;
+                    // the swipes below stay the thumb-sized shortcut into this list, not a
+                    // second, shorter version of it.
+                    .bookActionsMenu(
+                        for: book,
+                        onShowOverview: { overviewBook = book },
+                        onMarkAsFinished: { viewModel.markAsFinished(book) },
+                        onMove: { viewModel.move(book, to: $0) },
+                        onEditTags: { tagEditingBook = book },
+                        onEdit: { viewModel.bookToEdit = book },
+                        onDelete: { viewModel.confirmDelete(book) }
                     )
                 }
                 .buttonStyle(.bookCard)
