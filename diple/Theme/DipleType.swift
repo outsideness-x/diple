@@ -45,12 +45,17 @@ public struct DipleTextStyle: Sendable {
 
     // MARK: - Interface roles (sans)
 
-    /// 22 — the largest thing on a screen. Screen titles.
-    public static let display = DipleTextStyle(size: 22, weight: .semibold, metrics: .title2, trackingRatio: -0.022)
+    /// 32 — a screen's own title, at rest: a collection header standing alone at the top of a
+    /// page, with nothing beside it. Reserved for a plain word or two — "Notes", "Highlights" —
+    /// never for a title that shares its block with a cover or a dateline; that is `display`.
+    public static let hero = DipleTextStyle(size: 32, weight: .bold, metrics: .largeTitle, trackingRatio: -0.030)
+    /// 26 — the largest thing in a block that is not a bare screen title. The Continue lead's
+    /// title.
+    public static let display = DipleTextStyle(size: 26, weight: .semibold, metrics: .title, trackingRatio: -0.025)
     /// 20 — empty-state headings, sheet titles.
     public static let title = DipleTextStyle(size: 20, weight: .semibold, metrics: .title3, trackingRatio: -0.02)
-    /// 18 — section headings.
-    public static let headline = DipleTextStyle(size: 18, weight: .semibold, metrics: .headline, trackingRatio: -0.015)
+    /// 17 — section headings.
+    public static let headline = DipleTextStyle(size: 17, weight: .semibold, metrics: .headline, trackingRatio: -0.015)
     /// 15 — the default interface size. Row titles, primary labels.
     public static let body = DipleTextStyle(size: 15, weight: .regular, metrics: .subheadline, trackingRatio: -0.005)
     /// 14 — secondary labels, descriptive copy in sheets.
@@ -220,7 +225,7 @@ extension DynamicTypeSize {
 
 private struct DipleTypeSpecimen: View {
     private let roles: [(String, DipleTextStyle)] = [
-        ("display", .display), ("title", .title), ("headline", .headline),
+        ("hero", .hero), ("display", .display), ("title", .title), ("headline", .headline),
         ("body", .body), ("callout", .callout), ("footnote", .footnote),
         ("caption", .caption), ("micro", .micro), ("nano", .nano), ("tag", .tag)
     ]

@@ -1789,7 +1789,10 @@ private struct MacCollectionHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
             Text(title)
-                .dipleType(.display)
+                // A bare screen title — "Highlights", "Notes" — standing alone at the top of
+                // its collection, not sharing the block with a cover the way the Home lead's
+                // title does. That is exactly what `hero` is for.
+                .dipleType(.hero)
                 .foregroundStyle(DipleColor.textPrimary)
             Text("\(count)")
                 .dipleType(.micro)
