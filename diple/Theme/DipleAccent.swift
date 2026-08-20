@@ -10,6 +10,7 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     case mint
     case clay
     case periwinkle
+    case brass
 
     /// What the picker shows. Kept apart from `rawValue` for the same reason as `ReaderFont`:
     /// the label can change without invalidating what is already stored on readers' devices.
@@ -19,6 +20,7 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
         case .mint: return "Mint"
         case .clay: return "Clay"
         case .periwinkle: return "Periwinkle"
+        case .brass: return "Brass"
         }
     }
 
@@ -30,6 +32,7 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
         case .mint: return "#6FD6B4"
         case .clay: return "#D97757"
         case .periwinkle: return "#8FA4F2"
+        case .brass: return "#C8A45C"
         }
     }
 
@@ -39,14 +42,18 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     /// dynamic one, so the bridge needs no environment/trait context to resolve correctly.
     public var uiColor: UIColor { UIColor(color) }
 
-    /// Name of the matching `.appiconset` in `Assets.xcassets`, or `nil` for `.lilac`: the
-    /// brand colour ships as the primary `AppIcon` rather than a redundant fourth alternate.
+    /// Name of the matching `.appiconset` in `Assets.xcassets`, or `nil` for `.lilac`/`.brass`.
+    /// `.lilac` ships as the primary `AppIcon` rather than a redundant alternate. `.brass` is
+    /// `nil` for a different reason: it is now the default accent, but the app icon redesign to
+    /// match it is separate, still-undiscussed work, so brass falls back to the primary
+    /// `AppIcon` too — a known, temporary mismatch, not an oversight.
     public var alternateIconName: String? {
         switch self {
         case .lilac: return nil
         case .mint: return "AppIconMint"
         case .clay: return "AppIconClay"
         case .periwinkle: return "AppIconPeriwinkle"
+        case .brass: return nil
         }
     }
 
@@ -59,5 +66,5 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     /// reader — SwiftUI `body`, the UIKit reader layers — already runs there, so the actor
     /// itself is the synchronization; no separate lock is needed.
     @MainActor
-    public static var current: DipleAccent = .lilac
+    public static var current: DipleAccent = .brass
 }

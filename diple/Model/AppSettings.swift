@@ -40,7 +40,7 @@ public struct AppSettings: Codable, Equatable {
         chapterHapticsEnabled: Bool = true,
         defaultScrollReadingMode: Bool = false,
         readerSettings: ReaderSettings = ReaderSettings(),
-        accent: DipleAccent = .lilac,
+        accent: DipleAccent = .brass,
         appearance: DipleAppearance = .dark,
         keepScreenAwakeWhileReading: Bool = true,
         readingSpeed: ReadingSpeed = ReadingSpeed(),
@@ -82,7 +82,7 @@ public struct AppSettings: Codable, Equatable {
             loadedReaderSettings.readingMode = self.defaultScrollReadingMode ? .scroll : .paginated
         }
         self.readerSettings = loadedReaderSettings
-        self.accent = try container.decodeIfPresent(DipleAccent.self, forKey: .accent) ?? .lilac
+        self.accent = try container.decodeIfPresent(DipleAccent.self, forKey: .accent) ?? .brass
         // Absent for everyone who installed before the light theme existed, and they chose an
         // app that was dark — so the default is `.dark`, not `.system`. Following the device
         // would have silently turned the interface white on the next launch.

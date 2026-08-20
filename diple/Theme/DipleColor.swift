@@ -105,7 +105,7 @@ public enum DipleColor {
     public static let textQuaternary = ink(0.38)
 
     /// Text and glyphs printed on a filled accent surface. Stays dark in both themes: every
-    /// accent is a mid-to-light tint, so dark ink is the legible pairing on all four in either
+    /// accent is a mid-to-light tint, so dark ink is the legible pairing on all five in either
     /// appearance, and flipping it to white on light would fail contrast on mint and lilac.
     public static let textOnAccent = Color(red: 0.043, green: 0.043, blue: 0.059)
 
