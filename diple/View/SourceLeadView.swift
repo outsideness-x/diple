@@ -64,8 +64,12 @@ public struct SourceLeadView: View {
     ///
     /// The lead says what is left, never the total: by definition this is something already
     /// started, and "3 h 20 min" would answer a question nobody standing here is asking.
+    /// The percentage is **not** here: the progress rule under this block already fills to it,
+    /// and printing the number beside a bar that has just drawn it is the tautology the library
+    /// row removed for the same reason. What the rule cannot say is how long that leaves, so
+    /// that is what the line carries.
     private var status: String {
-        var parts = ["\(Int((clampedProgress * 100).rounded()))%"]
+        var parts: [String] = []
         if let remaining = ReadingEstimate.remaining(
             characters: characters,
             progress: Double(clampedProgress),
@@ -128,12 +132,20 @@ public struct SourceLeadView: View {
                     // it gets the room to print in full, and is set a step brighter than the
                     // byline above it. It answers "have I got time for this before bed", which
                     // is the question actually being asked of a Continue block.
-                    Text(status)
-                        .dipleType(.nano, weight: .medium)
-                        .foregroundStyle(DipleColor.textSecondary)
-                        .monospacedDigit()
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    // Only when there is something to say. With the percentage moved into the
+                    // rule this line carries the remaining time alone, and a book the indexer
+                    // has not reached yet has no length to estimate from — so the string can
+                    // now be empty, which it never could before. An empty `Text` is not
+                    // nothing: it still takes a line's height, and the block would sit on a
+                    // gap for as long as indexing takes.
+                    if !status.isEmpty {
+                        Text(status)
+                            .dipleType(.nano, weight: .medium)
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .monospacedDigit()
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

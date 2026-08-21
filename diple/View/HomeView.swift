@@ -52,17 +52,20 @@ public struct HomeView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.xxxl) {
-                        welcome
+                        masthead
                         quickCapture
 
+                        // No heading over the lead. A newspaper does not label its lead
+                        // story, and this one was labelled twice over: the section said
+                        // CONTINUE and the block's own accent disc says the same thing in the
+                        // one place a thumb can act on it. The headings that remain sit over
+                        // *collections*, where they say which collection.
                         if let book = library.continueReadingBook {
-                            section("CONTINUE") {
-                                NavigationLink(value: book) {
-                                    SourceLeadView(book: book, characters: library.charactersByBook[book.id])
-                                }
-                                .buttonStyle(.bookCard)
-                                .matchedTransitionSource(id: book.id, in: readingNamespace)
+                            NavigationLink(value: book) {
+                                SourceLeadView(book: book, characters: library.charactersByBook[book.id])
                             }
+                            .buttonStyle(.bookCard)
+                            .matchedTransitionSource(id: book.id, in: readingNamespace)
                         }
 
                         if highlights.totalQuoteCount > 0 {
@@ -112,24 +115,11 @@ public struct HomeView: View {
                     importingOverlay
                 }
             }
+            // The title stays set even though the bar is hidden: it is what a pushed screen
+            // labels its own back button with.
             .navigationTitle("diple.")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        HapticManager.shared.selection()
-                        isShowingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .dipleIcon(16)
-                            .foregroundStyle(DipleColor.textSecondary)
-                            .frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.readerControl)
-                    .accessibilityLabel("Settings")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Book.self) { book in
                 readerDestination(for: book)
             }
@@ -183,17 +173,47 @@ public struct HomeView: View {
         }
     }
 
-    /// Just the date. The rotating aphorism under it ("Return to an idea worth keeping.")
-    /// is gone: Notes opened on a near-identical line, and the variant that collided was the
-    /// one shown whenever any highlight existed — which is to say almost always, so tabbing
-    /// between the two screens read the same sentence twice. It also spent the widest type in
-    /// the app on a line that told the reader nothing they could act on. The date stays
-    /// because it orients rather than declaims.
-    private var welcome: some View {
-        Text(dayTitle.uppercased())
-            .dipleType(.nano, weight: .semibold)
-            .foregroundStyle(DipleColor.accent)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    /// The masthead: the wordmark, the day under it, and the way into Settings.
+    ///
+    /// It used to be a 17pt `diple.` centred in a navigation bar with the date beneath it in
+    /// accent small caps — a wordmark shrunk to the size of a back button, and a date shouting
+    /// in the app's brand colour for no reason a reader could act on. A masthead is what a
+    /// publication puts at the top of a page: the name at full size, the date under it in
+    /// plain sentence case, both ranged left, and nothing else competing.
+    ///
+    /// This is also the first place on iOS the `hero` role has anywhere to stand — every other
+    /// screen title in the app is a system inline `navigationTitle`, which is why the role was
+    /// added with only the Mac shell using it.
+    ///
+    /// The rotating aphorism that used to sit here is still gone, for the reason recorded when
+    /// it went: Notes opened on a near-identical line, and it spent the widest type in the app
+    /// on something nobody could act on. The date stays because it orients rather than declaims.
+    private var masthead: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                Text("diple.")
+                    .dipleType(.hero)
+                    .foregroundStyle(DipleColor.textPrimary)
+
+                Text(dayTitle)
+                    .dipleType(.footnote, weight: .regular)
+                    .foregroundStyle(DipleColor.textTertiary)
+            }
+
+            Spacer(minLength: DipleSpace.m)
+
+            Button {
+                HapticManager.shared.selection()
+                isShowingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .dipleIcon(16)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Settings")
+        }
     }
 
     private var quickCapture: some View {

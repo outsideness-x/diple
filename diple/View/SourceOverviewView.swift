@@ -164,7 +164,7 @@ public struct SourceOverviewView: View {
             .frame(width: 74, height: 111)
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
-                Text(viewModel.book.sourceKind.title.uppercased())
+                Text(viewModel.book.sourceKind.title)
                     .dipleType(.nano, weight: .semibold)
                     .foregroundStyle(DipleColor.accent)
                 Text(viewModel.book.title)

@@ -49,14 +49,14 @@ public struct DailyResurfacingCard: View {
         }
     }
 
-    /// `A SIMPLIFIED VIEW OF THE JACOBIAN CONJECTURE · JAMES O'BRIEN` — the same dateline the
-    /// library's entries use, so a quote is attributed the way a source is identified.
+    /// `A Simplified View of the Jacobian Conjecture · James O'Brien` — the same dateline the
+    /// library's entries use, so a quote is attributed the way a source is identified, and in
+    /// the same sentence case they moved to: caps mark a section heading here and nothing else.
     private func attribution(for item: DailyResurfacingItem) -> String {
         [item.summary.title, item.summary.author]
             .compactMap { $0 }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
-            .uppercased()
     }
 
     private func cardContent(for item: DailyResurfacingItem) -> some View {
