@@ -38,6 +38,15 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var highlights: [Highlight] = []
     @Published public var bookmarks: [Bookmark] = []
     @Published public var currentSelection: Selection? = nil
+    /// The highlight the reader has tapped, and the rect it occupies on the page.
+    ///
+    /// A selection no longer raises anything — it saves a highlight and gets out of the way —
+    /// so this is what the actions bar hangs on instead. The rect comes from Readium's
+    /// decoration-activated event and is in the navigator's own coordinate space, the same
+    /// space `Selection.frame` used to arrive in, which is what lets the bar pick its edge the
+    /// same way it always did.
+    @Published public var activeHighlight: Highlight? = nil
+    @Published public var activeHighlightRect: CGRect? = nil
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
     @Published public var backLocationStack: [Locator] = []
@@ -509,11 +518,23 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
 
-    public func createHighlight(colorHex: String, comment: String? = nil) {
-        guard let selection = currentSelection else { return }
+    /// Saves the live selection as a highlight.
+    ///
+    /// `announce` is off for the path that runs on every settled selection. The coloured mark
+    /// appearing under the reader's own finger is the confirmation, and a toast on top of it —
+    /// dozens of times in a sitting, each one covering the line below the passage just marked —
+    /// says nothing the page has not already said. It stays on for a thought, which is written
+    /// in a sheet and so lands with the page out of sight.
+    @discardableResult
+    public func createHighlight(
+        colorHex: String,
+        comment: String? = nil,
+        announce: Bool = true
+    ) -> Highlight? {
+        guard let selection = currentSelection else { return nil }
         let text = selection.locator.text.highlight ?? ""
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let locatorJson = try? selection.locator.jsonString() else { return }
+              let locatorJson = try? selection.locator.jsonString() else { return nil }
 
         let highlight = Highlight(
             bookId: book.id,
@@ -524,17 +545,37 @@ public final class ReaderViewModel: ObservableObject {
             createdAt: Date()
         )
 
+        var saved: Highlight?
         do {
             try AppDatabase.shared.saveHighlight(highlight)
             loadHighlights()
             HapticManager.shared.impact(.light)
-            showToast(comment == nil ? "Highlight saved" : "Thought saved")
+            if announce {
+                showToast(comment == nil ? "Highlight saved" : "Thought saved")
+            }
+            saved = highlight
         } catch {
             Self.log.error("Failed to save highlight: \(error, privacy: .public)")
             showToast("Could not save quote")
         }
 
         self.currentSelection = nil
+        return saved
+    }
+
+    /// Recolours a highlight already on the page, leaving whatever thought is attached to it
+    /// alone. `updateHighlight` takes the comment as a parameter and writes what it is given,
+    /// so passing anything but the existing one here would quietly erase it.
+    public func setHighlightColor(_ highlight: Highlight, to colorHex: String) {
+        guard highlight.colorHex.caseInsensitiveCompare(colorHex) != .orderedSame else { return }
+        updateHighlight(highlight, colorHex: colorHex, comment: highlight.comment)
+    }
+
+    /// Drops the actions bar. Separate from clearing `activeHighlight` at a call site so the
+    /// rect goes with it — a stale rect would put the next bar on the wrong edge of the page.
+    public func dismissHighlightActions() {
+        activeHighlight = nil
+        activeHighlightRect = nil
     }
 
     public func deleteHighlight(_ highlight: Highlight) {

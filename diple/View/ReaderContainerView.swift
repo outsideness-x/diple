@@ -8,6 +8,14 @@ public struct ReaderContainerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var highlightEditorTarget: HighlightEditorTarget?
+    /// The colour the next selection will be marked in — whichever one was chosen last.
+    ///
+    /// A working habit, not navigation state, so it lives in `@AppStorage` beside the library
+    /// and notes layout choices rather than in `ReaderSettings`. Two reasons it does not belong
+    /// there: `ReaderSettings` is `Equatable` and every change to it re-submits preferences to
+    /// Readium, which recolouring a highlight has no business doing; and it travels through the
+    /// CloudKit settings payload, where a per-device marker preference is not worth a field.
+    @AppStorage("diple_last_highlight_color") private var lastHighlightColorHex = DipleColor.Highlight.yellow
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
@@ -109,14 +117,16 @@ public struct ReaderContainerView: View {
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
-                            presentEditor(for: selection)
+                            saveSelectionAsHighlight(selection)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
-                        onHighlightActivated: { highlightID in
+                        onHighlightActivated: { highlightID, rect in
                             guard let highlight = viewModel.highlights.first(where: { $0.id == highlightID }) else {
                                 return
                             }
-                            highlightEditorTarget = .existing(highlight)
+                            viewModel.activeHighlight = highlight
+                            viewModel.activeHighlightRect = rect
+                            ReaderIdleTimerKeeper.shared.poke()
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
@@ -331,6 +341,7 @@ public struct ReaderContainerView: View {
         .animation(DipleMotion.gentle, value: viewModel.toast)
         .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
+        .animation(DipleMotion.gentle, value: viewModel.activeHighlight?.id)
         .task {
             await viewModel.openBook()
         }
@@ -414,7 +425,7 @@ public struct ReaderContainerView: View {
             }
         }
         .sheet(item: $highlightEditorTarget, onDismiss: {
-            viewModel.currentSelection = nil
+            dismissHighlightActions()
         }) { target in
             switch target {
             case .new(_, let quote):
@@ -462,7 +473,7 @@ public struct ReaderContainerView: View {
     private var restingProgressLine: some View {
         if viewModel.publication != nil,
            !viewModel.isOverlayVisible,
-           viewModel.currentSelection == nil {
+           highlightActionsSubject == nil {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
 
@@ -493,9 +504,50 @@ public struct ReaderContainerView: View {
         return quote
     }
 
+    /// What the actions bar is currently about, if anything.
+    ///
+    /// Two shapes reach the same bar. On EPUB it is a highlight the reader tapped, already
+    /// saved and already on the page. On PDF there are no decorations to tap, so it is still a
+    /// live selection and nothing has been written yet — see `HighlightActionsBar.onDelete`.
+    private enum HighlightActionsSubject {
+        case saved(Highlight, rect: CGRect?)
+        case selection(String)
+
+        var quote: String {
+            switch self {
+            case let .saved(highlight, _): return highlight.text
+            case let .selection(quote): return quote
+            }
+        }
+
+        var highlight: Highlight? {
+            switch self {
+            case let .saved(highlight, _): return highlight
+            case .selection: return nil
+            }
+        }
+
+        var rect: CGRect? {
+            switch self {
+            case let .saved(_, rect): return rect
+            case .selection: return nil
+            }
+        }
+    }
+
+    private var highlightActionsSubject: HighlightActionsSubject? {
+        if let highlight = viewModel.activeHighlight {
+            return .saved(highlight, rect: viewModel.activeHighlightRect)
+        }
+        if let quote = selectedQuote {
+            return .selection(quote)
+        }
+        return nil
+    }
+
     @ViewBuilder
     private var selectionLayer: some View {
-        if let quote = selectedQuote, highlightEditorTarget == nil {
+        if let subject = highlightActionsSubject, highlightEditorTarget == nil {
             // This geometry keeps the safe area: `geo.size` is the safe rect, so aligning the
             // bar to its top edge puts it below the Dynamic Island by construction, with no
             // inset arithmetic and nothing tuned to one device. It matters more than tidiness:
@@ -510,21 +562,28 @@ public struct ReaderContainerView: View {
                     // be the only thing that happened. This one layer does span the display.
                     Color.clear
                         .contentShape(Rectangle())
-                        .onTapGesture { viewModel.currentSelection = nil }
+                        .onTapGesture { dismissHighlightActions() }
                         .ignoresSafeArea()
 
-                    ReaderSelectionBar(
+                    HighlightActionsBar(
                         chrome: chrome,
-                        onPickColor: { hex in viewModel.createHighlight(colorHex: hex) },
-                        onAddNote: { highlightEditorTarget = .new(UUID(), quote) },
-                        onCopy: { UIPasteboard.general.string = quote }
+                        currentColorHex: subject.highlight?.colorHex,
+                        onPickColor: { hex in pickColor(hex, for: subject) },
+                        onAddNote: { addNote(to: subject) },
+                        onCopy: { UIPasteboard.general.string = subject.quote },
+                        onDelete: subject.highlight.map { highlight in
+                            {
+                                viewModel.deleteHighlight(highlight)
+                                viewModel.dismissHighlightActions()
+                            }
+                        }
                     )
                     .fixedSize()
                     .padding(.vertical, DipleSpace.xl)
                     .frame(
                         width: geo.size.width,
                         height: geo.size.height,
-                        alignment: selectionIsInLowerHalf(geo) ? .top : .bottom
+                        alignment: isInLowerHalf(subject.rect, in: geo) ? .top : .bottom
                     )
                 }
             }
@@ -534,6 +593,50 @@ public struct ReaderContainerView: View {
 
     private func presentEditor(for selection: Selection?) {
         viewModel.currentSelection = selection
+    }
+
+    /// The EPUB path: a settled selection *is* the decision, so it is saved on the spot in
+    /// whichever colour was used last and the selection gets out of the way.
+    ///
+    /// Readium reports this through `shouldShowMenuForSelection`, which UIKit calls when it is
+    /// about to raise the edit menu — that is, once the gesture has finished, not continuously
+    /// while a finger drags. So this fires per completed selection, not per pixel. Clearing the
+    /// selection right after takes the handles with it, which means a span cannot be adjusted
+    /// afterwards; a wrong one is removed from the bar and made again, which is the trade the
+    /// reference app makes too.
+    private func saveSelectionAsHighlight(_ selection: Selection?) {
+        viewModel.currentSelection = selection
+        guard selection != nil, selectedQuote != nil else { return }
+        viewModel.createHighlight(colorHex: lastHighlightColorHex, announce: false)
+    }
+
+    private func dismissHighlightActions() {
+        viewModel.dismissHighlightActions()
+        viewModel.currentSelection = nil
+    }
+
+    /// Recolours a saved highlight, or — on PDF, where nothing has been written yet — saves the
+    /// selection in the colour just chosen. Either way the choice becomes the new default, so
+    /// the next passage is marked in the colour this reader actually uses.
+    private func pickColor(_ hex: String, for subject: HighlightActionsSubject) {
+        lastHighlightColorHex = hex
+        switch subject {
+        case let .saved(highlight, _):
+            viewModel.setHighlightColor(highlight, to: hex)
+            viewModel.dismissHighlightActions()
+        case .selection:
+            viewModel.createHighlight(colorHex: hex)
+        }
+    }
+
+    private func addNote(to subject: HighlightActionsSubject) {
+        switch subject {
+        case let .saved(highlight, _):
+            viewModel.dismissHighlightActions()
+            highlightEditorTarget = .existing(highlight)
+        case let .selection(quote):
+            highlightEditorTarget = .new(UUID(), quote)
+        }
     }
 
     /// Whether the selection sits in the lower half of the page, which sends the bar to the
@@ -552,9 +655,13 @@ public struct ReaderContainerView: View {
     /// add the insets back, which was right while the navigator spanned the whole display;
     /// doing it now would push the dividing line a status bar's height below the middle of the
     /// page and send half the selections to the wrong edge.
-    private func selectionIsInLowerHalf(_ geo: GeometryProxy) -> Bool {
-        guard let frame = viewModel.currentSelection?.frame else { return false }
-        return frame.midY > geo.size.height / 2
+    ///
+    /// The rect is the tapped highlight's own bounding box on EPUB and the live selection's on
+    /// PDF; with neither — a highlight Readium could not place — the bar takes the bottom edge,
+    /// which is where it sat before any of this was measured.
+    private func isInLowerHalf(_ rect: CGRect?, in geo: GeometryProxy) -> Bool {
+        guard let rect = rect ?? viewModel.currentSelection?.frame else { return false }
+        return rect.midY > geo.size.height / 2
     }
 }
 

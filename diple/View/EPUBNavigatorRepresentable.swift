@@ -22,7 +22,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let hasSelection: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
-    public let onHighlightActivated: (String) -> Void
+    public let onHighlightActivated: (String, CGRect?) -> Void
     public let onCenterTap: () -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
@@ -40,7 +40,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
-        onHighlightActivated: @escaping (String) -> Void = { _ in },
+        onHighlightActivated: @escaping (String, CGRect?) -> Void = { _, _ in },
         onCenterTap: @escaping () -> Void,
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
@@ -95,7 +95,10 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.syncScrollTransition(for: navigator)
             applyDecorations(highlights: highlights, to: navigator)
             navigator.observeDecorationInteractions(inGroup: "highlights") { [weak coordinator = context.coordinator] event in
-                coordinator?.activateHighlight(id: event.decoration.id)
+                // `rect` is the decoration's bounding box in the navigator's own coordinate
+                // space — the same space `Selection.frame` arrived in — so the actions bar can
+                // pick the far edge of the page from it exactly as the selection bar used to.
+                coordinator?.activateHighlight(id: event.decoration.id, rect: event.rect)
             }
             return navigator
         } catch {
@@ -181,10 +184,10 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             self.parent = parent
         }
 
-        func activateHighlight(id: String) {
+        func activateHighlight(id: String, rect: CGRect?) {
             HapticManager.shared.selection()
             parent.onSelectionChanged(nil)
-            parent.onHighlightActivated(id)
+            parent.onHighlightActivated(id, rect)
         }
 
         /// `updateUIViewController` runs on every SwiftUI update — including the ones caused
@@ -317,6 +320,13 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
             HapticManager.shared.selection()
+            // The publication provably has a selection at this instant, whatever SwiftUI has
+            // observed. Opening the latch here rather than only in `clearSelectionIfNeeded` is
+            // what makes save-on-selection work: that path sets `currentSelection` and clears it
+            // again inside one synchronous block, so the view may never render a state where
+            // `hasSelection` is true — and a latch that only ever opens on that render would
+            // stay shut, leaving the blue selection and its handles on a passage already saved.
+            didClearSelection = false
             parent.onSelectionChanged(selection)
             return false
         }
