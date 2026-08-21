@@ -228,9 +228,11 @@ public struct ReaderSettingsView: View {
         }
     }
 
-    /// A specimen of the family it selects. The two generics have no app-side font to name, so
-    /// they take a system face; the shipped ones are named through `UIAppFonts`, which is a
-    /// separate registration from the one Readium performs for the page itself.
+    /// A specimen of the family it selects. New York and San Francisco are system faces with no
+    /// app-side family name to pass to `Font.custom` — `registeredFamilyName` is `nil` for both —
+    /// so they are named by design instead, which resolves to the same two faces the page gets
+    /// through `ui-serif` and `-apple-system`. The shipped ones are named through `UIAppFonts`,
+    /// which is a separate registration from the one Readium performs for the page itself.
     private func fontOptionLabel(_ fontOption: ReaderFont) -> Text {
         guard let family = fontOption.registeredFamilyName else {
             return Text(fontOption.title)

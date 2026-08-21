@@ -1,15 +1,13 @@
 import Foundation
 import ReadiumNavigator
 
-/// Why the sans option is the CSS generic rather than San Francisco itself.
-///
-/// `FontFamily.sansSerif` resolves to Helvetica in the web view, so this option has never
-/// literally been San Francisco. Routing it through the `-apple-system` / `system-ui`
-/// keywords does select SF — and drops every Hangul glyph in the book to tofu. Declaring
-/// alternates behind the keyword does not rescue them: an explicit `Apple SD Gothic Neo`
-/// fallback was tried and the glyphs stayed missing, so Readium's alternates never reach the
-/// effective stack. Korean has to render, so the generic stays until an SF-class face is
-/// shipped as a real `fontFaces` declaration.
+/// New York and San Francisco are real system faces now, not the CSS generics `serif`/
+/// `sans-serif` these two options used to mean — those never resolved to Apple's own faces in
+/// the web view (Times/Helvetica), so neither option was ever literally what its name claimed.
+/// Reaching the real faces through their system keywords (`ui-serif`, `-apple-system`) used to
+/// cost every Hangul glyph in the book; `ReaderFontDeclarations` now fronts each keyword with a
+/// `unicode-range`-restricted guard family that claims Hangul and CJK before the keyword can
+/// swallow the rest of the cascade. See "Шрифт читалки" in CLAUDE.md for the finding.
 
 public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     // Raw values are the persisted representation and must not be renamed.
@@ -24,23 +22,42 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     /// invalidating what is already stored on readers' devices.
     public var title: String {
         switch self {
-        case .serif: return "Serif"
-        case .sanFrancisco: return "Sans"
+        case .serif: return "New York"
+        case .sanFrancisco: return "San Francisco"
         case .atkinson: return "Hyperlegible"
         case .openDyslexic: return "Dyslexic"
         }
     }
 
+    /// The value handed to Readium as the `fontFamily` preference. For the two system faces
+    /// this is not the face's own name — WebKit does not resolve `"New York"`/`"SF Pro"` by name
+    /// at all (see CLAUDE.md) — it is the bare guard family declared for it in
+    /// `ReaderFontDeclarations`, which is what actually carries Hangul and CJK in front of the
+    /// system keyword.
     public var fontFamily: FontFamily {
         switch self {
         case .serif:
-            return .serif
+            return FontFamily(rawValue: "DipleNewYork")
         case .sanFrancisco:
-            return .sansSerif
+            return FontFamily(rawValue: "DipleSanFrancisco")
         case .atkinson:
             return FontFamily(rawValue: "Atkinson Hyperlegible")
         case .openDyslexic:
             return FontFamily(rawValue: "OpenDyslexic")
+        }
+    }
+
+    /// The system keyword a guard family stands in front of — non-`nil` exactly for the two
+    /// faces `ReaderFontDeclarations` backs with a `ReaderSystemFontDeclaration` rather than
+    /// bundled files. `ui-serif`/`-apple-system` are CSS keywords, not family names, which is
+    /// why they are never quoted on the way to the page (`String.css()` in Readium's
+    /// `CSSProperties.swift` only quotes a family containing a space or a quote) and why WebKit
+    /// resolves them to the real New York / San Francisco instead of falling through.
+    var systemFallbackKeyword: String? {
+        switch self {
+        case .serif: return "ui-serif"
+        case .sanFrancisco: return "-apple-system"
+        case .atkinson, .openDyslexic: return nil
         }
     }
 
@@ -97,7 +114,9 @@ public struct ReaderSettings: Codable, Equatable {
     /// ladder below can be retuned later without silently reinterpreting what readers have
     /// already chosen.
     public var fontSizeScale: Double = 1.0
-    public var font: ReaderFont = .sanFrancisco
+    // A book set in a serif is the register the whole redesign is aiming at; San Francisco
+    // stays one tap away in the picker.
+    public var font: ReaderFont = .serif
     public var theme: Theme = .dark
     public var readingMode: ReadingMode = .paginated
 
@@ -128,7 +147,7 @@ public struct ReaderSettings: Codable, Equatable {
 
     public init(
         fontSizeScale: Double = ReaderSettings.defaultFontSizeScale,
-        font: ReaderFont = .sanFrancisco,
+        font: ReaderFont = .serif,
         theme: Theme = .dark,
         readingMode: ReadingMode = .paginated,
         pageMargins: Double = ReaderSettings.defaultPageMargins
@@ -226,7 +245,7 @@ public struct ReaderSettings: Codable, Equatable {
             self.fontSizeScale = Self.defaultFontSizeScale
         }
 
-        self.font = try container.decodeIfPresent(ReaderFont.self, forKey: .font) ?? .sanFrancisco
+        self.font = try container.decodeIfPresent(ReaderFont.self, forKey: .font) ?? .serif
         self.theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? .dark
         self.readingMode = try container.decodeIfPresent(ReadingMode.self, forKey: .readingMode) ?? .paginated
         self.pageMargins = try container.decodeIfPresent(Double.self, forKey: .pageMargins) ?? Self.defaultPageMargins

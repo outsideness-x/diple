@@ -1,5 +1,6 @@
 import XCTest
 import GRDB
+import ReadiumNavigator
 @testable import diple
 
 @MainActor
@@ -562,15 +563,68 @@ final class DipleTests: XCTestCase {
             }
         }
 
-        let declared = ReaderFont.allCases.filter { !$0.bundledFaces.isEmpty }
-        XCTAssertEqual(ReaderFontDeclarations.all.count, declared.count)
-        XCTAssertEqual(declared.map(\.rawValue), ["Atkinson Hyperlegible", "OpenDyslexic"])
+        let bundled = ReaderFont.allCases.filter { !$0.bundledFaces.isEmpty }
+        XCTAssertEqual(bundled.map(\.rawValue), ["Atkinson Hyperlegible", "OpenDyslexic"])
 
-        // The two generics stay generics: they have no files, and declaring an empty family
-        // would name something with nothing behind it.
+        // New York and San Francisco have no files of their own — they resolve through a guard
+        // family in ReaderFontDeclarations instead of a bundled fontFaces list — but every one
+        // of the four options the picker offers is still genuinely backed by a declaration.
         XCTAssertTrue(ReaderFont.serif.bundledFaces.isEmpty)
         XCTAssertTrue(ReaderFont.sanFrancisco.bundledFaces.isEmpty)
         XCTAssertNil(ReaderFont.sanFrancisco.registeredFamilyName)
+        XCTAssertEqual(ReaderFontDeclarations.all.count, ReaderFont.allCases.count)
+    }
+
+    /// The guard mechanism only works if New York and San Francisco produce genuinely different
+    /// stacks: the same guard family for both would mean picking either one sets the identical
+    /// Readium preference, and the page could not tell the two choices apart.
+    func testSystemFontGuardsResolveToDistinctStacks() throws {
+        let declarations = ReaderFontDeclarations.all
+
+        let newYork = try XCTUnwrap(
+            declarations.first { $0.fontFamily == ReaderFont.serif.fontFamily },
+            "No declaration for the New York guard family"
+        )
+        let sanFrancisco = try XCTUnwrap(
+            declarations.first { $0.fontFamily == ReaderFont.sanFrancisco.fontFamily },
+            "No declaration for the San Francisco guard family"
+        )
+
+        XCTAssertNotEqual(newYork.fontFamily, sanFrancisco.fontFamily)
+        XCTAssertEqual(newYork.alternates, [FontFamily(rawValue: "ui-serif")])
+        XCTAssertEqual(sanFrancisco.alternates, [FontFamily(rawValue: "-apple-system")])
+
+        // A bare CSS identifier, no space and no quote: Readium's own `String.css()` only
+        // quotes a family that contains one, and an unquoted guard name reaching the page as an
+        // identifier is what the whole approach depends on.
+        XCTAssertFalse(newYork.fontFamily.rawValue.contains(" "))
+        XCTAssertFalse(sanFrancisco.fontFamily.rawValue.contains(" "))
+    }
+
+    /// `HTMLInjection` is internal to the Readium module, so the guard writes its own `<style>`
+    /// splice with plain string search. Confirms the splice lands before `</head>` and that a
+    /// document with no `<head>` at all — malformed XHTML, but not impossible — comes back
+    /// untouched instead of the search being force-unwrapped into a crash.
+    func testSystemFontGuardInjectsStyleBeforeHeadClose() throws {
+        let declarations = ReaderFontDeclarations.all
+        let newYork = try XCTUnwrap(
+            declarations.first { $0.fontFamily == ReaderFont.serif.fontFamily }
+        )
+
+        let html = "<html><head><title>x</title></head><body></body></html>"
+        let injected = try newYork.inject(in: html) { _ in
+            XCTFail("The guard never serves a file; servingFile should not be called")
+            throw CocoaError(.fileNoSuchFile)
+        }
+        XCTAssertTrue(injected.contains("@font-face"))
+        XCTAssertTrue(injected.contains(ReaderFont.serif.fontFamily.rawValue))
+        XCTAssertNotNil(injected.range(of: "</style></head>", options: .caseInsensitive))
+
+        let malformed = "<html><body>no head here</body></html>"
+        let unchanged = try newYork.inject(in: malformed) { _ in
+            throw CocoaError(.fileNoSuchFile)
+        }
+        XCTAssertEqual(unchanged, malformed)
     }
 
     func testReadingEstimateStaysSilentWhenItDoesNotKnow() {
