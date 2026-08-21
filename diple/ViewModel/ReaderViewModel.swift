@@ -244,12 +244,42 @@ public final class ReaderViewModel: ObservableObject {
         settings.epubPreferences(for: script)
     }
 
-    /// Reading-system CSS for this book's script — line breaking, which is not a user
-    /// preference and has no `EPUBPreferences` field. Read once, when the navigator is built;
-    /// a book does not change the script it is written in halfway through.
+    /// Reading-system CSS for this book's script — line breaking, link colour and selection
+    /// colour, none of which is a user preference and none of which has an `EPUBPreferences`
+    /// field. Read once, when the navigator is built; a book does not change the script it is
+    /// written in halfway through, and colour here cannot follow a live theme switch (see the
+    /// "Readium" note in CLAUDE.md) — the four named page themes land in the next change in this
+    /// sequence and will need to either drive these through ReadiumCSS's own theme handling or
+    /// rebuild the navigator; nothing here should have to be torn up to do that.
+    ///
+    /// **Link colour turned out not to be publisher CSS.** Turning off publisher styles was
+    /// checked first, per the reasoning that a book which keeps writing its own alignment and
+    /// leading might also be painting its own links — it does not: `ReadiumCSS-after.css`'s own
+    /// night/sepia presets set `--RS__linkColor` to a WebKit-native blue
+    /// (`readium-css/ReadiumCSS-after.css`, `:root[style*="readium-night-on"] a:link`) with
+    /// `!important`, regardless of `publisherStyles`. Verified live: Dorian Gray's front matter
+    /// still showed the same blue with publisher styles off. So the colour is set here.
+    /// `currentColor` — legal CSS, and per spec treated as `inherit` when used for `color`
+    /// itself — makes a link read as the surrounding ink rather than a UI hyperlink; the
+    /// underline WebKit already draws is what marks it tappable. This also keeps links out of
+    /// the accent budget in CLAUDE.md (progress fill / control selection / one primary action
+    /// per screen — a link is none of the three).
     public var readiumCSSRSProperties: CSSRSProperties {
-        CSSRSProperties(overrides: script.cssOverrides)
+        CSSRSProperties(
+            selectionBackgroundColor: CSSHexColor(Self.selectionBackgroundColorCSS),
+            linkColor: CSSHexColor("currentColor"),
+            visitedColor: CSSHexColor("currentColor"),
+            overrides: script.cssOverrides
+        )
     }
+
+    /// Brass at low opacity, not iOS's system blue — the selection is the gesture the whole
+    /// highlight feature starts from, and it is the one place the platform's own palette showed
+    /// through onto the page. 35% keeps the selected words legible through the tint rather than
+    /// painting over them; `CSSRGBColor` has no alpha channel, so the value is written as a raw
+    /// `rgba()` string through `CSSHexColor`, which — despite the name — just forwards whatever
+    /// CSS text it is given (see `CSSHexColor.css()` in `CSSProperties.swift`).
+    private static let selectionBackgroundColorCSS = "rgba(200, 164, 92, 0.35)"
 
     /// `totalProgression` is only present when the publication exposes a position list.
     /// Otherwise we approximate it from the resource index inside the reading order.

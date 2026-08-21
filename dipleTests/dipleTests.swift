@@ -134,6 +134,45 @@ final class DipleTests: XCTestCase {
         assertScript(.latin, ReaderScript.detect(languages: ["ru"], sample: "Русский текст"))
     }
 
+    /// The reversal this commit makes: publisher styles come off, and the ragged-right/leading/
+    /// spacing preferences it gates go out, for a Latin book exactly as for a CJK one. Locks the
+    /// four fields the rag, hyphenation and vertical rhythm actually depend on, so a future edit
+    /// cannot silently reopen the CJK-only branch this replaced.
+    func testEPUBPreferencesSetTheBookLikePageForBothScripts() throws {
+        let settings = ReaderSettings()
+
+        for script: ReaderScript in [.latin, .cjk] {
+            let prefs = settings.epubPreferences(for: script)
+            XCTAssertEqual(prefs.publisherStyles, false, "\(script) should drop publisher styles")
+            XCTAssertEqual(prefs.textAlign, .start, "\(script) should be ragged right, not justified")
+            XCTAssertEqual(prefs.hyphens, true, "\(script) should hyphenate")
+            let lineHeight = try XCTUnwrap(prefs.lineHeight, "\(script) should send lineHeight")
+            let paragraphSpacing = try XCTUnwrap(prefs.paragraphSpacing, "\(script) should send paragraphSpacing")
+            XCTAssertEqual(lineHeight, script.lineHeight, accuracy: 0.0001)
+            XCTAssertEqual(paragraphSpacing, script.paragraphSpacing, accuracy: 0.0001)
+        }
+
+        XCTAssertEqual(ReaderScript.latin.lineHeight, 1.50, accuracy: 0.0001)
+        XCTAssertEqual(ReaderScript.cjk.lineHeight, 1.70, accuracy: 0.0001)
+        XCTAssertEqual(ReaderScript.latin.paragraphSpacing, 0.60, accuracy: 0.0001)
+        XCTAssertEqual(ReaderScript.cjk.paragraphSpacing, 0.85, accuracy: 0.0001)
+    }
+
+    /// `pageMargins` is the one preference in `epubPreferences(for:)` that stays outside the
+    /// `publisherStyles` gate — it should reach the default measure regardless of which script
+    /// resolved it, and an existing reader's stored value must survive rather than being pulled
+    /// back to the new default.
+    func testEPUBPreferencesCarriesPageMarginsRegardlessOfScript() throws {
+        let stored = ReaderSettings(pageMargins: 0.65)
+        let latinMargins = try XCTUnwrap(stored.epubPreferences(for: .latin).pageMargins)
+        let cjkMargins = try XCTUnwrap(stored.epubPreferences(for: .cjk).pageMargins)
+        XCTAssertEqual(latinMargins, 0.65, accuracy: 0.0001)
+        XCTAssertEqual(cjkMargins, 0.65, accuracy: 0.0001)
+
+        let fresh = ReaderSettings()
+        XCTAssertEqual(fresh.pageMargins, ReaderSettings.defaultPageMargins, accuracy: 0.0001)
+    }
+
     func testNoteMarkdownPreservesTasksCalloutsAndCleanPreviews() {
         let markdown = """
         # Release plan

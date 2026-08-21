@@ -138,12 +138,10 @@ public struct ReaderSettings: Codable, Equatable {
 
     /// Six steps from edge-to-edge to generous, spanning `EPUBPreferencesEditor.pageMargins`'s
     /// own accepted range (`0.0 ... 4.0` in the resolved swift-toolkit 3.11.0 checkout — see
-    /// `Sources/Navigator/EPUB/Preferences/EPUBPreferencesEditor.swift`). Readium's factory
-    /// default is 1×, which is the width this task exists to move away from, so the default
-    /// below sits at the narrow end of what still reads comfortably instead of restating it.
+    /// `Sources/Navigator/EPUB/Preferences/EPUBPreferencesEditor.swift`).
     public static let pageMarginsSteps: [Double] = [0.0, 0.35, 0.65, 1.0, 1.25, 1.5]
 
-    public static let defaultPageMargins: Double = 0.65
+    public static let defaultPageMargins: Double = 1.0
 
     public init(
         fontSizeScale: Double = ReaderSettings.defaultFontSizeScale,
@@ -265,29 +263,42 @@ public struct ReaderSettings: Codable, Equatable {
     /// Vertical metrics depend on the script the book is set in, which the settings struct
     /// cannot know on its own — the publication does. `ReaderViewModel` supplies it.
     ///
-    /// Readium only honours `lineHeight` and `paragraphSpacing` when advanced settings are on,
-    /// which is `publisherStyles == false`. Set the leading without clearing publisher styles
-    /// and nothing happens at all. Publisher styles are therefore dropped only for CJK, where
-    /// the publisher's own leading is the thing being corrected; a Latin book keeps the
-    /// typography its designer chose.
+    /// **Publisher styles are off for every reflowable book, Latin included — this reverses what
+    /// this comment used to say.** The previous position was that a Latin book keeps the
+    /// typography its designer chose, and only CJK — where the publisher's leading is the thing
+    /// being corrected — dropped it. That argument stopped holding once diple started choosing
+    /// the *face* (New York/San Francisco, see "Шрифт читалки" in CLAUDE.md): honouring the
+    /// publisher for alignment and leading while overriding the font underneath it is not
+    /// deference, it produces a font the publisher never designed against, set with the
+    /// publisher's own justification and no hyphenation — rivers of white on nearly every
+    /// paragraph at a phone measure. Apple Books does the same thing the moment a reader touches
+    /// the font. See "Шрифт читалки" in CLAUDE.md for the fuller record of this reversal.
+    ///
+    /// `publisherStyles == false` (Readium's "advanced settings") is the gate for `textAlign`,
+    /// `lineHeight`, `paragraphSpacing` and `hyphens` — none of them do anything while publisher
+    /// styles are on (`EPUBPreferencesEditor.swift`). `pageMargins` is the one exception: it only
+    /// multiplies Readium's own gutter variable and is effective regardless, so it was already
+    /// unconditional above this method's `if` before there was one.
     public func epubPreferences(for script: ReaderScript) -> EPUBPreferences {
         var prefs = EPUBPreferences()
         prefs.fontSize = currentFontSize
         prefs.fontFamily = font.fontFamily
         prefs.theme = theme
         prefs.scroll = (readingMode == .scroll)
-
-        // Unlike lineHeight/paragraphSpacing above, EPUBPreferencesEditor.pageMargins is
-        // effective for every reflowable book regardless of publisherStyles (see
-        // EPUBPreferencesEditor.swift) — it only multiplies Readium's own gutter variable, so
-        // it stays set for Latin books too instead of joining the CJK-only branch below.
         prefs.pageMargins = pageMargins
 
-        if script == .cjk {
-            prefs.publisherStyles = false
-            prefs.lineHeight = script.lineHeight
-            prefs.paragraphSpacing = script.paragraphSpacing
-        }
+        prefs.publisherStyles = false
+        // Ragged right, not justified: Matter's reference page reads as designed rather than
+        // stretched, and it is what keeps rivers of white out of a narrow measure. `.start`
+        // rather than `.left` respects RTL publications if one is ever opened.
+        prefs.textAlign = .start
+        // Hyphenation stays on with ragged-right, not just with justify: Russian and German
+        // compounds at a phone measure produce an ugly rag without it (verified live —
+        // `hyphens: auto` correctly hyphenated "in-ternationalization" in a WKWebView test). It
+        // needs the document to carry a `lang`, which EPUBs normally do.
+        prefs.hyphens = true
+        prefs.lineHeight = script.lineHeight
+        prefs.paragraphSpacing = script.paragraphSpacing
 
         return prefs
     }

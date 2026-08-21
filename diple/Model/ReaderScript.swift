@@ -13,20 +13,28 @@ public enum ReaderScript: String {
     case latin = "latin"
     case cjk = "cjk"
 
-    /// Leading for the reader's page. Only sent to Readium for CJK, which is the case where
-    /// the publisher's own value is the problem.
+    /// Leading for the reader's page. Sent to Readium for both scripts — see
+    /// `ReaderSettings.epubPreferences(for:)` for why Latin now gets a value here too, not only
+    /// CJK.
+    ///
+    /// 1.50 for Latin is a book leading, not a screen-default one: the value a browser or an
+    /// unstyled web view ships (~1.2) is set for short UI strings, not a page a reader's eye
+    /// travels down for an hour. 1.70 for CJK stays ~13% over that Latin baseline — Hangul/kana/
+    /// han glyphs fill their em box far more than Latin ones, so consecutive lines close up into
+    /// a grey slab at Latin leading (see the type's own doc comment above).
     public var lineHeight: Double {
         switch self {
-        case .latin: return 1.4
-        case .cjk: return 1.6 // ~15% over the Latin baseline
+        case .latin: return 1.50
+        case .cjk: return 1.70
         }
     }
 
-    /// Space between paragraphs, in rem.
+    /// Space between paragraphs, in rem. Sent to Readium for both scripts, for the same reason
+    /// as `lineHeight`.
     public var paragraphSpacing: Double {
         switch self {
-        case .latin: return 0.5
-        case .cjk: return 0.75
+        case .latin: return 0.60
+        case .cjk: return 0.85
         }
     }
 
