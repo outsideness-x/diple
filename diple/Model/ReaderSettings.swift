@@ -196,6 +196,16 @@ public struct ReaderSettings: Codable, Equatable {
     public var theme: ReaderPageTheme = .carbon
     public var readingMode: ReadingMode = .paginated
 
+    /// Steps of leading either side of what the book's own script asks for.
+    ///
+    /// Stored as an **offset**, not a multiplier, and not as an absolute value. Absolute would
+    /// throw away what `ReaderScript` knows — Hangul and kana need more air than Latin at the
+    /// same size, and a reader who opens a Korean book after an English one should not have to
+    /// re-tune. A multiplier would compound with that difference instead of shifting it, so the
+    /// same "one step looser" would move CJK further than Latin. An offset moves both the same
+    /// visible amount and keeps the script's own baseline underneath.
+    public var lineHeightAdjustment: Double = 0
+
     /// Factor Readium multiplies its horizontal gutter by. Stored as a multiplier, not an
     /// index, for the same reason as `fontSizeScale`: an index reinterprets itself the moment
     /// the ladder is retuned, silently moving a reader's chosen value to a different one.
@@ -219,13 +229,21 @@ public struct ReaderSettings: Codable, Equatable {
 
     public static let defaultPageMargins: Double = 1.0
 
+    /// Seven rungs, 0.1 apart. The span is bounded by Readium's own accepted range for
+    /// `lineHeight` (`1.0 ... 2.0`, `EPUBPreferencesEditor.swift`) against both script
+    /// baselines: Latin's 1.5 lands 1.2…1.8 and CJK's 1.7 lands 1.4…2.0, so every rung is
+    /// reachable for either script and none of them silently clamps.
+    public static let lineHeightAdjustments: [Double] = [-0.3, -0.2, -0.1, 0, 0.1, 0.2, 0.3]
+
     public init(
         fontSizeScale: Double = ReaderSettings.defaultFontSizeScale,
         font: ReaderFont = .serif,
         theme: ReaderPageTheme = .carbon,
         readingMode: ReadingMode = .paginated,
-        pageMargins: Double = ReaderSettings.defaultPageMargins
+        pageMargins: Double = ReaderSettings.defaultPageMargins,
+        lineHeightAdjustment: Double = 0
     ) {
+        self.lineHeightAdjustment = lineHeightAdjustment
         self.fontSizeScale = fontSizeScale
         self.font = font
         self.theme = theme
@@ -278,6 +296,22 @@ public struct ReaderSettings: Codable, Equatable {
     /// Percentage shown beside the stepper, relative to Readium's own 1× gutter.
     public var pageMarginsPercentage: Int { Int((pageMargins * 100).rounded()) }
 
+    /// Nearest rung, for a value stored as a multiplier rather than an index. Shared by every
+    /// ladder here for the reason recorded on `fontSizeScale`: an index reinterprets itself the
+    /// moment the ladder is retuned, so the value is stored and the position is derived.
+    static func nearestIndex(of value: Double, in ladder: [Double]) -> Int {
+        var bestIndex = 0
+        var bestDistance = Double.greatestFiniteMagnitude
+        for (index, rung) in ladder.enumerated() {
+            let distance = abs(rung - value)
+            if distance < bestDistance {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
     private static func nearestPageMarginsStep(to factor: Double) -> Int {
         var bestIndex = 0
         var bestDistance = Double.greatestFiniteMagnitude
@@ -291,6 +325,40 @@ public struct ReaderSettings: Codable, Equatable {
         return bestIndex
     }
 
+    /// Position on `lineHeightAdjustments`. Mirrors `fontSizeStep`.
+    public var lineHeightStep: Int {
+        get { Self.nearestIndex(of: lineHeightAdjustment, in: Self.lineHeightAdjustments) }
+        set {
+            let clamped = min(max(newValue, 0), Self.lineHeightAdjustments.count - 1)
+            lineHeightAdjustment = Self.lineHeightAdjustments[clamped]
+        }
+    }
+
+    public var canTightenLineHeight: Bool { lineHeightStep > 0 }
+    public var canLoosenLineHeight: Bool { lineHeightStep < Self.lineHeightAdjustments.count - 1 }
+
+    /// The leading actually sent to Readium, clamped to the range it accepts. The clamp is a
+    /// backstop, not a working part: the ladder is chosen so neither script reaches it.
+    public func lineHeight(for script: ReaderScript) -> Double {
+        min(max(script.lineHeight + lineHeightAdjustment, 1.0), 2.0)
+    }
+
+    // MARK: - Measure
+
+    /// The same value as `pageMargins`, counted the way a reader thinks about it.
+    ///
+    /// Margins are the mechanism; width is what is being chosen. Wider text means *less*
+    /// gutter, so the two run in opposite directions, and the inversion lives here rather than
+    /// at the call site — a control that has to remember to subtract is a control that will
+    /// eventually forget.
+    public var widthStep: Int {
+        get { Self.maximumPageMarginsStep - pageMarginsStep }
+        set { pageMarginsStep = Self.maximumPageMarginsStep - newValue }
+    }
+
+    public var canWiden: Bool { pageMarginsStep > 0 }
+    public var canNarrow: Bool { pageMarginsStep < Self.maximumPageMarginsStep }
+
     // MARK: - Persistence
 
     enum CodingKeys: String, CodingKey {
@@ -300,6 +368,7 @@ public struct ReaderSettings: Codable, Equatable {
         case theme
         case readingMode
         case pageMargins
+        case lineHeightAdjustment
     }
 
     /// Readers who set a size under the old five-step ladder keep it: the stored index is
@@ -338,6 +407,9 @@ public struct ReaderSettings: Codable, Equatable {
 
         self.readingMode = try container.decodeIfPresent(ReadingMode.self, forKey: .readingMode) ?? .paginated
         self.pageMargins = try container.decodeIfPresent(Double.self, forKey: .pageMargins) ?? Self.defaultPageMargins
+        // Absent for everyone who set up their reader before leading was adjustable: no offset
+        // is the honest reading of that, and it leaves the script's own baseline in charge.
+        self.lineHeightAdjustment = try container.decodeIfPresent(Double.self, forKey: .lineHeightAdjustment) ?? 0
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -347,6 +419,7 @@ public struct ReaderSettings: Codable, Equatable {
         try container.encode(theme, forKey: .theme)
         try container.encode(readingMode, forKey: .readingMode)
         try container.encode(pageMargins, forKey: .pageMargins)
+        try container.encode(lineHeightAdjustment, forKey: .lineHeightAdjustment)
     }
 
     // MARK: - Readium
@@ -399,7 +472,7 @@ public struct ReaderSettings: Codable, Equatable {
         // `hyphens: auto` correctly hyphenated "in-ternationalization" in a WKWebView test). It
         // needs the document to carry a `lang`, which EPUBs normally do.
         prefs.hyphens = true
-        prefs.lineHeight = script.lineHeight
+        prefs.lineHeight = lineHeight(for: script)
         prefs.paragraphSpacing = script.paragraphSpacing
 
         return prefs
