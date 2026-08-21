@@ -78,6 +78,91 @@ public struct NoteCardView: View {
     }
 
     public var body: some View {
+        switch style {
+        case .card: card
+        case .row: row
+        }
+    }
+
+    // MARK: - Row
+
+    /// A catalogue entry, set the way Home and the library shelf are set: no card, no icon
+    /// well, no capsules — a title, a couple of lines of the thought, one dateline, and a rule
+    /// underneath. A card standing in a column of catalogue entries reads as an object of a
+    /// different kind, and a note is an object of the same kind as everything else here.
+    ///
+    /// The rule does two jobs, exactly as the library row's does: it ends the entry, and where
+    /// the note carries a task list it also fills to show how far through it is. A separate
+    /// progress bar above a separator is two horizontal lines eight points apart saying related
+    /// things.
+    private var row: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
+            Text(title)
+                .dipleType(.headline)
+                .foregroundStyle(title == "Untitled" ? DipleColor.textTertiary : DipleColor.textPrimary)
+                .multilineTextAlignment(.leading)
+                .lineLimit(2)
+
+            if !preview.isEmpty {
+                Text(preview)
+                    .dipleType(.callout)
+                    .readingLineSpacing(for: preview)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(dateline)
+                .dipleType(.caption)
+                .foregroundStyle(DipleColor.textTertiary)
+                .lineLimit(1)
+                .padding(.top, DipleSpace.hair)
+
+            progressRule
+                .padding(.top, DipleSpace.s)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, DipleSpace.m)
+        .contentShape(Rectangle())
+    }
+
+    /// Source, tags and age in one line, ordered by how much each narrows the field — the same
+    /// order and the same reasoning as the library row's dateline, tags last because they are
+    /// the part also visible in the filter row above and so the right part to lose to
+    /// truncation. Sentence case, not small caps: caps mark section headings here, and metadata
+    /// wearing them too means neither is marked.
+    private var dateline: String {
+        var parts: [String] = []
+        if let book = item.book { parts.append(book.title) }
+        parts.append(contentsOf: item.tags.map { "#\($0)" })
+        parts.append(formattedDate)
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var progressRule: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(DipleColor.separator)
+                if let taskProgress, taskProgress.total > 0 {
+                    let isDone = taskProgress.completed == taskProgress.total
+                    Rectangle()
+                        .fill(isDone ? DipleColor.success : DipleColor.accent)
+                        .frame(
+                            width: geo.size.width
+                                * (Double(taskProgress.completed) / Double(taskProgress.total))
+                        )
+                }
+            }
+        }
+        .frame(height: DipleStroke.hairline)
+        .animation(DipleMotion.standard, value: taskProgress?.completed)
+    }
+
+    // MARK: - Card
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
             HStack(alignment: .top, spacing: DipleSpace.s) {
                 Image(systemName: item.book == nil ? "note.text" : "book.pages")
@@ -101,7 +186,7 @@ public struct NoteCardView: View {
                     .readingLineSpacing(for: preview)
                     .foregroundStyle(DipleColor.textSecondary)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(style == .card ? 6 : 2)
+                    .lineLimit(6)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -164,8 +249,8 @@ public struct NoteCardView: View {
             .foregroundStyle(DipleColor.textQuaternary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(style == .card ? DipleSpace.m : DipleSpace.l)
-        .craftSurface(style == .card ? DipleColor.surface : DipleColor.surfaceRaised)
+        .padding(DipleSpace.m)
+        .craftSurface(DipleColor.surface)
     }
 }
 

@@ -3,7 +3,11 @@ import SwiftUI
 /// The notes workspace: capture, rediscover and develop ideas without leaving reading.
 public struct NotesView: View {
     @StateObject private var viewModel = NotesViewModel()
-    @AppStorage("diple_notes_layout") private var storedLayout = NoteLayout.cards.rawValue
+    // Rows by default, the same trade the library made: a board of cards shows a title and a
+    // few lines of each thought, a column of rows shows that plus what it is attached to and
+    // how far through its tasks it is, and it can be read down with a thumb. The board stays
+    // one tap away for the times a note is recognised by its shape rather than its name.
+    @AppStorage("diple_notes_layout") private var storedLayout = NoteLayout.list.rawValue
 
     /// Ties a card to the page it becomes, so the note expands out of the block the reader
     /// tapped instead of sliding in from the side.
@@ -289,7 +293,7 @@ public struct NotesView: View {
             }
             .padding(.horizontal, DipleSpace.xl)
         } else {
-            LazyVStack(spacing: DipleSpace.s) {
+            LazyVStack(spacing: 0) {
                 noteLinks
             }
             .padding(.horizontal, DipleSpace.xl)
