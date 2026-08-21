@@ -106,6 +106,7 @@ public struct HomeView: View {
                     .padding(.top, DipleSpace.l)
                     .padding(.bottom, DipleSpace.scrollBottom)
                 }
+                .tracksTabBarCollapse()
 
                 if library.isImporting {
                     importingOverlay

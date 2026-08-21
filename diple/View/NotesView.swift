@@ -129,6 +129,7 @@ public struct NotesView: View {
             .padding(.bottom, DipleSpace.scrollBottom)
         }
         .scrollDismissesKeyboard(.interactively)
+        .tracksTabBarCollapse()
     }
 
     /// The label alone. The slogan under it argued a position about note apps every time the

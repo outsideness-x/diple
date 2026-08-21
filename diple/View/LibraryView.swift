@@ -295,6 +295,7 @@ public struct LibraryView: View {
             .padding(.top, DipleSpace.l)
             .padding(.bottom, DipleSpace.scrollBottom)
         }
+        .tracksTabBarCollapse()
     }
 
     /// Rows, for triage rather than for browsing.
@@ -394,6 +395,7 @@ public struct LibraryView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .contentMargins(.bottom, DipleSpace.scrollBottom, for: .scrollContent)
+        .tracksTabBarCollapse()
     }
 
     @ViewBuilder
