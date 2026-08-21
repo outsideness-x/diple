@@ -157,6 +157,36 @@ public extension ButtonStyle where Self == DipleTabItemButtonStyle {
     static var dipleTabItem: DipleTabItemButtonStyle { DipleTabItemButtonStyle() }
 }
 
+// MARK: - Hiding
+
+/// Set by any screen that owns the whole display while it is up.
+///
+/// The system bar hid itself on a push when a destination asked it to (`.toolbar(.hidden, for:
+/// .tabBar)`); a bar drawn by the app has to be told. A preference rather than a flag on a
+/// shared object because it is a property of *what is on screen*: it goes away with the view
+/// that set it, including when the reader is closed by a back-swipe that no code ran for.
+private struct HidesDipleTabBarKey: PreferenceKey {
+    static let defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
+public extension View {
+    /// Takes the tab bar down for as long as this view is on screen.
+    func hidesDipleTabBar() -> some View {
+        preference(key: HidesDipleTabBarKey.self, value: true)
+    }
+
+    /// Watches for any descendant asking for the bar to be hidden.
+    func onDipleTabBarHiddenChange(_ action: @escaping (Bool) -> Void) -> some View {
+        onPreferenceChange(HidesDipleTabBarKey.self) { hidden in
+            Task { @MainActor in action(hidden) }
+        }
+    }
+}
+
 // MARK: - Collapse
 
 /// Whether the bar is currently out of the way, and the scroll arithmetic that decides it.

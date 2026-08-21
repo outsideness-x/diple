@@ -381,6 +381,8 @@ public struct ReaderContainerView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
+        // The app draws its own tab bar now, and a bar the app draws has to be told.
+        .hidesDipleTabBar()
         .navigationBarBackButtonHidden(true)
         .sheet(isPresented: $viewModel.isSettingsPresented) {
             ReaderSettingsView(settings: $viewModel.settings)

@@ -182,36 +182,38 @@ public struct ReadingProgressSlider: View {
 /// is the page's own tone (see `ReaderChrome`), which is what keeps contrast honest without
 /// resorting to a flat slab.
 ///
-/// A single hairline marks where chrome ends and page begins. Depth here comes from that edge
-/// and from the blur, never from a drop shadow.
+/// **The bar floats; it is not a plate across the screen.** It used to be a full-width rectangle
+/// pinned to its edge with a hairline on the inner side, and the page stopped dead at that line —
+/// so raising the bars sliced a line of type in half along the top of the screen and another
+/// along the bottom, mid-word. A card inset from the edges leaves the page continuous underneath
+/// and blurred through the glass, which is what makes the chrome read as lying *over* the book
+/// rather than as walls the text has been fitted between.
+///
+/// Its own edge is a hairline stroke all the way round rather than a single rule, because a card
+/// has four sides. The shadow is the one place in the app depth comes from a blur rather than an
+/// edge, and it earns it: the card sits on an unpredictable background — paper, sepia or night,
+/// with text of any darkness behind it — where a stroke alone can vanish.
 public struct ReaderBarBackground: ViewModifier {
     let chrome: ReaderChrome
-    /// Which screen edge the bar is pinned to. The hairline goes on the opposite side — the
-    /// one that actually faces the text.
+    /// Which screen edge the bar sits nearest. Only the direction of its inset depends on it now.
     let edge: VerticalEdge
 
     public func body(content: Content) -> some View {
         content
             .background {
+                let shape = RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
                 ZStack {
-                    Rectangle().fill(.regularMaterial)
-                    Rectangle().fill(chrome.tint)
+                    shape.fill(.regularMaterial)
+                    shape.fill(chrome.tint)
                 }
                 .environment(\.colorScheme, chrome.colorScheme)
-                // The blur runs past its own screen edge and under whatever the system draws
-                // there — the clock and the battery at the top, the home indicator at the
-                // bottom. The bar content itself stays inside the safe area, so nothing the
-                // reader can press moves; only the glass reaches further. Without this the bar
-                // stopped at the safe area and left a band of bare page between it and the
-                // bezel, with the status bar printed straight onto the text.
-                .ignoresSafeArea(edges: edge == .top ? [.horizontal, .top] : [.horizontal, .bottom])
+                .overlay {
+                    shape.strokeBorder(chrome.separator, lineWidth: DipleStroke.hairline)
+                }
+                .shadow(color: Color.black.opacity(0.18), radius: 12, y: edge == .top ? 4 : -4)
             }
-            .overlay(alignment: edge == .top ? .bottom : .top) {
-                Rectangle()
-                    .fill(chrome.separator)
-                    .frame(height: DipleStroke.hairline)
-                    .ignoresSafeArea(edges: .horizontal)
-            }
+            .padding(.horizontal, DipleSpace.m)
+            .padding(edge == .top ? .top : .bottom, DipleSpace.s)
     }
 }
 

@@ -49,6 +49,7 @@ public struct RootTabView: View {
     }
 
     @State private var selection: Tab = .home
+    @State private var isBarHidden = false
     @StateObject private var tabBarState = DipleTabBarState()
 
     public init() {}
@@ -57,8 +58,14 @@ public struct RootTabView: View {
         ZStack(alignment: .bottom) {
             tabContent
 
-            DipleTabBar(selection: $selection, isCollapsed: tabBarState.isCollapsed)
-                .padding(.bottom, DipleSpace.s)
+            if !isBarHidden {
+                DipleTabBar(selection: $selection, isCollapsed: tabBarState.isCollapsed)
+                    .padding(.bottom, DipleSpace.s)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .onDipleTabBarHiddenChange { hidden in
+            withAnimation(DipleMotion.gentle) { isBarHidden = hidden }
         }
         .environment(\.dipleTabBarState, tabBarState)
         .tint(DipleColor.accent)
