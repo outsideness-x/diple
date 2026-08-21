@@ -42,14 +42,16 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     /// dynamic one, so the bridge needs no environment/trait context to resolve correctly.
     public var uiColor: UIColor { UIColor(color) }
 
-    /// Name of the matching `.appiconset` in `Assets.xcassets`, or `nil` for `.lilac`/`.brass`.
-    /// `.lilac` ships as the primary `AppIcon` rather than a redundant alternate. `.brass` is
-    /// `nil` for a different reason: it is now the default accent, but the app icon redesign to
-    /// match it is separate, still-undiscussed work, so brass falls back to the primary
-    /// `AppIcon` too — a known, temporary mismatch, not an oversight.
+    /// Name of the matching `.appiconset` in `Assets.xcassets`, or `nil` for the accent whose
+    /// artwork ships as the primary `AppIcon`.
+    ///
+    /// That is brass now, and the temporary mismatch recorded here when brass became the default
+    /// is resolved: the icon was redesigned and every accent has one. Lilac gained an alternate
+    /// of its own in the same change — it used to be the primary and so needed none, and leaving
+    /// it at `nil` after the swap would have shown a reader who chose lilac a brass icon.
     public var alternateIconName: String? {
         switch self {
-        case .lilac: return nil
+        case .lilac: return "AppIconLilac"
         case .mint: return "AppIconMint"
         case .clay: return "AppIconClay"
         case .periwinkle: return "AppIconPeriwinkle"

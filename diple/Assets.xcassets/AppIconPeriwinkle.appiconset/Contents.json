@@ -1,7 +1,7 @@
 {
   "images": [
     {
-      "filename": "diple-icon-periwinkle.png",
+      "filename": "icon.png",
       "idiom": "universal",
       "platform": "ios",
       "size": "1024x1024"
@@ -13,7 +13,7 @@
           "value": "dark"
         }
       ],
-      "filename": "diple-icon-periwinkle-dark.png",
+      "filename": "icon-dark.png",
       "idiom": "universal",
       "platform": "ios",
       "size": "1024x1024"
@@ -25,7 +25,7 @@
           "value": "tinted"
         }
       ],
-      "filename": "diple-icon-periwinkle-tinted.png",
+      "filename": "icon-tinted.png",
       "idiom": "universal",
       "platform": "ios",
       "size": "1024x1024"
