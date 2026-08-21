@@ -57,7 +57,7 @@ public struct SourceLeadView: View {
         if let name = book.sourceHost ?? book.author, !name.isEmpty {
             parts.append(name)
         }
-        return parts.joined(separator: " · ").uppercased()
+        return parts.joined(separator: " · ")
     }
 
     /// How far in, and how much is left.
@@ -73,7 +73,7 @@ public struct SourceLeadView: View {
         ) {
             parts.append(remaining)
         }
-        return parts.joined(separator: " · ").uppercased()
+        return parts.joined(separator: " · ")
     }
 
     public var body: some View {

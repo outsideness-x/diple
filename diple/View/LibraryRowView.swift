@@ -43,6 +43,10 @@ public struct LibraryRowView: View {
     /// from. Length decides whether there is time for this now. Tags come last because they are
     /// the one part also visible in the filter row above, which makes them the right thing to
     /// lose to truncation.
+    /// Sentence case, not small caps. Caps mark section headings in this app; a dateline
+    /// wearing them too means neither is marked, and a shelf of seven rows was printing seven
+    /// lines of capitals under seven titles — the loudest thing on screen was the part meant to
+    /// be read second.
     private var dateline: String {
         var parts: [String] = [book.sourceKind.title]
         if let identity = book.sourceHost ?? book.author, !identity.isEmpty {
@@ -52,7 +56,7 @@ public struct LibraryRowView: View {
             parts.append(estimate)
         }
         parts.append(contentsOf: tags.map { "#\($0)" })
-        return parts.joined(separator: " · ").uppercased()
+        return parts.joined(separator: " · ")
     }
 
     /// What is left once started, the whole length before that. A row is scanned to decide what

@@ -258,7 +258,6 @@ public struct LibraryView: View {
     private var gridBrowser: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DipleSpace.xxxl) {
-                continueSection
                 browseControls
 
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
@@ -308,7 +307,6 @@ public struct LibraryView: View {
     private var listBrowser: some View {
         List {
             Group {
-                continueSection
                 browseControls
                 shelfHeader
 
@@ -398,24 +396,18 @@ public struct LibraryView: View {
         .tracksTabBarCollapse()
     }
 
-    @ViewBuilder
-    private var continueSection: some View {
-        if isDefaultBrowse, let book = viewModel.continueReadingBook {
-            VStack(alignment: .leading, spacing: DipleSpace.m) {
-                sectionHeading("CONTINUE READING")
-
-                let route = BookRoute(book: book, placement: .continueReading)
-                Button {
-                    path.append(route)
-                } label: {
-                    SourceLeadView(book: book, characters: viewModel.charactersByBook[book.id])
-                }
-                .buttonStyle(.bookCard)
-                .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
-                .accessibilityHint("Opens at your last reading position")
-            }
-        }
-    }
+    /// The shelf no longer opens with the book you were reading.
+    ///
+    /// It did, and Home does too — the same lead, from the same `SourceLeadView`, one tab
+    /// apart. Two screens answering "carry on from here" is one screen too many, and the cost
+    /// fell on this one: between the search field, the lead, the location picker, the type
+    /// chips, the tag row and the shelf heading, a reader met five rows of controls and a block
+    /// about a book they were not looking for before the first cover appeared — nearly half the
+    /// display. Home is where you carry on; the library is where you choose. It opens on the
+    /// shelf now.
+    ///
+    /// `SourceLeadView` stays shared — Home still uses it, and the Mac shell has its own
+    /// arrangement — so nothing is deleted, only this screen's use of it.
 
     @ViewBuilder
     private var browseControls: some View {
