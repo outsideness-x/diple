@@ -127,6 +127,63 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(roundTripped.fontSizePercentage, 135)
     }
 
+    /// A reader who already picked a page appearance under Readium's own `light`/`sepia`/`dark`
+    /// must land on the matching new theme, not be silently reset to Carbon (the new default) —
+    /// the same contract `fontSizeStep` migration keeps above. This is the case most likely to
+    /// break silently: `decodeIfPresent` throws rather than returning `nil` when a key exists
+    /// but its value does not match any case of the type being decoded, so a plain
+    /// `ReaderPageTheme` decode of an old payload has to fail and fall through to the legacy
+    /// path rather than bubble the error up.
+    func testReaderSettingsMigratesLegacyThemeToMatchingNamedTheme() throws {
+        let legacyLight = Data(#"{"theme":"light"}"#.utf8)
+        let legacySepia = Data(#"{"theme":"sepia"}"#.utf8)
+        let legacyDark = Data(#"{"theme":"dark"}"#.utf8)
+        let missingTheme = Data(#"{}"#.utf8)
+
+        XCTAssertEqual(try JSONDecoder().decode(ReaderSettings.self, from: legacyLight).theme, .paper)
+        XCTAssertEqual(try JSONDecoder().decode(ReaderSettings.self, from: legacySepia).theme, .sepia)
+        XCTAssertEqual(try JSONDecoder().decode(ReaderSettings.self, from: legacyDark).theme, .carbon)
+        XCTAssertEqual(try JSONDecoder().decode(ReaderSettings.self, from: missingTheme).theme, .carbon)
+
+        // A theme written under the new scheme round-trips as itself, through the direct decode
+        // path rather than the legacy fallback.
+        var current = ReaderSettings()
+        current.theme = .ink
+        let roundTripped = try JSONDecoder().decode(
+            ReaderSettings.self,
+            from: JSONEncoder().encode(current)
+        )
+        XCTAssertEqual(roundTripped.theme, .ink)
+    }
+
+    /// `DipleColor.Page` is the one place each theme's background/ink bytes are written down,
+    /// and `ReaderPageTheme.backgroundHex`/`.inkHex` read from it rather than repeating the
+    /// literals precisely so `EPUBPreferences` cannot end up with a value the page-area chrome
+    /// disagrees with. Locks the exact bytes the user chose, not just "the two agree with each
+    /// other" — a shared typo would pass a weaker test.
+    func testEPUBPreferencesCarriesEachThemesExactByte() throws {
+        let expectations: [(theme: ReaderPageTheme, background: String, ink: String)] = [
+            (.paper, "#FBF8F1", "#1A1714"),
+            (.sepia, "#FAF4E8", "#33261A"),
+            (.carbon, "#121214", "#E8E4DC"),
+            (.ink, "#000000", "#D6D2CA")
+        ]
+
+        for expectation in expectations {
+            var settings = ReaderSettings()
+            settings.theme = expectation.theme
+            let prefs = settings.epubPreferences(for: .latin)
+
+            let backgroundColor = try XCTUnwrap(prefs.backgroundColor, "\(expectation.theme) background")
+            let textColor = try XCTUnwrap(prefs.textColor, "\(expectation.theme) ink")
+            let expectedBackground = try XCTUnwrap(Color(hex: expectation.background))
+            let expectedInk = try XCTUnwrap(Color(hex: expectation.ink))
+
+            XCTAssertEqual(backgroundColor, expectedBackground, "\(expectation.theme) background")
+            XCTAssertEqual(textColor, expectedInk, "\(expectation.theme) ink")
+        }
+    }
+
     func testReaderScriptUsesMetadataThenFallsBackToText() {
         assertScript(.cjk, ReaderScript.detect(languages: ["ko-KR"], sample: "English title"))
         assertScript(.cjk, ReaderScript.detect(languages: [], sample: "한국어로 쓴 제목"))

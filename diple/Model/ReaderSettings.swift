@@ -109,6 +109,79 @@ public enum ReadingMode: String, CaseIterable, Identifiable, Codable {
     public var id: String { rawValue }
 }
 
+/// Four named page appearances, replacing Readium's own light/sepia/dark `Theme` as what
+/// `ReaderSettings.theme` stores.
+///
+/// Each theme rides one of Readium's three built-in behaviours (`readiumTheme` — image filter,
+/// night-mode link colour) plus an explicit background/ink colour on `EPUBPreferences` that
+/// overrides Readium's own default for that theme. That explicit colour is what lets Paper be
+/// warmer than Readium's plain white, and it is the only thing that tells Carbon and Ink apart:
+/// both ride `.dark`. See "Вёрстка страницы читалки" in CLAUDE.md.
+public enum ReaderPageTheme: String, CaseIterable, Identifiable, Codable {
+    // Raw values are the persisted representation and must not be renamed.
+    case paper
+    case sepia
+    case carbon
+    case ink
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .paper: return "Paper"
+        case .sepia: return "Sepia"
+        case .carbon: return "Carbon"
+        case .ink: return "Ink"
+        }
+    }
+
+    /// Which of Readium's own three theme behaviours this rides on. Carbon and Ink both ride
+    /// `.dark` — the explicit background/text colour below, not this, is what tells them apart
+    /// on the page.
+    public var readiumTheme: ReadiumNavigator.Theme {
+        switch self {
+        case .paper: return .light
+        case .sepia: return .sepia
+        case .carbon, .ink: return .dark
+        }
+    }
+
+    /// The page's own ground and ink, to the byte. `DipleColor.Page` in `Theme/DipleColor.swift`
+    /// is the one place these bytes are written down; this reads them rather than repeating
+    /// them, which is what the "must stay byte-exact" comment there is guarding against.
+    public var backgroundHex: String {
+        switch self {
+        case .paper: return DipleColor.Page.paperBackgroundHex
+        case .sepia: return DipleColor.Page.sepiaBackgroundHex
+        case .carbon: return DipleColor.Page.carbonBackgroundHex
+        case .ink: return DipleColor.Page.inkBackgroundHex
+        }
+    }
+
+    public var inkHex: String {
+        switch self {
+        case .paper: return DipleColor.Page.paperTextHex
+        case .sepia: return DipleColor.Page.sepiaTextHex
+        case .carbon: return DipleColor.Page.carbonTextHex
+        case .ink: return DipleColor.Page.inkTextHex
+        }
+    }
+
+    /// Migrates a value stored under Readium's own `Theme` (`light`/`sepia`/`dark`). A reader
+    /// who already chose a page appearance keeps the same *kind* of page rather than landing on
+    /// the new default: light and sepia go to their obvious namesakes, and dark goes to Carbon —
+    /// the theme it conceptually was, and the one Ink now exists to stand apart from as the
+    /// option for someone who specifically wants true black. See "Вёрстка страницы читалки" in
+    /// CLAUDE.md.
+    init(migratingFrom legacyTheme: ReadiumNavigator.Theme) {
+        switch legacyTheme {
+        case .light: self = .paper
+        case .sepia: self = .sepia
+        case .dark: self = .carbon
+        }
+    }
+}
+
 public struct ReaderSettings: Codable, Equatable {
     /// The multiplier handed to Readium. Stored directly rather than as an index, so the
     /// ladder below can be retuned later without silently reinterpreting what readers have
@@ -117,7 +190,10 @@ public struct ReaderSettings: Codable, Equatable {
     // A book set in a serif is the register the whole redesign is aiming at; San Francisco
     // stays one tap away in the picker.
     public var font: ReaderFont = .serif
-    public var theme: Theme = .dark
+    // Carbon, not pure black: OLED smears a true-black page during a turn and haloes the
+    // glyphs, the same reasoning already recorded for why the app canvas is #0B0B0F. Ink stays
+    // one tap away for a reader who specifically wants true black.
+    public var theme: ReaderPageTheme = .carbon
     public var readingMode: ReadingMode = .paginated
 
     /// Factor Readium multiplies its horizontal gutter by. Stored as a multiplier, not an
@@ -146,7 +222,7 @@ public struct ReaderSettings: Codable, Equatable {
     public init(
         fontSizeScale: Double = ReaderSettings.defaultFontSizeScale,
         font: ReaderFont = .serif,
-        theme: Theme = .dark,
+        theme: ReaderPageTheme = .carbon,
         readingMode: ReadingMode = .paginated,
         pageMargins: Double = ReaderSettings.defaultPageMargins
     ) {
@@ -244,7 +320,22 @@ public struct ReaderSettings: Codable, Equatable {
         }
 
         self.font = try container.decodeIfPresent(ReaderFont.self, forKey: .font) ?? .serif
-        self.theme = try container.decodeIfPresent(Theme.self, forKey: .theme) ?? .dark
+
+        // Stored values are Readium `Theme` raw strings (`light`/`sepia`/`dark`), not
+        // `ReaderPageTheme`'s own. `decodeIfPresent` throws rather than returning nil when the
+        // key exists but its value does not match any case of the type being decoded, so a
+        // straight `decodeIfPresent(ReaderPageTheme.self, ...)` would throw for every reader
+        // who has a stored theme at all (`"sepia"` is the one raw value the two types share).
+        // `try?` catches that and falls through to the legacy decode, which is where the actual
+        // migration happens — see `ReaderPageTheme.init(migratingFrom:)`.
+        if let pageTheme = try? container.decode(ReaderPageTheme.self, forKey: .theme) {
+            self.theme = pageTheme
+        } else if let legacyTheme = try? container.decode(ReadiumNavigator.Theme.self, forKey: .theme) {
+            self.theme = ReaderPageTheme(migratingFrom: legacyTheme)
+        } else {
+            self.theme = .carbon
+        }
+
         self.readingMode = try container.decodeIfPresent(ReadingMode.self, forKey: .readingMode) ?? .paginated
         self.pageMargins = try container.decodeIfPresent(Double.self, forKey: .pageMargins) ?? Self.defaultPageMargins
     }
@@ -283,7 +374,18 @@ public struct ReaderSettings: Codable, Equatable {
         var prefs = EPUBPreferences()
         prefs.fontSize = currentFontSize
         prefs.fontFamily = font.fontFamily
-        prefs.theme = theme
+        prefs.theme = theme.readiumTheme
+        // Explicit background/text colour, not just Readium's own theme default: Paper is not
+        // Readium's plain white, and Carbon/Ink share a Readium theme (`.dark`) but not a
+        // colour. Both are `Color?` fields on `EPUBPreferences`, live-updatable through
+        // `submitPreferences` exactly like `fontSize` above — verified in the Readium sources
+        // (`EPUBNavigatorViewModel.updateCSS`/`commitCSSChange` diff `--USER__backgroundColor`/
+        // `--USER__textColor` and push the change with `readium.setCSSProperties`, no navigator
+        // rebuild), unlike `readiumCSSRSProperties` and `fontFamilyDeclarations`, which are read
+        // only once at construction (see "Readium" and "Шрифт читалки" in CLAUDE.md). So the
+        // theme keeps switching live. See "Вёрстка страницы читалки" in CLAUDE.md.
+        prefs.backgroundColor = Color(hex: theme.backgroundHex)
+        prefs.textColor = Color(hex: theme.inkHex)
         prefs.scroll = (readingMode == .scroll)
         prefs.pageMargins = pageMargins
 
@@ -306,6 +408,12 @@ public struct ReaderSettings: Codable, Equatable {
     public var pdfPreferences: PDFPreferences {
         var prefs = PDFPreferences()
         prefs.scroll = (readingMode == .scroll)
+        // PDF pages are already-rendered content with no text colour to recolour, but the
+        // gutter behind them is real and, unlike the EPUB path, has no `theme` field of its own
+        // to fall back on — without this it would stay Readium's default regardless of which of
+        // the four page themes is chosen, which is exactly the seam `DipleColor.Page` exists to
+        // prevent (see "Вёрстка страницы читалки" in CLAUDE.md).
+        prefs.backgroundColor = Color(hex: theme.backgroundHex)
         return prefs
     }
 }

@@ -247,10 +247,17 @@ public final class ReaderViewModel: ObservableObject {
     /// Reading-system CSS for this book's script — line breaking, link colour and selection
     /// colour, none of which is a user preference and none of which has an `EPUBPreferences`
     /// field. Read once, when the navigator is built; a book does not change the script it is
-    /// written in halfway through, and colour here cannot follow a live theme switch (see the
-    /// "Readium" note in CLAUDE.md) — the four named page themes land in the next change in this
-    /// sequence and will need to either drive these through ReadiumCSS's own theme handling or
-    /// rebuild the navigator; nothing here should have to be torn up to do that.
+    /// written in halfway through, and colour here cannot follow a live theme switch on its own
+    /// (see the "Readium" note in CLAUDE.md).
+    ///
+    /// **The four named page themes ended up not needing this file touched at all.** Selection
+    /// colour is a fixed brass regardless of theme, and link colour is `currentColor` — not a
+    /// snapshot, a live reference that tracks whatever `--USER__textColor`/`--RS__textColor`
+    /// currently resolves to, so it already follows a theme switch for free. The page's own
+    /// background/ink went through `EPUBPreferences.backgroundColor`/`.textColor` instead, set
+    /// in `ReaderSettings.epubPreferences(for:)`: unlike RS properties, those are
+    /// live-updatable through `submitPreferences` (see "Вёрстка страницы читалки" in
+    /// CLAUDE.md).
     ///
     /// **Link colour turned out not to be publisher CSS.** Turning off publisher styles was
     /// checked first, per the reasoning that a book which keeps writing its own alignment and

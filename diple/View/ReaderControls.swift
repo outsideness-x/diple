@@ -1,5 +1,4 @@
 import SwiftUI
-import ReadiumNavigator
 
 /// The reader chrome's palette, derived from the page the reader is looking at.
 ///
@@ -34,9 +33,9 @@ public struct ReaderChrome: Equatable {
     /// pulling a material towards the page — put a paler one there instead.
     public let page: SwiftUI.Color
 
-    public static func forTheme(_ theme: ReadiumNavigator.Theme) -> ReaderChrome {
+    public static func forTheme(_ theme: ReaderPageTheme) -> ReaderChrome {
         switch theme {
-        case .dark:
+        case .carbon:
             return ReaderChrome(
                 colorScheme: .dark,
                 tint: DipleColor.canvas.opacity(0.55),
@@ -44,9 +43,23 @@ public struct ReaderChrome: Equatable {
                 secondary: DipleColor.textSecondary,
                 separator: SwiftUI.Color.white.opacity(0.10),
                 track: SwiftUI.Color.white.opacity(0.18),
-                page: DipleColor.Page.darkBackground
+                page: DipleColor.Page.carbonBackground
             )
-        case .light:
+        case .ink:
+            // Same tint/control recipe as Carbon — both are the night register and #121214
+            // vs. #000000 reads identically once behind a blur — but `page` has to be its own
+            // theme's background, not Carbon's, or the bar would draw a seam against the page
+            // the moment a reader picks true black.
+            return ReaderChrome(
+                colorScheme: .dark,
+                tint: DipleColor.canvas.opacity(0.55),
+                control: DipleColor.textPrimary,
+                secondary: DipleColor.textSecondary,
+                separator: SwiftUI.Color.white.opacity(0.10),
+                track: SwiftUI.Color.white.opacity(0.18),
+                page: DipleColor.Page.inkBackground
+            )
+        case .paper:
             return ReaderChrome(
                 colorScheme: .light,
                 tint: SwiftUI.Color.white.opacity(0.55),
@@ -54,7 +67,7 @@ public struct ReaderChrome: Equatable {
                 secondary: SwiftUI.Color.black.opacity(0.5),
                 separator: SwiftUI.Color.black.opacity(0.10),
                 track: SwiftUI.Color.black.opacity(0.14),
-                page: DipleColor.Page.lightBackground
+                page: DipleColor.Page.paperBackground
             )
         case .sepia:
             return ReaderChrome(

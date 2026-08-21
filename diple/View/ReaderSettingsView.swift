@@ -1,5 +1,4 @@
 import SwiftUI
-import ReadiumNavigator
 
 public struct ReaderSettingsView: View {
     @Binding public var settings: ReaderSettings
@@ -56,10 +55,14 @@ public struct ReaderSettingsView: View {
                     .dipleType(.micro, weight: .semibold)
                     .foregroundStyle(DipleColor.textTertiary)
 
-                HStack(spacing: DipleSpace.m) {
-                    themeButton(title: "Light", theme: .light, bg: Color.white, fg: Color.black)
-                    themeButton(title: "Sepia", theme: .sepia, bg: DipleColor.Page.sepiaBackground, fg: DipleColor.Page.sepiaText)
-                    themeButton(title: "Dark", theme: .dark, bg: DipleColor.surfaceRaised, fg: Color.white)
+                // Four themes don't fit one row at every Dynamic Type size — the same ceiling
+                // the typography grid below already hit, and the same fix: equal cells, not a
+                // fifth layout for the same kind of choice. This sheet gets properly rebuilt in
+                // the next step of this redesign; this is the minimum that is correct today.
+                LazyVGrid(columns: typographyColumns, spacing: DipleSpace.m) {
+                    ForEach(ReaderPageTheme.allCases) { pageTheme in
+                        themeButton(pageTheme)
+                    }
                 }
             }
 
@@ -204,26 +207,27 @@ public struct ReaderSettingsView: View {
         .disabled(!isEnabled)
     }
 
-    private func themeButton(title: String, theme: Theme, bg: SwiftUI.Color, fg: SwiftUI.Color) -> some View {
-        Button {
+    private func themeButton(_ pageTheme: ReaderPageTheme) -> some View {
+        let isSelected = settings.theme == pageTheme
+        return Button {
             HapticManager.shared.selection()
-            settings.theme = theme
+            settings.theme = pageTheme
         } label: {
             HStack(spacing: DipleSpace.s) {
                 Circle()
-                    .fill(fg)
+                    .fill(pageTheme.swatchInk)
                     .frame(width: 10, height: 10)
-                Text(title)
+                Text(pageTheme.title)
                     .dipleType(.callout, weight: .medium)
-                    .foregroundColor(fg)
+                    .foregroundColor(pageTheme.swatchInk)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, DipleSpace.m)
-            .background(bg)
+            .background(pageTheme.swatchBackground)
             .cornerRadius(DipleRadius.m)
             .overlay(
                 RoundedRectangle(cornerRadius: DipleRadius.m)
-                    .stroke(settings.theme == theme ? DipleColor.accent : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? DipleColor.accent : Color.clear, lineWidth: 2)
             )
         }
     }
@@ -265,6 +269,30 @@ public struct ReaderSettingsView: View {
                 .padding(.vertical, DipleSpace.m)
                 .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
                 .cornerRadius(DipleRadius.m)
+        }
+    }
+}
+
+/// The swatch colours for the theme picker. Kept here rather than on `ReaderPageTheme` itself
+/// (`Model/ReaderSettings.swift`, which has no SwiftUI import): each theme is painted in its
+/// own colour rather than inferred from the accent, which is what makes the choice legible
+/// before it is made, and that is a View-layer concern, not a Readium-preferences one.
+private extension ReaderPageTheme {
+    var swatchBackground: Color {
+        switch self {
+        case .paper: return DipleColor.Page.paperBackground
+        case .sepia: return DipleColor.Page.sepiaBackground
+        case .carbon: return DipleColor.Page.carbonBackground
+        case .ink: return DipleColor.Page.inkBackground
+        }
+    }
+
+    var swatchInk: Color {
+        switch self {
+        case .paper: return DipleColor.Page.paperText
+        case .sepia: return DipleColor.Page.sepiaText
+        case .carbon: return DipleColor.Page.carbonText
+        case .ink: return DipleColor.Page.inkText
         }
     }
 }

@@ -160,19 +160,40 @@ public enum DipleColor {
 
     // MARK: - Reader page themes
 
-    /// Page colours for the reader's own themes. These describe a sheet of paper, not the
-    /// app chrome, so they sit outside the cold ramp above by design.
+    /// Page colours for the reader's own four named themes (Paper / Sepia / Carbon / Ink).
+    /// These describe a sheet of paper, not the app chrome, so they sit outside the cold ramp
+    /// above by design.
     ///
-    /// The three grounds are ReadiumCSS's `--RS__backgroundColor` for each appearance, to the
-    /// byte (`ReadiumCSS-before.css` for day, `ReadiumCSS-after.css` for sepia and night).
-    /// Since the page no longer covers the whole display — it stops at the safe area, so the
-    /// status bar and the resting progress line have a band of their own — anything short of an
-    /// exact match would draw a seam across the top and bottom of every page.
+    /// These are no longer Readium's own per-appearance defaults. `ReaderSettings
+    /// .epubPreferences(for:)` sets `EPUBPreferences.backgroundColor`/`.textColor` explicitly
+    /// for every theme — Readium's own `Theme` only selects which of its three built-in
+    /// behaviours (image filter, night-mode link colour) applies, not the colour itself — which
+    /// is what lets Paper be warmer than Readium's plain white and lets Carbon and Ink share
+    /// `.dark` while differing in exactly one byte pair. `ReaderPageTheme` in
+    /// `Model/ReaderSettings.swift` hands Readium the hex strings defined here, so this file is
+    /// the one place each byte is written down. Since the page no longer covers the whole
+    /// display — it stops at the safe area, so the status bar and the resting progress line have
+    /// a band of their own — anything short of an exact match to what `EPUBPreferences` actually
+    /// sets would draw a seam across the top and bottom of every page. See "Вёрстка страницы
+    /// читалки" in CLAUDE.md.
     public enum Page {
-        public static let lightBackground = Color(red: 1, green: 1, blue: 1)
-        public static let sepiaBackground = Color(red: 250 / 255, green: 244 / 255, blue: 232 / 255)
-        public static let darkBackground = Color(red: 0, green: 0, blue: 0)
-        public static let sepiaText = Color(red: 0.2, green: 0.15, blue: 0.1)
+        public static let paperBackgroundHex = "#FBF8F1"
+        public static let paperTextHex = "#1A1714"
+        public static let sepiaBackgroundHex = "#FAF4E8"
+        public static let sepiaTextHex = "#33261A"
+        public static let carbonBackgroundHex = "#121214"
+        public static let carbonTextHex = "#E8E4DC"
+        public static let inkBackgroundHex = "#000000"
+        public static let inkTextHex = "#D6D2CA"
+
+        public static let paperBackground = Color(hex: paperBackgroundHex)
+        public static let paperText = Color(hex: paperTextHex)
+        public static let sepiaBackground = Color(hex: sepiaBackgroundHex)
+        public static let sepiaText = Color(hex: sepiaTextHex)
+        public static let carbonBackground = Color(hex: carbonBackgroundHex)
+        public static let carbonText = Color(hex: carbonTextHex)
+        public static let inkBackground = Color(hex: inkBackgroundHex)
+        public static let inkText = Color(hex: inkTextHex)
     }
 }
 
