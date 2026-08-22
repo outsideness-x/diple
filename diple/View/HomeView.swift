@@ -33,6 +33,7 @@ public struct HomeView: View {
     @State private var path = NavigationPath()
     @Namespace private var readingNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init() {}
 
@@ -214,8 +215,17 @@ public struct HomeView: View {
         }
     }
 
+    /// The three capture actions.
+    ///
+    /// One row normally, one per row at accessibility sizes — the same trade the library grid and
+    /// the notes board already make. Three buttons sharing a phone's width give each about 120 pt,
+    /// and at the top of the Dynamic Type scale that is narrower than the words in them: the row
+    /// read "Sav / e link", "Imp / ort", "Ne / w not / e", broken mid-word in all three at once.
+    /// A stack gives each label the full measure, and the row is short enough that the height it
+    /// costs is affordable at exactly the sizes that need it.
+    @ViewBuilder
     private var quickCapture: some View {
-        HStack(spacing: DipleSpace.s) {
+        let actions = Group {
             HomeQuickAction(title: "Save link", systemImage: "link") {
                 isImportingLink = true
             }
@@ -238,6 +248,12 @@ public struct HomeView: View {
             }
             .buttonStyle(.readerControl)
             .accessibilityIdentifier("home.newNote")
+        }
+
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: DipleSpace.s) { actions }
+        } else {
+            HStack(spacing: DipleSpace.s) { actions }
         }
     }
 
