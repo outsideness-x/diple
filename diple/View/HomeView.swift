@@ -25,7 +25,6 @@ public struct HomeView: View {
 
     @State private var isImportingFile = false
     @State private var isImportingLink = false
-    @State private var isShowingSettings = false
     /// Every push in this tab goes through one path. A screen deeper in the stack cannot
     /// register a route of its own: SwiftUI keeps only the declaration closest to the root
     /// for a given type and drops the rest, which is exactly how the Highlights rows went
@@ -161,9 +160,6 @@ public struct HomeView: View {
             .sheet(isPresented: $isImportingLink) {
                 ImportLinkSheetView { _ in reload() }
             }
-            .sheet(isPresented: $isShowingSettings) {
-                AppSettingsView()
-            }
             .alert("Error", isPresented: $library.showErrorAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
@@ -204,7 +200,9 @@ public struct HomeView: View {
 
             Button {
                 HapticManager.shared.selection()
-                isShowingSettings = true
+                // The shell presents Settings, not this screen: a sheet owned here would be
+                // torn down the moment an accent is chosen inside it. See `dipleApp`.
+                NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
             } label: {
                 Image(systemName: "gearshape")
                     .dipleIcon(16)

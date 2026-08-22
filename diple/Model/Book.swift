@@ -63,7 +63,12 @@ public enum BookLocation: String, Codable, CaseIterable, Sendable, Hashable {
     /// Where a source belongs when nobody has said. Used by the v15 backfill and by CloudKit
     /// records saved before the column existed: both describe libraries that predate the
     /// concept, and calling an already-finished book "inbox" would be a lie about it.
-    public static func inferred(progress: Double) -> Self {
+    ///
+    /// `nonisolated` because one of those two callers is the CloudKit record decoder, which runs
+    /// off the main actor. Under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unmarked
+    /// declaration is main-actor isolated, and this one is a comparison against a constant with
+    /// nothing to isolate.
+    public nonisolated static func inferred(progress: Double) -> Self {
         progress >= 0.995 ? .archive : .later
     }
 }

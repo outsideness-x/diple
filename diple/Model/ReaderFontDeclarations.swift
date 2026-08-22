@@ -20,7 +20,11 @@ import ReadiumNavigator
 ///   makes them possible without bundling an Apple font file.
 public enum ReaderFontDeclarations {
     public static var all: [AnyHTMLFontFamilyDeclaration] {
-        ReaderFont.allCases.compactMap(declaration(for:))
+        // A closure literal, not the bare `declaration(for:)` reference: passing the method as a
+        // value strips the main-actor isolation it is declared with, and `compactMap` then calls
+        // it from a nonisolated context. Written out, the closure inherits this property's own
+        // isolation and the call is where it belongs.
+        ReaderFont.allCases.compactMap { declaration(for: $0) }
     }
 
     private static func declaration(for font: ReaderFont) -> AnyHTMLFontFamilyDeclaration? {

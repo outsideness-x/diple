@@ -21,6 +21,9 @@ struct dipleApp: App {
     /// Watched for one reason: iOS only lets an app change its Home Screen icon while it is
     /// active. See the `onChange` below.
     @Environment(\.scenePhase) private var scenePhase
+    /// Settings is presented **here**, above the `.id` that rebuilds the interface on an accent
+    /// change, rather than by the screen whose gear was tapped. See the `sheet` below.
+    @State private var isShowingSettings = false
 
     init() {
         // The delegate must be installed before the root view appears, otherwise a tap on a
@@ -53,6 +56,19 @@ struct dipleApp: App {
             // is the single mechanism; with nothing competing, it cascades live into anything
             // presented in the window.
             .id(settingsManager.settings.accent)
+            // Every screen under that `.id` is discarded and rebuilt when the accent changes,
+            // and a sheet presented by one of them goes with it — so choosing an accent threw
+            // the reader out of the screen they chose it on, and trying a second one meant
+            // reopening Settings first. This modifier is applied *after* the `.id`, so its own
+            // identity is stable and the sheet survives the rebuild underneath it. Screens ask
+            // by notification because there are three of them (Home, the shelf, the Mac
+            // sidebar) and none of them can hold this state themselves.
+            .sheet(isPresented: $isShowingSettings) {
+                AppSettingsView()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .dipleOpenSettings)) { _ in
+                isShowingSettings = true
+            }
             .onChange(of: settingsManager.settings.appearance, initial: true) { _, appearance in
                 DipleAppearance.apply(appearance)
             }

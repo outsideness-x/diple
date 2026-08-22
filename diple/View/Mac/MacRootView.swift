@@ -74,7 +74,6 @@ public struct MacRootView: View {
     @State private var readerBook: Book?
     @State private var isImportingFile = false
     @State private var isImportingLink = false
-    @State private var isShowingSettings = false
     @State private var tagEditingBook: Book?
 
     public init() {}
@@ -96,7 +95,7 @@ public struct MacRootView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
-                    isShowingSettings = true
+                    NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -149,9 +148,6 @@ public struct MacRootView: View {
             ImportLinkSheetView { _ in
                 reloadAll()
             }
-        }
-        .sheet(isPresented: $isShowingSettings) {
-            AppSettingsView()
         }
         .fullScreenCover(item: $readerBook, onDismiss: reloadAll) { book in
             NavigationStack {
@@ -217,7 +213,7 @@ public struct MacRootView: View {
                     .foregroundStyle(DipleColor.textPrimary)
                 Spacer()
                 Button {
-                    isShowingSettings = true
+                    NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
                 } label: {
                     Image(systemName: "gearshape")
                         .dipleIcon(12)

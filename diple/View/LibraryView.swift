@@ -35,7 +35,6 @@ public struct LibraryView: View {
     @State private var isFileImporterPresented = false
     @State private var isLinkImporterPresented = false
 
-    @State private var isAppSettingsPresented = false
     @State private var overviewBook: Book?
     @State private var searchText = ""
     @State private var location: BookLocation = .inbox
@@ -174,7 +173,7 @@ public struct LibraryView: View {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         HapticManager.shared.selection()
-                        isAppSettingsPresented = true
+                        NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
                     } label: {
                         Image(systemName: "gearshape")
                             .dipleIcon(16)
@@ -238,9 +237,6 @@ public struct LibraryView: View {
             }
             .navigationDestination(for: BookRoute.self) { route in
                 readerDestination(for: route)
-            }
-            .sheet(isPresented: $isAppSettingsPresented) {
-                AppSettingsView()
             }
             .sheet(isPresented: $isLinkImporterPresented) {
                 ImportLinkSheetView { _ in

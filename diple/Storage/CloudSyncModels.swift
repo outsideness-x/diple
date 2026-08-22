@@ -55,6 +55,9 @@ extension Notification.Name {
     /// says iCloud changed something, this one says the reader just added something and is
     /// about to go looking for it.
     static let dipleSourceDidImport = Notification.Name("diple.sourceDidImport")
+    /// A screen asked for Settings. The shell presents it, because the shell is the only place
+    /// that outlives an accent change — see `dipleApp`.
+    static let dipleOpenSettings = Notification.Name("diple.openSettings")
 }
 
 extension Notification {
