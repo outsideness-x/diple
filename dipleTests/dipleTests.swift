@@ -267,6 +267,18 @@ final class DipleTests: XCTestCase {
         XCTAssertFalse(NoteMarkdown.plainText(markdown).contains("```"))
     }
 
+    /// A preview is a sentence, so it must not print the syntax that made it one — and it must
+    /// not mistake an underscore inside a word for emphasis while doing so.
+    func testNotePreviewDropsEmphasisMarksButKeepsWordsIntact() {
+        let plain = NoteMarkdown.plainText(
+            "Holmes never *guesses*, he **collects**, and _then_ narrows to one file_name_here."
+        )
+        XCTAssertEqual(
+            plain,
+            "Holmes never guesses, he collects, and then narrows to one file_name_here."
+        )
+    }
+
     func testNoteEditingWrapsSelectionsAndPrefixesWholeLines() {
         var text = "A useful idea"
         var selection = NSRange(location: 2, length: 6)

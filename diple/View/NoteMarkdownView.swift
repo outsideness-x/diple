@@ -425,6 +425,21 @@ public enum NoteMarkdown {
         .replacingOccurrences(of: "__", with: "")
         .replacingOccurrences(of: "~~", with: "")
         .replacingOccurrences(of: "`", with: "")
+        // The doubled marks above are literal replacements and so ran first; what is left of a
+        // `*word*` after them is a real emphasis pair, and a preview that prints its asterisks
+        // is showing the reader the syntax instead of the sentence.
+        .replacingOccurrences(
+            of: #"\*([^*\n]+)\*"#,
+            with: "$1",
+            options: .regularExpression
+        )
+        // Underscores need the word boundaries that asterisks do not: `snake_case_name` is one
+        // word to a reader and must not lose its middle to a pair that was never emphasis.
+        .replacingOccurrences(
+            of: #"(?<![\w_])_([^_\n]+)_(?![\w_])"#,
+            with: "$1",
+            options: .regularExpression
+        )
         // A card should read "the idea", not "[[the idea]]".
         .replacingOccurrences(of: "[[", with: "")
         .replacingOccurrences(of: "]]", with: "")
