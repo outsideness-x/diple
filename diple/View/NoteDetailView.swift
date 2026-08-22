@@ -187,6 +187,16 @@ public struct NoteDetailView: View {
                 formattingBar
             }
         }
+        // Editing owns the bottom of the screen. The formatting bar is a bottom safe-area inset,
+        // so with no software keyboard up — a hardware keyboard attached, or the keyboard
+        // dismissed mid-edit — it lands exactly where the floating tab bar is, and the tab bar
+        // covered half its controls. This is the same mechanism the reader uses, and it is a
+        // preference, so it goes away with the view: leaving the editor brings the bar back
+        // whether the reader tapped Done or swiped the screen away.
+        //
+        // Only while *editing*. Reading a note keeps the tab bar, because there is nothing at
+        // the bottom of the screen to collide with and no reason to take navigation away.
+        .modifier(HidesTabBarWhileEditing(isEditing: isEditing))
         .sheet(isPresented: $isBookPickerPresented) {
             BookTagPickerView(books: books, selectedBookId: selectedBookId) { bookId in
                 selectedBookId = bookId
@@ -990,6 +1000,21 @@ public enum NoteKnowledge {
             return wikiLinks(in: candidate.note.body).contains { link in
                 link.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == target
             }
+        }
+    }
+}
+
+/// Applied rather than written inline because `hidesDipleTabBar()` is a preference and has to be
+/// attached to something present in both states — a bare `if` would add and remove the view that
+/// carries it, which is a different thing from changing what it says.
+private struct HidesTabBarWhileEditing: ViewModifier {
+    let isEditing: Bool
+
+    func body(content: Content) -> some View {
+        if isEditing {
+            content.hidesDipleTabBar()
+        } else {
+            content
         }
     }
 }
