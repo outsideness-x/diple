@@ -42,6 +42,10 @@ public nonisolated struct SyncedNote: Sendable {
 extension Notification.Name {
     /// Posted after a remote batch has been committed to the local store.
     static let dipleRemoteDataDidChange = Notification.Name("diple.remoteDataDidChange")
+    /// Posted after a portable backup has committed its complete merge transaction. This is
+    /// separate from the CloudKit notification so observers do not need to pretend a local file
+    /// was remote, while every root view can still refresh without Settings owning its models.
+    nonisolated static let dipleDataDidRestore = Notification.Name("diple.dataDidRestore")
     /// A daily-resurfacing local notification was opened. The phone shell selects Highlights,
     /// while the desktop shell selects its equivalent sidebar source.
     static let dipleOpenDailyResurfacing = Notification.Name("diple.openDailyResurfacing")

@@ -20,6 +20,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
     private let database = AppDatabase.shared
     private var syncEngine: CKSyncEngine?
     private var hasStarted = false
+    private var lastIssue: String?
 
     /// Device-local — deliberately not part of `AppSettings`, which is itself synced through
     /// CloudKit: a synced flag could silently switch sync back on for a device where the user
@@ -35,12 +36,14 @@ public actor CloudSyncService: CKSyncEngineDelegate {
     /// spawning a `Task` at all instead of spawning one that immediately no-ops.
     public nonisolated static func signalLocalChanges() {
         guard isEnabled else { return }
-        Task { await shared.enqueueOutbox() }
+        Task { await shared.localChangesArrived() }
     }
 
     public func start() async {
         guard !hasStarted else { return }
         hasStarted = true
+
+        await publish(.checking)
 
         // Unit-test hosts are intentionally built without application entitlements in CI.
         // Constructing an explicitly named CKContainer in that process traps before XCTest can
@@ -53,14 +56,35 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             try database.prepareInitialSync()
         } catch {
             Self.logger.error("Unable to prepare initial sync: \(error.localizedDescription)")
+            lastIssue = "The local library couldn’t be prepared for iCloud."
+            hasStarted = false
+            await publish(.attention, message: lastIssue)
+            return
         }
+
+        let container = CKContainer(identifier: Self.containerIdentifier)
+        do {
+            let status = try await container.accountStatus()
+            guard status == .available else {
+                lastIssue = Self.accountMessage(for: status)
+                hasStarted = false
+                await publish(.attention, message: lastIssue)
+                return
+            }
+        } catch {
+            lastIssue = "diple couldn’t check your iCloud account: \(error.localizedDescription)"
+            hasStarted = false
+            await publish(.attention, message: lastIssue)
+            return
+        }
+        lastIssue = nil
 
         let stateSerialization: CKSyncEngine.State.Serialization? = {
             guard let data = UserDefaults.standard.data(forKey: Self.stateKey) else { return nil }
             return try? JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: data)
         }()
         var configuration = CKSyncEngine.Configuration(
-            database: CKContainer(identifier: Self.containerIdentifier).privateCloudDatabase,
+            database: container.privateCloudDatabase,
             stateSerialization: stateSerialization,
             delegate: self
         )
@@ -68,14 +92,22 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         let engine = CKSyncEngine(configuration)
         syncEngine = engine
         engine.state.add(pendingDatabaseChanges: [.saveZone(Self.recordZone)])
-        await enqueueOutbox()
+        guard await enqueueOutbox() else {
+            await publish(.attention, message: lastIssue)
+            return
+        }
+        await publish(.syncing)
 
         do {
             try await engine.fetchChanges()
             try await engine.sendChanges()
+            lastIssue = nil
+            await refreshStatus(markSuccessful: true)
         } catch {
             // Automatic sync keeps retrying transient account/network failures.
             Self.logger.info("Initial iCloud sync deferred: \(error.localizedDescription)")
+            lastIssue = Self.userMessage(for: error)
+            await publish(.attention, message: lastIssue)
         }
     }
 
@@ -84,9 +116,77 @@ public actor CloudSyncService: CKSyncEngineDelegate {
     /// engine's own serialized state in `UserDefaults` is left alone, so resuming continues
     /// from where it left off rather than re-uploading everything.
     public func stop() async {
-        guard hasStarted else { return }
         syncEngine = nil
         hasStarted = false
+        lastIssue = nil
+        await publish(.disabled, pendingCount: 0)
+    }
+
+    /// A user-initiated health check. Unlike automatic scheduling this performs both directions
+    /// now and returns Settings to a truthful pending/synced/error state when it completes.
+    public func retry() async {
+        guard Self.isEnabled else {
+            await publish(.disabled, pendingCount: 0)
+            return
+        }
+        if syncEngine == nil {
+            hasStarted = false
+            await start()
+            return
+        }
+
+        await publish(.checking)
+        do {
+            let status = try await CKContainer(identifier: Self.containerIdentifier).accountStatus()
+            guard status == .available else {
+                lastIssue = Self.accountMessage(for: status)
+                await publish(.attention, message: lastIssue)
+                return
+            }
+            lastIssue = nil
+            guard await enqueueOutbox() else {
+                await publish(.attention, message: lastIssue)
+                return
+            }
+            await publish(.syncing)
+            guard let syncEngine else { return }
+            try await syncEngine.fetchChanges()
+            try await syncEngine.sendChanges()
+            lastIssue = nil
+            await refreshStatus(markSuccessful: true)
+        } catch {
+            lastIssue = Self.userMessage(for: error)
+            await publish(.attention, message: lastIssue)
+        }
+    }
+
+    public func refreshStatus() async {
+        guard Self.isEnabled else {
+            await publish(.disabled, pendingCount: 0)
+            return
+        }
+        guard syncEngine != nil else {
+            if let lastIssue {
+                await publish(.attention, message: lastIssue)
+            } else {
+                await publish(.checking)
+            }
+            return
+        }
+        await refreshStatus(markSuccessful: false)
+    }
+
+    private func localChangesArrived() async {
+        let didEnqueue = await enqueueOutbox()
+        if let lastIssue {
+            await publish(.attention, message: lastIssue)
+        } else if !didEnqueue {
+            await publish(.attention, message: "diple couldn’t queue the local changes for iCloud.")
+        } else if syncEngine == nil {
+            await publish(.checking)
+        } else {
+            await publish(.syncing)
+        }
     }
 
     private static var recordZone: CKRecordZone {
@@ -95,8 +195,11 @@ public actor CloudSyncService: CKSyncEngineDelegate {
 
     private static var zoneID: CKRecordZone.ID { recordZone.zoneID }
 
-    private func enqueueOutbox() async {
-        guard let syncEngine else { return }
+    @discardableResult
+    private func enqueueOutbox() async -> Bool {
+        // The SQLite outbox already holds the edits when the engine has not started yet. There
+        // is nothing to add to CKSyncEngine in that state, and it is not a failure.
+        guard let syncEngine else { return true }
         do {
             let entries = try database.fetchSyncOutbox()
             let pending = entries.compactMap { entry -> CKSyncEngine.PendingRecordZoneChange? in
@@ -108,8 +211,11 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 }
             }
             syncEngine.state.add(pendingRecordZoneChanges: pending)
+            return true
         } catch {
             Self.logger.error("Unable to read sync outbox: \(error.localizedDescription)")
+            lastIssue = "diple couldn’t read the local changes waiting for iCloud."
+            return false
         }
     }
 
@@ -134,9 +240,12 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             await handleSentRecordZoneChanges(event, syncEngine: syncEngine)
         case .sentDatabaseChanges(let event):
             handleSentDatabaseChanges(event, syncEngine: syncEngine)
-        case .willFetchChanges, .willFetchRecordZoneChanges, .didFetchRecordZoneChanges,
-             .didFetchChanges, .willSendChanges, .didSendChanges:
-            break
+        case .willFetchChanges, .willFetchRecordZoneChanges, .willSendChanges:
+            await publish(.syncing)
+        case .didFetchRecordZoneChanges:
+            await refreshStatus(markSuccessful: false)
+        case .didFetchChanges, .didSendChanges:
+            await refreshStatus(markSuccessful: true)
         @unknown default:
             Self.logger.info("Received an unknown CKSyncEngine event")
         }
@@ -269,6 +378,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 }
             } catch {
                 Self.logger.error("Unable to apply fetched record: \(error.localizedDescription)")
+                lastIssue = "Some iCloud changes couldn’t be applied: \(error.localizedDescription)"
             }
         }
 
@@ -286,6 +396,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 }
             } catch {
                 Self.logger.error("Unable to apply fetched deletion: \(error.localizedDescription)")
+                lastIssue = "Some iCloud deletions couldn’t be applied: \(error.localizedDescription)"
             }
         }
 
@@ -462,6 +573,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
 
         for failure in event.failedRecordSaves {
             guard let key = Self.parse(recordID: failure.record.recordID) else { continue }
+            lastIssue = Self.userMessage(for: failure.error)
             switch failure.error.code {
             case .serverRecordChanged:
                 if let serverRecord = failure.error.serverRecord {
@@ -499,9 +611,12 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             } else if error.code == .zoneNotFound {
                 syncEngine.state.add(pendingDatabaseChanges: [.saveZone(Self.recordZone)])
                 syncEngine.state.add(pendingRecordZoneChanges: [.deleteRecord(recordID)])
+            } else {
+                lastIssue = Self.userMessage(for: error)
             }
         }
         await enqueueOutbox()
+        await refreshStatus(markSuccessful: event.failedRecordSaves.isEmpty && event.failedRecordDeletes.isEmpty)
     }
 
     private func handleSentDatabaseChanges(
@@ -529,11 +644,91 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             try? database.queueFullResync()
             syncEngine?.state.add(pendingDatabaseChanges: [.saveZone(Self.recordZone)])
             await enqueueOutbox()
+            lastIssue = nil
+            await publish(.syncing)
         case .signOut:
-            break
+            lastIssue = "Sign in to iCloud to continue syncing."
+            await publish(.attention, message: lastIssue)
         @unknown default:
             break
         }
+    }
+
+    // MARK: Observable Status
+
+    private func refreshStatus(markSuccessful: Bool) async {
+        let pendingCount: Int
+        do {
+            pendingCount = try database.fetchSyncOutbox().count
+        } catch {
+            lastIssue = "diple couldn’t read the local changes waiting for iCloud."
+            await publish(.attention, pendingCount: 0, message: lastIssue)
+            return
+        }
+        // A completed CloudKit callback is not a successful health check if applying or
+        // acknowledging that same cycle left an issue behind.
+        let successfulAt = markSuccessful && lastIssue == nil ? Date() : nil
+
+        if let lastIssue {
+            await publish(
+                .attention,
+                pendingCount: pendingCount,
+                message: lastIssue,
+                successfulAt: successfulAt
+            )
+        } else if pendingCount > 0 {
+            await publish(.syncing, pendingCount: pendingCount, successfulAt: successfulAt)
+        } else {
+            await publish(.synced, pendingCount: 0, successfulAt: successfulAt)
+        }
+    }
+
+    private func publish(
+        _ phase: CloudSyncSnapshot.Phase,
+        pendingCount: Int? = nil,
+        message: String? = nil,
+        successfulAt: Date? = nil
+    ) async {
+        let count = pendingCount ?? ((try? database.fetchSyncOutbox().count) ?? 0)
+        await CloudSyncStatusStore.shared.update(
+            phase: phase,
+            pendingCount: count,
+            message: message,
+            successfulAt: successfulAt
+        )
+    }
+
+    private static func accountMessage(for status: CKAccountStatus) -> String {
+        switch status {
+        case .available:
+            return "iCloud is available."
+        case .noAccount:
+            return "Sign in to iCloud in System Settings to sync this library."
+        case .restricted:
+            return "iCloud access is restricted on this device."
+        case .couldNotDetermine:
+            return "diple couldn’t determine the current iCloud account status."
+        case .temporarilyUnavailable:
+            return "iCloud is temporarily unavailable. Your local changes are safe and will wait."
+        @unknown default:
+            return "iCloud isn’t available right now. Your local changes are safe and will wait."
+        }
+    }
+
+    private static func userMessage(for error: Error) -> String {
+        if let cloudError = error as? CKError {
+            switch cloudError.code {
+            case .notAuthenticated:
+                return "Sign in to iCloud in System Settings to continue syncing."
+            case .networkUnavailable, .networkFailure, .serviceUnavailable, .requestRateLimited, .zoneBusy:
+                return "iCloud is temporarily unavailable. Your local changes are safe and will retry."
+            case .quotaExceeded:
+                return "Your iCloud storage is full. Free some space, then check again."
+            default:
+                break
+            }
+        }
+        return "Sync couldn’t finish: \(error.localizedDescription)"
     }
 
     // MARK: Record identity and system fields

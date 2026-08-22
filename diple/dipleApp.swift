@@ -18,6 +18,8 @@ struct dipleApp: App {
     // an accent change; that is the accepted price of not threading an environment value
     // through 28 files for something the user changes rarely and deliberately.
     @StateObject private var settingsManager = AppSettingsManager.shared
+    @StateObject private var sharedLinkCoordinator = SharedLinkImportCoordinator.shared
+    @AppStorage(FirstLaunchStorage.completionKey) private var hasCompletedFirstLaunch = false
     /// Watched for one reason: iOS only lets an app change its Home Screen icon while it is
     /// active. See the `onChange` below.
     @Environment(\.scenePhase) private var scenePhase
@@ -61,6 +63,11 @@ struct dipleApp: App {
             // is the single mechanism; with nothing competing, it cascades live into anything
             // presented in the window.
             .id(settingsManager.settings.accent)
+            .overlay(alignment: .top) {
+                if hasCompletedFirstLaunch {
+                    SharedLinkImportBanner(coordinator: sharedLinkCoordinator)
+                }
+            }
             // Every screen under that `.id` is discarded and rebuilt when the accent changes,
             // and a sheet presented by one of them goes with it — so choosing an accent threw
             // the reader out of the screen they chose it on, and trying a second one meant
@@ -88,6 +95,7 @@ struct dipleApp: App {
             .onChange(of: scenePhase, initial: true) { _, phase in
                 guard phase == .active else { return }
                 AppIconManager.apply(settingsManager.settings.accent)
+                sharedLinkCoordinator.processPending()
             }
             .task {
                 // The window exists by now, which it did not when the settings manager was

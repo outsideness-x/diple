@@ -73,6 +73,10 @@ public struct GlobalSearchView: View {
                 viewModel.reloadContext()
                 notesViewModel.load()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .dipleDataDidRestore)) { _ in
+                viewModel.reloadContext()
+                notesViewModel.load()
+            }
             .navigationDestination(for: GlobalSearchResult.self) { result in
                 destination(for: result)
             }

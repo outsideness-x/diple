@@ -38,7 +38,10 @@ public final class HubViewModel: ObservableObject {
 
     public init() {
         load()
-        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+        syncObserver = Publishers.Merge(
+            NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange),
+            NotificationCenter.default.publisher(for: .dipleDataDidRestore)
+        )
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.load() }
     }
@@ -81,7 +84,10 @@ public final class BookQuotesViewModel: ObservableObject {
     public init(bookId: String) {
         self.bookId = bookId
         load()
-        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+        syncObserver = Publishers.Merge(
+            NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange),
+            NotificationCenter.default.publisher(for: .dipleDataDidRestore)
+        )
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.load() }
     }

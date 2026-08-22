@@ -55,10 +55,17 @@ final class dipleUITests: XCTestCase {
 
         XCTAssertTrue(intro.exists)
 
-        // The production view dismisses itself shortly afterwards, so the test also verifies
-        // that it never traps a first-time reader behind a required gesture.
+        // The finished colophon now keeps its promise: TAP TO BEGIN remains on screen until
+        // the reader taps, rather than appearing a fraction of a second before an automatic
+        // dismissal.
         Thread.sleep(forTimeInterval: 3.0)
-        XCTAssertFalse(intro.exists)
+        XCTAssertTrue(intro.exists)
+        intro.tap()
+        let introGone = expectation(
+            for: NSPredicate(format: "exists == false"),
+            evaluatedWith: intro
+        )
+        wait(for: [introGone], timeout: 2)
         XCTAssertTrue(app.staticTexts["diple."].waitForExistence(timeout: 2))
     }
 
@@ -90,6 +97,35 @@ final class dipleUITests: XCTestCase {
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Settings colophon"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testSettingsShowsRestoreAndTruthfulSyncControls() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
+        app.launch()
+
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+
+        let export = app.buttons["settings.data.export"]
+        let restore = app.buttons["settings.data.restore"]
+        XCTAssertTrue(export.waitForExistence(timeout: 5))
+        XCTAssertTrue(restore.exists)
+
+        for _ in 0..<7 where !export.isHittable || !restore.isHittable {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(export.isHittable)
+        XCTAssertTrue(restore.isHittable)
+        XCTAssertTrue(app.staticTexts["iCloud Sync"].exists)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Data restore controls"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }

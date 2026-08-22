@@ -794,6 +794,148 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    // MARK: - Portable Backup Restore
+
+    /// Describes exactly what a merge would change without touching the library. Settings uses
+    /// this before presenting its destructive-looking confirmation, even though the operation
+    /// is deliberately additive and never deletes local work.
+    public func previewRestore(_ payload: DipleExportPayload) throws -> DipleRestorePreview {
+        try writer.read { db in
+            try restorePreview(payload, in: db)
+        }
+    }
+
+    /// Merges one validated export in a single SQLite transaction.
+    ///
+    /// Missing publication files are never represented by fake `book` rows: they would render
+    /// as healthy sources and fail only after a reader tapped them. Reading positions therefore
+    /// attach only to a matching source already present on this device. Highlights and notes are
+    /// user-created data and remain useful without that file, so they are restored independently.
+    public func restore(_ payload: DipleExportPayload, at restoredAt: Date = Date()) throws -> DipleRestoreReport {
+        let preview = try writer.write { db -> DipleRestorePreview in
+            let preview = try restorePreview(payload, in: db)
+            var booksByID = Dictionary(uniqueKeysWithValues: try Book.fetchAll(db).map { ($0.id, $0) })
+
+            for source in payload.sources {
+                guard var book = booksByID[source.id], Self.shouldRestore(source: source, over: book) else {
+                    continue
+                }
+
+                let progress = min(max(source.progress, 0), 1)
+                book.progress = progress
+                book.furthestProgress = max(book.furthestProgress, progress)
+                book.locator = source.readingPosition
+                if let lastOpenedAt = source.lastOpenedAt {
+                    book.lastOpenedAt = lastOpenedAt
+                }
+                try book.update(db)
+                try indexBook(book, in: db)
+                try markLocalSave(.book, id: book.id, at: restoredAt, in: db)
+                booksByID[book.id] = book
+            }
+
+            var existingHighlightIDs = Set(try String.fetchAll(db, sql: "SELECT id FROM highlight"))
+            for incoming in payload.highlights where !existingHighlightIDs.contains(incoming.id) {
+                var highlight = incoming
+                let book = booksByID[highlight.bookId]
+                if let book {
+                    highlight.bookTitle = highlight.bookTitle ?? book.title
+                    highlight.bookAuthor = highlight.bookAuthor ?? book.author
+                }
+                try highlight.insert(db)
+                try indexHighlight(highlight, book: book, in: db)
+                try markLocalSave(.highlight, id: highlight.id, at: restoredAt, in: db)
+                existingHighlightIDs.insert(highlight.id)
+            }
+
+            var notesByID = Dictionary(uniqueKeysWithValues: try Note.fetchAll(db).map { ($0.id, $0) })
+            for tagged in payload.notes {
+                let incoming = tagged.note
+                if let local = notesByID[incoming.id], local.updatedAt >= incoming.updatedAt {
+                    continue
+                }
+
+                try incoming.save(db)
+                _ = try NoteTag.filter(Column("noteId") == incoming.id).deleteAll(db)
+                let tags = Set(tagged.tags.compactMap(NoteTag.normalized))
+                for tag in tags {
+                    try NoteTag(noteId: incoming.id, tag: tag).insert(db)
+                }
+                try indexNote(incoming, tags: tags.sorted(), in: db)
+                try markLocalSave(.note, id: incoming.id, at: restoredAt, in: db)
+                notesByID[incoming.id] = incoming
+            }
+
+            return preview
+        }
+
+        signalSyncIfNeeded()
+        NotificationCenter.default.post(name: .dipleDataDidRestore, object: nil)
+        return DipleRestoreReport(preview: preview, restoredAt: restoredAt)
+    }
+
+    private func restorePreview(_ payload: DipleExportPayload, in db: Database) throws -> DipleRestorePreview {
+        let booksByID = Dictionary(uniqueKeysWithValues: try Book.fetchAll(db).map { ($0.id, $0) })
+        let existingHighlightIDs = Set(try String.fetchAll(db, sql: "SELECT id FROM highlight"))
+        let notesByID = Dictionary(uniqueKeysWithValues: try Note.fetchAll(db).map { ($0.id, $0) })
+
+        var sourcePositionsUpdated = 0
+        var sourceReferencesMissing = 0
+        var sourcePositionsKept = 0
+        for source in payload.sources {
+            guard let local = booksByID[source.id] else {
+                sourceReferencesMissing += 1
+                continue
+            }
+            if Self.shouldRestore(source: source, over: local) {
+                sourcePositionsUpdated += 1
+            } else {
+                sourcePositionsKept += 1
+            }
+        }
+
+        var notesAdded = 0
+        var notesUpdated = 0
+        var notesKept = 0
+        for tagged in payload.notes {
+            guard let local = notesByID[tagged.note.id] else {
+                notesAdded += 1
+                continue
+            }
+            if tagged.note.updatedAt > local.updatedAt {
+                notesUpdated += 1
+            } else {
+                notesKept += 1
+            }
+        }
+
+        let highlightsAdded = payload.highlights.lazy.filter { !existingHighlightIDs.contains($0.id) }.count
+        return DipleRestorePreview(
+            sourcePositionsUpdated: sourcePositionsUpdated,
+            sourceReferencesMissing: sourceReferencesMissing,
+            sourcePositionsKept: sourcePositionsKept,
+            highlightsAdded: highlightsAdded,
+            highlightsKept: payload.highlights.count - highlightsAdded,
+            notesAdded: notesAdded,
+            notesUpdated: notesUpdated,
+            notesKept: notesKept
+        )
+    }
+
+    private static func shouldRestore(source: DipleExportPayload.Source, over local: Book) -> Bool {
+        // A percentage without a locator cannot reopen the same place. Treating a newer
+        // `lastOpenedAt` alone as a restorable position would either erase a valid local
+        // locator or pair it with a percentage from somewhere else.
+        guard source.readingPosition != nil else { return false }
+        if let backupDate = source.lastOpenedAt,
+           backupDate > (local.lastOpenedAt ?? .distantPast) {
+            return true
+        }
+        // Legacy exports can lack a reliable open date. Filling an absent local position is
+        // still additive; replacing an existing one without a timestamp would not be.
+        return local.locator == nil
+    }
+
     /// Legacy web imports that predate article-body indexing. The existence check lives in SQL
     /// so opening Search does not read every EPUB just to discover that it is already indexed.
     public func fetchArticlesMissingTextIndex() throws -> [Book] {

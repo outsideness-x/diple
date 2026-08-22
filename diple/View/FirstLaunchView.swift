@@ -1,6 +1,6 @@
 import SwiftUI
 
-private enum FirstLaunchStorage {
+enum FirstLaunchStorage {
     static let completionKey = "diple_has_completed_first_launch"
 }
 
@@ -9,7 +9,9 @@ private enum FirstLaunchStorage {
 /// This is intentionally a short piece of identity rather than onboarding: there are no
 /// permissions to ask for and no controls to teach before someone has a book. The animation
 /// turns the app icon's two ingredients — its serif `d` and reading line — into pages, marks
-/// and connected thoughts, then gets out of the way. A tap always skips it.
+/// and connected thoughts, then waits at the finished mark. A tap skips while the story is
+/// moving and begins once it has arrived, so the visible instruction always matches what the
+/// screen will actually do.
 public struct FirstLaunchGate<Content: View>: View {
     @AppStorage(FirstLaunchStorage.completionKey) private var hasCompletedFirstLaunch = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -78,6 +80,7 @@ private struct FirstLaunchView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var progress: CGFloat = 0
     @State private var didScheduleStory = false
+    @State private var hasFinishedStory = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -114,11 +117,12 @@ private struct FirstLaunchView: View {
                             .fill(DipleColor.accent)
                             .frame(width: 20, height: 2)
 
-                        Text("TAP TO BEGIN")
+                        Text(hasFinishedStory ? "TAP TO BEGIN" : "TAP TO SKIP")
                             .dipleType(.nano)
                             .foregroundStyle(DipleColor.textQuaternary)
+                            .contentTransition(.opacity)
                     }
-                    .opacity(Self.segment(progress, from: 0.88, to: 0.98))
+                    .opacity(Self.segment(progress, from: 0.04, to: 0.16))
                     .padding(.bottom, max(proxy.safeAreaInsets.bottom, DipleSpace.xxl))
                 }
                 .padding(.horizontal, DipleSpace.xl)
@@ -128,7 +132,7 @@ private struct FirstLaunchView: View {
             .onTapGesture(perform: onFinish)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Welcome to diple. A place for what stays with you.")
-            .accessibilityHint("Double tap to begin")
+            .accessibilityHint(hasFinishedStory ? "Double tap to begin" : "Double tap to skip the introduction")
             .accessibilityAddTraits(.isButton)
         }
         .onAppear(perform: playStory)
@@ -140,10 +144,7 @@ private struct FirstLaunchView: View {
 
         if reduceMotion {
             progress = 1
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(1.6))
-                onFinish()
-            }
+            hasFinishedStory = true
             return
         }
 
@@ -152,8 +153,10 @@ private struct FirstLaunchView: View {
         }
 
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(4.65))
-            onFinish()
+            try? await Task.sleep(for: .seconds(4.1))
+            withAnimation(DipleMotion.standard) {
+                hasFinishedStory = true
+            }
         }
     }
 

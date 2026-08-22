@@ -128,7 +128,10 @@ public final class NotesViewModel: ObservableObject {
 
     public init() {
         load()
-        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+        syncObserver = Publishers.Merge(
+            NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange),
+            NotificationCenter.default.publisher(for: .dipleDataDidRestore)
+        )
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.load() }
     }

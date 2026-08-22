@@ -8,6 +8,7 @@ public struct AppSettingsView: View {
     )
 
     @StateObject private var settingsManager = AppSettingsManager.shared
+    @StateObject private var syncStatusStore = CloudSyncStatusStore.shared
     @Environment(\.dismiss) private var dismiss
     // Device-local (`CloudSyncService.isEnabled` reads/writes `UserDefaults` directly, not
     // `AppSettings`), so this needs its own `@State` mirror to drive the toggle — nothing
@@ -18,7 +19,10 @@ public struct AppSettingsView: View {
     @State private var showDailyResurfacingPermissionAlert = false
     @State private var exportDocument = DipleExportDocument()
     @State private var isExportPresented = false
-    @State private var exportErrorMessage: String?
+    @State private var dataErrorMessage: String?
+    @State private var isRestorePickerPresented = false
+    @State private var isReadingRestore = false
+    @State private var restoreCandidate: DipleRestoreCandidate?
 
     public init() {}
 
@@ -69,6 +73,7 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
+
                             }
                             .cornerRadius(DipleRadius.m)
                         }
@@ -220,6 +225,7 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
+
                             }
                             .cornerRadius(DipleRadius.m)
                         }
@@ -328,6 +334,10 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
+
+                                if isICloudSyncEnabled {
+                                    syncStatusRow(syncStatusStore.snapshot)
+                                }
                             }
                             .cornerRadius(DipleRadius.m)
                         }
@@ -339,43 +349,37 @@ public struct AppSettingsView: View {
                                 .foregroundStyle(DipleColor.textTertiary)
                                 .padding(.horizontal, DipleSpace.xs)
 
-                            Button {
-                                do {
-                                    exportDocument = DipleExportDocument(payload: try DipleExportPayload())
-                                    isExportPresented = true
-                                    HapticManager.shared.selection()
-                                } catch {
-                                    exportErrorMessage = "Couldn’t prepare your export: \(error.localizedDescription)"
-                                }
-                            } label: {
-                                HStack(spacing: DipleSpace.m) {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .dipleIcon(17, weight: .medium)
-                                        .foregroundStyle(DipleColor.accent)
-                                        .frame(width: 28)
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Export Diple Data")
-                                            .dipleType(.body, weight: .medium)
-                                            .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Sources, reading positions, highlights, thoughts and notes in portable JSON")
-                                            .dipleType(.caption)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                            .multilineTextAlignment(.leading)
+                            VStack(spacing: 1) {
+                                dataAction(
+                                    title: "Export Diple Data",
+                                    detail: "Reading positions, highlights and notes in versioned JSON. Original EPUB and PDF files stay where they are.",
+                                    systemImage: "square.and.arrow.up"
+                                ) {
+                                    do {
+                                        exportDocument = DipleExportDocument(payload: try DipleExportPayload())
+                                        isExportPresented = true
+                                        HapticManager.shared.selection()
+                                    } catch {
+                                        dataErrorMessage = "Couldn’t prepare your export: \(error.localizedDescription)"
                                     }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                    Image(systemName: "chevron.right")
-                                        .dipleIcon(11, weight: .semibold)
-                                        .foregroundStyle(DipleColor.textQuaternary)
                                 }
-                                .padding(.horizontal, DipleSpace.l)
-                                .padding(.vertical, DipleSpace.m)
-                                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-                                .contentShape(Rectangle())
+                                .accessibilityIdentifier("settings.data.export")
+                                .accessibilityHint("Creates a versioned JSON backup you can save or share")
+
+                                dataAction(
+                                    title: "Restore Diple Data",
+                                    detail: "Review and safely merge a Diple JSON backup. Nothing already on this device is deleted.",
+                                    systemImage: "arrow.counterclockwise",
+                                    showsProgress: isReadingRestore
+                                ) {
+                                    isRestorePickerPresented = true
+                                    HapticManager.shared.selection()
+                                }
+                                .disabled(isReadingRestore)
+                                .accessibilityIdentifier("settings.data.restore")
+                                .accessibilityHint("Choose a Diple JSON backup and review it before restoring")
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Creates a JSON file you can save or share")
+                            .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
                         }
 
                         // PRIVACY SECTION
@@ -446,18 +450,23 @@ public struct AppSettingsView: View {
                     await DailyResurfacingService.shared.setNotificationTime(newTime)
                 }
             }
+            .task {
+                if isICloudSyncEnabled {
+                    await CloudSyncService.shared.refreshStatus()
+                }
+            }
             .alert("Notifications Are Off", isPresented: $showDailyResurfacingPermissionAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Allow notifications for diple in iOS Settings to receive your daily quote.")
             }
-            .alert("Export Failed", isPresented: Binding(
-                get: { exportErrorMessage != nil },
-                set: { if !$0 { exportErrorMessage = nil } }
+            .alert("Data File Error", isPresented: Binding(
+                get: { dataErrorMessage != nil },
+                set: { if !$0 { dataErrorMessage = nil } }
             )) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(exportErrorMessage ?? "An unknown error occurred.")
+                Text(dataErrorMessage ?? "An unknown error occurred.")
             }
             .fileExporter(
                 isPresented: $isExportPresented,
@@ -466,8 +475,189 @@ public struct AppSettingsView: View {
                 defaultFilename: "diple-export-\(Date.now.formatted(.iso8601.year().month().day()))"
             ) { result in
                 if case .failure(let error) = result {
-                    exportErrorMessage = "Couldn’t save your export: \(error.localizedDescription)"
+                    dataErrorMessage = "Couldn’t save your export: \(error.localizedDescription)"
                 }
+            }
+            .fileImporter(
+                isPresented: $isRestorePickerPresented,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    prepareRestore(from: url)
+                case .failure(let error):
+                    dataErrorMessage = "Couldn’t open that backup: \(error.localizedDescription)"
+                }
+            }
+            .sheet(item: $restoreCandidate) { candidate in
+                DipleRestoreReviewView(candidate: candidate) {
+                    try await Task.detached(priority: .userInitiated) {
+                        try DipleBackupRestorer.shared.restore(candidate.payload)
+                    }.value
+                }
+            }
+        }
+    }
+
+    private func dataAction(
+        title: String,
+        detail: String,
+        systemImage: String,
+        showsProgress: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: DipleSpace.m) {
+                Image(systemName: systemImage)
+                    .dipleIcon(17, weight: .medium)
+                    .foregroundStyle(DipleColor.accent)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .dipleType(.body, weight: .medium)
+                        .foregroundStyle(DipleColor.textPrimary)
+                    Text(detail)
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if showsProgress {
+                    ProgressView().tint(DipleColor.accent)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .dipleIcon(11, weight: .semibold)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                }
+            }
+            .padding(.horizontal, DipleSpace.l)
+            .padding(.vertical, DipleSpace.m)
+            .background(DipleColor.surfaceRaised)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func syncStatusRow(_ snapshot: CloudSyncSnapshot) -> some View {
+        HStack(alignment: .top, spacing: DipleSpace.m) {
+            Group {
+                if snapshot.phase == .checking || snapshot.phase == .syncing {
+                    ProgressView()
+                        .tint(DipleColor.accent)
+                } else {
+                    Image(systemName: syncStatusIcon(snapshot.phase))
+                        .dipleIcon(14, weight: .semibold)
+                        .foregroundStyle(
+                            snapshot.phase == .synced ? DipleColor.success : DipleColor.destructive
+                        )
+                }
+            }
+            .frame(width: 28, height: 28)
+
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(syncStatusTitle(snapshot.phase))
+                        .dipleType(.body, weight: .medium)
+                        .foregroundStyle(DipleColor.textPrimary)
+
+                    Spacer()
+
+                    if snapshot.pendingCount > 0 {
+                        Text("\(snapshot.pendingCount) waiting")
+                            .dipleType(.nano)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .monospacedDigit()
+                    }
+                }
+
+                if let message = snapshot.message {
+                    Text(message)
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if snapshot.pendingCount > 0 {
+                    Text(snapshot.pendingCount == 1 ? "One local change is waiting for iCloud." : "Local changes are queued safely until iCloud confirms them.")
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                } else if let date = snapshot.lastSuccessfulAt {
+                    HStack(spacing: DipleSpace.xs) {
+                        Text("Last checked")
+                        Text(date, style: .relative)
+                    }
+                    .dipleType(.caption)
+                    .foregroundStyle(DipleColor.textTertiary)
+                } else {
+                    Text("Run a check to confirm this device can reach your private iCloud database.")
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                }
+
+                if snapshot.phase != .checking && snapshot.phase != .syncing {
+                    Button {
+                        HapticManager.shared.selection()
+                        Task { await CloudSyncService.shared.retry() }
+                    } label: {
+                        Label(
+                            snapshot.phase == .attention ? "Check Again" : "Check Now",
+                            systemImage: "arrow.clockwise"
+                        )
+                        .dipleType(.footnote, weight: .semibold)
+                        .foregroundStyle(DipleColor.accent)
+                        .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.readerControl)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, DipleSpace.l)
+        .padding(.vertical, DipleSpace.m)
+        .background(DipleColor.surfaceRaised)
+        .accessibilityIdentifier("settings.sync.status")
+        .accessibilityElement(children: .contain)
+    }
+
+    private func syncStatusTitle(_ phase: CloudSyncSnapshot.Phase) -> String {
+        switch phase {
+        case .disabled: return "Sync Off"
+        case .checking: return "Checking iCloud"
+        case .syncing: return "Syncing"
+        case .synced: return "Up to Date"
+        case .attention: return "Needs Attention"
+        }
+    }
+
+    private func syncStatusIcon(_ phase: CloudSyncSnapshot.Phase) -> String {
+        switch phase {
+        case .disabled: return "icloud.slash"
+        case .checking, .syncing: return "icloud"
+        case .synced: return "checkmark.icloud"
+        case .attention: return "exclamationmark.icloud"
+        }
+    }
+
+    private func prepareRestore(from url: URL) {
+        guard !isReadingRestore else { return }
+        isReadingRestore = true
+        Task {
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Result {
+                    let payload = try DipleBackupRestorer.shared.load(from: url)
+                    let preview = try DipleBackupRestorer.shared.preview(payload)
+                    return (payload, preview)
+                }
+            }.value
+            isReadingRestore = false
+            switch outcome {
+            case .success(let loaded):
+                restoreCandidate = DipleRestoreCandidate(payload: loaded.0, preview: loaded.1)
+            case .failure(let error):
+                dataErrorMessage = "Couldn’t read that backup: \(error.localizedDescription)"
             }
         }
     }

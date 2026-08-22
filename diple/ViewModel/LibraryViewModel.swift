@@ -96,6 +96,10 @@ public final class LibraryViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.loadBooks() }
             .store(in: &observers)
+        NotificationCenter.default.publisher(for: .dipleDataDidRestore)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.loadBooks() }
+            .store(in: &observers)
         // An import started on Home has to reach the shelf, and the shelf is a *different*
         // instance of this class in a different tab. Without this, the second instance kept
         // whatever it read at launch until the app was quit and reopened — which is exactly

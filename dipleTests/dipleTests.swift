@@ -1496,6 +1496,282 @@ final class DipleTests: XCTestCase {
         XCTAssertFalse(body.contains("Меню сайта"))
     }
 
+    // MARK: - Share inbox and portable restore
+
+    func testSharedLinkInboxNormalizesDeduplicatesAndKeepsFailedWorkRetryable() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("diple-shared-inbox-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let inbox = SharedLinkInbox(directoryURL: directory)
+        let startedAt = Date(timeIntervalSince1970: 10_000)
+        let first = try inbox.enqueue(
+            try XCTUnwrap(URL(string: "HTTPS://EXAMPLE.COM/read?id=7#comments")),
+            at: startedAt
+        )
+        let duplicate = try inbox.enqueue(
+            try XCTUnwrap(URL(string: "https://example.com/read?id=7")),
+            at: startedAt.addingTimeInterval(1)
+        )
+
+        XCTAssertEqual(first.id, duplicate.id, "sharing one canonical URL twice must not create two articles")
+        XCTAssertEqual(first.urlString, "https://example.com/read?id=7")
+        XCTAssertEqual(try inbox.pending().count, 1)
+
+        try inbox.markFailed(id: first.id, message: "Offline", at: startedAt)
+        let failed = try XCTUnwrap(inbox.pending().first)
+        XCTAssertEqual(failed.attemptCount, 1)
+        XCTAssertEqual(failed.lastError, "Offline")
+        XCTAssertFalse(SharedLinkInbox.isReady(failed, at: startedAt.addingTimeInterval(14)))
+        XCTAssertTrue(SharedLinkInbox.isReady(failed, at: startedAt.addingTimeInterval(15)))
+
+        try inbox.clearFailure(id: first.id)
+        XCTAssertTrue(SharedLinkInbox.isReady(try XCTUnwrap(inbox.pending().first), at: startedAt))
+        try inbox.remove(id: first.id)
+        XCTAssertTrue(try inbox.pending().isEmpty)
+
+        XCTAssertThrowsError(
+            try inbox.enqueue(try XCTUnwrap(URL(string: "file:///private/tmp/article.html")))
+        )
+    }
+
+    func testPortableRestoreMergesNewerWorkWithoutDeletingOrDuplicatingLocalData() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let early = Date(timeIntervalSince1970: 1_000)
+        let middle = Date(timeIntervalSince1970: 2_000)
+        let late = Date(timeIntervalSince1970: 3_000)
+
+        let locallyNewerBook = Book(
+            id: "local-newer-book",
+            title: "Local Newer",
+            filePath: "Books/local-newer/book.epub",
+            lastOpenedAt: late,
+            progress: 0.72,
+            locator: "local-position"
+        )
+        let backupNewerBook = Book(
+            id: "backup-newer-book",
+            title: "Backup Newer",
+            filePath: "Books/backup-newer/book.epub",
+            lastOpenedAt: early,
+            progress: 0.18,
+            locator: "old-local-position"
+        )
+        let backupWithoutLocator = Book(
+            id: "backup-without-locator",
+            title: "No Restorable Locator",
+            filePath: "Books/no-locator/book.epub",
+            lastOpenedAt: early,
+            progress: 0.27,
+            locator: "valid-local-position"
+        )
+        try database.saveBook(locallyNewerBook)
+        try database.saveBook(backupNewerBook)
+        try database.saveBook(backupWithoutLocator)
+
+        let existingHighlight = Highlight(
+            id: "existing-highlight",
+            bookId: locallyNewerBook.id,
+            locator: "{}",
+            text: "Local quote",
+            createdAt: late
+        )
+        try database.saveHighlight(existingHighlight)
+
+        let locallyNewerNote = Note(
+            id: "local-newer-note",
+            body: "Keep this local edit",
+            createdAt: early,
+            updatedAt: late
+        )
+        let backupNewerNote = Note(
+            id: "backup-newer-note",
+            body: "Old local body",
+            createdAt: early,
+            updatedAt: early
+        )
+        try database.saveNote(locallyNewerNote, tags: ["local"])
+        try database.saveNote(backupNewerNote, tags: ["old"])
+
+        let payload = DipleExportPayload(
+            exportedAt: middle,
+            sources: [
+                .init(
+                    id: locallyNewerBook.id,
+                    title: locallyNewerBook.title,
+                    author: nil,
+                    kind: .epub,
+                    originalURL: nil,
+                    addedAt: early,
+                    lastOpenedAt: middle,
+                    progress: 0.31,
+                    readingPosition: "older-backup-position"
+                ),
+                .init(
+                    id: backupNewerBook.id,
+                    title: backupNewerBook.title,
+                    author: nil,
+                    kind: .epub,
+                    originalURL: nil,
+                    addedAt: early,
+                    lastOpenedAt: middle,
+                    progress: 0.83,
+                    readingPosition: "newer-backup-position"
+                ),
+                .init(
+                    id: "source-file-not-on-device",
+                    title: "Missing Source",
+                    author: nil,
+                    kind: .pdf,
+                    originalURL: nil,
+                    addedAt: early,
+                    lastOpenedAt: middle,
+                    progress: 0.5,
+                    readingPosition: "missing-source-position"
+                ),
+                .init(
+                    id: backupWithoutLocator.id,
+                    title: backupWithoutLocator.title,
+                    author: nil,
+                    kind: .epub,
+                    originalURL: nil,
+                    addedAt: early,
+                    lastOpenedAt: middle,
+                    progress: 0.99,
+                    readingPosition: nil
+                )
+            ],
+            highlights: [
+                Highlight(
+                    id: existingHighlight.id,
+                    bookId: existingHighlight.bookId,
+                    locator: "{}",
+                    text: "Backup must not replace this",
+                    createdAt: early
+                ),
+                Highlight(
+                    id: "new-highlight",
+                    bookId: "source-file-not-on-device",
+                    locator: "{}",
+                    text: "A quote survives without its source file",
+                    createdAt: middle,
+                    bookTitle: "Missing Source"
+                )
+            ],
+            notes: [
+                .init(
+                    note: Note(
+                        id: locallyNewerNote.id,
+                        body: "Older backup edit",
+                        createdAt: early,
+                        updatedAt: middle
+                    ),
+                    tags: ["backup"]
+                ),
+                .init(
+                    note: Note(
+                        id: backupNewerNote.id,
+                        body: "Newer backup body",
+                        createdAt: early,
+                        updatedAt: middle
+                    ),
+                    tags: ["#Restored", "RESTORED"]
+                ),
+                .init(
+                    note: Note(
+                        id: "new-note",
+                        body: "새로운 생각",
+                        bookId: "source-file-not-on-device",
+                        createdAt: middle,
+                        updatedAt: middle
+                    ),
+                    tags: ["#Ideas", " ideas ", "한국어"]
+                )
+            ]
+        )
+
+        let preview = try DipleBackupRestorer.shared.preview(payload, database: database)
+        XCTAssertEqual(preview.sourcePositionsUpdated, 1)
+        XCTAssertEqual(preview.sourcePositionsKept, 2)
+        XCTAssertEqual(preview.sourceReferencesMissing, 1)
+        XCTAssertEqual(preview.highlightsAdded, 1)
+        XCTAssertEqual(preview.highlightsKept, 1)
+        XCTAssertEqual(preview.notesAdded, 1)
+        XCTAssertEqual(preview.notesUpdated, 1)
+        XCTAssertEqual(preview.notesKept, 1)
+        XCTAssertEqual(preview.changeCount, 4)
+
+        let report = try DipleBackupRestorer.shared.restore(payload, database: database, at: late)
+        XCTAssertEqual(report.preview, preview)
+
+        let keptBook = try XCTUnwrap(database.fetchBook(id: locallyNewerBook.id))
+        XCTAssertEqual(keptBook.progress, 0.72, accuracy: 0.0001)
+        XCTAssertEqual(keptBook.locator, "local-position")
+        let updatedBook = try XCTUnwrap(database.fetchBook(id: backupNewerBook.id))
+        XCTAssertEqual(updatedBook.progress, 0.83, accuracy: 0.0001)
+        XCTAssertEqual(updatedBook.furthestProgress, 0.83, accuracy: 0.0001)
+        XCTAssertEqual(updatedBook.locator, "newer-backup-position")
+        let noLocatorBook = try XCTUnwrap(database.fetchBook(id: backupWithoutLocator.id))
+        XCTAssertEqual(noLocatorBook.progress, 0.27, accuracy: 0.0001)
+        XCTAssertEqual(noLocatorBook.locator, "valid-local-position")
+        XCTAssertNil(try database.fetchBook(id: "source-file-not-on-device"), "restore must not invent an unreadable source row")
+
+        let highlights = Dictionary(uniqueKeysWithValues: try database.fetchAllHighlights().map { ($0.id, $0) })
+        XCTAssertEqual(highlights.count, 2)
+        XCTAssertEqual(highlights[existingHighlight.id]?.text, "Local quote")
+        XCTAssertEqual(highlights["new-highlight"]?.text, "A quote survives without its source file")
+
+        let notes = Dictionary(uniqueKeysWithValues: try database.fetchAllNotes().map { ($0.id, $0) })
+        XCTAssertEqual(notes.count, 3)
+        XCTAssertEqual(notes[locallyNewerNote.id]?.body, "Keep this local edit")
+        XCTAssertEqual(notes[backupNewerNote.id]?.body, "Newer backup body")
+        XCTAssertEqual(notes["new-note"]?.body, "새로운 생각")
+        let tags = try database.fetchTagsByNote()
+        XCTAssertEqual(tags[locallyNewerNote.id], ["local"])
+        XCTAssertEqual(tags[backupNewerNote.id], ["restored"])
+        XCTAssertEqual(tags["new-note"], ["ideas", "한국어"])
+
+        let secondPreview = try DipleBackupRestorer.shared.preview(payload, database: database)
+        XCTAssertTrue(secondPreview.isNoOp, "restoring the same file twice must be idempotent")
+    }
+
+    func testPortableRestoreReadsVersionOneAndRejectsTheWrongFormat() throws {
+        let legacy = Data(
+            """
+            {
+              "format": "diple-export",
+              "version": 1,
+              "exportedAt": "2026-08-22T12:00:00Z",
+              "sources": [{
+                "id": "legacy-article",
+                "title": "Legacy Article",
+                "originalURL": "https://example.com/legacy",
+                "addedAt": "2026-08-20T12:00:00Z",
+                "progress": 0.4
+              }],
+              "highlights": [],
+              "notes": []
+            }
+            """.utf8
+        )
+
+        let decoded = try DipleBackupRestorer.shared.decode(legacy)
+        XCTAssertEqual(decoded.sources.first?.kind, .article)
+
+        let invalid = DipleExportPayload(
+            format: "some-other-export",
+            exportedAt: Date(),
+            sources: [],
+            highlights: [],
+            notes: []
+        )
+        XCTAssertThrowsError(try DipleBackupRestorer.shared.preview(invalid, database: AppDatabase(DatabaseQueue()))) {
+            guard case DipleBackupError.wrongFormat = $0 else {
+                return XCTFail("Expected wrongFormat, got \($0)")
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func assertScript(

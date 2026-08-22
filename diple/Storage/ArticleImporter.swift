@@ -79,14 +79,19 @@ public nonisolated final class ArticleImporter {
 
     public func importArticle(
         from url: URL,
+        bookID: String? = nil,
         progress: @escaping @Sendable (Stage) -> Void
     ) async throws -> Book {
         try await Task.detached(priority: .userInitiated) {
-            try await Self.perform(url: url, progress: progress)
+            try await Self.perform(url: url, bookID: bookID, progress: progress)
         }.value
     }
 
-    private static func perform(url: URL, progress: @Sendable (Stage) -> Void) async throws -> Book {
+    private static func perform(
+        url: URL,
+        bookID: String?,
+        progress: @Sendable (Stage) -> Void
+    ) async throws -> Book {
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
             throw ArticleImportError.unsupportedScheme
         }
@@ -97,7 +102,11 @@ public nonisolated final class ArticleImporter {
         progress(.reading)
         let article = try ArticleExtractor(html: page.html, url: page.finalURL)
 
-        let bookId = UUID().uuidString
+        // A queued system share supplies its durable queue UUID. If the process is terminated
+        // after the database commit but before the queue acknowledgement, the next activation
+        // finds this exact book instead of downloading a duplicate. In-app imports keep their
+        // existing fresh-UUID behaviour through the nil default.
+        let bookId = bookID ?? UUID().uuidString
         var importCommitted = false
         defer {
             if !importCommitted {
