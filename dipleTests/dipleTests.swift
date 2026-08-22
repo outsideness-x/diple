@@ -89,6 +89,23 @@ final class DipleTests: XCTestCase {
                        Date(timeIntervalSince1970: 1_234))
     }
 
+    // MARK: - Tab bar collapse
+
+    func testScrollSnapshotsPublishOnlyMeaningfulGeometryChanges() {
+        XCTAssertEqual(
+            ScrollSnapshot(offset: 1, travelRange: 500),
+            ScrollSnapshot(offset: 7, travelRange: 480)
+        )
+        XCTAssertNotEqual(
+            ScrollSnapshot(offset: 7, travelRange: 500),
+            ScrollSnapshot(offset: 8, travelRange: 500)
+        )
+        XCTAssertNotEqual(
+            ScrollSnapshot(offset: 0, travelRange: 120),
+            ScrollSnapshot(offset: 0, travelRange: 500)
+        )
+    }
+
     // MARK: - Small persisted values
 
     func testTagNormalizationHandlesHashesCaseAndUnicode() {
@@ -105,7 +122,7 @@ final class DipleTests: XCTestCase {
         )
         XCTAssertEqual(
             ImportLinkViewModel.normalize("HTTP://example.com")?.scheme?.lowercased(),
-            "http"
+            "https"
         )
         XCTAssertNil(ImportLinkViewModel.normalize("javascript:alert(1)"))
         XCTAssertNil(ImportLinkViewModel.normalize("not a url"))
@@ -1513,8 +1530,13 @@ final class DipleTests: XCTestCase {
             try XCTUnwrap(URL(string: "https://example.com/read?id=7")),
             at: startedAt.addingTimeInterval(1)
         )
+        let upgradedDuplicate = try inbox.enqueue(
+            try XCTUnwrap(URL(string: "http://example.com/read?id=7")),
+            at: startedAt.addingTimeInterval(2)
+        )
 
         XCTAssertEqual(first.id, duplicate.id, "sharing one canonical URL twice must not create two articles")
+        XCTAssertEqual(first.id, upgradedDuplicate.id, "HTTP and HTTPS forms must share one secure canonical URL")
         XCTAssertEqual(first.urlString, "https://example.com/read?id=7")
         XCTAssertEqual(try inbox.pending().count, 1)
 

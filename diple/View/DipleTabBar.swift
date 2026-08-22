@@ -173,10 +173,20 @@ private struct HidesDipleTabBarKey: PreferenceKey {
     }
 }
 
+private struct HidesDipleTabBarModifier: ViewModifier {
+    @Environment(\.dipleTabIsActive) private var isActive
+
+    func body(content: Content) -> some View {
+        // A pushed destination remains mounted when its whole tab root is hidden. Its
+        // preference must not hide the bar of whichever root is visible now.
+        content.preference(key: HidesDipleTabBarKey.self, value: isActive)
+    }
+}
+
 public extension View {
     /// Takes the tab bar down for as long as this view is on screen.
     func hidesDipleTabBar() -> some View {
-        preference(key: HidesDipleTabBarKey.self, value: true)
+        modifier(HidesDipleTabBarModifier())
     }
 
     /// Watches for any descendant asking for the bar to be hidden.
@@ -335,17 +345,70 @@ public struct ScrollSnapshot: Equatable, Sendable {
     public let offset: CGFloat
     public let travelRange: CGFloat
 
+    /// Geometry can settle through several slightly different content sizes in one layout
+    /// pass. The bar only reacts after 24 points of travel, so publishing every sub-point
+    /// sample creates a SwiftUI feedback warning without adding any useful precision.
+    private static let reportingStep: CGFloat = 8
+    private static let minimumRelevantRange: CGFloat = 160
+
     public init(offset: CGFloat, travelRange: CGFloat) {
         self.offset = offset
         self.travelRange = travelRange
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.reportingBucket == rhs.reportingBucket
+            && lhs.isMeaningfullyScrollable == rhs.isMeaningfullyScrollable
+    }
+
+    private var reportingBucket: Int {
+        let clamped = min(max(offset, 0), max(travelRange, 0))
+        return Int((clamped / Self.reportingStep).rounded(.towardZero))
+    }
+
+    private var isMeaningfullyScrollable: Bool {
+        travelRange > Self.minimumRelevantRange
+    }
+}
+
+/// Hands the latest geometry sample to the bar after SwiftUI has finished its current layout
+/// pass. Reporting synchronously can collapse the overlay while its scroll view is still being
+/// measured, which asks the same geometry modifier to update twice in one frame.
+@MainActor
+private final class TabBarCollapseDelivery {
+    private var pending: ScrollSnapshot?
+    private var deliveryTask: Task<Void, Never>?
+
+    func submit(_ snapshot: ScrollSnapshot?, to state: DipleTabBarState?) {
+        pending = snapshot
+
+        // `nil` means this root just became inactive. It also clears a sample queued while the
+        // root was visible, so a tab switch cannot deliver one stale offset a moment later.
+        guard snapshot != nil, deliveryTask == nil else { return }
+
+        deliveryTask = Task { @MainActor [weak self, weak state] in
+            await Task.yield()
+            guard let self else { return }
+            let latest = pending
+            pending = nil
+            deliveryTask = nil
+            if let latest { state?.report(latest) }
+        }
     }
 }
 
 private struct TabBarCollapseTracker: ViewModifier {
     @Environment(\.dipleTabBarState) private var state
+    @Environment(\.dipleTabIsActive) private var isActive
+    @State private var delivery = TabBarCollapseDelivery()
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: ScrollSnapshot.self) { geometry in
+        content.onScrollGeometryChange(for: ScrollSnapshot?.self) { geometry in
+            // Returning a stable value matters as much as ignoring the action below. SwiftUI
+            // still evaluates a geometry transform for an opacity-hidden scroll view, and four
+            // mounted roots can otherwise make the modifier publish several changes in one
+            // frame before our action gets a chance to discard them.
+            guard isActive else { return nil }
             let insets = geometry.contentInsets
             return ScrollSnapshot(
                 offset: geometry.contentOffset.y + insets.top,
@@ -356,7 +419,7 @@ private struct TabBarCollapseTracker: ViewModifier {
                 )
             )
         } action: { _, snapshot in
-            state?.report(snapshot)
+            delivery.submit(snapshot, to: state)
         }
     }
 }

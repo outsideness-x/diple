@@ -9,7 +9,7 @@ public nonisolated enum ArticleImportError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unsupportedScheme:
-            return "Only http and https links can be imported."
+            return "Only secure HTTPS links can be imported."
         case let .requestFailed(status):
             return "The site answered with error \(status)."
         case .notHTML:
@@ -92,7 +92,7 @@ public nonisolated final class ArticleImporter {
         bookID: String?,
         progress: @Sendable (Stage) -> Void
     ) async throws -> Book {
-        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+        guard url.scheme?.lowercased() == "https" else {
             throw ArticleImportError.unsupportedScheme
         }
 

@@ -35,13 +35,20 @@ public final class ImportLinkViewModel: ObservableObject {
         }
 
         guard let url = URL(string: text),
-              let host = url.host,
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = components.host,
               host.contains("."),
               !host.hasPrefix("."),
               !host.hasSuffix(".")
         else { return nil }
 
-        return url
+        // ATS blocks plain HTTP because the app deliberately carries no arbitrary-loads
+        // exception. Upgrade a pasted legacy address here instead of accepting a URL that can
+        // only fail later with an opaque network error.
+        components.scheme = "https"
+        return components.url
     }
 
     /// `hasURLs`/`hasStrings` answer without handing over the contents, so checking costs the

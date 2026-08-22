@@ -62,7 +62,7 @@ public nonisolated struct SharedLinkInbox: Sendable {
             case .appGroupUnavailable:
                 return "diple’s shared inbox isn’t available on this device."
             case .unsupportedURL:
-                return "That item doesn’t contain an http or https link."
+                return "That item doesn’t contain a secure web link."
             case .queueUnavailable:
                 return "diple couldn’t update its shared inbox."
             case .inboxFull:
@@ -156,7 +156,9 @@ public nonisolated struct SharedLinkInbox: Sendable {
               !host.isEmpty
         else { return nil }
 
-        components.scheme = scheme
+        // The containing app has no ATS exception. Canonicalizing legacy HTTP shares to HTTPS
+        // here keeps queue deduplication stable and avoids promising an import iOS will block.
+        components.scheme = "https"
         components.host = host.lowercased()
         components.fragment = nil
         return components.url

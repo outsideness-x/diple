@@ -26,6 +26,7 @@ final class dipleUITests: XCTestCase {
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
         app.launch()
 
         // Use XCTAssert and related functions to verify your tests produce the correct results.
@@ -72,6 +73,7 @@ final class dipleUITests: XCTestCase {
     @MainActor
     func testSettingsColophon() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
         app.launch()
 
         let settings = app.buttons["Settings"]
@@ -133,9 +135,12 @@ final class dipleUITests: XCTestCase {
     @MainActor
     func testNotesWorkspaceAndCaptureFlow() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
         app.launch()
 
-        let notesTab = app.tabBars.buttons["Notes"]
+        // diple owns a floating tab bar rather than using UITabBar, so the destinations are
+        // regular accessible buttons in XCUI's hierarchy.
+        let notesTab = app.buttons["Notes"]
         XCTAssertTrue(notesTab.waitForExistence(timeout: 5))
         notesTab.tap()
 
@@ -184,10 +189,11 @@ final class dipleUITests: XCTestCase {
     @MainActor
     func testEquationComposerAndRenderedFormulaFlow() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
         app.launch()
 
-        XCTAssertTrue(app.tabBars.buttons["Notes"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["Notes"].tap()
+        XCTAssertTrue(app.buttons["Notes"].waitForExistence(timeout: 5))
+        app.buttons["Notes"].tap()
         let newNote = app.buttons.matching(identifier: "notes.new").firstMatch
         XCTAssertTrue(newNote.waitForExistence(timeout: 5))
         newNote.tap()
@@ -241,7 +247,9 @@ final class dipleUITests: XCTestCase {
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            let app = XCUIApplication()
+            app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
+            app.launch()
         }
     }
 }
