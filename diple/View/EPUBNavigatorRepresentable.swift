@@ -156,6 +156,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         var lastPreferences: EPUBPreferences? = nil
         var lastHighlights: [Highlight]? = nil
         private var didClearSelection = false
+        private let selectionSettle = SelectionSettle()
         private var pullTransition: ChapterPullTransitionController? = nil
         private var inFlightTarget: NavigationTarget? = nil
 
@@ -319,7 +320,6 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         }
 
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
-            HapticManager.shared.selection()
             // The publication provably has a selection at this instant, whatever SwiftUI has
             // observed. Opening the latch here rather than only in `clearSelectionIfNeeded` is
             // what makes save-on-selection work: that path sets `currentSelection` and clears it
@@ -327,11 +327,18 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             // `hasSelection` is true — and a latch that only ever opens on that render would
             // stay shut, leaving the blue selection and its handles on a passage already saved.
             didClearSelection = false
-            parent.onSelectionChanged(selection)
+            // Once the drag settles, not on every report of it — see `SelectionSettle`. The
+            // haptic waits with it: struck per callback it was a rattle, struck here it is the
+            // one tap that says the passage is kept.
+            selectionSettle.settle(on: selection) { [weak self] settled in
+                HapticManager.shared.selection()
+                self?.parent.onSelectionChanged(settled)
+            }
             return false
         }
 
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+            selectionSettle.cancel()
             parent.onSelectionChanged(nil)
 
             // In continuous scroll mode, horizontal tap gestures MUST NOT turn pages.

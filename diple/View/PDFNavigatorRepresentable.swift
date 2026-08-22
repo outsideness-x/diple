@@ -105,6 +105,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         var lastPreferences: PDFPreferences? = nil
         private var didClearSelection = false
         private var inFlightTarget: NavigationTarget? = nil
+        private let selectionSettle = SelectionSettle()
 
         /// See `EPUBNavigatorRepresentable.Coordinator.clearSelectionIfNeeded`.
         func clearSelectionIfNeeded(_ hasSelection: Bool, in navigator: PDFNavigatorViewController) {
@@ -178,12 +179,18 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         }
 
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
-            HapticManager.shared.selection()
-            parent.onSelectionChanged(selection)
+            // One report per drag rather than one per pixel of it — see `SelectionSettle`.
+            // Nothing is saved automatically on PDF, but the bar and the haptic answered the
+            // same stream and flickered with it.
+            selectionSettle.settle(on: selection) { [weak self] settled in
+                HapticManager.shared.selection()
+                self?.parent.onSelectionChanged(settled)
+            }
             return false
         }
 
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+            selectionSettle.cancel()
             parent.onSelectionChanged(nil)
 
             if parent.preferences.scroll == true {

@@ -8,6 +8,9 @@ public struct ReaderContainerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var highlightEditorTarget: HighlightEditorTarget?
+    /// The passage this selection gesture has already written, so a drag that resumes after a
+    /// pause replaces it rather than adding to it. See `saveSelectionAsHighlight`.
+    @State private var highlightFromThisGesture: Highlight?
     /// The colour the next selection will be marked in — whichever one was chosen last.
     ///
     /// A working habit, not navigation state, so it lives in `@AppStorage` beside the library
@@ -606,10 +609,30 @@ public struct ReaderContainerView: View {
     /// selection right after takes the handles with it, which means a span cannot be adjusted
     /// afterwards; a wrong one is removed from the bar and made again, which is the trade the
     /// reference app makes too.
+    /// A selection *is* a highlight on EPUB, so this is the busiest write in the app — and the
+    /// one place a duplicate is invisible until the reader opens their quotes and finds the same
+    /// sentence four times.
+    ///
+    /// `SelectionSettle` already collapses the stream of callbacks a drag produces into one, and
+    /// that covers the ordinary case. What it cannot cover is a drag that *stops* — a reader
+    /// pausing halfway down a paragraph to see where they are, then carrying on: the pause
+    /// settles, a passage is saved, and the rest of the drag saves the same passage again with a
+    /// longer tail. So a second save that starts where the last one did replaces it instead of
+    /// joining it. Two passages that genuinely differ share no such prefix and both stand.
     private func saveSelectionAsHighlight(_ selection: Selection?) {
         viewModel.currentSelection = selection
-        guard selection != nil, selectedQuote != nil else { return }
-        viewModel.createHighlight(colorHex: lastHighlightColorHex, announce: false)
+        guard selection != nil, let quote = selectedQuote else {
+            highlightFromThisGesture = nil
+            return
+        }
+        if let previous = highlightFromThisGesture,
+           quote.hasPrefix(previous.text) || previous.text.hasPrefix(quote) {
+            viewModel.deleteHighlight(previous, announce: false)
+        }
+        highlightFromThisGesture = viewModel.createHighlight(
+            colorHex: lastHighlightColorHex,
+            announce: false
+        )
     }
 
     private func dismissHighlightActions() {

@@ -578,12 +578,18 @@ public final class ReaderViewModel: ObservableObject {
         activeHighlightRect = nil
     }
 
-    public func deleteHighlight(_ highlight: Highlight) {
+    /// `announce: false` is for the one caller that is not a reader deleting anything: a drag
+    /// that pauses long enough to settle, then carries on, replaces the passage it had already
+    /// saved rather than leaving it behind — and neither a toast nor a success haptic belongs to
+    /// a correction the reader never asked for. See `ReaderContainerView.saveSelectionAsHighlight`.
+    public func deleteHighlight(_ highlight: Highlight, announce: Bool = true) {
         do {
             try AppDatabase.shared.deleteHighlight(id: highlight.id)
             loadHighlights()
-            HapticManager.shared.notification(.success)
-            showToast("Highlight deleted")
+            if announce {
+                HapticManager.shared.notification(.success)
+                showToast("Highlight deleted")
+            }
         } catch {
             Self.log.error("Failed to delete highlight: \(error, privacy: .public)")
             showToast("Could not delete quote")
