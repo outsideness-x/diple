@@ -18,6 +18,9 @@ struct dipleApp: App {
     // an accent change; that is the accepted price of not threading an environment value
     // through 28 files for something the user changes rarely and deliberately.
     @StateObject private var settingsManager = AppSettingsManager.shared
+    /// Watched for one reason: iOS only lets an app change its Home Screen icon while it is
+    /// active. See the `onChange` below.
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // The delegate must be installed before the root view appears, otherwise a tap on a
@@ -53,6 +56,18 @@ struct dipleApp: App {
             .onChange(of: settingsManager.settings.appearance, initial: true) { _, appearance in
                 DipleAppearance.apply(appearance)
             }
+            // **Not** in the `.task` below, where this used to sit and never once worked.
+            // iOS refuses to change an app icon while the app is anything but active, and at the
+            // moment the root view first appears the scene is still `.inactive` — so the
+            // reconciliation that exists to carry an accent chosen on another device onto this
+            // one silently failed on every launch, leaving the icon on whatever was last set by
+            // a direct tap in Settings. Activation is the earliest moment the call is allowed,
+            // and running it on every activation costs nothing: `apply` returns immediately when
+            // the icon already matches.
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                guard phase == .active else { return }
+                AppIconManager.apply(settingsManager.settings.accent)
+            }
             .task {
                 // The window exists by now, which it did not when the settings manager was
                 // built. Sheets and the keyboard take the window's style rather than the
@@ -64,11 +79,6 @@ struct dipleApp: App {
                 guard AppDatabase.startupFailure == nil else { return }
 
                 await DailyResurfacingService.shared.reconcileNotifications()
-                // Reconciles the icon against whatever accent is already in `settings` before
-                // touching the network: this is a local operation and has no reason to wait on
-                // a CloudKit round trip. If an accent arrives later over iCloud, `AppSettingsManager`
-                // updates `settings` itself and the next launch reconciles again.
-                AppIconManager.apply(settingsManager.settings.accent)
                 // iCloud sync is opt-in (device-local flag, off by default — see CLAUDE.md).
                 // Silent CloudKit pushes don't require notification permission, but the app
                 // must register with APNs so CKSyncEngine can fetch while it is running.

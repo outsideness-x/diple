@@ -43,18 +43,20 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     public var uiColor: UIColor { UIColor(color) }
 
     /// Name of the matching `.appiconset` in `Assets.xcassets`, or `nil` for the accent whose
-    /// artwork ships as the primary `AppIcon`.
+    /// artwork ships as the primary `AppIcon` — brass, since it became the default.
     ///
-    /// That is brass now, and the temporary mismatch recorded here when brass became the default
-    /// is resolved: the icon was redesigned and every accent has one. Lilac gained an alternate
-    /// of its own in the same change — it used to be the primary and so needed none, and leaving
-    /// it at `nil` after the swap would have shown a reader who chose lilac a brass icon.
+    /// **The names carry the artwork, not just the colour, and that is deliberate.** iOS does
+    /// not re-read an alternate icon whose name is already the one in force: `AppIconManager`
+    /// correctly skips the call when nothing changed, so a reader still on the old artwork under
+    /// the same name keeps seeing it forever. Redrawing an alternate icon therefore means
+    /// renaming its set — which is what `Colophon` records here. The next redesign renames them
+    /// again.
     public var alternateIconName: String? {
         switch self {
-        case .lilac: return "AppIconLilac"
-        case .mint: return "AppIconMint"
-        case .clay: return "AppIconClay"
-        case .periwinkle: return "AppIconPeriwinkle"
+        case .lilac: return "AppIconLilacColophon"
+        case .mint: return "AppIconMintColophon"
+        case .clay: return "AppIconClayColophon"
+        case .periwinkle: return "AppIconPeriwinkleColophon"
         case .brass: return nil
         }
     }
