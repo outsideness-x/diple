@@ -32,6 +32,38 @@ final class dipleUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsColophon() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+
+        let colophon = app.descendants(matching: .any)
+            .matching(identifier: "settings.colophon")
+            .firstMatch
+        XCTAssertTrue(colophon.waitForExistence(timeout: 5))
+
+        let comfortableBottomEdge = app.frame.maxY - 80
+        for _ in 0..<8 where !colophon.isHittable || colophon.frame.maxY > comfortableBottomEdge {
+            app.swipeUp()
+        }
+
+        XCTAssertTrue(colophon.isHittable)
+        XCTAssertLessThanOrEqual(colophon.frame.maxY, comfortableBottomEdge)
+        XCTAssertEqual(
+            colophon.label,
+            "designed and created by chemical pink. diple. version 1.0"
+        )
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Settings colophon"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
     func testNotesWorkspaceAndCaptureFlow() throws {
         let app = XCUIApplication()
         app.launch()

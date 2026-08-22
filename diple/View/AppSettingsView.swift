@@ -421,10 +421,11 @@ public struct AppSettingsView: View {
                             .cornerRadius(DipleRadius.m)
                         }
 
-                        Spacer()
+                        SettingsColophon()
                     }
                     .padding(.horizontal, DipleSpace.xl)
                     .padding(.top, DipleSpace.xl)
+                    .padding(.bottom, DipleSpace.xxxl)
                 }
             }
             .navigationTitle("Settings")
@@ -469,6 +470,98 @@ public struct AppSettingsView: View {
                 }
             }
         }
+    }
+}
+
+/// A quiet signature at the end of Settings. It deliberately has no card or divider: after
+/// the functional rows, the open canvas makes this read like a note left in the margin rather
+/// than one more setting. Caveat is a plain notebook hand rather than formal calligraphy, and
+/// the relative text styles keep both lines responsive to Dynamic Type.
+private struct SettingsColophon: View {
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+    }
+
+    var body: some View {
+        VStack(spacing: DipleSpace.s) {
+            HandDrawnHeart()
+                .stroke(
+                    DipleColor.textTertiary,
+                    style: StrokeStyle(
+                        lineWidth: 1.35,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+                .frame(width: 17, height: 15)
+                .rotationEffect(.degrees(5))
+                .padding(.bottom, DipleSpace.hair)
+                .accessibilityHidden(true)
+
+            Text("designed and created by chemical pink.")
+                .font(.custom("Caveat-Regular", size: 21, relativeTo: .title3))
+                .foregroundStyle(DipleColor.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .rotationEffect(.degrees(-0.7))
+
+            Text("diple. version \(appVersion)")
+                .font(.custom("Caveat-Regular", size: 17, relativeTo: .body))
+                .foregroundStyle(DipleColor.textTertiary)
+                .padding(.top, DipleSpace.hair)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, DipleSpace.xs)
+        .padding(.vertical, DipleSpace.xxl)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("settings.colophon")
+        .accessibilityLabel(
+            "designed and created by chemical pink. diple. version \(appVersion)"
+        )
+    }
+}
+
+/// Slightly uneven Bézier lobes give the outline the warmth of a single pen stroke; an SF
+/// Symbol would be too geometric beside the notebook hand.
+private struct HandDrawnHeart: Shape {
+    func path(in rect: CGRect) -> Path {
+        let width = rect.width
+        let height = rect.height
+        var path = Path()
+
+        path.move(to: CGPoint(x: width * 0.51, y: height * 0.90))
+        path.addCurve(
+            to: CGPoint(x: width * 0.10, y: height * 0.39),
+            control1: CGPoint(x: width * 0.40, y: height * 0.77),
+            control2: CGPoint(x: width * 0.08, y: height * 0.62)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.30, y: height * 0.12),
+            control1: CGPoint(x: width * 0.07, y: height * 0.22),
+            control2: CGPoint(x: width * 0.18, y: height * 0.08)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.52, y: height * 0.32),
+            control1: CGPoint(x: width * 0.41, y: height * 0.12),
+            control2: CGPoint(x: width * 0.49, y: height * 0.21)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.73, y: height * 0.11),
+            control1: CGPoint(x: width * 0.57, y: height * 0.19),
+            control2: CGPoint(x: width * 0.63, y: height * 0.09)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.92, y: height * 0.39),
+            control1: CGPoint(x: width * 0.85, y: height * 0.10),
+            control2: CGPoint(x: width * 0.94, y: height * 0.23)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.51, y: height * 0.90),
+            control1: CGPoint(x: width * 0.92, y: height * 0.59),
+            control2: CGPoint(x: width * 0.67, y: height * 0.79)
+        )
+
+        return path
     }
 }
 
