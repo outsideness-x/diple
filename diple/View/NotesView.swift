@@ -105,9 +105,7 @@ public struct NotesView: View {
             } message: {
                 Text("This note will be removed permanently.")
             }
-            .onAppear {
-                viewModel.load()
-            }
+            .refreshesOnTabActivation { viewModel.load() }
         }
     }
 

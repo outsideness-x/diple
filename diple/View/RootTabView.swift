@@ -102,6 +102,7 @@ public struct RootTabView: View {
     ) -> some View {
         let isActive = selection == tab
         content()
+            .environment(\.dipleTabIsActive, isActive)
             .opacity(isActive ? 1 : 0)
             .allowsHitTesting(isActive)
             .accessibilityHidden(!isActive)

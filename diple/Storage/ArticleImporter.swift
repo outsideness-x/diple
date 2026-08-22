@@ -168,6 +168,17 @@ public nonisolated final class ArticleImporter {
 
         try AppDatabase.shared.saveArticle(book, searchableText: article.searchableText)
         importCommitted = true
+        // Same signal as a file import: a saved link is a source arriving on the shelf too.
+        // Hopped onto the main actor explicitly — unlike `EPUBImporter`, this whole function
+        // runs in a detached task, and a notification posted from it would be delivered on that
+        // thread, straight into SwiftUI `onReceive` handlers that write view state.
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .dipleSourceDidImport,
+                object: nil,
+                userInfo: Notification.dipleImportPayload(book)
+            )
+        }
         return book
     }
 

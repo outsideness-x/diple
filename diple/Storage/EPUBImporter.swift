@@ -114,6 +114,14 @@ public final class EPUBImporter {
 
         try AppDatabase.shared.saveBook(book)
         importCommitted = true
+        // Every screen holding a library — Home's, the shelf's, the Mac shell's — reloads on
+        // this, and the shelf uses it to stand where the new source landed. Posted here rather
+        // than at the four call sites because this is the one line that makes the source exist.
+        NotificationCenter.default.post(
+            name: .dipleSourceDidImport,
+            object: nil,
+            userInfo: Notification.dipleImportPayload(book)
+        )
         // Fire-and-forget: the reader is usable immediately, full-text indexing catches up
         // in the background (see `BookContentIndexer`).
         BookContentIndexer.shared.indexBook(book)

@@ -45,4 +45,27 @@ extension Notification.Name {
     /// A daily-resurfacing local notification was opened. The phone shell selects Highlights,
     /// while the desktop shell selects its equivalent sidebar source.
     static let dipleOpenDailyResurfacing = Notification.Name("diple.openDailyResurfacing")
+    /// A source finished importing on *this* device, from a file or from a link. Carries the
+    /// new `Book`; read it with `Notification.dipleImportedBook`.
+    ///
+    /// The importer is a lower layer than any one screen, and an import started on Home has to
+    /// reach the shelf, which is a different `LibraryViewModel` in a different tab. Posting it
+    /// once, where the row is actually written, is what keeps that from becoming a callback
+    /// threaded through four view models. This is not the remote notification above: that one
+    /// says iCloud changed something, this one says the reader just added something and is
+    /// about to go looking for it.
+    static let dipleSourceDidImport = Notification.Name("diple.sourceDidImport")
+}
+
+extension Notification {
+    /// Keeps the `userInfo` key in one place rather than spelled out at each end.
+    fileprivate static let dipleImportedBookKey = "book"
+
+    /// The source carried by `.dipleSourceDidImport`.
+    var dipleImportedBook: Book? { userInfo?[Notification.dipleImportedBookKey] as? Book }
+
+    /// Builds the payload for `.dipleSourceDidImport`.
+    static func dipleImportPayload(_ book: Book) -> [AnyHashable: Any] {
+        [dipleImportedBookKey: book]
+    }
 }

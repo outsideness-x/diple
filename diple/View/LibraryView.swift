@@ -104,6 +104,29 @@ public struct LibraryView: View {
         }
     }
 
+    /// Puts the just-imported source in front of the reader instead of only in a count.
+    ///
+    /// Reloading the library is not enough on its own, and that is the whole reason this exists:
+    /// an import lands in the inbox, the shelf is standing wherever it was left — usually Later —
+    /// and the only sign of the new book is the digit on a segment the reader is not looking at.
+    /// From their side an import that cannot be seen is an import that failed, which is what was
+    /// reported. Restarting the app appeared to fix it only because `selectInitialLocation
+    /// IfNeeded` then picked the first non-empty location, and by then that was the inbox.
+    ///
+    /// Any narrowing that would hide it is dropped for the same reason: a shelf filtered to
+    /// Finished, or to somebody else's tag, would show an empty page in answer to an import.
+    /// `hasResolvedInitialLocation` is stamped so the first-appearance rule cannot immediately
+    /// move the shelf somewhere else.
+    private func reveal(_ book: Book) {
+        hasResolvedInitialLocation = true
+        location = book.location
+        if !type.includes(book) { type = .all }
+        if !status.includes(book) { status = .any }
+        // A source arrives untagged, so any tag selected at all excludes it.
+        selectedTags = []
+        searchText = ""
+    }
+
     public var body: some View {
         NavigationStack(path: $path) {
             ZStack {
@@ -244,6 +267,13 @@ public struct LibraryView: View {
                 }
             }
             .onAppear(perform: selectInitialLocationIfNeeded)
+            // The shelf has to re-read the library every time the reader comes back to it: a
+            // book imported from Home, or finished in the reader, changes what belongs here.
+            .refreshesOnTabActivation { viewModel.loadBooks() }
+            .onReceive(NotificationCenter.default.publisher(for: .dipleSourceDidImport)) { note in
+                guard let book = note.dipleImportedBook else { return }
+                reveal(book)
+            }
             .onChange(of: viewModel.books.count) { _, _ in
                 // The library loads asynchronously and can still be empty on first appearance,
                 // in which case the initial choice has not been made yet.

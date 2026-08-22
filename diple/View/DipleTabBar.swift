@@ -187,6 +187,51 @@ public extension View {
     }
 }
 
+// MARK: - Activation
+
+/// Whether the tab this view belongs to is the one on screen.
+///
+/// Defaults to `true` so a root rendered outside the shell — a `#Preview`, the Mac shell —
+/// behaves as it always did.
+private struct DipleTabIsActiveKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+public extension EnvironmentValues {
+    var dipleTabIsActive: Bool {
+        get { self[DipleTabIsActiveKey.self] }
+        set { self[DipleTabIsActiveKey.self] = newValue }
+    }
+}
+
+private struct TabActivationRefresh: ViewModifier {
+    @Environment(\.dipleTabIsActive) private var isActive
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { if isActive { action() } }
+            .onChange(of: isActive) { _, active in
+                if active { action() }
+            }
+    }
+}
+
+public extension View {
+    /// Runs `action` when this tab first appears and every time the reader comes back to it.
+    ///
+    /// `TabView` used to give this for free: it added and removed each tab's content as the
+    /// selection moved, so `onAppear` fired on every return. The shell keeps all four roots
+    /// alive instead — that is what preserves a half-written note and a scrolled shelf — and
+    /// the cost is that `onAppear` fires exactly once, at launch. A screen that loaded its data
+    /// there then showed whatever was true when the app started: a book imported and opened
+    /// would not appear in Continue, and a new import would not appear on the shelf, until the
+    /// app was quit and reopened.
+    func refreshesOnTabActivation(_ action: @escaping () -> Void) -> some View {
+        modifier(TabActivationRefresh(action: action))
+    }
+}
+
 // MARK: - Collapse
 
 /// Whether the bar is currently out of the way, and the scroll arithmetic that decides it.

@@ -88,13 +88,22 @@ public final class LibraryViewModel: ObservableObject {
     @Published public var showErrorAlert: Bool = false
     @Published public var bookToDelete: Book? = nil
     @Published public var showDeleteConfirmation: Bool = false
-    private var syncObserver: AnyCancellable?
+    private var observers: Set<AnyCancellable> = []
 
     public init() {
         loadBooks()
-        syncObserver = NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
+        NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.loadBooks() }
+            .store(in: &observers)
+        // An import started on Home has to reach the shelf, and the shelf is a *different*
+        // instance of this class in a different tab. Without this, the second instance kept
+        // whatever it read at launch until the app was quit and reopened — which is exactly
+        // what a reader reported: a book imported and opened was invisible in the library.
+        NotificationCenter.default.publisher(for: .dipleSourceDidImport)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.loadBooks() }
+            .store(in: &observers)
     }
 
     /// The unfinished book the reader touched most recently. The library remains the source of
@@ -102,12 +111,19 @@ public final class LibraryViewModel: ObservableObject {
     ///
     /// Archived sources are excluded even when half-read: archiving is the reader saying they
     /// are done with it for now, and an app that keeps offering it back has not listened.
+    ///
+    /// Having opened it is the whole test. There used to be a `progress > 0.001` floor as well,
+    /// and it made Continue lie in the one case where a reader watches it hardest: import a
+    /// book, open it, come back, and Home still offered the *previous* book. A publication
+    /// opened at its first page has `progress == 0`, and one page into a hundred-chapter book is
+    /// still under a thousandth of it — so the floor did not exclude "never started", which
+    /// `lastOpenedAt` already excludes on its own; it excluded "just started", which is exactly
+    /// what Continue is for.
     public var continueReadingBook: Book? {
         books
             .filter {
                 $0.location != .archive
                     && $0.lastOpenedAt != nil
-                    && $0.progress > 0.001
                     && $0.progress < 0.995
             }
             .max { ($0.lastOpenedAt ?? .distantPast) < ($1.lastOpenedAt ?? .distantPast) }

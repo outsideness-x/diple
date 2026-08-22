@@ -169,7 +169,7 @@ public struct HomeView: View {
             } message: {
                 Text(library.errorMessage ?? "An unknown error occurred.")
             }
-            .onAppear(perform: reload)
+            .refreshesOnTabActivation(reload)
         }
     }
 

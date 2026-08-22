@@ -69,7 +69,7 @@ public struct GlobalSearchView: View {
                     scope = nil
                 }
             }
-            .onAppear {
+            .refreshesOnTabActivation {
                 viewModel.reloadContext()
                 notesViewModel.load()
             }
