@@ -36,15 +36,20 @@ struct dipleApp: App {
         WindowGroup {
             Group {
                 #if targetEnvironment(macCatalyst)
-                MacRootView()
-                    .frame(minWidth: 980, minHeight: 680)
+                FirstLaunchGate {
+                    MacRootView()
+                        .frame(minWidth: 980, minHeight: 680)
+                }
                 #else
                 // A library that would not open used to crash the app on launch. Now the
-                // reader gets told, and nothing that queries the database is put on screen.
+                // reader gets told immediately, and a celebratory intro never covers the
+                // failure with five seconds of unrelated animation.
                 if let failure = AppDatabase.startupFailure {
                     DatabaseUnavailableView(failure: failure)
                 } else {
-                    RootTabView()
+                    FirstLaunchGate {
+                        RootTabView()
+                    }
                 }
                 #endif
             }

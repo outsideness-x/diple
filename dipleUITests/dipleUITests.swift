@@ -32,6 +32,37 @@ final class dipleUITests: XCTestCase {
     }
 
     @MainActor
+    func testFirstLaunchIntro() throws {
+        let app = XCUIApplication()
+        // A dedicated QA argument reproduces a new installation without deleting the
+        // developer's library or overriding the UserDefaults value that the intro itself must
+        // be able to commit when it leaves.
+        app.launchArguments = ["-diple-test-first-launch"]
+        app.launch()
+
+        let intro = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Welcome to diple'"))
+            .firstMatch
+        XCTAssertTrue(intro.waitForExistence(timeout: 5))
+
+        // Capture the central beat — opened pages, the icon mark and its reading line — rather
+        // than racing the self-dismiss transition at the very end of the sequence.
+        Thread.sleep(forTimeInterval: 2.0)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "First launch colophon"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        XCTAssertTrue(intro.exists)
+
+        // The production view dismisses itself shortly afterwards, so the test also verifies
+        // that it never traps a first-time reader behind a required gesture.
+        Thread.sleep(forTimeInterval: 3.0)
+        XCTAssertFalse(intro.exists)
+        XCTAssertTrue(app.staticTexts["diple."].waitForExistence(timeout: 2))
+    }
+
+    @MainActor
     func testSettingsColophon() throws {
         let app = XCUIApplication()
         app.launch()
