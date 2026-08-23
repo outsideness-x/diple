@@ -2,6 +2,8 @@ import CloudKit
 import XCTest
 import GRDB
 import ReadiumNavigator
+import ReadiumShared
+import SwiftUI
 @testable import diple
 
 @MainActor
@@ -990,6 +992,166 @@ final class DipleTests: XCTestCase {
             try database.fetchSyncOutbox().first { $0.entity == .highlight }?.entityID,
             highlight.id
         )
+    }
+
+    // MARK: - Selection bar: deferred creation and the retired colour
+
+    /// A passage, a locator and a frame, exactly as the navigator would have reported them.
+    /// `ReadiumNavigator.Selection` has no public initialiser, which is why `PendingSelection`
+    /// exists at all — see its own documentation.
+    private func makePendingSelection(quote: String) -> PendingSelection {
+        PendingSelection(
+            quote: quote,
+            locator: Locator(
+                href: AnyURL(string: "chapter-3.xhtml")!,
+                mediaType: .xhtml,
+                locations: Locator.Locations(progression: 0.31),
+                text: Locator.Text(highlight: quote)
+            ),
+            frame: CGRect(x: 12, y: 480, width: 260, height: 44)
+        )
+    }
+
+    /// The whole of the pending state, and the regression that would be invisible without it.
+    ///
+    /// Under the previous order a settled selection *was* a highlight, so marking a passage
+    /// cost nothing and un-marking one cost a hunt. Deferring the write means the bar can be up,
+    /// with a passage under it, while the library is untouched — no row, nothing in the sync
+    /// outbox, nothing for CloudKit to carry. If this ever goes back to writing on selection
+    /// the failure will not show up as a crash; it will show up weeks later as a reader opening
+    /// their quotes and finding a paragraph's worth of accidents.
+    func testPendingSelectionWritesNeitherRowNorSyncEntry() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(id: "pending-book", title: "Source", filePath: "Books/pending/book.epub")
+        try database.saveBook(book)
+        let viewModel = ReaderViewModel(book: book, database: database)
+
+        viewModel.currentSelection = makePendingSelection(quote: "A passage nobody has decided about")
+
+        XCTAssertTrue(try database.fetchHighlights(forBookId: book.id).isEmpty)
+        XCTAssertTrue(
+            try database.fetchSyncOutbox().filter { $0.entity == .highlight }.isEmpty,
+            "a pending selection must give CloudKit nothing to sync"
+        )
+        XCTAssertTrue(viewModel.highlights.isEmpty)
+        XCTAssertNil(viewModel.activeHighlight, "the bar has to still be reading as pending")
+    }
+
+    /// The tap that ends the pending state writes one row and leaves the bar standing on it, so
+    /// the next tap — another colour — has to change that row rather than add a second.
+    func testChoosingAColourCreatesExactlyOneHighlightAndRecoloursIt() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(id: "commit-book", title: "Source", filePath: "Books/commit/book.epub")
+        try database.saveBook(book)
+        let viewModel = ReaderViewModel(book: book, database: database)
+        let quote = "A passage the reader has now decided about"
+        viewModel.currentSelection = makePendingSelection(quote: quote)
+
+        let created = try XCTUnwrap(
+            viewModel.createHighlight(colorHex: DipleColor.Highlight.green, announce: false)
+        )
+
+        let saved = try database.fetchHighlights(forBookId: book.id)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved.first?.id, created.id)
+        XCTAssertEqual(saved.first?.text, quote)
+        XCTAssertEqual(saved.first?.colorHex, DipleColor.Highlight.green)
+        XCTAssertNil(
+            viewModel.currentSelection,
+            "saving takes the selection off the page; the decoration stands in its place"
+        )
+
+        // What the bar does next: it stays open on what it just wrote, in `committed`.
+        viewModel.activeHighlight = created
+        viewModel.setHighlightColor(created, to: DipleColor.Highlight.pink)
+
+        let afterRecolour = try database.fetchHighlights(forBookId: book.id)
+        XCTAssertEqual(afterRecolour.count, 1, "a second colour recolours; it never adds a quote")
+        XCTAssertEqual(afterRecolour.first?.colorHex, DipleColor.Highlight.pink)
+    }
+
+    /// Blue is gone from the picker and from nowhere else.
+    ///
+    /// Every surface resolves a stored colour through a hex parser rather than matching it
+    /// against the palette, which is what lets a colour be withdrawn without reaching backwards
+    /// into quotes already saved in it. `ReadiumNavigator.Color(hex:)` is the one that can fail,
+    /// and the reader falls back to plain yellow when it does — so an old blue passage going
+    /// wrong would repaint itself rather than crash, which is the harder failure to notice.
+    func testHighlightInTheRetiredBlueStillReadsRendersAndExports() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(id: "legacy-blue-book", title: "Source", filePath: "Books/legacy/book.epub")
+        let highlight = Highlight(
+            id: "legacy-blue-highlight",
+            bookId: book.id,
+            locator: #"{"href":"chapter-1.xhtml","type":"application/xhtml+xml"}"#,
+            text: "A passage marked before the palette changed",
+            colorHex: DipleColor.Highlight.blue
+        )
+        try database.saveBook(book)
+        try database.saveHighlight(highlight)
+
+        XCTAssertEqual(DipleColor.Highlight.selectable.count, 4)
+        XCTAssertFalse(
+            DipleColor.Highlight.selectable.contains { $0.hex == DipleColor.Highlight.blue },
+            "blue must not be offered for a new mark"
+        )
+
+        let stored = try XCTUnwrap(database.fetchHighlights(forBookId: book.id).first)
+        XCTAssertEqual(stored.colorHex, DipleColor.Highlight.blue)
+
+        XCTAssertNotNil(
+            ReadiumNavigator.Color(hex: stored.colorHex),
+            "the reader's decoration would silently fall back to yellow"
+        )
+
+        let payload = try DipleExportPayload(database: database)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let json = try XCTUnwrap(String(data: encoder.encode(payload), encoding: .utf8))
+        XCTAssertTrue(json.contains(DipleColor.Highlight.blue), "the export carries the hex verbatim")
+
+        let viewModel = ReaderViewModel(book: book, database: database)
+        XCTAssertEqual(viewModel.highlights.map(\.colorHex), [DipleColor.Highlight.blue])
+    }
+
+    /// The row has to hold everything at once on the narrowest phone the app supports, and it
+    /// only just does: eight 44 pt hit targets are 352 of the 375 points available. This is the
+    /// arithmetic the design rests on, so it is measured rather than trusted — a fifth swatch,
+    /// a point of spacing or a wider separator all put the bar off the side of the screen, and
+    /// none of them announce themselves in a simulator running a 440 pt device.
+    ///
+    /// Measured in `committed` with delete showing, which is the widest the bar ever gets, and
+    /// at the largest Dynamic Type size a non-accessibility setting reaches. Width must not
+    /// move at all between the two: the glyphs grow inside fixed frames by design, and a bar
+    /// whose width tracked type size could not be made to fit at any single number.
+    func testActionsBarFitsTheNarrowestPhoneAtLargeDynamicType() {
+        var widths: [CGFloat] = []
+
+        for typeSize in [DynamicTypeSize.large, .xLarge] {
+            let bar = HighlightActionsBar(
+                chrome: .forTheme(.paper),
+                mode: .committed(colorHex: DipleColor.Highlight.yellow),
+                canTranslate: true,
+                onPickColor: { _ in },
+                onTranslate: {},
+                onAddNote: {},
+                onCopy: {},
+                onDelete: {}
+            )
+            .dynamicTypeSize(typeSize)
+
+            let host = UIHostingController(rootView: bar)
+            let size = host.sizeThatFits(in: CGSize(width: 10_000, height: 10_000))
+
+            XCTAssertLessThanOrEqual(
+                size.width, 375,
+                "the bar must fit an iPhone SE at \(typeSize) without scrolling"
+            )
+            XCTAssertGreaterThanOrEqual(size.height, 44, "hit targets must stay 44 pt tall")
+            widths.append(size.width)
+        }
+
+        XCTAssertEqual(widths[0], widths[1], "Dynamic Type must not change the bar's width")
     }
 
     func testDailyResurfacingPrefersAnOlderQuoteAndIsStableForTheDay() {

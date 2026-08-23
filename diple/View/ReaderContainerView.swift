@@ -1,6 +1,18 @@
 import SwiftUI
 import ReadiumShared
 import ReadiumNavigator
+// The system translator, and the one platform fork in this file.
+//
+// Not a version fork: the app already deploys to iOS 18, well past the 17.4 that
+// `translationPresentation` needs, so there is no `#available` anywhere and no third-party
+// fallback. This is a *platform* fork, and it is not optional — `Translation.framework` has
+// no Mac Catalyst slice in the SDK at all (`MacOSX.sdk/System/iOSSupport` does not contain
+// it), and the SwiftUI overlay that carries the modifier is marked
+// `@available(macCatalyst, unavailable)` outright. On Catalyst the import will not resolve,
+// so the reader is built without the button rather than with a dead one.
+#if !targetEnvironment(macCatalyst)
+import Translation
+#endif
 
 public struct ReaderContainerView: View {
     @StateObject private var viewModel: ReaderViewModel
@@ -8,9 +20,15 @@ public struct ReaderContainerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var highlightEditorTarget: HighlightEditorTarget?
-    /// The passage this selection gesture has already written, so a drag that resumes after a
-    /// pause replaces it rather than adding to it. See `saveSelectionAsHighlight`.
-    @State private var highlightFromThisGesture: Highlight?
+    /// The passage handed to the system translator, copied out of the selection **before**
+    /// anything can clear it.
+    ///
+    /// `translationPresentation` takes a plain `String`, not a binding, and it reads it while
+    /// the sheet is coming up — by which time the selection that the words came from may be
+    /// gone. Holding the text here rather than reaching back through `currentSelection` is
+    /// what makes the sheet survive the selection it was raised from.
+    @State private var translationText = ""
+    @State private var isTranslationPresented = false
     /// The colour the next selection will be marked in — whichever one was chosen last.
     ///
     /// A working habit, not navigation state, so it lives in `@AppStorage` beside the library
@@ -85,7 +103,7 @@ public struct ReaderContainerView: View {
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
-                            presentEditor(for: selection)
+                            beginPendingSelection(selection)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onCenterTap: {
@@ -120,7 +138,7 @@ public struct ReaderContainerView: View {
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onSelectionChanged: { selection in
-                            saveSelectionAsHighlight(selection)
+                            beginPendingSelection(selection)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onHighlightActivated: { highlightID, rect in
@@ -429,14 +447,17 @@ public struct ReaderContainerView: View {
                 }
             }
         }
+        // On the reader, deliberately, and never on the bar.
+        //
+        // The bar exists only while there is something selected or tapped, and every route
+        // into translation ends by clearing one of those — so a presentation attached to it
+        // would be torn out of the hierarchy in the same update that raised it, and the sheet
+        // would come up and collapse again. This container outlives all of that.
+        .translationTarget(isPresented: $isTranslationPresented, text: translationText)
         .sheet(item: $highlightEditorTarget, onDismiss: {
             dismissHighlightActions()
         }) { target in
             switch target {
-            case .new(_, let quote):
-                HighlightEditorView(quote: quote, isExisting: false) { colorHex, comment in
-                    viewModel.createHighlight(colorHex: colorHex, comment: comment)
-                }
             case .existing(let highlight):
                 HighlightEditorView(
                     quote: highlight.text,
@@ -500,52 +521,57 @@ public struct ReaderContainerView: View {
         }
     }
 
-    /// The quote a live selection stands for, or nil when there is nothing worth acting on.
-    private var selectedQuote: String? {
-        guard let quote = viewModel.currentSelection?.locator.text.highlight?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !quote.isEmpty
-        else { return nil }
-        return quote
-    }
-
     /// What the actions bar is currently about, if anything.
     ///
-    /// Two shapes reach the same bar. On EPUB it is a highlight the reader tapped, already
-    /// saved and already on the page. On PDF there are no decorations to tap, so it is still a
-    /// live selection and nothing has been written yet — see `HighlightActionsBar.onDelete`.
+    /// Three shapes reach the same bar and only two matter to it. A selection that has been
+    /// made but not decided on is `pending`; a highlight is `committed` whether it was saved a
+    /// moment ago or tapped a week later, and whether it is on an EPUB — where the decoration
+    /// is what got tapped — or on a PDF, where there is no decoration to tap and the bar has
+    /// simply stayed open on the row it just wrote.
     private enum HighlightActionsSubject {
-        case saved(Highlight, rect: CGRect?)
-        case selection(String)
+        /// A live selection. **Nothing has been written for it**: no row, no decoration, no
+        /// entry in the sync outbox. It disappears without trace if the reader taps away.
+        case pending(quote: String, rect: CGRect?)
+        /// A highlight that exists, and the box it occupies on the page if that is known.
+        case committed(Highlight, rect: CGRect?)
 
         var quote: String {
             switch self {
-            case let .saved(highlight, _): return highlight.text
-            case let .selection(quote): return quote
+            case let .pending(quote, _): return quote
+            case let .committed(highlight, _): return highlight.text
             }
         }
 
         var highlight: Highlight? {
             switch self {
-            case let .saved(highlight, _): return highlight
-            case .selection: return nil
+            case .pending: return nil
+            case let .committed(highlight, _): return highlight
             }
         }
 
         var rect: CGRect? {
             switch self {
-            case let .saved(_, rect): return rect
-            case .selection: return nil
+            case let .pending(_, rect): return rect
+            case let .committed(_, rect): return rect
+            }
+        }
+
+        var barMode: HighlightActionsBar.Mode {
+            switch self {
+            case .pending: return .pending
+            case let .committed(highlight, _): return .committed(colorHex: highlight.colorHex)
             }
         }
     }
 
+    /// A saved highlight wins over a live selection: committing one clears the other inside a
+    /// single update, and for the frame in between the bar must already be reading as saved.
     private var highlightActionsSubject: HighlightActionsSubject? {
         if let highlight = viewModel.activeHighlight {
-            return .saved(highlight, rect: viewModel.activeHighlightRect)
+            return .committed(highlight, rect: viewModel.activeHighlightRect)
         }
-        if let quote = selectedQuote {
-            return .selection(quote)
+        if let selection = viewModel.currentSelection {
+            return .pending(quote: selection.quote, rect: selection.frame)
         }
         return nil
     }
@@ -572,8 +598,10 @@ public struct ReaderContainerView: View {
 
                     HighlightActionsBar(
                         chrome: chrome,
-                        currentColorHex: subject.highlight?.colorHex,
+                        mode: subject.barMode,
+                        canTranslate: !subject.quote.isEmpty,
                         onPickColor: { hex in pickColor(hex, for: subject) },
+                        onTranslate: translateAction(for: subject),
                         onAddNote: { addNote(to: subject) },
                         onCopy: { UIPasteboard.general.string = subject.quote },
                         onDelete: subject.highlight.map { highlight in
@@ -596,43 +624,17 @@ public struct ReaderContainerView: View {
         }
     }
 
-    private func presentEditor(for selection: Selection?) {
-        viewModel.currentSelection = selection
-    }
-
-    /// The EPUB path: a settled selection *is* the decision, so it is saved on the spot in
-    /// whichever colour was used last and the selection gets out of the way.
+    /// A settled selection raises the bar and **writes nothing**.
     ///
-    /// Readium reports this through `shouldShowMenuForSelection`, which UIKit calls when it is
-    /// about to raise the edit menu — that is, once the gesture has finished, not continuously
-    /// while a finger drags. So this fires per completed selection, not per pixel. Clearing the
-    /// selection right after takes the handles with it, which means a span cannot be adjusted
-    /// afterwards; a wrong one is removed from the bar and made again, which is the trade the
-    /// reference app makes too.
-    /// A selection *is* a highlight on EPUB, so this is the busiest write in the app — and the
-    /// one place a duplicate is invisible until the reader opens their quotes and finds the same
-    /// sentence four times.
-    ///
-    /// `SelectionSettle` already collapses the stream of callbacks a drag produces into one, and
-    /// that covers the ordinary case. What it cannot cover is a drag that *stops* — a reader
-    /// pausing halfway down a paragraph to see where they are, then carrying on: the pause
-    /// settles, a passage is saved, and the rest of the drag saves the same passage again with a
-    /// longer tail. So a second save that starts where the last one did replaces it instead of
-    /// joining it. Two passages that genuinely differ share no such prefix and both stand.
-    private func saveSelectionAsHighlight(_ selection: Selection?) {
-        viewModel.currentSelection = selection
-        guard selection != nil, let quote = selectedQuote else {
-            highlightFromThisGesture = nil
-            return
-        }
-        if let previous = highlightFromThisGesture,
-           quote.hasPrefix(previous.text) || previous.text.hasPrefix(quote) {
-            viewModel.deleteHighlight(previous, announce: false)
-        }
-        highlightFromThisGesture = viewModel.createHighlight(
-            colorHex: lastHighlightColorHex,
-            announce: false
-        )
+    /// This is the whole of the pending state. `SelectionSettle` has already collapsed the
+    /// stream of callbacks one drag produces into a single report — `shouldShowMenuForSelection`
+    /// is a stream, not a "gesture finished", and reading it as the latter is what once wrote
+    /// eight overlapping quotes per paragraph — but a drag that *stops* and carries on still
+    /// arrives here twice, and now that costs nothing: the second report replaces the first
+    /// snapshot. Nothing has to be de-duplicated afterwards because nothing was saved in
+    /// between.
+    private func beginPendingSelection(_ selection: Selection?) {
+        viewModel.currentSelection = selection.flatMap(PendingSelection.init)
     }
 
     private func dismissHighlightActions() {
@@ -640,28 +642,59 @@ public struct ReaderContainerView: View {
         viewModel.currentSelection = nil
     }
 
-    /// Recolours a saved highlight, or — on PDF, where nothing has been written yet — saves the
-    /// selection in the colour just chosen. Either way the choice becomes the new default, so
-    /// the next passage is marked in the colour this reader actually uses.
+    /// The tap that either saves the passage or recolours it. Either way the choice becomes the
+    /// new default, so the next passage is marked in the colour this reader actually uses.
     private func pickColor(_ hex: String, for subject: HighlightActionsSubject) {
         lastHighlightColorHex = hex
         switch subject {
-        case let .saved(highlight, _):
+        case let .committed(highlight, _):
+            // A second colour on a highlight that already exists changes the one row. It never
+            // adds another — the reader is looking at a mark they made, not at a new passage.
             viewModel.setHighlightColor(highlight, to: hex)
             viewModel.dismissHighlightActions()
-        case .selection:
-            viewModel.createHighlight(colorHex: hex)
+
+        case let .pending(_, rect):
+            // Saving, and staying: the note that was dimmed a second ago is the commonest next
+            // tap, and closing the bar to reopen it would cost the reader the passage. The bar
+            // is not dismissed and not re-presented, so its `appeared` state survives and the
+            // entrance spring does not play a second time.
+            //
+            // The rect has to be carried across by hand. `createHighlight` clears the
+            // selection — that is what takes the blue span and its handles off the page and
+            // lets the decoration show through — so by the next render there is no selection
+            // left to ask for a frame, and a bar that fell back to the default would jump to
+            // the bottom edge from under the finger that was still on it.
+            guard let created = viewModel.createHighlight(colorHex: hex, announce: false) else { return }
+            viewModel.activeHighlight = created
+            viewModel.activeHighlightRect = rect
         }
     }
 
+    /// Only ever reachable from `committed` — a thought needs something to hang on, so the bar
+    /// dims this button in `pending` and takes its hit-testing away with it.
     private func addNote(to subject: HighlightActionsSubject) {
-        switch subject {
-        case let .saved(highlight, _):
-            viewModel.dismissHighlightActions()
-            highlightEditorTarget = .existing(highlight)
-        case let .selection(quote):
-            highlightEditorTarget = .new(UUID(), quote)
+        guard case let .committed(highlight, _) = subject else { return }
+        viewModel.dismissHighlightActions()
+        highlightEditorTarget = .existing(highlight)
+    }
+
+    /// Hands the passage to the system translator, in either state.
+    ///
+    /// The text is copied into `@State` here, at the moment of the tap, while the selection is
+    /// provably still up. `nil` on Mac Catalyst, where the framework does not exist and the
+    /// glyph is therefore not drawn at all.
+    private func translateAction(for subject: HighlightActionsSubject) -> (() -> Void)? {
+#if targetEnvironment(macCatalyst)
+        return nil
+#else
+        // Non-nil even for an empty passage: `canTranslate` greys the glyph out instead of
+        // taking it out of the row, so the four controls beside it do not shuffle.
+        let quote = subject.quote
+        return {
+            translationText = quote
+            isTranslationPresented = true
         }
+#endif
     }
 
     /// Whether the selection sits in the lower half of the page, which sends the bar to the
@@ -681,11 +714,14 @@ public struct ReaderContainerView: View {
     /// doing it now would push the dividing line a status bar's height below the middle of the
     /// page and send half the selections to the wrong edge.
     ///
-    /// The rect is the tapped highlight's own bounding box on EPUB and the live selection's on
-    /// PDF; with neither — a highlight Readium could not place — the bar takes the bottom edge,
-    /// which is where it sat before any of this was measured.
+    /// The rect is the live selection's own bounding box while the bar is pending, the tapped
+    /// decoration's once it is committed, and the selection's again for the one it was
+    /// committed *from* — `pickColor` copies it across so the bar does not move when the
+    /// passage is saved under the reader's finger. With none of those — a highlight Readium
+    /// could not place — the bar takes the bottom edge, which is where it sat before any of
+    /// this was measured.
     private func isInLowerHalf(_ rect: CGRect?, in geo: GeometryProxy) -> Bool {
-        guard let rect = rect ?? viewModel.currentSelection?.frame else { return false }
+        guard let rect else { return false }
         return rect.midY > geo.size.height / 2
     }
 }
@@ -707,15 +743,33 @@ private extension View {
     func readerPageArea() -> some View {
         ignoresSafeArea(edges: .horizontal)
     }
+
+    /// `translationPresentation` where the framework exists, and the view untouched where it
+    /// does not.
+    ///
+    /// The fork lives in a modifier of its own because `#if` inside a `some View` chain has to
+    /// repeat every modifier below it in both branches, which is how one of the two halves
+    /// quietly stops matching the other.
+    @ViewBuilder
+    func translationTarget(isPresented: Binding<Bool>, text: String) -> some View {
+#if targetEnvironment(macCatalyst)
+        self
+#else
+        translationPresentation(isPresented: isPresented, text: text)
+#endif
+    }
 }
 
+/// A highlight the reader is writing a thought against.
+///
+/// Only ever an existing one. The bar's note button is dimmed while nothing is saved, so the
+/// editor is never the thing that *creates* a highlight — the colour swatch is, and by the
+/// time a thought can be written the row is already there.
 private enum HighlightEditorTarget: Identifiable {
-    case new(UUID, String)
     case existing(Highlight)
 
     var id: String {
         switch self {
-        case .new(let id, _): return "new:\(id.uuidString)"
         case .existing(let highlight): return "existing:\(highlight.id)"
         }
     }

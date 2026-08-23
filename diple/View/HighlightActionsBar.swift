@@ -1,66 +1,110 @@
 import SwiftUI
 
-/// The control that answers a tap on an existing highlight, floating over the page beside the
-/// words it belongs to.
+/// The control that answers a passage, floating over the page beside the words it belongs to.
 ///
-/// It used to answer a *selection* instead, and that was one step too early. Selecting a
-/// sentence raised a bar of five swatches and nothing was saved until one of them was tapped,
-/// so the commonest act in the app — mark this passage — cost a decision the reader had not
-/// asked to make yet. A selection is already the decision; the colour is a detail about it.
+/// It has two lives, and which one it is in is the whole of its behaviour.
 ///
-/// So a selection now becomes a highlight the moment it settles, in whichever colour was used
-/// last, and this bar appears only when the reader comes back and taps one. Everything that was
-/// on it stays on it — recolour, copy, write a thought — and it gains the one action the old
-/// order never needed: removing a highlight that should not have been made. That is the price
-/// of saving without asking, and it has to be one tap away, next to the colours, not buried.
+/// **Pending.** A selection settled and nothing has been written. The reader has said *this
+/// passage* and not yet said anything else, so the bar offers only what is true of a passage
+/// rather than of a saved quote: the colours, a translation, a copy. Writing a thought needs
+/// something to attach the thought to, so the note is dimmed and takes no touches; deleting
+/// needs something to delete, so it is not drawn at all. Tapping away here leaves nothing
+/// behind — no row, no decoration, no sync.
+///
+/// **Committed.** A highlight exists, either because a colour was just tapped or because the
+/// reader came back and tapped the mark. Everything is live, the current colour wears a ring,
+/// and a tap on a *different* swatch recolours the one highlight rather than making a second.
+///
+/// The move from the first to the second happens under the reader's finger and does not close
+/// the bar: choosing a colour is the act of saving, and the commonest thing to want next is
+/// the note that was dimmed a moment ago. So the swatches only play their exit when the tap
+/// is genuinely the last one — a recolour in `committed`, which ends with the bar leaving.
 ///
 /// The bar takes its palette from `ReaderChrome` for the same reason the reader's own bars do:
 /// it sits on paper, sepia or night, and a fixed dark card is legible on exactly one of them.
 public struct HighlightActionsBar: View {
+    /// Whether there is anything saved behind this bar yet.
+    ///
+    /// Named `Mode` and not `State`: a nested type called `State` inside a `View` shadows
+    /// SwiftUI's own property wrapper, and every `@State` in the file stops compiling with
+    /// "enum 'State' cannot be used as an attribute".
+    public enum Mode: Equatable {
+        /// A live selection. Nothing is in the database.
+        case pending
+        /// A saved highlight, in this colour.
+        case committed(colorHex: String)
+
+        var isPending: Bool { self == .pending }
+
+        var colorHex: String? {
+            switch self {
+            case .pending: return nil
+            case let .committed(hex): return hex
+            }
+        }
+    }
+
     public let chrome: ReaderChrome
-    /// The colour the highlight is currently marked in, so the bar can show which of the five
-    /// it already is rather than presenting all of them as equally untaken. `nil` when the bar
-    /// is answering a selection that has not been saved yet — see `onDelete`.
-    public let currentColorHex: String?
+    public let mode: Mode
+    /// Whether the passage has anything in it worth handing to the translator. False for the
+    /// one case the reader can still reach — a stored quote whose text arrived empty — where
+    /// the sheet would open on a blank string.
+    public let canTranslate: Bool
     public let onPickColor: (String) -> Void
+    /// `nil` where the system translator does not exist, which today is Mac Catalyst: the
+    /// `Translation` framework ships no Catalyst slice at all. The glyph is then not drawn,
+    /// rather than drawn dead.
+    public let onTranslate: (() -> Void)?
     public let onAddNote: () -> Void
     public let onCopy: () -> Void
-    /// `nil` on the one surface where a highlight cannot be tapped again.
-    ///
-    /// The EPUB navigator draws highlights as decorations and reports taps on them, so there a
-    /// selection saves straight away and this bar is what a later tap opens — with a way to
-    /// undo the save. The PDF navigator has no decoration layer at all: a highlight on a PDF is
-    /// invisible on the page and there is nothing to tap. Saving silently on every selection
-    /// there would scatter quotes a reader could neither see nor remove, so PDFs keep the older
-    /// order — the bar answers the selection, and tapping a colour is what saves. Nothing has
-    /// been created yet at that point, so there is nothing to delete.
+    /// `nil` while nothing has been saved — in `pending`, and on PDF before a colour is
+    /// chosen. There is no such thing as removing a highlight that was never made.
     public let onDelete: (() -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var didCopy = false
     @State private var appeared = false
-    /// The swatch the reader just committed to, held for the length of its exit.
+    /// The swatch the reader just committed to, held for the length of its exit. Only ever set
+    /// by a tap that closes the bar — see `commit`.
     @State private var committedHex: String?
 
     public init(
         chrome: ReaderChrome,
-        currentColorHex: String? = nil,
+        mode: Mode,
+        canTranslate: Bool = false,
         onPickColor: @escaping (String) -> Void,
+        onTranslate: (() -> Void)? = nil,
         onAddNote: @escaping () -> Void,
         onCopy: @escaping () -> Void,
         onDelete: (() -> Void)? = nil
     ) {
         self.chrome = chrome
-        self.currentColorHex = currentColorHex
+        self.mode = mode
+        self.canTranslate = canTranslate
         self.onPickColor = onPickColor
+        self.onTranslate = onTranslate
         self.onAddNote = onAddNote
         self.onCopy = onCopy
         self.onDelete = onDelete
     }
 
+    /// Zero, and every control carries its own 44 pt frame instead.
+    ///
+    /// Eight controls at the 44 pt minimum is 352 pt of a 375 pt screen, which leaves the row
+    /// nothing to spend on gaps: with the old 4 pt spacing and 40 pt swatches this bar was
+    /// 393 pt wide the moment the delete button appeared, i.e. already wider than the phone it
+    /// had to fit on. Moving the air *inside* the hit targets buys 24 pt and costs nothing
+    /// optically — a 26 pt swatch in a 44 pt frame leaves the same 18 pt between two circles
+    /// that a 26 pt swatch in a 40 pt frame plus 4 pt of spacing did.
+    private static let itemSpacing: CGFloat = 0
+
+    /// The tappable square every control fills. Below this a control is a target the HIG says
+    /// a finger cannot reliably hit, and the swatches used to be 40 pt wide.
+    private static let hitTarget: CGFloat = 44
+
     public var body: some View {
-        HStack(spacing: DipleSpace.xs) {
-            ForEach(DipleColor.Highlight.all, id: \.hex) { item in
+        HStack(spacing: Self.itemSpacing) {
+            ForEach(DipleColor.Highlight.selectable, id: \.hex) { item in
                 Button {
                     commit(item.hex)
                 } label: {
@@ -74,12 +118,34 @@ public struct HighlightActionsBar: View {
 
             separator
 
-            action(systemImage: "text.bubble", label: "Add a note", action: onAddNote)
+            if let onTranslate {
+                // `globe`, not `translate`: the two read the same at 15 pt, and `globe` has
+                // been in SF Symbols since the beginning, so the glyph never becomes the thing
+                // that pins the deployment target.
+                action(
+                    systemImage: "globe",
+                    label: "Translate passage",
+                    isEnabled: canTranslate,
+                    action: onTranslate
+                )
+            }
+
+            // Dimmed rather than hidden in `pending`. A control that disappears and comes back
+            // moves the three beside it, so the row would reflow under the finger at the exact
+            // moment the reader is aiming at one of them; a control that greys out says the
+            // same thing and holds still. Delete is the exception — it is not merely
+            // unavailable there, it has no referent.
+            action(
+                systemImage: "text.bubble",
+                label: "Add a note",
+                isEnabled: !mode.isPending,
+                action: onAddNote
+            )
 
             action(
                 systemImage: didCopy ? "checkmark" : "doc.on.doc",
                 label: didCopy ? "Copied" : "Copy passage",
-                tint: didCopy ? DipleColor.success : chrome.control
+                tint: didCopy ? DipleColor.success : nil
             ) {
                 onCopy()
                 withAnimation(DipleMotion.snappy) { didCopy = true }
@@ -93,8 +159,7 @@ public struct HighlightActionsBar: View {
                 separator
 
                 // Destructive, and set apart by a rule rather than by colour: a red glyph in a
-                // row of five saturated swatches reads as a sixth colour to mark the passage
-                // with.
+                // row of saturated swatches reads as one more colour to mark the passage with.
                 action(systemImage: "trash", label: "Remove highlight", action: onDelete)
             }
         }
@@ -119,11 +184,12 @@ public struct HighlightActionsBar: View {
         .accessibilityLabel("Highlight actions")
     }
 
+    /// A hairline with no padding of its own. The 44 pt frames on either side already leave a
+    /// glyph roughly 14 pt clear of it, and at this width the row has no points to spare.
     private var separator: some View {
         Rectangle()
             .fill(chrome.separator)
             .frame(width: DipleStroke.hairline, height: 24)
-            .padding(.horizontal, DipleSpace.hair)
     }
 
     /// The colour the highlight already carries wears a ring rather than a tick: a checkmark
@@ -145,15 +211,16 @@ public struct HighlightActionsBar: View {
             // The chosen swatch swells and fades as the bar leaves, so the colour reads as
             // going onto the page rather than the bar merely vanishing and the highlight
             // changing somewhere behind it. The others shrink away, which leaves the eye on
-            // the one that was picked.
+            // the one that was picked. Nothing of this happens on the tap that *creates* a
+            // highlight, because that tap does not end the bar.
             .scaleEffect(scale(for: hex))
             .opacity(opacity(for: hex))
-            .frame(width: 40, height: 44)
+            .frame(width: Self.hitTarget, height: Self.hitTarget)
             .contentShape(Rectangle())
     }
 
     private func isCurrent(_ hex: String) -> Bool {
-        guard let currentColorHex else { return false }
+        guard let currentColorHex = mode.colorHex else { return false }
         return hex.caseInsensitiveCompare(currentColorHex) == .orderedSame
     }
 
@@ -168,16 +235,21 @@ public struct HighlightActionsBar: View {
         committedHex == nil || reduceMotion ? 1 : 0
     }
 
-    /// Recolours, then lets the swatch finish leaving.
+    /// Hands the colour on, and plays the swatches out only if the bar is about to go with it.
     ///
-    /// The write itself is not delayed — the highlight changes colour on the page immediately,
-    /// which is the whole point of a one-tap action. What is held back is only this view's own
-    /// exit, and only for as long as a spring takes to read. At Reduce Motion there is nothing
-    /// to wait for and the call goes straight through.
+    /// In `committed` a colour tap is a recolour and the last thing the reader wants from this
+    /// bar, so it ends the way it always did: the write goes through immediately — the mark on
+    /// the page changes at once, which is the point of a one-tap action — and only this view's
+    /// own exit is held back, for as long as a spring takes to read.
+    ///
+    /// In `pending` the same tap *creates* the highlight and the bar stays, on the spot, so
+    /// that the note it has just enabled is one tap away. Playing the exit here would fade out
+    /// four swatches that are about to be needed again and disable them permanently, since
+    /// nothing clears `committedHex` on a bar that never leaves.
     private func commit(_ hex: String) {
         guard committedHex == nil else { return }
 
-        guard !reduceMotion else {
+        guard !mode.isPending, !reduceMotion else {
             onPickColor(hex)
             return
         }
@@ -193,16 +265,18 @@ public struct HighlightActionsBar: View {
         systemImage: String,
         label: String,
         tint: SwiftUI.Color? = nil,
+        isEnabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .dipleIcon(15, weight: .semibold)
-                .foregroundStyle(tint ?? chrome.control)
-                .frame(width: 44, height: 44)
+                .foregroundStyle(tint ?? (isEnabled ? chrome.control : chrome.secondary.opacity(0.4)))
+                .frame(width: Self.hitTarget, height: Self.hitTarget)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.readerControl)
+        .disabled(!isEnabled)
         .accessibilityLabel(label)
     }
 }

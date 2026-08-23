@@ -122,7 +122,7 @@ public struct HighlightEditorView: View {
                 .foregroundStyle(DipleColor.textTertiary)
 
             HStack(spacing: 0) {
-                ForEach(DipleColor.Highlight.all, id: \.hex) { item in
+                ForEach(DipleColor.Highlight.selectable, id: \.hex) { item in
                     Button {
                         HapticManager.shared.selection()
                         withAnimation(DipleMotion.snappy) {

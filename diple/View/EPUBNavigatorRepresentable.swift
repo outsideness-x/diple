@@ -321,11 +321,15 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
         public func navigator(_ navigator: SelectableNavigator, shouldShowMenuForSelection selection: Selection) -> Bool {
             // The publication provably has a selection at this instant, whatever SwiftUI has
-            // observed. Opening the latch here rather than only in `clearSelectionIfNeeded` is
-            // what makes save-on-selection work: that path sets `currentSelection` and clears it
-            // again inside one synchronous block, so the view may never render a state where
-            // `hasSelection` is true — and a latch that only ever opens on that render would
-            // stay shut, leaving the blue selection and its handles on a passage already saved.
+            // observed, so this is the honest place to re-arm the latch.
+            //
+            // It mattered more than it looks under save-on-selection, where `currentSelection`
+            // was set and cleared inside one synchronous block and the view could skip the
+            // render in which `hasSelection` was true — a latch armed only on that render
+            // stayed shut, and the blue span and its handles were left sitting on a passage
+            // that had already been saved. Deferred creation leaves the selection standing, so
+            // that render does happen now; re-arming here is simply still correct, and cheaper
+            // to keep than to reason about removing.
             didClearSelection = false
             // Once the drag settles, not on every report of it — see `SelectionSettle`. The
             // haptic waits with it: struck per callback it was a rattle, struck here it is the

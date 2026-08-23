@@ -145,14 +145,33 @@ public enum DipleColor {
         public static let yellow = "#FFD60A"
         public static let green = "#30D158"
         public static let pink = "#FF375F"
+
+        /// Withdrawn from the picker, kept for the data.
+        ///
+        /// Passages already marked blue are in the database, in the CloudKit record, in the
+        /// export and on the page, so the constant stays: retiring a colour must not reach
+        /// backwards into quotes that were saved in good faith. What changed is only that
+        /// nothing offers it for a *new* mark — it is absent from `selectable`, and that is
+        /// the whole of it.
+        ///
+        /// Nothing anywhere matches a stored colour against the palette, which is what makes
+        /// that split safe. The reader (`ReadiumNavigator.Color(hex:)`), the quote list and
+        /// the hub (`Color(hex:)`) and the portable export (the raw string) all resolve
+        /// `Highlight.colorHex` as six bytes with no notion of membership, and there is
+        /// deliberately no `switch` over the palette in the app — one would need a case for
+        /// every colour ever retired, and would trap on the first old row it met.
         public static let blue = "#64D2FF"
 
-        public static let all: [(name: String, hex: String)] = [
+        /// What a passage may be marked *with*, in bar order.
+        ///
+        /// Four, not five. The bar has to carry the palette, translate, note, copy and delete
+        /// in a single row at 375 pt with 44 pt hit targets, and that budget is 8 controls
+        /// wide; blue was also the swatch that read closest to the accent it sat beside.
+        public static let selectable: [(name: String, hex: String)] = [
             ("Lilac", lilac),
             ("Yellow", yellow),
             ("Green", green),
-            ("Pink", pink),
-            ("Blue", blue)
+            ("Pink", pink)
         ]
 
         public static func color(forHex hex: String) -> Color { Color(hex: hex) }

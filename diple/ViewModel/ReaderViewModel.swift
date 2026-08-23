@@ -6,6 +6,39 @@ import ReadiumShared
 import ReadiumStreamer
 import ReadiumNavigator
 
+/// The live selection, reduced to the three things the app actually does anything with.
+///
+/// Readium's own `Selection` would say the same, but it is a `public struct` with no public
+/// initialiser, so nothing outside ReadiumNavigator can make one — a navigator is the only
+/// source of a selection in the entire process, tests included. That was survivable while a
+/// settled selection wrote a highlight on the spot, because there was no state in between to
+/// examine. Deferred creation puts one there: a passage the reader is looking at with nothing
+/// written for it, whose defining property is that it has touched neither SQLite nor the
+/// CloudKit outbox. Snapshotting at the navigator boundary is what makes that property
+/// checkable rather than merely intended.
+public struct PendingSelection: Equatable {
+    /// The selected text, already trimmed. Never empty — see `init?(_:)`.
+    public let quote: String
+    public let locator: Locator
+    /// Bounding rect of the selection in the navigator view's coordinate space, which is what
+    /// the actions bar reads to choose the far edge of the page.
+    public let frame: CGRect?
+
+    public init(quote: String, locator: Locator, frame: CGRect?) {
+        self.quote = quote
+        self.locator = locator
+        self.frame = frame
+    }
+
+    /// `nil` for a selection with no readable text in it, which is not worth raising a bar for.
+    public init?(_ selection: Selection) {
+        let quote = (selection.locator.text.highlight ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !quote.isEmpty else { return nil }
+        self.init(quote: quote, locator: selection.locator, frame: selection.frame)
+    }
+}
+
 @MainActor
 public final class ReaderViewModel: ObservableObject {
     public let book: Book
@@ -37,7 +70,13 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var tableOfContents: [ReadiumShared.Link] = []
     @Published public var highlights: [Highlight] = []
     @Published public var bookmarks: [Bookmark] = []
-    @Published public var currentSelection: Selection? = nil
+    /// The passage under the reader's finger, before any decision about it.
+    ///
+    /// Non-nil is the bar's `pending` state: something is selected and **nothing has been
+    /// written**. It is cleared by `createHighlight` — the tap that saves — by a tap away, and
+    /// by dismissing the bar; each of those also takes the blue span and its handles off the
+    /// page, because the navigator mirrors this through `hasSelection`.
+    @Published public var currentSelection: PendingSelection? = nil
     /// The highlight the reader has tapped, and the rect it occupies on the page.
     ///
     /// A selection no longer raises anything — it saves a highlight and gets out of the way —
@@ -108,9 +147,30 @@ public final class ReaderViewModel: ObservableObject {
     /// got there (see `saveLocation`). A bounce back out before that never touches progress.
     private let startingLocator: Locator?
 
-    public init(book: Book, startingLocator: Locator? = nil) {
+    /// The library this reader reads and writes.
+    ///
+    /// Injected rather than reached for, and defaulted to the singleton so no call site
+    /// changes. The one thing worth proving about deferred creation — that a pending selection
+    /// leaves no row and no outbox entry behind — cannot be proved against a database that
+    /// resolves itself once per process and lives in Application Support.
+    private let database: AppDatabase
+
+    /// Releasing this object must not need the main actor.
+    ///
+    /// The project compiles with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, so every class in
+    /// it — this one included — gets an *isolated* deinit, and the runtime routes that through
+    /// `swift_task_deinitOnExecutorMainActorBackDeploy`. Released from a plain synchronous main
+    /// thread rather than from inside a task, that shim aborts in libmalloc
+    /// ("pointer being freed was not allocated") before a single stored property is touched.
+    /// Nothing here needs isolation to be torn down — the tasks are cancelled by their own
+    /// `deinit`, and the rest are values and `Sendable` references — so the isolation is
+    /// declined rather than back-deployed.
+    nonisolated deinit {}
+
+    public init(book: Book, startingLocator: Locator? = nil, database: AppDatabase = .shared) {
         self.book = book
         self.startingLocator = startingLocator
+        self.database = database
         self.currentProgress = book.progress
         self.settings = AppSettingsManager.shared.settings.readerSettings
         loadHighlights()
@@ -119,7 +179,7 @@ public final class ReaderViewModel: ObservableObject {
 
     public func loadHighlights() {
         do {
-            self.highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
+            self.highlights = try database.fetchHighlights(forBookId: book.id)
         } catch {
             // Saying nothing would show the book with none of its quotes on it, which reads
             // as "they are gone" rather than "they could not be read".
@@ -130,7 +190,7 @@ public final class ReaderViewModel: ObservableObject {
 
     public func loadBookmarks() {
         do {
-            self.bookmarks = try AppDatabase.shared.fetchBookmarks(forBookId: book.id)
+            self.bookmarks = try database.fetchBookmarks(forBookId: book.id)
         } catch {
             Self.log.error("Failed to fetch bookmarks: \(error, privacy: .public)")
             showToast("Could not load your bookmarks")
@@ -180,7 +240,7 @@ public final class ReaderViewModel: ObservableObject {
                 }
             }
             self.isLoading = false
-            self.contentCharacters = try? AppDatabase.shared.contentCharacterCount(
+            self.contentCharacters = try? database.contentCharacterCount(
                 bookID: book.id,
                 isArticle: book.isArticle
             )
@@ -336,13 +396,13 @@ public final class ReaderViewModel: ObservableObject {
         guard let payload = progressPayload() else { return }
         // Called as the reader closes: there is no longer a page to put a toast on, and the
         // failure is already in the log.
-        _ = Self.write(payload)
+        _ = Self.write(payload, to: database)
     }
 
     private func persistProgress() {
         guard let payload = progressPayload() else { return }
-        Task.detached(priority: .utility) { [weak self] in
-            guard !Self.write(payload) else { return }
+        Task.detached(priority: .utility) { [weak self, database] in
+            guard !Self.write(payload, to: database) else { return }
             await self?.reportProgressFailure()
         }
     }
@@ -364,9 +424,13 @@ public final class ReaderViewModel: ObservableObject {
 
     /// Returns whether the position actually reached the database.
     @discardableResult
-    private nonisolated static func write(_ payload: ProgressPayload) -> Bool {
+    /// Takes the database as an argument rather than reading the instance's own: this is
+    /// `nonisolated static` on purpose — position writes must not run on the main actor — and
+    /// a static has no instance to ask. `AppDatabase` is `Sendable`, so it crosses with the
+    /// payload.
+    private nonisolated static func write(_ payload: ProgressPayload, to database: AppDatabase) -> Bool {
         do {
-            try AppDatabase.shared.updateReadingProgress(
+            try database.updateReadingProgress(
                 id: payload.bookId,
                 progress: payload.progress,
                 locator: payload.locator
@@ -497,7 +561,7 @@ public final class ReaderViewModel: ObservableObject {
         )
 
         do {
-            try AppDatabase.shared.saveBookmark(bookmark)
+            try database.saveBookmark(bookmark)
             loadBookmarks()
             HapticManager.shared.impact(.medium)
             showToast("Bookmark saved")
@@ -509,7 +573,7 @@ public final class ReaderViewModel: ObservableObject {
 
     public func deleteBookmark(_ bookmark: Bookmark) {
         do {
-            try AppDatabase.shared.deleteBookmark(id: bookmark.id)
+            try database.deleteBookmark(id: bookmark.id)
             loadBookmarks()
         } catch {
             // The row stays on screen when this fails, so silence reads as an ignored tap.
@@ -518,13 +582,15 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
 
-    /// Saves the live selection as a highlight.
+    /// Saves the live selection as a highlight. The **only** thing in the reader that writes
+    /// one: a selection on its own no longer does, and the bar's colour swatch is what calls
+    /// this.
     ///
-    /// `announce` is off for the path that runs on every settled selection. The coloured mark
-    /// appearing under the reader's own finger is the confirmation, and a toast on top of it —
-    /// dozens of times in a sitting, each one covering the line below the passage just marked —
-    /// says nothing the page has not already said. It stays on for a thought, which is written
-    /// in a sheet and so lands with the page out of sight.
+    /// `announce` is off for that swatch. The bar does not close on it — it turns from pending
+    /// into committed on the spot, with the tapped colour ringed, the note lit and the delete
+    /// button appearing — and a toast would both restate that and land on top of the bar
+    /// saying it. It stays on for a thought, which is written in a sheet and so lands with the
+    /// page out of sight.
     @discardableResult
     public func createHighlight(
         colorHex: String,
@@ -532,9 +598,8 @@ public final class ReaderViewModel: ObservableObject {
         announce: Bool = true
     ) -> Highlight? {
         guard let selection = currentSelection else { return nil }
-        let text = selection.locator.text.highlight ?? ""
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let locatorJson = try? selection.locator.jsonString() else { return nil }
+        let text = selection.quote
+        guard let locatorJson = try? selection.locator.jsonString() else { return nil }
 
         let highlight = Highlight(
             bookId: book.id,
@@ -547,7 +612,7 @@ public final class ReaderViewModel: ObservableObject {
 
         var saved: Highlight?
         do {
-            try AppDatabase.shared.saveHighlight(highlight)
+            try database.saveHighlight(highlight)
             loadHighlights()
             HapticManager.shared.impact(.light)
             if announce {
@@ -578,18 +643,17 @@ public final class ReaderViewModel: ObservableObject {
         activeHighlightRect = nil
     }
 
-    /// `announce: false` is for the one caller that is not a reader deleting anything: a drag
-    /// that pauses long enough to settle, then carries on, replaces the passage it had already
-    /// saved rather than leaving it behind — and neither a toast nor a success haptic belongs to
-    /// a correction the reader never asked for. See `ReaderContainerView.saveSelectionAsHighlight`.
-    public func deleteHighlight(_ highlight: Highlight, announce: Bool = true) {
+    /// Always announced. It used to take an `announce:` flag for one caller that was not a
+    /// reader deleting anything — the de-duplicator behind save-on-selection, which quietly
+    /// removed the passage a resumed drag had already written. Deferred creation writes nothing
+    /// mid-drag, so there is nothing to quietly remove, and every remaining call to this is a
+    /// reader deliberately throwing a quote away.
+    public func deleteHighlight(_ highlight: Highlight) {
         do {
-            try AppDatabase.shared.deleteHighlight(id: highlight.id)
+            try database.deleteHighlight(id: highlight.id)
             loadHighlights()
-            if announce {
-                HapticManager.shared.notification(.success)
-                showToast("Highlight deleted")
-            }
+            HapticManager.shared.notification(.success)
+            showToast("Highlight deleted")
         } catch {
             Self.log.error("Failed to delete highlight: \(error, privacy: .public)")
             showToast("Could not delete quote")
@@ -598,7 +662,7 @@ public final class ReaderViewModel: ObservableObject {
 
     public func updateHighlight(_ highlight: Highlight, colorHex: String, comment: String?) {
         do {
-            try AppDatabase.shared.updateHighlight(
+            try database.updateHighlight(
                 id: highlight.id,
                 colorHex: colorHex,
                 comment: comment
