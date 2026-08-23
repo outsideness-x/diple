@@ -1,3 +1,4 @@
+import CloudKit
 import XCTest
 import GRDB
 import ReadiumNavigator
@@ -1282,6 +1283,31 @@ final class DipleTests: XCTestCase {
             try database.fetchSyncMetadata(entity: .book, id: book.id)?.systemFields,
             Data("server-fields".utf8)
         )
+    }
+
+    /// The failure this guards against was not one book's: CloudKit infers a new field's type
+    /// from the first value it sees, refuses an empty list because it carries no element type,
+    /// and an untagged source is the ordinary case — so the `tags` field was never created, every
+    /// save that followed hit the same wall, and the retry loop kept Settings flashing.
+    func testCloudSyncNeverWritesAnEmptyTagListYetStillSyncsClearedTags() {
+        let record = CKRecord(recordType: "DipleBook", recordID: CKRecord.ID(recordName: "book|tagged"))
+
+        CloudSyncService.write(tags: ["fiction", "долгое чтение"], to: record)
+        XCTAssertEqual(record["tags"] as? [String], ["fiction", "долгое чтение"])
+        XCTAssertEqual(record["tagsCount"] as? Int, 2)
+        XCTAssertEqual(CloudSyncService.tags(from: record), ["fiction", "долгое чтение"])
+
+        // Removing the last tag writes no list at all, and still has to reach the other device
+        // as "this source has no tags" rather than as silence.
+        CloudSyncService.write(tags: [], to: record)
+        XCTAssertNil(record["tags"])
+        XCTAssertEqual(record["tagsCount"] as? Int, 0)
+        XCTAssertEqual(CloudSyncService.tags(from: record), [])
+
+        // A record saved before any of this says nothing: no list, no count. `nil` is what keeps
+        // an un-upgraded device from stripping the tags off the whole library.
+        let legacy = CKRecord(recordType: "DipleBook", recordID: CKRecord.ID(recordName: "book|legacy"))
+        XCTAssertNil(CloudSyncService.tags(from: legacy))
     }
 
     func testCloudSyncRemoteMergeUsesModificationDateAndKeepsNotesWhenBookIsDeleted() throws {
