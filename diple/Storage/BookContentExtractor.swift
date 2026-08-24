@@ -54,7 +54,9 @@ public nonisolated enum BookContentExtractor {
         return try await extractEPUBChunks(publication: publication)
     }
 
-    private static func openPublication(fileURL: URL) async throws -> Publication {
+    /// Shared with the demand-driven Second Read resolver. Opening a publication is metadata
+    /// work; callers still decide whether to sweep every resource or read only one target.
+    static func openPublication(fileURL: URL) async throws -> Publication {
         guard let assetURL = fileURL.anyURL.absoluteURL else {
             throw BookContentExtractionError.invalidFileURL
         }
@@ -107,7 +109,9 @@ public nonisolated enum BookContentExtractor {
     /// Block-level elements only, in document order — this is what keeps a chunk boundary from
     /// falling mid-sentence. `document.text()` (used for articles) flattens the whole resource
     /// into one string and would lose paragraph breaks entirely.
-    private static func extractParagraphs(from document: SwiftSoup.Document) -> [String] {
+    /// Shared with Second Read, which applies the same definition of a semantic paragraph to
+    /// one locator-targeted resource instead of inventing a parallel XHTML parser.
+    static func extractParagraphs(from document: SwiftSoup.Document) -> [String] {
         let selector = "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, dd, figcaption"
         if let blocks = try? document.select(selector) {
             let texts = blocks.array().compactMap { element -> String? in

@@ -14,6 +14,7 @@ import SwiftUI
 public struct BookActionsMenu: ViewModifier {
     public let book: Book
     public let onShowOverview: () -> Void
+    public let onOpenSecondRead: () -> Void
     public let onMarkAsFinished: () -> Void
     public let onMove: (BookLocation) -> Void
     public let onEditTags: () -> Void
@@ -26,6 +27,14 @@ public struct BookActionsMenu: ViewModifier {
                 onShowOverview()
             } label: {
                 Label("Source Overview", systemImage: "info.circle")
+            }
+
+            if LibraryStatusFilter.finished.includes(book) {
+                Button {
+                    onOpenSecondRead()
+                } label: {
+                    Label("Second Read", systemImage: "text.book.closed")
+                }
             }
 
             // Reads the saved position, like everything else the reader is shown: a book that
@@ -75,6 +84,7 @@ public extension View {
     func bookActionsMenu(
         for book: Book,
         onShowOverview: @escaping () -> Void,
+        onOpenSecondRead: @escaping () -> Void,
         onMarkAsFinished: @escaping () -> Void,
         onMove: @escaping (BookLocation) -> Void,
         onEditTags: @escaping () -> Void,
@@ -84,6 +94,7 @@ public extension View {
         modifier(BookActionsMenu(
             book: book,
             onShowOverview: onShowOverview,
+            onOpenSecondRead: onOpenSecondRead,
             onMarkAsFinished: onMarkAsFinished,
             onMove: onMove,
             onEditTags: onEditTags,

@@ -72,6 +72,7 @@ public struct MacRootView: View {
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var readerBook: Book?
+    @State private var secondReadBook: Book?
     @State private var isImportingFile = false
     @State private var isImportingLink = false
     @State private var tagEditingBook: Book?
@@ -152,6 +153,11 @@ public struct MacRootView: View {
         .fullScreenCover(item: $readerBook, onDismiss: reloadAll) { book in
             NavigationStack {
                 ReaderContainerView(book: book, onReadingUpdated: reloadAll)
+            }
+        }
+        .fullScreenCover(item: $secondReadBook, onDismiss: reloadAll) { book in
+            NavigationStack {
+                SecondReadView(book: book, onReadingUpdated: reloadAll)
             }
         }
         .alert("Error", isPresented: $library.showErrorAlert) {
@@ -261,6 +267,7 @@ public struct MacRootView: View {
                 isImporting: library.isImporting,
                 onSelect: { detail = .book($0) },
                 onOpen: { readerBook = $0 },
+                onOpenSecondRead: { secondReadBook = $0 },
                 onEdit: { library.bookToEdit = $0 },
                 onMarkAsFinished: { library.markAsFinished($0) },
                 onMove: { library.move($0, to: $1) },
@@ -322,10 +329,13 @@ public struct MacRootView: View {
             MacInspectorPlaceholder(sourceTitle: source?.title ?? "Library")
 
         case .book(let book):
+            let current = currentBook(matching: book) ?? book
             MacBookInspector(
-                book: currentBook(matching: book) ?? book,
-                onRead: { readerBook = book },
-                onEdit: { library.bookToEdit = book }
+                book: current,
+                fragmentCount: highlights.summaries.first { $0.bookId == current.id }?.quoteCount ?? 0,
+                onRead: { readerBook = current },
+                onSecondRead: { secondReadBook = current },
+                onEdit: { library.bookToEdit = current }
             )
 
         case .quoteBook(let summary):
@@ -401,6 +411,7 @@ private struct MacLibraryCollection: View {
     let isImporting: Bool
     let onSelect: (Book) -> Void
     let onOpen: (Book) -> Void
+    let onOpenSecondRead: (Book) -> Void
     let onEdit: (Book) -> Void
     let onMarkAsFinished: (Book) -> Void
     let onMove: (Book, BookLocation) -> Void
@@ -488,6 +499,9 @@ private struct MacLibraryCollection: View {
                                         }
                                         .contextMenu {
                                             Button("Open") { onOpen(book) }
+                                            if LibraryStatusFilter.finished.includes(book) {
+                                                Button("Second Read") { onOpenSecondRead(book) }
+                                            }
                                             if book.progress < 0.995 {
                                                 Button("Mark as Finished") { onMarkAsFinished(book) }
                                             }
@@ -986,7 +1000,9 @@ private struct MacSearchResultRow: View {
 
 private struct MacBookInspector: View {
     let book: Book
+    let fragmentCount: Int
     let onRead: () -> Void
+    let onSecondRead: () -> Void
     let onEdit: () -> Void
 
     var body: some View {
@@ -1028,6 +1044,13 @@ private struct MacBookInspector: View {
                 .buttonStyle(.plain)
                 .keyboardShortcut(.return, modifiers: [])
 
+                if LibraryStatusFilter.finished.includes(book) {
+                    Button(action: onSecondRead) {
+                        SecondReadEntryView(fragmentCount: fragmentCount)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
                     MacMetadataRow(label: "Progress") {
                         HStack(spacing: DipleSpace.s) {
@@ -1058,6 +1081,7 @@ private struct MacBookInspector: View {
         }
         .background(DipleColor.surface)
     }
+
 }
 
 private struct MacQuotesInspector: View {

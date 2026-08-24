@@ -31,6 +31,10 @@ public struct LibraryView: View {
         var sourceID: String { "\(placement.rawValue):\(book.id)" }
     }
 
+    private struct SecondReadRoute: Hashable {
+        let book: Book
+    }
+
     @StateObject private var viewModel = LibraryViewModel()
     @State private var isFileImporterPresented = false
     @State private var isLinkImporterPresented = false
@@ -238,6 +242,11 @@ public struct LibraryView: View {
             .navigationDestination(for: BookRoute.self) { route in
                 readerDestination(for: route)
             }
+            .navigationDestination(for: SecondReadRoute.self) { route in
+                SecondReadView(book: route.book) {
+                    viewModel.loadBooks()
+                }
+            }
             .sheet(isPresented: $isLinkImporterPresented) {
                 ImportLinkSheetView { _ in
                     viewModel.loadBooks()
@@ -302,6 +311,7 @@ public struct LibraryView: View {
                                         .bookActionsMenu(
                                             for: book,
                                             onShowOverview: { overviewBook = book },
+                                            onOpenSecondRead: { path.append(SecondReadRoute(book: book)) },
                                             onMarkAsFinished: { viewModel.markAsFinished(book) },
                                             onMove: { viewModel.move(book, to: $0) },
                                             onEditTags: { tagEditingBook = book },
@@ -367,6 +377,7 @@ public struct LibraryView: View {
                     .bookActionsMenu(
                         for: book,
                         onShowOverview: { overviewBook = book },
+                        onOpenSecondRead: { path.append(SecondReadRoute(book: book)) },
                         onMarkAsFinished: { viewModel.markAsFinished(book) },
                         onMove: { viewModel.move(book, to: $0) },
                         onEditTags: { tagEditingBook = book },

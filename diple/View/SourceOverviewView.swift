@@ -3,13 +3,12 @@ import Combine
 
 @MainActor
 private final class SourceOverviewViewModel: ObservableObject {
+    @Published var book: Book
     @Published var highlights: [Highlight] = []
     @Published var notes: [NoteItem] = []
     @Published var tags: [String] = []
     @Published var characters: Int?
     @Published var errorMessage: String?
-
-    let book: Book
 
     init(book: Book) {
         self.book = book
@@ -18,6 +17,7 @@ private final class SourceOverviewViewModel: ObservableObject {
 
     func load() {
         do {
+            book = try AppDatabase.shared.fetchBook(id: book.id) ?? book
             highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
             tags = try AppDatabase.shared.fetchTags(forBookId: book.id)
             characters = try AppDatabase.shared.contentCharacterCount(
@@ -57,6 +57,19 @@ public struct SourceOverviewView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DipleSpace.xxl) {
                         identity
+
+                        if LibraryStatusFilter.finished.includes(viewModel.book) {
+                            NavigationLink {
+                                SecondReadView(book: viewModel.book) {
+                                    viewModel.load()
+                                    onReadingUpdated()
+                                }
+                            } label: {
+                                SecondReadEntryView(fragmentCount: viewModel.highlights.count)
+                            }
+                            .buttonStyle(.bookCard)
+                        }
+
                         actions
 
                         if !viewModel.highlights.isEmpty {
@@ -116,7 +129,10 @@ public struct SourceOverviewView: View {
                 }
             }
             .navigationDestination(for: Book.self) { book in
-                ReaderContainerView(book: book, onReadingUpdated: onReadingUpdated)
+                ReaderContainerView(book: book) {
+                    viewModel.load()
+                    onReadingUpdated()
+                }
             }
             .navigationDestination(for: NoteRoute.self) { route in
                 NoteDetailView(

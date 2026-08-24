@@ -1,0 +1,84 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld fragments" : {
+      "comment" : "Second Read item count, plural"
+    },
+    "1 fragment" : {
+      "comment" : "Second Read item count, singular"
+    },
+    "Back" : {
+      "comment" : "Second Read navigation back button"
+    },
+    "CHAPTER" : {
+      "comment" : "Quiet heading above a chapter title in Second Read"
+    },
+    "Chapter %@" : {
+      "comment" : "VoiceOver label for a Second Read chapter heading"
+    },
+    "Hide Context" : {
+      "comment" : "Collapses original prose around a highlighted passage"
+    },
+    "Highlighted passage: %@" : {
+      "comment" : "VoiceOver label followed by the saved passage"
+    },
+    "Highlights and thoughts from this book will become your Second Read." : {
+      "comment" : "Second Read empty-state explanation"
+    },
+    "Loading original context" : {
+      "comment" : "VoiceOver label for inline context loading"
+    },
+    "Nothing marked here yet." : {
+      "comment" : "Second Read empty-state title"
+    },
+    "Open in Book" : {
+      "comment" : "Opens a Second Read fragment at its original reader location"
+    },
+    "Open in Book unavailable" : {
+      "comment" : "VoiceOver label when the source file cannot be opened"
+    },
+    "Opens your personal edition of this book" : {
+      "comment" : "Accessibility hint for the Second Read entry"
+    },
+    "Original context is unavailable for this passage." : {
+      "comment" : "Inline graceful failure when a locator cannot be resolved"
+    },
+    "Original context, highlighted passage: %@" : {
+      "comment" : "VoiceOver label for expanded context and its highlighted anchor"
+    },
+    "OK" : {
+      "comment" : "Dismisses a Second Read error alert"
+    },
+    "Personal note: %@" : {
+      "comment" : "VoiceOver label followed by the reader's thought"
+    },
+    "Return to Book" : {
+      "comment" : "Second Read empty-state action"
+    },
+    "SECOND READ" : {
+      "comment" : "Small editorial kicker in the Second Read header"
+    },
+    "Second Read" : {
+      "comment" : "Feature title"
+    },
+    "Show Context" : {
+      "comment" : "Expands original prose around a highlighted passage"
+    },
+    "Source unavailable" : {
+      "comment" : "Shown when a Second Read fragment's book file is missing"
+    },
+    "What stayed with you." : {
+      "comment" : "Short Second Read editorial subtitle"
+    },
+    "YOUR NOTE" : {
+      "comment" : "Label above the reader's thought attached to a highlight"
+    },
+    "Your book, made from what stayed with you." : {
+      "comment" : "Second Read entry subtitle"
+    },
+    "Your Second Read could not be loaded." : {
+      "comment" : "Non-technical Second Read database error"
+    }
+  },
+  "version" : "1.0"
+}

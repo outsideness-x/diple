@@ -1136,6 +1136,38 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// The publication order and chapter labels already discovered by the local content
+    /// index. Second Read asks for this tiny projection at open time, not the indexed prose;
+    /// context itself remains demand-driven from the book file.
+    public func fetchSecondReadSections(bookID: String) throws -> [SecondReadSection] {
+        try writer.read { db in
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT
+                        href,
+                        MIN(ordinal) AS firstOrdinal,
+                        MAX(NULLIF(chapterTitle, '')) AS chapterTitle
+                    FROM bookContent
+                    WHERE bookID = ?
+                    GROUP BY href
+                    ORDER BY firstOrdinal
+                    """,
+                arguments: [bookID]
+            )
+            return rows.compactMap { row in
+                guard let href: String = row["href"],
+                      let ordinal: Int = row["firstOrdinal"]
+                else { return nil }
+                return SecondReadSection(
+                    href: href,
+                    title: row["chapterTitle"],
+                    ordinal: ordinal
+                )
+            }
+        }
+    }
+
     // MARK: - Global Search
 
     public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {
