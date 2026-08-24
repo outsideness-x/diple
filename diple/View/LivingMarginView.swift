@@ -3,6 +3,14 @@ import ReadiumShared
 
 /// The page's revealed margin. It is an unbroken continuation of the reader surface — no card,
 /// radius, material or metadata — and deliberately renders only the reader's own words.
+///
+/// Those words are set in Caveat, the same notebook hand as the Settings colophon, because this
+/// is the one surface in the app showing what the reader wrote rather than what a publisher
+/// typeset. Legibility is what the size, line spacing and tracking here are paying for: Caveat's
+/// x-height is small for its point size, so it is set larger than the serif it replaces, given
+/// more air between lines than running text needs, and opened up very slightly — the letters are
+/// drawn unjoined, and the extra separation keeps them that way at reading distance. No
+/// `.italic()`: a synthetic slant on a hand that already leans only smears it.
 struct LivingMarginPanel: View {
     let annotation: LivingMarginAnnotation
     let chrome: ReaderChrome
@@ -31,10 +39,10 @@ struct LivingMarginPanel: View {
             ScrollView {
                 Button(action: onEdit) {
                     Text(annotation.note)
-                        .font(.system(.title3, design: .serif, weight: .regular))
-                        .italic()
-                        .lineSpacing(6)
-                        .foregroundStyle(chrome.control.opacity(0.92))
+                        .font(.custom("Caveat-Regular", size: 25, relativeTo: .title3))
+                        .lineSpacing(9)
+                        .tracking(0.2)
+                        .foregroundStyle(chrome.control.opacity(0.96))
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())

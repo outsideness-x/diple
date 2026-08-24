@@ -790,10 +790,17 @@
   на самой navigator view как `UIScreenEdgePanGestureRecognizer`, разрешает simultaneous
   recognition и не глушит touches — vertical scroll, selection и page taps остаются у Readium.
 - Поле — overlay в неизменных bounds reader'а: navigator не сужается и книга не reflow'ится.
-  Внутри только `comment`, page background, editorial serif italic и hairline; нет цитаты,
+  Внутри только `comment`, page background, рукописный `Caveat-Regular` и hairline; нет цитаты,
   главы, metadata, card/material/dimming. Tap снаружи, правый swipe и повторный marker tap
   закрывают; следующий левый swipe идёт вперёд по строгому порядку locator'ов без wrap.
   Edge swipe открывает ближайшую к `currentLocator` мысль, не угадывает её по CGRect.
+- Рука здесь — та же, что в колофоне Settings, и по той же причине: это единственная
+  поверхность, где показан текст **читателя**, а не набор издателя. Прежний serif italic был
+  версткой, а не почерком. Ставка сделана на читаемость: у Caveat маленький x-height, поэтому
+  кегль выше заменённого serif (25 relativeTo `.title3`), межстрочник шире обычного running
+  text (9), и добавлен небольшой tracking (0.2) — буквы в Caveat не соединены, и разрядка
+  удерживает их раздельными. `.italic()` снят: синтетический наклон поверх и без того
+  наклонной руки только размывает её.
 - Открытие — 380ms restrained spring поля и коротко отложенный fade заметки; Reduce Motion
   заменяет это opacity. Ширина реагирует на Dynamic Type, палитра берётся из `ReaderChrome`,
   VoiceOver получает `Note attached`, сам текст и действия next/previous/close. Tap по тексту
