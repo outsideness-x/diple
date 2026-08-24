@@ -68,7 +68,13 @@ public final class ReaderViewModel: ObservableObject {
         didSet { if targetLocator != nil { abandonSpeedSample() } }
     }
     @Published public var tableOfContents: [ReadiumShared.Link] = []
-    @Published public var highlights: [Highlight] = []
+    @Published public var highlights: [Highlight] = [] {
+        didSet { synchronizeLivingMargins() }
+    }
+    /// A transient projection of highlights carrying personal writing. Readium receives this
+    /// list as semantic locator decorations; no marker position is persisted.
+    @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
+    @Published public private(set) var activeLivingMarginID: String? = nil
     @Published public var bookmarks: [Bookmark] = []
     /// The passage under the reader's finger, before any decision about it.
     ///
@@ -186,6 +192,81 @@ public final class ReaderViewModel: ObservableObject {
             Self.log.error("Failed to fetch highlights: \(error, privacy: .public)")
             showToast("Could not load your quotes")
         }
+    }
+
+    public var activeLivingMargin: LivingMarginAnnotation? {
+        guard let activeLivingMarginID else { return nil }
+        return livingMarginAnnotations.first { $0.id == activeLivingMarginID }
+    }
+
+    /// Opens the marker's thought, or closes it when the same marker is activated again.
+    public func toggleLivingMargin(id: String) {
+        guard livingMarginAnnotations.contains(where: { $0.id == id }) else {
+            closeLivingMargin()
+            return
+        }
+        if activeLivingMarginID == id {
+            closeLivingMargin()
+        } else {
+            prepareForLivingMargin()
+            activeLivingMarginID = id
+        }
+    }
+
+    /// Edge swipes do not guess from screen geometry. They compare the current Readium locator
+    /// with the same locators the markers use and open the nearest thought in book order.
+    public func openNearestLivingMargin() {
+        guard let nearest = LivingMarginAnnotations.nearest(
+            to: currentLocator ?? initialLocator,
+            in: livingMarginAnnotations
+        ) else {
+            closeLivingMargin()
+            return
+        }
+        prepareForLivingMargin()
+        activeLivingMarginID = nearest.id
+    }
+
+    /// A further left swipe while the margin is open walks forward without wrapping the last
+    /// thought back to the first one.
+    public func advanceLivingMargin() {
+        guard let activeLivingMarginID,
+              let index = livingMarginAnnotations.firstIndex(where: { $0.id == activeLivingMarginID }),
+              livingMarginAnnotations.indices.contains(index + 1)
+        else { return }
+        self.activeLivingMarginID = livingMarginAnnotations[index + 1].id
+    }
+
+    public func retreatLivingMargin() {
+        guard let activeLivingMarginID,
+              let index = livingMarginAnnotations.firstIndex(where: { $0.id == activeLivingMarginID }),
+              index > livingMarginAnnotations.startIndex
+        else { return }
+        self.activeLivingMarginID = livingMarginAnnotations[index - 1].id
+    }
+
+    public func closeLivingMargin() {
+        activeLivingMarginID = nil
+    }
+
+    public func highlightForActiveLivingMargin() -> Highlight? {
+        guard let activeLivingMarginID else { return nil }
+        return highlights.first { $0.id == activeLivingMarginID }
+    }
+
+    private func synchronizeLivingMargins() {
+        let annotations = LivingMarginAnnotations.make(from: highlights)
+        livingMarginAnnotations = annotations
+        if let activeLivingMarginID,
+           !annotations.contains(where: { $0.id == activeLivingMarginID }) {
+            self.activeLivingMarginID = nil
+        }
+    }
+
+    private func prepareForLivingMargin() {
+        dismissHighlightActions()
+        currentSelection = nil
+        isOverlayVisible = false
     }
 
     public func loadBookmarks() {

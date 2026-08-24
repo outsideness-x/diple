@@ -187,6 +187,63 @@ final class dipleUITests: XCTestCase {
     }
 
     @MainActor
+    func testLivingMarginsTapSwipeEditAndCloseFlow() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-diple_has_completed_first_launch", "YES",
+            "-diple-test-living-margins"
+        ]
+        app.launch()
+
+        let marker = app.buttons.matching(identifier: "livingMargins.marker.fixture").firstMatch
+        XCTAssertTrue(marker.waitForExistence(timeout: 5))
+        XCTAssertEqual(marker.label, "Note attached")
+
+        marker.tap()
+        var note = app.buttons.matching(identifier: "livingMargins.note").firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 3))
+        XCTAssertEqual(note.label, "This thought stayed beside the first passage.")
+
+        let openMarginShot = XCTAttachment(screenshot: app.screenshot())
+        openMarginShot.name = "Living Margins open field"
+        openMarginShot.lifetime = .keepAlways
+        add(openMarginShot)
+
+        note.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        note = app.buttons.matching(identifier: "livingMargins.note").firstMatch
+        XCTAssertEqual(note.label, "This thought stayed beside the first passage. Revised.")
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.88, dy: 0.5))
+            .press(
+                forDuration: 0.08,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5))
+            )
+        note = app.buttons.matching(identifier: "livingMargins.note").firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 2))
+        XCTAssertEqual(note.label, "A second thought, further into the book.")
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5))
+            .press(
+                forDuration: 0.08,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.88, dy: 0.5))
+            )
+        XCTAssertFalse(note.waitForExistence(timeout: 1))
+
+        // The production reader installs a UIScreenEdgePanGestureRecognizer on Readium. This
+        // deterministic host mirrors the same threshold so XCUI can exercise the entry route.
+        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.52))
+        let inward = app.coordinate(withNormalizedOffset: CGVector(dx: 0.52, dy: 0.52))
+        edge.press(forDuration: 0.08, thenDragTo: inward)
+        note = app.buttons.matching(identifier: "livingMargins.note").firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 2))
+
+        let close = app.buttons.matching(identifier: "livingMargins.close").firstMatch
+        XCTAssertTrue(close.exists)
+        close.tap()
+        XCTAssertFalse(note.waitForExistence(timeout: 1))
+    }
+
+    @MainActor
     func testEquationComposerAndRenderedFormulaFlow() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-diple_has_completed_first_launch", "YES"]

@@ -19,6 +19,8 @@ public struct ReaderContainerView: View {
     @StateObject private var settingsManager = AppSettingsManager.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var highlightEditorTarget: HighlightEditorTarget?
     /// The passage handed to the system translator, copied out of the selection **before**
     /// anything can clear it.
@@ -129,6 +131,7 @@ public struct ReaderContainerView: View {
                         targetLink: viewModel.targetLink,
                         targetLocator: viewModel.targetLocator,
                         highlights: viewModel.highlights,
+                        livingMarginAnnotations: livingMarginAnnotationsForCurrentPlatform,
                         tableOfContents: viewModel.tableOfContents,
                         preferences: viewModel.epubPreferences,
                         rsProperties: viewModel.readiumCSSRSProperties,
@@ -147,6 +150,14 @@ public struct ReaderContainerView: View {
                             }
                             viewModel.activeHighlight = highlight
                             viewModel.activeHighlightRect = rect
+                            ReaderIdleTimerKeeper.shared.poke()
+                        },
+                        onLivingMarginActivated: { highlightID in
+                            viewModel.toggleLivingMargin(id: highlightID)
+                            ReaderIdleTimerKeeper.shared.poke()
+                        },
+                        onLivingMarginsEdgeSwipe: {
+                            viewModel.openNearestLivingMargin()
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onCenterTap: {
@@ -359,10 +370,14 @@ public struct ReaderContainerView: View {
         .overlay {
             selectionLayer
         }
+        .overlay {
+            livingMarginLayer
+        }
         .animation(DipleMotion.gentle, value: viewModel.toast)
         .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .animation(DipleMotion.gentle, value: viewModel.activeHighlight?.id)
+        .animation(livingMarginAnimation, value: viewModel.activeLivingMarginID != nil)
         .task {
             await viewModel.openBook()
         }
@@ -399,6 +414,14 @@ public struct ReaderContainerView: View {
             } else {
                 ReaderIdleTimerKeeper.shared.end()
             }
+        }
+        // CloudKit continues to sync the existing Highlight row. An open page only needs to
+        // rebuild its projection when that row changes; there is no Living Margins sync model.
+        .onReceive(NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)) { _ in
+            viewModel.loadHighlights()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .dipleDataDidRestore)) { _ in
+            viewModel.loadHighlights()
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
@@ -473,6 +496,75 @@ public struct ReaderContainerView: View {
                 )
             }
         }
+    }
+
+    private var livingMarginAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.14)
+            : .spring(response: 0.38, dampingFraction: 0.92)
+    }
+
+    private var livingMarginTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity)
+    }
+
+    /// Living Margins launches on the native iOS reader first. Keeping the gate at the reader
+    /// boundary prevents markers from being submitted on Catalyst while preserving one semantic
+    /// projection and no platform-specific persistence.
+    private var livingMarginAnnotationsForCurrentPlatform: [LivingMarginAnnotation] {
+        #if targetEnvironment(macCatalyst)
+        []
+        #else
+        viewModel.livingMarginAnnotations
+        #endif
+    }
+
+    /// An overlay constrained by the reader's existing bounds, so revealing a margin never
+    /// changes the navigator's width or asks the book to reflow. The clear remainder consumes a
+    /// tap solely to close; the page stays visually undimmed underneath it.
+    @ViewBuilder
+    private var livingMarginLayer: some View {
+        #if !targetEnvironment(macCatalyst)
+        if let annotation = viewModel.activeLivingMargin {
+            GeometryReader { geometry in
+                let ratio: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.82 : 0.66
+                let proposed = max(236, geometry.size.width * ratio)
+                let panelWidth = max(0, min(430, min(proposed, geometry.size.width - 52)))
+
+                HStack(spacing: 0) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { viewModel.closeLivingMargin() }
+                        .accessibilityHidden(true)
+
+                    LivingMarginPanel(
+                        annotation: annotation,
+                        chrome: chrome,
+                        reduceMotion: reduceMotion,
+                        onClose: { viewModel.closeLivingMargin() },
+                        onNext: {
+                            HapticManager.shared.selection()
+                            viewModel.advanceLivingMargin()
+                        },
+                        onPrevious: {
+                            HapticManager.shared.selection()
+                            viewModel.retreatLivingMargin()
+                        },
+                        onEdit: {
+                            guard let highlight = viewModel.highlightForActiveLivingMargin() else {
+                                viewModel.closeLivingMargin()
+                                return
+                            }
+                            highlightEditorTarget = .existing(highlight)
+                        }
+                    )
+                    .frame(width: panelWidth)
+                }
+            }
+            .transition(livingMarginTransition)
+            .zIndex(10)
+        }
+        #endif
     }
 
     /// Where you are, while the bars are away.

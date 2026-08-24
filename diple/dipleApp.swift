@@ -27,6 +27,14 @@ struct dipleApp: App {
     /// change, rather than by the screen whose gear was tapped. See the `sheet` below.
     @State private var isShowingSettings = false
 
+    private var isLivingMarginsUITestFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-diple-test-living-margins")
+        #else
+        false
+        #endif
+    }
+
     init() {
         // The delegate must be installed before the root view appears, otherwise a tap on a
         // notification that cold-launches the app can be delivered before RootTabView starts
@@ -43,16 +51,15 @@ struct dipleApp: App {
                         .frame(minWidth: 980, minHeight: 680)
                 }
                 #else
-                // A library that would not open used to crash the app on launch. Now the
-                // reader gets told immediately, and a celebratory intro never covers the
-                // failure with five seconds of unrelated animation.
-                if let failure = AppDatabase.startupFailure {
-                    DatabaseUnavailableView(failure: failure)
+                #if DEBUG
+                if isLivingMarginsUITestFixture {
+                    LivingMarginsUITestFixture()
                 } else {
-                    FirstLaunchGate {
-                        RootTabView()
-                    }
+                    phoneRoot
                 }
+                #else
+                phoneRoot
+                #endif
                 #endif
             }
             // Deliberately not `.preferredColorScheme`. That modifier stamps its own
@@ -64,7 +71,7 @@ struct dipleApp: App {
             // presented in the window.
             .id(settingsManager.settings.accent)
             .overlay(alignment: .top) {
-                if hasCompletedFirstLaunch {
+                if hasCompletedFirstLaunch && !isLivingMarginsUITestFixture {
                     SharedLinkImportBanner(coordinator: sharedLinkCoordinator)
                 }
             }
@@ -95,13 +102,19 @@ struct dipleApp: App {
             .onChange(of: scenePhase, initial: true) { _, phase in
                 guard phase == .active else { return }
                 AppIconManager.apply(settingsManager.settings.accent)
-                sharedLinkCoordinator.processPending()
+                if !isLivingMarginsUITestFixture {
+                    sharedLinkCoordinator.processPending()
+                }
             }
             .task {
                 // The window exists by now, which it did not when the settings manager was
                 // built. Sheets and the keyboard take the window's style rather than the
                 // SwiftUI preference, so this is what makes the choice cover all of them.
                 DipleAppearance.apply(settingsManager.settings.appearance)
+
+                // The fixture is intentionally a sealed interaction surface: pending shared
+                // imports, notifications and CloudKit must not overlay or mutate an XCUI run.
+                guard !isLivingMarginsUITestFixture else { return }
 
                 // Notifications and sync both read the library; with no library to read,
                 // starting them would only mean uploading an empty one over the real thing.
@@ -115,6 +128,20 @@ struct dipleApp: App {
                     UIApplication.shared.registerForRemoteNotifications()
                     await CloudSyncService.shared.start()
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var phoneRoot: some View {
+        // A library that would not open used to crash the app on launch. Now the reader gets
+        // told immediately, and a celebratory intro never covers the failure with unrelated
+        // animation.
+        if let failure = AppDatabase.startupFailure {
+            DatabaseUnavailableView(failure: failure)
+        } else {
+            FirstLaunchGate {
+                RootTabView()
             }
         }
     }

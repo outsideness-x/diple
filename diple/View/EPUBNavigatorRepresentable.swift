@@ -11,6 +11,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let targetLink: ReadiumShared.Link?
     public let targetLocator: Locator?
     public let highlights: [Highlight]
+    public let livingMarginAnnotations: [LivingMarginAnnotation]
     public let tableOfContents: [ReadiumShared.Link]
     public let preferences: EPUBPreferences
     /// Line-breaking rules for the book's script. Not a user preference, so it travels
@@ -23,6 +24,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
     public let onHighlightActivated: (String, CGRect?) -> Void
+    public let onLivingMarginActivated: (String) -> Void
+    public let onLivingMarginsEdgeSwipe: () -> Void
     public let onCenterTap: () -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
@@ -34,6 +37,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         targetLink: ReadiumShared.Link? = nil,
         targetLocator: Locator? = nil,
         highlights: [Highlight] = [],
+        livingMarginAnnotations: [LivingMarginAnnotation] = [],
         tableOfContents: [ReadiumShared.Link] = [],
         preferences: EPUBPreferences,
         rsProperties: CSSRSProperties = CSSRSProperties(),
@@ -41,6 +45,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
         onHighlightActivated: @escaping (String, CGRect?) -> Void = { _, _ in },
+        onLivingMarginActivated: @escaping (String) -> Void = { _ in },
+        onLivingMarginsEdgeSwipe: @escaping () -> Void = {},
         onCenterTap: @escaping () -> Void,
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
@@ -51,6 +57,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.targetLink = targetLink
         self.targetLocator = targetLocator
         self.highlights = highlights
+        self.livingMarginAnnotations = livingMarginAnnotations
         self.tableOfContents = tableOfContents
         self.preferences = preferences
         self.rsProperties = rsProperties
@@ -58,6 +65,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
         self.onHighlightActivated = onHighlightActivated
+        self.onLivingMarginActivated = onLivingMarginActivated
+        self.onLivingMarginsEdgeSwipe = onLivingMarginsEdgeSwipe
         self.onCenterTap = onCenterTap
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
@@ -69,6 +78,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     }
 
     public func makeUIViewController(context: Context) -> UIViewController {
+        var decorationTemplates = HTMLDecorationTemplate.defaultTemplates()
+        decorationTemplates[.livingMargin] = .livingMarginMarker()
         let config = EPUBNavigatorViewController.Configuration(
             preferences: preferences,
             // In continuous scroll mode reading is vertical, so a horizontal swipe silently
@@ -78,6 +89,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             // Declared once, for every family the picker offers rather than only the selected
             // one: this is read when the navigator is built, and a live switch goes through
             // `submitPreferences`, which never revisits it.
+            decorationTemplates: decorationTemplates,
             fontFamilyDeclarations: ReaderFontDeclarations.all,
             readiumCSSRSProperties: rsProperties
         )
@@ -92,13 +104,21 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.navigator = navigator
             context.coordinator.lastPreferences = preferences
             context.coordinator.lastHighlights = highlights
+            context.coordinator.lastLivingMarginAnnotations = livingMarginAnnotations
             context.coordinator.syncScrollTransition(for: navigator)
+            #if !targetEnvironment(macCatalyst)
+            context.coordinator.installLivingMarginsEdgePan(on: navigator.view)
+            #endif
             applyDecorations(highlights: highlights, to: navigator)
+            applyLivingMarginDecorations(livingMarginAnnotations, to: navigator)
             navigator.observeDecorationInteractions(inGroup: "highlights") { [weak coordinator = context.coordinator] event in
                 // `rect` is the decoration's bounding box in the navigator's own coordinate
                 // space — the same space `Selection.frame` arrived in — so the actions bar can
                 // pick the far edge of the page from it exactly as the selection bar used to.
                 coordinator?.activateHighlight(id: event.decoration.id, rect: event.rect)
+            }
+            navigator.observeDecorationInteractions(inGroup: "living-margins") { [weak coordinator = context.coordinator] event in
+                coordinator?.activateLivingMargin(id: event.decoration.id)
             }
             return navigator
         } catch {
@@ -129,6 +149,11 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.lastHighlights = highlights
             applyDecorations(highlights: highlights, to: uiViewController)
         }
+
+        if context.coordinator.lastLivingMarginAnnotations != livingMarginAnnotations {
+            context.coordinator.lastLivingMarginAnnotations = livingMarginAnnotations
+            applyLivingMarginDecorations(livingMarginAnnotations, to: uiViewController)
+        }
     }
 
     private func applyDecorations(highlights: [Highlight], to navigator: EPUBNavigatorViewController) {
@@ -149,12 +174,23 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         navigator.apply(decorations: decorations, in: "highlights")
     }
 
-    public class Coordinator: NSObject, EPUBNavigatorDelegate, SelectableNavigatorDelegate {
+    private func applyLivingMarginDecorations(
+        _ annotations: [LivingMarginAnnotation],
+        to navigator: EPUBNavigatorViewController
+    ) {
+        navigator.apply(
+            decorations: LivingMarginMarkerDecorations.make(from: annotations),
+            in: "living-margins"
+        )
+    }
+
+    public class Coordinator: NSObject, EPUBNavigatorDelegate, SelectableNavigatorDelegate, UIGestureRecognizerDelegate {
         var parent: EPUBNavigatorRepresentable
         weak var navigator: EPUBNavigatorViewController?
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
         var lastHighlights: [Highlight]? = nil
+        var lastLivingMarginAnnotations: [LivingMarginAnnotation]? = nil
         private var didClearSelection = false
         private let selectionSettle = SelectionSettle()
         private var pullTransition: ChapterPullTransitionController? = nil
@@ -189,6 +225,45 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             HapticManager.shared.selection()
             parent.onSelectionChanged(nil)
             parent.onHighlightActivated(id, rect)
+        }
+
+        func activateLivingMargin(id: String) {
+            HapticManager.shared.impact(.light)
+            parent.onSelectionChanged(nil)
+            parent.onLivingMarginActivated(id)
+        }
+
+        /// The right-edge recognizer lives on the navigator itself, not in a transparent SwiftUI
+        /// strip above it. It therefore participates in UIKit's gesture arbitration and can fail
+        /// a vertical movement without stealing scrolling, selection or Readium's page taps.
+        func installLivingMarginsEdgePan(on view: UIView) {
+            let recognizer = UIScreenEdgePanGestureRecognizer(
+                target: self,
+                action: #selector(handleLivingMarginsEdgePan(_:))
+            )
+            recognizer.edges = .right
+            recognizer.cancelsTouchesInView = false
+            recognizer.delegate = self
+            view.addGestureRecognizer(recognizer)
+        }
+
+        @objc private func handleLivingMarginsEdgePan(_ recognizer: UIScreenEdgePanGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            let translation = recognizer.translation(in: recognizer.view)
+            let velocity = recognizer.velocity(in: recognizer.view)
+            guard translation.x < -44,
+                  abs(translation.x) > abs(translation.y),
+                  velocity.x < 0
+            else { return }
+            HapticManager.shared.impact(.light)
+            parent.onLivingMarginsEdgeSwipe()
+        }
+
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
         }
 
         /// `updateUIViewController` runs on every SwiftUI update — including the ones caused
@@ -368,5 +443,133 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                 parent.onCenterTap()
             }
         }
+    }
+}
+
+extension Decoration.Style.Id {
+    /// Kept outside Readium's two built-in styles so the note marker can have its own HTML
+    /// template without changing the appearance or activation area of the highlight beneath it.
+    static let livingMargin = Decoration.Style.Id(rawValue: "living-margin")
+}
+
+/// Turns semantic note anchors into Readium decorations. The locator is copied verbatim and no
+/// CGRect enters the model, which is the contract rotation and font-size tests lock down.
+enum LivingMarginMarkerDecorations {
+    static func make(from annotations: [LivingMarginAnnotation]) -> [Decoration] {
+        annotations.map { annotation in
+            Decoration(
+                id: annotation.id,
+                locator: annotation.locator,
+                style: Decoration.Style(id: .livingMargin)
+            )
+        }
+    }
+}
+
+private extension HTMLDecorationTemplate {
+    /// A 44-point activation lane with a much smaller pencil stroke inside it. Readium places
+    /// the full-width anchor at the locator's vertical range; CSS spends only the right page
+    /// margin, so the marker travels with text without covering it.
+    static func livingMarginMarker() -> HTMLDecorationTemplate {
+        let label = String(
+            localized: "Note attached",
+            comment: "VoiceOver label for a Living Margins marker"
+        ).livingMarginHTMLEscaped
+        let hint = String(
+            localized: "Show note",
+            comment: "VoiceOver action hint for a Living Margins marker"
+        ).livingMarginHTMLEscaped
+
+        return HTMLDecorationTemplate(
+            layout: .bounds,
+            width: .page,
+            element:
+                """
+                <div class="diple-living-margin-anchor">
+                    <button class="diple-living-margin-marker" type="button"
+                            data-activable="1" aria-label="\(label)" aria-description="\(hint)"></button>
+                </div>
+                """,
+            stylesheet:
+                """
+                .diple-living-margin-anchor {
+                    position: relative;
+                    box-sizing: border-box;
+                    overflow: visible;
+                    pointer-events: none;
+                    color: inherit;
+                }
+
+                .diple-living-margin-marker {
+                    -webkit-appearance: none;
+                    appearance: none;
+                    position: absolute;
+                    box-sizing: border-box;
+                    width: 44px;
+                    height: 44px;
+                    right: max(2px, env(safe-area-inset-right));
+                    top: -13px;
+                    margin: 0;
+                    padding: 0;
+                    border: 0;
+                    border-radius: 0;
+                    background: transparent;
+                    color: inherit;
+                    opacity: 0.48;
+                    pointer-events: auto;
+                    transform: rotate(-2deg);
+                    transition: opacity 120ms ease-out, transform 120ms ease-out;
+                }
+
+                .diple-living-margin-marker::before,
+                .diple-living-margin-marker::after {
+                    content: "";
+                    position: absolute;
+                    display: block;
+                    height: 1.25px;
+                    border-radius: 999px;
+                    background: currentColor;
+                    transform-origin: center;
+                }
+
+                .diple-living-margin-marker::before {
+                    width: 17px;
+                    right: 7px;
+                    top: 18px;
+                    transform: rotate(-7deg);
+                }
+
+                .diple-living-margin-marker::after {
+                    width: 7px;
+                    right: 6px;
+                    top: 24px;
+                    transform: rotate(16deg);
+                }
+
+                .diple-living-margin-marker:active {
+                    opacity: 0.78;
+                    transform: rotate(-2deg) scale(0.92);
+                }
+
+                @media (prefers-contrast: more) {
+                    .diple-living-margin-marker { opacity: 0.78; }
+                    .diple-living-margin-marker::before,
+                    .diple-living-margin-marker::after { height: 1.75px; }
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .diple-living-margin-marker { transition: none; }
+                }
+                """
+        )
+    }
+}
+
+private extension String {
+    var livingMarginHTMLEscaped: String {
+        replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
     }
 }

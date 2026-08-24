@@ -16,6 +16,12 @@
     "Chapter %@" : {
       "comment" : "VoiceOver label for a Second Read chapter heading"
     },
+    "Close note" : {
+      "comment" : "Closes the currently revealed Living Margins note"
+    },
+    "Edit note" : {
+      "comment" : "Accessibility hint for opening the existing highlight note editor"
+    },
     "Hide Context" : {
       "comment" : "Collapses original prose around a highlighted passage"
     },
@@ -30,6 +36,9 @@
     },
     "Nothing marked here yet." : {
       "comment" : "Second Read empty-state title"
+    },
+    "Note attached" : {
+      "comment" : "VoiceOver label for a Living Margins marker"
     },
     "Open in Book" : {
       "comment" : "Opens a Second Read fragment at its original reader location"
@@ -52,6 +61,12 @@
     "Personal note: %@" : {
       "comment" : "VoiceOver label followed by the reader's thought"
     },
+    "Next note" : {
+      "comment" : "Moves to the next Living Margins note"
+    },
+    "Previous note" : {
+      "comment" : "Moves to the previous Living Margins note"
+    },
     "Return to Book" : {
       "comment" : "Second Read empty-state action"
     },
@@ -63,6 +78,9 @@
     },
     "Show Context" : {
       "comment" : "Expands original prose around a highlighted passage"
+    },
+    "Show note" : {
+      "comment" : "VoiceOver action hint for a Living Margins marker"
     },
     "Source unavailable" : {
       "comment" : "Shown when a Second Read fragment's book file is missing"

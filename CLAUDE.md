@@ -772,6 +772,37 @@
 - Мысль сохраняется как `Highlight.comment`, то есть сразу попадает в существующие Hub,
   resurfacing, FTS и CloudKit без временного черновика или новой сущности.
 
+### Living Margins
+- Это **iOS-only presentation существующего `Highlight.comment`**, а не новая заметка и не
+  sync object. `LivingMarginAnnotation` — transient projection из id, нормализованного comment
+  и исходного Readium `Locator`; highlight без текста мысли отбрасывается. Поэтому удаление
+  comment оставляет обычный highlight, но сразу снимает marker и закрывает открытое поле.
+  На Mac Catalyst EPUB получает пустой список и поле не рисуется.
+- Маркер — отдельная группа Readium decorations (`living-margins`) с custom
+  `HTMLDecorationTemplate`: `.bounds` привязывает его к диапазону highlight, а `.page` даёт
+  шаблону правое поле страницы. Координаты экрана не сохраняются и не вычисляются в SwiftUI;
+  reflow после смены кегля/ориентации и движение при scroll выполняет сам Readium. Он же
+  материализует decorations только в загруженных spread'ах, так что 500 заметок — 500 лёгких
+  locator-описаний, не 500 SwiftUI views.
+- Тонкий карандашный штрих имеет маленький видимый след и 44pt activation lane. Это HTML/CSS,
+  а не SF Symbol; цвет наследуется от публикации. `data-activable` ведёт в существующий поток
+  decoration interactions, где повторный tap того же id закрывает поле. Правый edge pan стоит
+  на самой navigator view как `UIScreenEdgePanGestureRecognizer`, разрешает simultaneous
+  recognition и не глушит touches — vertical scroll, selection и page taps остаются у Readium.
+- Поле — overlay в неизменных bounds reader'а: navigator не сужается и книга не reflow'ится.
+  Внутри только `comment`, page background, editorial serif italic и hairline; нет цитаты,
+  главы, metadata, card/material/dimming. Tap снаружи, правый swipe и повторный marker tap
+  закрывают; следующий левый swipe идёт вперёд по строгому порядку locator'ов без wrap.
+  Edge swipe открывает ближайшую к `currentLocator` мысль, не угадывает её по CGRect.
+- Открытие — 380ms restrained spring поля и коротко отложенный fade заметки; Reduce Motion
+  заменяет это opacity. Ширина реагирует на Dynamic Type, палитра берётся из `ReaderChrome`,
+  VoiceOver получает `Note attached`, сам текст и действия next/previous/close. Tap по тексту
+  поднимает существующий `HighlightEditorView`; локальная запись или CloudKit/restore notification
+  перечитывают highlights, поэтому открытая мысль обновляется без отдельного sync слоя.
+- DEBUG fixture по `-diple-test-living-margins` изолирован от pending share imports, CloudKit и
+  notifications. Он нужен только XCUI для marker tap, edge swipe, next, edit refresh и close;
+  semantic anchoring и 500-locator case проверяются unit-тестами.
+
 ### Палитра цитат: четыре цвета и один отставной
 - В пикере **четыре** цвета (`DipleColor.Highlight.selectable`): lilac, yellow, green, pink.
   Голубой выведен — он читался ближе всех к акценту, рядом с которым стоял, и восьмой контрол
