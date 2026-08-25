@@ -1296,6 +1296,76 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(try database.search("программ игра").isEmpty)
     }
 
+    func testConcordanceSplitsASnippetAroundItsFirstMatch() throws {
+        let hit = bookSearchHit(
+            snippet: "  The quiet \(BookSearchHit.matchMarkerStart)house\(BookSearchHit.matchMarkerEnd) stood waiting.  "
+        )
+
+        let concordance = try XCTUnwrap(hit.concordance)
+        XCTAssertEqual(concordance.before, "The quiet ")
+        XCTAssertEqual(concordance.match, "house")
+        XCTAssertEqual(concordance.after, " stood waiting.")
+    }
+
+    func testConcordanceWithoutMatchMarkersIsNil() {
+        XCTAssertNil(bookSearchHit(snippet: "A plain excerpt without a match.").concordance)
+    }
+
+    func testConcordanceFoldsLaterMatchesIntoUnmarkedAfterContext() throws {
+        let hit = bookSearchHit(
+            snippet: "First \(BookSearchHit.matchMarkerStart)door\(BookSearchHit.matchMarkerEnd), then another "
+                + "\(BookSearchHit.matchMarkerStart)door\(BookSearchHit.matchMarkerEnd)."
+        )
+
+        let concordance = try XCTUnwrap(hit.concordance)
+        XCTAssertEqual(concordance.match, "door")
+        XCTAssertEqual(concordance.after, ", then another door.")
+        XCTAssertFalse(concordance.after.contains(BookSearchHit.matchMarkerStart))
+        XCTAssertFalse(concordance.after.contains(BookSearchHit.matchMarkerEnd))
+    }
+
+    func testConcordanceAllowsAMatchAtTheBeginning() throws {
+        let hit = bookSearchHit(
+            snippet: "\(BookSearchHit.matchMarkerStart)Opening\(BookSearchHit.matchMarkerEnd) words follow."
+        )
+
+        let concordance = try XCTUnwrap(hit.concordance)
+        XCTAssertEqual(concordance.before, "")
+        XCTAssertEqual(concordance.match, "Opening")
+    }
+
+    func testConcordanceAllowsAMatchAtTheEnd() throws {
+        let hit = bookSearchHit(
+            snippet: "Words precede \(BookSearchHit.matchMarkerStart)ending\(BookSearchHit.matchMarkerEnd)"
+        )
+
+        let concordance = try XCTUnwrap(hit.concordance)
+        XCTAssertEqual(concordance.match, "ending")
+        XCTAssertEqual(concordance.after, "")
+    }
+
+    func testConcordanceCollapsesBodyLineBreaksAndRepeatedSpaces() throws {
+        let hit = bookSearchHit(
+            snippet: "Line one\n  line two \(BookSearchHit.matchMarkerStart)match\(BookSearchHit.matchMarkerEnd)"
+                + " after\nline."
+        )
+
+        let concordance = try XCTUnwrap(hit.concordance)
+        XCTAssertEqual(concordance.before, "Line one line two ")
+        XCTAssertEqual(concordance.match, "match")
+        XCTAssertEqual(concordance.after, " after line.")
+    }
+
+    private func bookSearchHit(snippet: String) -> BookSearchHit {
+        BookSearchHit(
+            id: "hit",
+            chapterTitle: "Chapter",
+            href: "chapter.xhtml",
+            snippet: snippet,
+            locatorJSON: "{}"
+        )
+    }
+
     func testGlobalSearchIndexesImportedArticleTextSeparatelyFromMetadata() throws {
         let database = try AppDatabase(DatabaseQueue())
         let article = Book(

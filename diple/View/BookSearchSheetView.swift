@@ -90,15 +90,17 @@ public struct BookSearchSheetView: View {
                                 .monospacedDigit()
                         }
 
-                        ForEach(group.hits) { hit in
-                            Button {
-                                HapticManager.shared.selection()
-                                onSelect(hit)
-                                dismiss()
-                            } label: {
-                                BookSearchHitRow(hit: hit)
+                        VStack(spacing: 0) {
+                            ForEach(group.hits) { hit in
+                                Button {
+                                    HapticManager.shared.selection()
+                                    onSelect(hit)
+                                    dismiss()
+                                } label: {
+                                    BookSearchHitRow(hit: hit)
+                                }
+                                .buttonStyle(.bookCard)
                             }
-                            .buttonStyle(.bookCard)
                         }
                     }
                 }
@@ -170,18 +172,79 @@ public struct BookSearchSheetView: View {
 private struct BookSearchHitRow: View {
     let hit: BookSearchHit
 
-    var body: some View {
-        HStack(alignment: .top, spacing: DipleSpace.m) {
-            MatchedSnippetText(snippet: hit.snippet)
-                .frame(maxWidth: .infinity, alignment: .leading)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-            Image(systemName: "chevron.right")
-                .dipleIcon(11, weight: .semibold)
-                .foregroundStyle(DipleColor.textQuaternary)
+    /// A concordance gives more measure to what follows the keyword: that context more often
+    /// resolves the sense of an occurrence. This is a proportion of the available measure,
+    /// not padding tuned for one screen.
+    private static let beforeColumn = 0.4
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                MatchedSnippetText(hit: hit)
+            } else if let concordance = hit.concordance {
+                concordanceRow(concordance)
+            } else {
+                MatchedSnippetText(hit: hit)
+            }
         }
-        .padding(DipleSpace.m)
-        .craftSurface()
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, DipleSpace.m)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DipleColor.hairline)
+                .frame(height: DipleStroke.hairline)
+        }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(accessibilityText))
+    }
+
+    /// The hidden line supplies the role's natural Dynamic Type height; its overlay can then
+    /// measure the full row width without a fixed frame or a guessed vertical dimension.
+    private func concordanceRow(
+        _ concordance: (before: String, match: String, after: String)
+    ) -> some View {
+        Text(" ")
+            .dipleType(.readingCaption)
+            .hidden()
+            .frame(maxWidth: .infinity)
+            .overlay {
+                GeometryReader { proxy in
+                    HStack(spacing: 0) {
+                        Text(concordance.before)
+                            .dipleType(.readingCaption, weight: .regular)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.head)
+                            .frame(
+                                width: proxy.size.width * Self.beforeColumn,
+                                alignment: .trailing
+                            )
+
+                        (
+                            Text(concordance.match)
+                                .foregroundColor(DipleColor.textPrimary)
+                                .fontWeight(.semibold)
+                            + Text(concordance.after)
+                                .foregroundColor(DipleColor.textTertiary)
+                                .fontWeight(.regular)
+                        )
+                        .dipleType(.readingCaption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+    }
+
+    private var accessibilityText: String {
+        if let concordance = hit.concordance {
+            return concordance.before + concordance.match + concordance.after
+        }
+        return hit.segments.map(\.text).joined()
     }
 }
 
@@ -193,47 +256,26 @@ private struct BookSearchHitRow: View {
 /// itself applies, so this reproduces `.dipleType(.readingCaption)` per run instead of
 /// introducing a second way to size reading text.
 private struct MatchedSnippetText: View {
-    let snippet: String
-
-    @Environment(\.dynamicTypeSize) private var typeSize
+    let hit: BookSearchHit
 
     var body: some View {
         assembledText
-            .readingLineSpacing(for: snippet)
+            .dipleType(.readingCaption)
+            .readingLineSpacing(for: hit.snippet)
             .multilineTextAlignment(.leading)
             .lineLimit(4)
     }
 
-    /// Plain `Text`, not `some View`: the concatenation below only type-checks as `Text + Text`,
-    /// and building it outside `body` keeps the `@ViewBuilder` block itself a single expression.
+    /// Plain `Text`, not `some View`: the per-run weight and colour survive concatenation, then
+    /// the shared type role is applied once to the assembled phrase in `body`.
     private var assembledText: Text {
-        let style = DipleTextStyle.readingCaption
-        let font = style.font(for: typeSize)
-        let tracking = style.tracking(for: typeSize)
-
-        return segments.reduce(Text("")) { partial, segment in
+        hit.segments.reduce(Text("")) { partial, segment in
             var run = Text(segment.text)
-                .font(font)
-                .tracking(tracking)
+                .fontWeight(segment.isMatch ? .semibold : .regular)
             run = segment.isMatch
-                ? run.foregroundColor(DipleColor.accent).fontWeight(.semibold)
-                : run.foregroundColor(DipleColor.textSecondary)
+                ? run.foregroundColor(DipleColor.textPrimary)
+                : run.foregroundColor(DipleColor.textTertiary)
             return partial + run
         }
-    }
-
-    /// Splits `snippet` on the match markers into alternating plain/matched runs. The markers
-    /// always come in well-formed start/end pairs — `snippet()` emits one pair per match, never
-    /// nested — so a straight alternation is enough without tracking marker identity.
-    private var segments: [(text: String, isMatch: Bool)] {
-        let pieces = snippet
-            .split(
-                omittingEmptySubsequences: false,
-                whereSeparator: { $0 == Character(BookSearchHit.matchMarkerStart) || $0 == Character(BookSearchHit.matchMarkerEnd) }
-            )
-            .map(String.init)
-        return pieces.enumerated()
-            .map { index, piece in (text: piece, isMatch: index % 2 == 1) }
-            .filter { !$0.text.isEmpty }
     }
 }

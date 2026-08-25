@@ -1097,6 +1097,8 @@ public nonisolated final class AppDatabase: Sendable {
         guard let matchQuery = Self.ftsMatchQuery(query) else { return [] }
 
         return try writer.read { db in
+            // A concordance truncates context away from the match, while the former wrapping
+            // excerpt kept those outer words visible, so it needs a little more raw material.
             let rows = try Row.fetchAll(
                 db,
                 sql: """
@@ -1105,7 +1107,7 @@ public nonisolated final class AppDatabase: Sendable {
                         href,
                         chapterTitle,
                         locatorJSON,
-                        snippet(bookContent, 5, ?, ?, ' … ', 24) AS snippet
+                        snippet(bookContent, 5, ?, ?, ' … ', 32) AS snippet
                     FROM bookContent
                     WHERE bookContent MATCH ? AND bookID = ?
                     ORDER BY ordinal
