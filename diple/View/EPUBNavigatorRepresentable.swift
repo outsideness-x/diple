@@ -467,9 +467,9 @@ enum LivingMarginMarkerDecorations {
 }
 
 private extension HTMLDecorationTemplate {
-    /// A 44-point activation lane with a much smaller pencil stroke inside it. Readium places
-    /// the full-width anchor at the locator's vertical range; CSS spends only the right page
-    /// margin, so the marker travels with text without covering it.
+    /// A 44-point activation lane with a much smaller handwritten diple inside it. Readium
+    /// places the full-width anchor at the locator's vertical range; CSS spends only the right
+    /// page margin, so the marker travels with text without covering it.
     static func livingMarginMarker() -> HTMLDecorationTemplate {
         let label = String(
             localized: "Note attached",
@@ -533,17 +533,17 @@ private extension HTMLDecorationTemplate {
                 }
 
                 .diple-living-margin-marker::before {
-                    width: 17px;
-                    right: 7px;
-                    top: 18px;
-                    transform: rotate(-7deg);
+                    width: 18px;
+                    right: 6px;
+                    top: 17px;
+                    transform: rotate(-28deg);
                 }
 
                 .diple-living-margin-marker::after {
-                    width: 7px;
-                    right: 6px;
-                    top: 24px;
-                    transform: rotate(16deg);
+                    width: 14px;
+                    right: 9px;
+                    top: 25px;
+                    transform: rotate(28deg);
                 }
 
                 .diple-living-margin-marker:active {

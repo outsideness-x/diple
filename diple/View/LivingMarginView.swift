@@ -100,7 +100,7 @@ struct LivingMarginPanel: View {
     }
 }
 
-/// The same quiet pencil trace as the HTML marker, drawn natively where the open field needs a
+/// The same handwritten diple as the HTML marker, drawn natively where the open field needs a
 /// second activation target. Its 22-point visible footprint sits inside the button's 44 points.
 private struct LivingMarginStroke: View {
     let color: Color
@@ -109,14 +109,14 @@ private struct LivingMarginStroke: View {
         ZStack {
             Capsule()
                 .fill(color.opacity(0.52))
-                .frame(width: 17, height: 1.25)
-                .rotationEffect(.degrees(-7))
-                .offset(x: 1, y: -2)
+                .frame(width: 18, height: 1.25)
+                .rotationEffect(.degrees(-28))
+                .offset(x: 1, y: -4)
             Capsule()
                 .fill(color.opacity(0.42))
-                .frame(width: 7, height: 1.25)
-                .rotationEffect(.degrees(16))
-                .offset(x: 7, y: 4)
+                .frame(width: 14, height: 1.25)
+                .rotationEffect(.degrees(28))
+                .offset(y: 4)
         }
         .rotationEffect(.degrees(-2))
         .accessibilityHidden(true)
