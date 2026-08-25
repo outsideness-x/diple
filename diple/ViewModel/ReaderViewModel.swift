@@ -76,6 +76,14 @@ public final class ReaderViewModel: ObservableObject {
     @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
     @Published public private(set) var activeLivingMarginID: String? = nil
     @Published public var bookmarks: [Bookmark] = []
+    /// Passages kept beside this one open reader. This value has no database or CloudKit path;
+    /// releasing the view model releases the shelf.
+    @Published public private(set) var quoteStore = ReadingSessionQuoteStore()
+    /// The in-process native drag currently originating from the page. The drop destination
+    /// uses this semantic value rather than trying to reconstruct a locator from plain text.
+    @Published public private(set) var activeQuoteDrag: QuoteReference? = nil
+    /// A short-lived Readium decoration after a shelf jump. It never enters `highlights`.
+    @Published public private(set) var sourceEmphasisLocator: Locator? = nil
     /// The passage under the reader's finger, before any decision about it.
     ///
     /// Non-nil is the bar's `pending` state: something is selected and **nothing has been
@@ -110,6 +118,17 @@ public final class ReaderViewModel: ObservableObject {
 
     private var persistTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
+    private var sourceEmphasisTask: Task<Void, Never>? = nil
+
+    /// A shelf jump is a detour, not reading progress. The origin payload is kept separately so
+    /// a reader closed while looking at an earlier passage still reopens where reading stopped.
+    private struct NearbySourceDetour {
+        let originLocator: Locator
+        let originProgress: Double
+        let stackDepthBeforeOrigin: Int
+    }
+    private var nearbySourceDetour: NearbySourceDetour? = nil
+    private var isReturningFromNearbySource = false
 
     /// Watches the positions the navigator reports and picks out the stretches that were
     /// actually read. `nil` until the book's length is known, and for sources the indexer has
@@ -339,6 +358,10 @@ public final class ReaderViewModel: ObservableObject {
     public func saveLocation(_ locator: Locator) {
         self.currentLocator = locator
         self.currentProgress = progress(for: locator)
+        guard nearbySourceDetour == nil else {
+            abandonSpeedSample()
+            return
+        }
         if let sample = speedSampler?.observe(progress: currentProgress) {
             sessionCharacters += sample.characters
             sessionSeconds += sample.seconds
@@ -489,6 +512,13 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     private func progressPayload() -> ProgressPayload? {
+        if let detour = nearbySourceDetour {
+            return ProgressPayload(
+                bookId: book.id,
+                progress: detour.originProgress,
+                locator: try? detour.originLocator.jsonString()
+            )
+        }
         guard let locator = currentLocator else { return nil }
         return ProgressPayload(
             bookId: book.id,
@@ -537,6 +567,10 @@ public final class ReaderViewModel: ObservableObject {
 
     public func goBackInHistory() {
         guard let previousLocator = backLocationStack.popLast() else { return }
+        if let detour = nearbySourceDetour,
+           backLocationStack.count == detour.stackDepthBeforeOrigin {
+            isReturningFromNearbySource = true
+        }
         self.targetLocator = previousLocator
     }
 
@@ -600,6 +634,121 @@ public final class ReaderViewModel: ObservableObject {
 
     public func clearTargetLink() {
         self.targetLink = nil
+    }
+
+    /// Clears a target once Readium has completed the jump. Returning from the shelf origin is
+    /// the precise moment a temporary detour becomes ordinary reading again.
+    public func finishTargetNavigation() {
+        targetLocator = nil
+        targetLink = nil
+        if isReturningFromNearbySource {
+            isReturningFromNearbySource = false
+            nearbySourceDetour = nil
+            sourceEmphasisTask?.cancel()
+            sourceEmphasisLocator = nil
+        }
+    }
+
+    // MARK: - Keep Nearby
+
+    public func quoteReference(for selection: PendingSelection) -> QuoteReference? {
+        QuoteReference(book: book, selection: selection)
+    }
+
+    public func quoteReference(for highlight: Highlight) -> QuoteReference? {
+        QuoteReference(book: book, highlight: highlight)
+    }
+
+    public func isKeptNearby(_ reference: QuoteReference) -> Bool {
+        quoteStore.contains(reference)
+    }
+
+    @discardableResult
+    public func keepNearby(_ reference: QuoteReference) -> Bool {
+        guard reference.bookID == book.id else { return false }
+        return quoteStore.add(reference)
+    }
+
+    @discardableResult
+    public func removeFromNearby(_ reference: QuoteReference) -> Bool {
+        quoteStore.remove(reference)
+    }
+
+    public func setActiveQuoteDrag(_ reference: QuoteReference?) {
+        activeQuoteDrag = reference
+    }
+
+    /// Opens a held source without promoting the visited location to the reader's saved place.
+    public func navigateToNearbySource(_ reference: QuoteReference) {
+        guard reference.bookID == book.id else { return }
+
+        if nearbySourceDetour == nil,
+           let origin = currentLocator ?? initialLocator {
+            nearbySourceDetour = NearbySourceDetour(
+                originLocator: origin,
+                originProgress: currentProgress,
+                stackDepthBeforeOrigin: backLocationStack.count
+            )
+            pushBackLocation(origin)
+        }
+
+        sourceEmphasisTask?.cancel()
+        sourceEmphasisLocator = reference.locator
+        sourceEmphasisTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(1_200))
+            guard !Task.isCancelled else { return }
+            self?.sourceEmphasisLocator = nil
+        }
+        navigateToLocator(reference.locator)
+    }
+
+    /// Resolves the permanent annotation, if any, for a temporary reference.
+    public func highlight(matching reference: QuoteReference) -> Highlight? {
+        highlights.first { highlight in
+            quoteReference(for: highlight)?.sourceKey == reference.sourceKey
+        }
+    }
+
+    /// The explicit Add Note boundary: this is the only shelf action allowed to promote a
+    /// temporary passage into the existing permanent highlight/note system.
+    @discardableResult
+    public func promoteToHighlight(
+        _ reference: QuoteReference,
+        colorHex: String
+    ) -> Highlight? {
+        if let existing = highlight(matching: reference) {
+            return existing
+        }
+        guard reference.bookID == book.id,
+              let locatorJSON = try? reference.locator.jsonString()
+        else { return nil }
+
+        let highlight = Highlight(
+            bookId: book.id,
+            locator: locatorJSON,
+            text: reference.text,
+            colorHex: colorHex,
+            createdAt: Date()
+        )
+        do {
+            try database.saveHighlight(highlight)
+            loadHighlights()
+            return highlight
+        } catch {
+            Self.log.error("Failed to promote nearby passage: \(error, privacy: .public)")
+            showToast("Could not add a note")
+            return nil
+        }
+    }
+
+    /// Ends the session only when the reader itself leaves the hierarchy. Backgrounding and
+    /// sheets call neither this method nor `clear`, so a short interruption keeps the shelf.
+    public func endReadingSession() {
+        flushPendingProgress()
+        activeQuoteDrag = nil
+        sourceEmphasisTask?.cancel()
+        sourceEmphasisLocator = nil
+        quoteStore.clear()
     }
 
     /// A bookmark can only be anchored once the navigator has reported a position.

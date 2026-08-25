@@ -1,14 +1,194 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+
+    },
+    "·" : {
+
+    },
+    "“%@”" : {
+
+    },
+    "#%@" : {
+
+    },
+    "%@ · the quick brown fox" : {
+
+    },
+    "%@ · 책을 읽는 사람" : {
+
+    },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %lld results" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld results"
+          }
+        }
+      }
+    },
+    "%@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@"
+          }
+        }
+      }
+    },
+    "%@. %@. %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@. %3$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld %2$@"
+          }
+        }
+      }
+    },
     "%lld fragments" : {
       "comment" : "Second Read item count, plural"
+    },
+    "%lld of %lld complete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld complete"
+          }
+        }
+      }
+    },
+    "%lld percent read" : {
+
+    },
+    "%lld waiting" : {
+
+    },
+    "%lld%%" : {
+
+    },
+    "$ … $" : {
+
+    },
+    "$%@$" : {
+
+    },
+    "$$ … $$" : {
+
     },
     "1 fragment" : {
       "comment" : "Second Read item count, singular"
     },
+    "A" : {
+
+    },
+    "A place for what stays with you." : {
+
+    },
+    "A quiet nudge to revisit a saved thought" : {
+
+    },
+    "A tag is a shelf, not a folder — a source can sit on as many as you like." : {
+
+    },
+    "Add" : {
+
+    },
+    "Add a tag" : {
+
+    },
+    "Add Bookmark" : {
+
+    },
+    "Add Comment" : {
+
+    },
+    "Add comment to quote" : {
+
+    },
+    "Add context or your own thought…" : {
+
+    },
+    "Add tags or a source" : {
+
+    },
+    "Adding to your library" : {
+
+    },
+    "Adding to your library…" : {
+
+    },
+    "Allow notifications for diple in iOS Settings to receive your daily quote." : {
+
+    },
+    "Another" : {
+
+    },
+    "Another paragraph leaves enough paper at the right edge for a small human trace." : {
+
+    },
+    "APPEARANCE" : {
+
+    },
+    "Are you sure you want to delete '%@'? This will remove the book file and metadata. Its quotes will remain in Quotes, where you can delete them manually." : {
+
+    },
+    "Author" : {
+
+    },
     "Back" : {
       "comment" : "Second Read navigation back button"
+    },
+    "Begin a line with **-** for a list, **- [ ]** for a task, **#** for a heading, or **>** to quote. Return carries the list on." : {
+
+    },
+    "BOOK METADATA" : {
+
+    },
+    "BOOKMARK NAME" : {
+
+    },
+    "Bookmarks (%lld)" : {
+
+    },
+    "Bring your work back" : {
+
+    },
+    "Callout" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Change source" : {
+
     },
     "CHAPTER" : {
       "comment" : "Quiet heading above a chapter title in Second Read"
@@ -16,29 +196,419 @@
     "Chapter %@" : {
       "comment" : "VoiceOver label for a Second Read chapter heading"
     },
+    "Chapter Transition Vibration" : {
+
+    },
+    "Check Again" : {
+
+    },
+    "Check Now" : {
+
+    },
+    "Check the LaTeX syntax" : {
+
+    },
+    "Choose a Diple JSON backup and review it before restoring" : {
+
+    },
+    "Choose another filter or create a note here." : {
+
+    },
+    "Clear" : {
+
+    },
+    "Clear search" : {
+
+    },
+    "Clear Search and Filters" : {
+
+    },
+    "Close" : {
+
+    },
     "Close note" : {
       "comment" : "Closes the currently revealed Living Margins note"
+    },
+    "COLOR" : {
+
+    },
+    "COLOR TAG" : {
+
+    },
+    "Comment" : {
+
+    },
+    "COMMENT" : {
+
+    },
+    "CONNECTIONS" : {
+
+    },
+    "CONTENT" : {
+
+    },
+    "Contents" : {
+
+    },
+    "Continue" : {
+
+    },
+    "CONTINUE THINKING" : {
+
+    },
+    "Copied" : {
+
+    },
+    "Copy LaTeX" : {
+
+    },
+    "Copy Markdown" : {
+
+    },
+    "Copy passage" : {
+
+    },
+    "Copy Plain Text" : {
+
+    },
+    "Copy Quote" : {
+
+    },
+    "Copy text" : {
+
+    },
+    "Creates a versioned JSON backup you can save or share" : {
+
+    },
+    "d" : {
+
+    },
+    "Daily Quote" : {
+
+    },
+    "Daily reflection template" : {
+
+    },
+    "DAILY RESURFACING" : {
+
+    },
+    "Data File Error" : {
+
+    },
+    "Default Continuous Scroll" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete Book?" : {
+
+    },
+    "Delete highlight" : {
+
+    },
+    "Delete Highlight?" : {
+
+    },
+    "Delete Note?" : {
+
+    },
+    "Delete Quote" : {
+
+    },
+    "Delete Quote?" : {
+
+    },
+    "designed and created by chemical pink." : {
+
+    },
+    "designed and created by chemical pink. diple. version %@" : {
+
+    },
+    "Details" : {
+
+    },
+    "diple could not read the file that holds your books, quotes and notes. Nothing has been deleted — the file is still on this device exactly as it was." : {
+
+    },
+    "diple will open with an empty library next time. The unreadable file stays on this device." : {
+
+    },
+    "diple." : {
+
+    },
+    "diple. version %@" : {
+
+    },
+    "Discard" : {
+
+    },
+    "Divider" : {
+
+    },
+    "Done" : {
+
+    },
+    "Done. Close diple and open it again to start with an empty library." : {
+
+    },
+    "Double tap to begin" : {
+
+    },
+    "Double tap to skip the introduction" : {
+
+    },
+    "Edit" : {
+
+    },
+    "Edit Comment" : {
+
+    },
+    "Edit Highlight" : {
+
+    },
+    "Edit Metadata" : {
+
     },
     "Edit note" : {
       "comment" : "Accessibility hint for opening the existing highlight note editor"
     },
+    "Edit quote comment" : {
+
+    },
+    "Editing" : {
+
+    },
+    "Enable Haptics" : {
+
+    },
+    "Enter author name" : {
+
+    },
+    "Enter book title" : {
+
+    },
+    "Enter bookmark title" : {
+
+    },
+    "Equation" : {
+
+    },
+    "EQUATION" : {
+
+    },
+    "Equation style" : {
+
+    },
+    "Error" : {
+
+    },
+    "Evergreen idea template" : {
+
+    },
+    "Exported %@. Review the merge before anything changes." : {
+
+    },
+    "Files" : {
+
+    },
+    "Filter and sort" : {
+
+    },
+    "Find every passage that mentions a word or phrase, and jump straight to it." : {
+
+    },
+    "Find your notes, saved highlights, books and the text of imported articles in one place." : {
+
+    },
+    "ƒx" : {
+
+    },
+    "Haptic Intensity" : {
+
+    },
+    "HAPTICS & VIBRATION" : {
+
+    },
     "Hide Context" : {
       "comment" : "Collapses original prose around a highlighted passage"
+    },
+    "Highlight %@" : {
+
+    },
+    "Highlight a passage while reading and it will show up here, grouped by book." : {
+
+    },
+    "Highlight actions" : {
+
+    },
+    "Highlight saved" : {
+
     },
     "Highlighted passage: %@" : {
       "comment" : "VoiceOver label followed by the saved passage"
     },
+    "Highlights" : {
+
+    },
     "Highlights and thoughts from this book will become your Second Read." : {
       "comment" : "Second Read empty-state explanation"
+    },
+    "How diple handles your library and iCloud sync" : {
+
+    },
+    "https://" : {
+
+    },
+    "ICLOUD" : {
+
+    },
+    "iCloud Sync" : {
+
+    },
+    "Import a Book" : {
+
+    },
+    "Import a File" : {
+
+    },
+    "Import an EPUB or a PDF, or paste the link to an article and read it here without the page around it." : {
+
+    },
+    "Importing book..." : {
+
+    },
+    "In progress" : {
+
+    },
+    "Indexing your library" : {
+
+    },
+    "Insert" : {
+
+    },
+    "Insert a block" : {
+
+    },
+    "INTERFACE — SANS" : {
+
+    },
+    "It may have been deleted since the search was performed." : {
+
+    },
+    "item returned to your library" : {
+
+    },
+    "items returned to your library" : {
+
+    },
+    "Keep Screen Awake" : {
+
+    },
+    "Last checked" : {
+
+    },
+    "Library filters" : {
+
+    },
+    "Library is Empty" : {
+
+    },
+    "Link a source" : {
+
+    },
+    "Link another note" : {
+
+    },
+    "Loading book..." : {
+
     },
     "Loading original context" : {
       "comment" : "VoiceOver label for inline context loading"
     },
-    "Nothing marked here yet." : {
-      "comment" : "Second Read empty-state title"
+    "Local changes are queued safely until iCloud confirms them." : {
+
+    },
+    "Location" : {
+
+    },
+    "Mark as done" : {
+
+    },
+    "Mark as Finished" : {
+
+    },
+    "Mark as not done" : {
+
+    },
+    "Move to %@" : {
+
+    },
+    "New Highlight" : {
+
+    },
+    "New note" : {
+
+    },
+    "New Note" : {
+
+    },
+    "New tag" : {
+
+    },
+    "Next note" : {
+      "comment" : "Moves to the next Living Margins note"
+    },
+    "No Bookmarks Saved" : {
+
+    },
+    "No matching notes" : {
+
+    },
+    "No Quotes Saved" : {
+
+    },
+    "No Quotes Yet" : {
+
+    },
+    "No Table of Contents" : {
+
     },
     "Note attached" : {
       "comment" : "VoiceOver label for a Living Margins marker"
+    },
+    "Notes" : {
+
+    },
+    "Notes, highlights and library" : {
+
+    },
+    "Nothing captured yet" : {
+
+    },
+    "Nothing Found" : {
+
+    },
+    "Nothing in this view" : {
+
+    },
+    "Nothing marked here yet." : {
+      "comment" : "Second Read empty-state title"
+    },
+    "Notifications Are Off" : {
+
+    },
+    "OK" : {
+      "comment" : "Dismisses a Second Read error alert"
+    },
+    "On this page" : {
+
+    },
+    "One local change is waiting for iCloud." : {
+
+    },
+    "Open books in continuous vertical scrolling mode" : {
+
     },
     "Open in Book" : {
       "comment" : "Opens a Second Read fragment at its original reader location"
@@ -46,8 +616,17 @@
     "Open in Book unavailable" : {
       "comment" : "VoiceOver label when the source file cannot be opened"
     },
+    "Opens at your last reading position" : {
+
+    },
+    "Opens the privacy policy in your browser" : {
+
+    },
     "Opens your personal edition of this book" : {
       "comment" : "Accessibility hint for the Second Read entry"
+    },
+    "OPTIONAL" : {
+
     },
     "Original context is unavailable for this passage." : {
       "comment" : "Inline graceful failure when a locator cannot be resolved"
@@ -55,26 +634,176 @@
     "Original context, highlighted passage: %@" : {
       "comment" : "VoiceOver label for expanded context and its highlighted anchor"
     },
-    "OK" : {
-      "comment" : "Dismisses a Second Read error alert"
+    "Part of a larger thought" : {
+
+    },
+    "Paste from clipboard" : {
+
+    },
+    "Paste the address of an article. diple keeps the text, the images and the headings — and leaves the banners behind." : {
+
     },
     "Personal note: %@" : {
       "comment" : "VoiceOver label followed by the reader's thought"
     },
-    "Next note" : {
-      "comment" : "Moves to the next Living Margins note"
+    "Photos" : {
+
+    },
+    "Preparing Search…" : {
+
     },
     "Previous note" : {
       "comment" : "Moves to the previous Living Margins note"
     },
+    "PRIVACY" : {
+
+    },
+    "Privacy Policy" : {
+
+    },
+    "Quote" : {
+
+    },
+    "Quotes (%lld)" : {
+
+    },
+    "Reader" : {
+
+    },
+    "READER DEFAULTS" : {
+
+    },
+    "Reading notes template" : {
+
+    },
+    "Reading queue" : {
+
+    },
+    "Reminder Time" : {
+
+    },
+    "Remove book %@" : {
+
+    },
+    "Remove Comment" : {
+
+    },
+    "Remove tag %@" : {
+
+    },
+    "Removed from library" : {
+
+    },
+    "Reopening the app is worth trying first. If it keeps failing, you can start a new empty library; the unreadable file is kept beside it, so a future version may still be able to recover it." : {
+
+    },
+    "Restore Backup" : {
+
+    },
+    "RESTORED" : {
+
+    },
+    "Restoring…" : {
+
+    },
+    "Result Unavailable" : {
+
+    },
+    "Retry" : {
+
+    },
     "Return to Book" : {
       "comment" : "Second Read empty-state action"
+    },
+    "Return to one saved passage each day" : {
+
+    },
+    "Return to text" : {
+
+    },
+    "Run a check to confirm this device can reach your private iCloud database." : {
+
+    },
+    "Save" : {
+
+    },
+    "Save a Link" : {
+
+    },
+    "Save an article or import a book. Your place, highlights and notes stay together from the first page." : {
+
+    },
+    "Save changes" : {
+
+    },
+    "Save Changes" : {
+
+    },
+    "Save highlight" : {
+
+    },
+    "Save Highlight" : {
+
+    },
+    "Save to Library" : {
+
+    },
+    "Saved" : {
+
+    },
+    "Screen dims after 10 minutes without page turns instead of after a few seconds" : {
+
+    },
+    "Search" : {
+
+    },
+    "Search Error" : {
+
+    },
+    "Search every note" : {
+
+    },
+    "Search Everything" : {
+
+    },
+    "Search library" : {
+
+    },
+    "Search scope" : {
+
+    },
+    "Second Read" : {
+      "comment" : "Feature title"
     },
     "SECOND READ" : {
       "comment" : "Small editorial kicker in the Second Read header"
     },
-    "Second Read" : {
-      "comment" : "Feature title"
+    "Section" : {
+
+    },
+    "Select text in the book to save quotes with your favorite colors." : {
+
+    },
+    "SELECTED PASSAGE" : {
+
+    },
+    "Selected passage: %@" : {
+
+    },
+    "Settings" : {
+
+    },
+    "Share Markdown" : {
+
+    },
+    "Show another highlight" : {
+
+    },
+    "Show as cards" : {
+
+    },
+    "Show as list" : {
+
     },
     "Show Context" : {
       "comment" : "Expands original prose around a highlighted passage"
@@ -82,20 +811,173 @@
     "Show note" : {
       "comment" : "VoiceOver action hint for a Living Margins marker"
     },
+    "Sort Library" : {
+
+    },
+    "Sort notes" : {
+
+    },
+    "Source" : {
+
+    },
+    "Source Error" : {
+
+    },
+    "Source Overview" : {
+
+    },
     "Source unavailable" : {
       "comment" : "Shown when a Second Read fragment's book file is missing"
+    },
+    "Start a New Library" : {
+
+    },
+    "Start a new library?" : {
+
+    },
+    "Start New Library" : {
+
+    },
+    "Start reading" : {
+
+    },
+    "Start reading, then highlight a passage or write a note. Everything from this source will collect here." : {
+
+    },
+    "Start with something real" : {
+
+    },
+    "Start with the thought itself. You can connect a source or add tags when they become useful." : {
+
+    },
+    "Start writing…" : {
+
+    },
+    "Status" : {
+
+    },
+    "Switch to covers" : {
+
+    },
+    "Switch to list" : {
+
+    },
+    "Sync your library, quotes and notes across your devices" : {
+
+    },
+    "Tag" : {
+
+    },
+    "Tag a Book" : {
+
+    },
+    "Tag filters" : {
+
+    },
+    "Tags" : {
+
+    },
+    "Tags…" : {
+
+    },
+    "Tap the bookmark icon in the reading controls overlay to save bookmarks with custom titles and color tags." : {
+
+    },
+    "TAP TO BEGIN" : {
+
+    },
+    "TAP TO SKIP" : {
+
+    },
+    "The backup was merged without deleting anything already on this device." : {
+
+    },
+    "The file could not be moved: %@" : {
+
+    },
+    "The page remembers where the reader paused, and the words continue in their own quiet measure." : {
+
+    },
+    "The saved passage and its comment will be removed." : {
+
+    },
+    "This note and its tags will be removed." : {
+
+    },
+    "This note will be removed permanently." : {
+
+    },
+    "This only happens once — search will be instant after." : {
+
+    },
+    "This quote will be removed." : {
+
+    },
+    "THIS RESTORE" : {
+
+    },
+    "Tip" : {
+
+    },
+    "Title" : {
+
+    },
+    "Title, author or source" : {
+
+    },
+    "Try a title, phrase, tag, author or book." : {
+
+    },
+    "Try another title, author, source or reading status." : {
+
+    },
+    "Try fewer words or a different spelling." : {
+
+    },
+    "Type LaTeX or choose a building block" : {
+
+    },
+    "Use standard LaTeX math syntax. Fractions, roots, matrices, limits, Greek letters and aligned equations render entirely on device." : {
+
+    },
+    "Vibrate on interactions and events" : {
+
+    },
+    "Vibrate when moving to next chapter" : {
+
+    },
+    "Welcome to diple. A place for what stays with you." : {
+
     },
     "What stayed with you." : {
       "comment" : "Short Second Read editorial subtitle"
     },
-    "YOUR NOTE" : {
-      "comment" : "Label above the reader's thought attached to a highlight"
+    "Write the first note" : {
+
     },
     "Your book, made from what stayed with you." : {
       "comment" : "Second Read entry subtitle"
     },
+    "YOUR DATA" : {
+
+    },
+    "Your library didn't open" : {
+
+    },
+    "Your library is empty." : {
+
+    },
+    "Your library is restored" : {
+
+    },
+    "YOUR NOTE" : {
+      "comment" : "Label above the reader's thought attached to a highlight"
+    },
     "Your Second Read could not be loaded." : {
       "comment" : "Non-technical Second Read database error"
+    },
+    "Your thoughts about this quote" : {
+
     }
   },
   "version" : "1.0"
