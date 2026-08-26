@@ -154,7 +154,7 @@ struct LivingMarginsUITestFixture: View {
     ]
     @State private var activeIndex: Int?
 
-    private let chrome = ReaderChrome.forTheme(.paper)
+    private let chrome = ReaderChrome.forTheme(.carbon)
 
     var body: some View {
         ZStack(alignment: .trailing) {
