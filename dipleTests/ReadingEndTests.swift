@@ -174,6 +174,64 @@ final class ReadingEndTests: XCTestCase {
         XCTAssertFalse(ReadingEnd.wholeBook.hasBackMatter)
     }
 
+    /// The back matter that actually turns up.
+    ///
+    /// Every book from Project Gutenberg ends with its licence, and the whole reason this type
+    /// exists is that a reader stops before the back matter. The title is the one the prefix
+    /// lexicon could never reach: the wording moves around the phrase, and the trademark sign
+    /// is a `Symbol` rather than punctuation, so normalisation used to leave "gutenberg™"
+    /// welded to the word after it. Both are why a finished Gutenberg book asked nothing.
+    func testProjectGutenbergLicenceIsBackMatterInEveryWordingSeen() {
+        let readingOrder = links("chapter-20.xhtml", "pg-footer.xhtml")
+        let positions = [
+            position("chapter-20.xhtml", at: 0.0),
+            position("pg-footer.xhtml", at: 0.96),
+        ]
+
+        for title in [
+            "THE FULL PROJECT GUTENBERG\u{2122} LICENSE",
+            "THE FULL PROJECT GUTENBERG LICENSE",
+            "Project Gutenberg License",
+            "*** The Full Project Gutenberg\u{2122} License ***",
+        ] {
+            let result = ReadingEnd.resolve(
+                landmarks: [],
+                tableOfContents: [
+                    toc("chapter-20.xhtml", title: "CHAPTER XX."),
+                    toc("pg-footer.xhtml", title: title),
+                ],
+                readingOrder: readingOrder,
+                positions: positions
+            )
+
+            XCTAssertEqual(
+                result,
+                ReadingEnd(progression: 0.96, source: .contents),
+                "\(title) has to read as back matter"
+            )
+        }
+    }
+
+    /// The phrase list is matched anywhere in a title, which is only safe while it stays this
+    /// specific. A novel is allowed a chapter called "Index" or "The Notes"; none is going to
+    /// be called anything containing "project gutenberg license".
+    func testAPhraseMatchDoesNotSwallowOrdinaryChapterTitles() {
+        let readingOrder = links("one.xhtml", "two.xhtml")
+        let positions = [position("one.xhtml", at: 0.0), position("two.xhtml", at: 0.8)]
+
+        let result = ReadingEnd.resolve(
+            landmarks: [],
+            tableOfContents: [
+                toc("one.xhtml", title: "A Note on the Gutenberg Bible"),
+                toc("two.xhtml", title: "The Licensing of Printers"),
+            ],
+            readingOrder: readingOrder,
+            positions: positions
+        )
+
+        XCTAssertEqual(result, .wholeBook)
+    }
+
     private func links(_ hrefs: String...) -> [Link] {
         hrefs.map { Link(href: $0, mediaType: .xhtml) }
     }

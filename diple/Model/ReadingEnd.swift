@@ -96,6 +96,21 @@ public struct ReadingEnd: Equatable, Sendable {
 
     private static let backMatterTitles = Set(backMatterLexiconByLanguage.values.joined())
 
+    /// Titles matched on a phrase appearing anywhere, not as a prefix.
+    ///
+    /// Project Gutenberg's licence is the most common piece of back matter there is — every
+    /// book from the archive carries one — and it is the one the prefix rule cannot reach,
+    /// because the wording moves around a fixed phrase: "THE FULL PROJECT GUTENBERG™ LICENSE",
+    /// "PROJECT GUTENBERG LICENSE", "The Full Project Gutenberg License". A prefix entry would
+    /// need one line per variant and would still miss the next one.
+    ///
+    /// Kept as a separate, deliberately tiny list rather than loosening the lexicon to
+    /// `contains`: "index" or "notes" appearing anywhere in a title is a chapter of a novel
+    /// often enough to matter, whereas "project gutenberg license" never is.
+    private static let backMatterPhrases: Set<String> = [
+        "project gutenberg license",
+    ]
+
     private static func earliestBackMatterLandmarkIndex(
         in landmarks: [Link],
         readingOrder: [Link]
@@ -123,13 +138,21 @@ public struct ReadingEnd: Equatable, Sendable {
         guard let title else { return false }
         let normalized = normalize(title)
         guard !normalized.isEmpty else { return false }
+        if backMatterPhrases.contains(where: normalized.contains) {
+            return true
+        }
         return backMatterTitles.contains { term in
             normalized == term || normalized.hasPrefix("\(term) ")
         }
     }
 
+    /// Symbols go the same way as punctuation and digits: the trademark sign in Project
+    /// Gutenberg's own title is a `Symbol`, not punctuation, so leaving it in kept
+    /// "gutenberg™ license" from ever reading as "gutenberg license".
     private static func normalize(_ title: String) -> String {
-        let removed = CharacterSet.punctuationCharacters.union(.decimalDigits)
+        let removed = CharacterSet.punctuationCharacters
+            .union(.decimalDigits)
+            .union(.symbols)
         let scalars = title.lowercased().unicodeScalars.map { scalar in
             removed.contains(scalar) ? " " : String(scalar)
         }
