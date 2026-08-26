@@ -90,7 +90,11 @@ public struct FinishedColophonView: View {
             }
 
             if colophon.readingEnd.hasBackMatter {
-                Text("Notes and index follow.")
+                // Not "Notes and index follow": the boundary is just as often a bibliography,
+                // a publisher's colophon or — in every book from Project Gutenberg, which is
+                // most free EPUBs — a licence. The reader is owed the one fact that holds in
+                // all of them, which is that the story is over.
+                Text("The rest is back matter.")
                     .dipleType(.callout)
                     .foregroundStyle(chrome.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -111,11 +115,18 @@ public struct FinishedColophonView: View {
         }
     }
 
+    /// One line each, shrinking a little before they wrap.
+    ///
+    /// The three share the row equally, and at `buttonLarge` padding "Second Read" and
+    /// "Keep reading" each lost their last word to a second line — which stood three pills at
+    /// two different heights on the one page in the app whose whole job is to be well set.
     @ViewBuilder
     private var actionButtons: some View {
         if colophon.quoteCount > 0 {
             Button("Second Read", action: onOpenSecondRead)
                 .dipleType(.footnote, weight: .semibold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .foregroundStyle(DipleColor.textOnAccent)
                 .frame(maxWidth: .infinity)
                 .diplePadding(.buttonLarge)
@@ -125,6 +136,8 @@ public struct FinishedColophonView: View {
 
         Button("Close", action: onFinish)
             .dipleType(.footnote, weight: .semibold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .foregroundStyle(chrome.control)
             .frame(maxWidth: .infinity)
             .diplePadding(.buttonLarge)
@@ -136,6 +149,8 @@ public struct FinishedColophonView: View {
 
         Button("Keep reading", action: onKeepReading)
             .dipleType(.footnote, weight: .semibold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .foregroundStyle(chrome.secondary)
             .frame(maxWidth: .infinity)
             .diplePadding(.buttonLarge)
