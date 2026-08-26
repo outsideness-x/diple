@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 public struct AppSettingsView: View {
     private static let privacyPolicyURL = URL(
-        string: "https://github.com/outsideness-x/diple/blob/main/README.md"
+        string: "https://diple-reader.vercel.app/privacy"
     )
 
     @StateObject private var settingsManager = AppSettingsManager.shared
