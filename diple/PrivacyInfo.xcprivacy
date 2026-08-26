@@ -12,10 +12,28 @@
 				<string>CA92.1</string>
 			</array>
 		</dict>
+		<!-- ZIPFoundation is linked into this binary, not into a framework of its own, so
+		     Apple's scanner finds the file-timestamp symbols here. It carries its own manifest
+		     in `ReadiumZIPFoundation.bundle`, but a nested manifest is not a reliable answer for
+		     a statically linked package, and the declaration is true of the app in its own right:
+		     an EPUB is read out of a ZIP the reader picked in the document browser (3B52.1) and
+		     again out of the copy kept in the app container (C617.1). Declaring it costs nothing
+		     and is what keeps the upload out of ITMS-91053. -->
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+				<string>3B52.1</string>
+			</array>
+		</dict>
 	</array>
 	<key>NSPrivacyCollectedDataTypes</key>
 	<array/>
 	<key>NSPrivacyTracking</key>
 	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
 </dict>
 </plist>
