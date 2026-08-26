@@ -116,8 +116,7 @@ public struct ReaderContainerView: View {
                             viewModel.pushBackLocation(originLocator)
                         },
                         onTargetHandled: {
-                            viewModel.clearTargetLocator()
-                            viewModel.clearTargetLink()
+                            viewModel.finishTargetNavigation()
                         },
                         onOpenFailed: { message in
                             viewModel.errorMessage = message
@@ -168,8 +167,7 @@ public struct ReaderContainerView: View {
                             viewModel.pushBackLocation(originLocator)
                         },
                         onTargetHandled: {
-                            viewModel.clearTargetLocator()
-                            viewModel.clearTargetLink()
+                            viewModel.finishTargetNavigation()
                         },
                         onOpenFailed: { message in
                             viewModel.errorMessage = message

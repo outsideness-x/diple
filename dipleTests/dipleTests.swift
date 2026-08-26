@@ -997,6 +997,71 @@ final class DipleTests: XCTestCase {
     // MARK: - Selection bar: deferred creation and the retired colour
 
     /// A passage, a locator and a frame, exactly as the navigator would have reported them.
+    /// A shelf detour has to end, and for a long time none of them did.
+    ///
+    /// While `nearbySourceDetour` is set, `saveLocation` deliberately refuses to persist and
+    /// `progressPayload` keeps answering with the origin — that is what stops a glance at a held
+    /// passage from moving the reader's saved place. `finishTargetNavigation` is the only thing
+    /// that clears it, and nothing called it: the navigators reported a handled jump through a
+    /// `clearTargetLocator`/`clearTargetLink` pair instead. So the first shelf jump in a session
+    /// froze the saved position permanently, and the reader closed the book to find it reopening
+    /// pages behind where they had actually stopped.
+    ///
+    /// The assertion is the second half — reading *after* the return is saved again — because
+    /// the first half never looked broken.
+    func testReturningFromAHeldPassageLetsReadingBeSavedAgain() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let book = Book(id: "detour-book", title: "Source", filePath: "Books/detour/book.epub")
+        try database.saveBook(book)
+        let viewModel = ReaderViewModel(book: book, database: database)
+
+        viewModel.saveLocation(makeLocator(href: "chapter-3.xhtml", totalProgression: 0.33))
+
+        let held = try XCTUnwrap(
+            QuoteReference(
+                bookID: book.id,
+                locator: makeLocator(href: "chapter-1.xhtml", totalProgression: 0.05),
+                text: "A passage kept nearby"
+            )
+        )
+        viewModel.navigateToNearbySource(held)
+        viewModel.finishTargetNavigation()
+        viewModel.saveLocation(makeLocator(href: "chapter-1.xhtml", totalProgression: 0.05))
+
+        // Looking at it must not have moved the saved place.
+        viewModel.flushPendingProgress()
+        XCTAssertEqual(
+            try XCTUnwrap(database.fetchBook(id: book.id)).progress,
+            0.33,
+            accuracy: 0.0001,
+            "a glance at a held passage is not reading progress"
+        )
+
+        // Stepping back out of the detour ends it.
+        viewModel.goBackInHistory()
+        viewModel.finishTargetNavigation()
+        viewModel.saveLocation(makeLocator(href: "chapter-4.xhtml", totalProgression: 0.5))
+        viewModel.flushPendingProgress()
+
+        XCTAssertEqual(
+            try XCTUnwrap(database.fetchBook(id: book.id)).progress,
+            0.5,
+            accuracy: 0.0001,
+            "reading after the return is reading again"
+        )
+    }
+
+    private func makeLocator(href: String, totalProgression: Double) -> Locator {
+        Locator(
+            href: AnyURL(string: href)!,
+            mediaType: .xhtml,
+            locations: Locator.Locations(
+                progression: totalProgression,
+                totalProgression: totalProgression
+            )
+        )
+    }
+
     /// `ReadiumNavigator.Selection` has no public initialiser, which is why `PendingSelection`
     /// exists at all — see its own documentation.
     private func makePendingSelection(quote: String) -> PendingSelection {

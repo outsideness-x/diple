@@ -815,16 +815,14 @@ public final class ReaderViewModel: ObservableObject {
         self.targetLocator = locator
     }
 
-    public func clearTargetLocator() {
-        self.targetLocator = nil
-    }
-
-    public func clearTargetLink() {
-        self.targetLink = nil
-    }
-
     /// Clears a target once Readium has completed the jump. Returning from the shelf origin is
     /// the precise moment a temporary detour becomes ordinary reading again.
+    ///
+    /// **The only way to report a jump handled**, and it has to stay the only one. It used to
+    /// sit beside a `clearTargetLocator`/`clearTargetLink` pair that did the first two lines and
+    /// nothing else, and the navigators called that pair — so this ran never, the shelf detour
+    /// was never torn down, and `saveLocation` went on refusing to persist for the rest of the
+    /// session. A second entry point that does most of the work is the shape of that bug.
     public func finishTargetNavigation() {
         targetLocator = nil
         targetLink = nil
