@@ -310,21 +310,36 @@ final class dipleUITests: XCTestCase {
         }
     }
 
+    /// The colophon takes the page: it is opaque, it swallows taps, and nothing turns
+    /// underneath it. That is the whole reason it is a full-screen child of the reader's
+    /// `ZStack` rather than a sheet, and it is the property worth guarding.
+    ///
+    /// **Skipped, not failed, without a library.** This walks a real publication to its last
+    /// page, so it needs a book on the device; a clean simulator has none, and a test that
+    /// cannot pass there is worse than no test — it leaves the suite permanently red and hides
+    /// the failures that matter. See the project's simulator notes for seeding one.
     @MainActor
-    func testTemporaryReaderColophonQA() throws {
+    func testFinishedColophonHoldsThePageBeneathIt() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
         app.launch()
 
         let book = app.staticTexts["The Picture of Dorian Gray"].firstMatch
-        XCTAssertTrue(book.waitForExistence(timeout: 5))
+        try XCTSkipUnless(
+            book.waitForExistence(timeout: 5),
+            "Needs a seeded library on this simulator"
+        )
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.32)).tap()
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
 
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
+        // Short of the boundary, deliberately. A jump *past* it disarms the offer by design —
+        // standing beyond the end of the text is not the same as having read through it — so
+        // dragging the bar to the very end is the one approach that can never raise the page.
+        // The taps below are what cross it, which is the crossing the colophon waits for.
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.89))
-        let nearEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.91, dy: 0.89))
-        start.press(forDuration: 0.1, thenDragTo: nearEnd)
+        let shortOfTheEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.89))
+        start.press(forDuration: 0.1, thenDragTo: shortOfTheEnd)
 
         let nextPage = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
         let close = app.buttons["Close"]
@@ -349,7 +364,7 @@ final class dipleUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Keep reading"].exists)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Finished colophon blocking the reader"
+        screenshot.name = "Finished colophon holding the page"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
