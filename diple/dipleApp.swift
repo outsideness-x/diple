@@ -35,6 +35,24 @@ struct dipleApp: App {
         #endif
     }
 
+    private var isFinishedColophonUITestFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-diple-test-finished-colophon")
+        #else
+        false
+        #endif
+    }
+
+    /// True for **any** XCUI fixture, which is what the seals below have to ask.
+    ///
+    /// They used to name the living-margins fixture directly, so the second fixture added
+    /// beside it would silently have been an unsealed one: the shared-link banner over the
+    /// screen under test, and notifications and CloudKit starting up mid-run. One property
+    /// means the next fixture is sealed by existing rather than by being remembered.
+    private var isUITestFixture: Bool {
+        isLivingMarginsUITestFixture || isFinishedColophonUITestFixture
+    }
+
     init() {
         // The delegate must be installed before the root view appears, otherwise a tap on a
         // notification that cold-launches the app can be delivered before RootTabView starts
@@ -54,6 +72,8 @@ struct dipleApp: App {
                 #if DEBUG
                 if isLivingMarginsUITestFixture {
                     LivingMarginsUITestFixture()
+                } else if isFinishedColophonUITestFixture {
+                    FinishedColophonUITestFixture()
                 } else {
                     phoneRoot
                 }
@@ -71,7 +91,7 @@ struct dipleApp: App {
             // presented in the window.
             .id(settingsManager.settings.accent)
             .overlay(alignment: .top) {
-                if hasCompletedFirstLaunch && !isLivingMarginsUITestFixture {
+                if hasCompletedFirstLaunch && !isUITestFixture {
                     SharedLinkImportBanner(coordinator: sharedLinkCoordinator)
                 }
             }
@@ -102,7 +122,7 @@ struct dipleApp: App {
             .onChange(of: scenePhase, initial: true) { _, phase in
                 guard phase == .active else { return }
                 AppIconManager.apply(settingsManager.settings.accent)
-                if !isLivingMarginsUITestFixture {
+                if !isUITestFixture {
                     sharedLinkCoordinator.processPending()
                 }
             }
@@ -114,7 +134,7 @@ struct dipleApp: App {
 
                 // The fixture is intentionally a sealed interaction surface: pending shared
                 // imports, notifications and CloudKit must not overlay or mutate an XCUI run.
-                guard !isLivingMarginsUITestFixture else { return }
+                guard !isUITestFixture else { return }
 
                 // Notifications and sync both read the library; with no library to read,
                 // starting them would only mean uploading an empty one over the real thing.

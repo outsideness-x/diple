@@ -310,62 +310,48 @@ final class dipleUITests: XCTestCase {
         }
     }
 
-    /// The colophon takes the page: it is opaque, it swallows taps, and nothing turns
-    /// underneath it. That is the whole reason it is a full-screen child of the reader's
-    /// `ZStack` rather than a sheet, and it is the property worth guarding.
+    /// The colophon holds the page beneath it.
     ///
-    /// **Skipped, not failed, without a library.** This walks a real publication to its last
-    /// page, so it needs a book on the device; a clean simulator has none, and a test that
-    /// cannot pass there is worse than no test — it leaves the suite permanently red and hides
-    /// the failures that matter. See the project's simulator notes for seeding one.
+    /// That is the whole reason it is a full-screen child of the reader's `ZStack` rather than
+    /// a sheet: opaque background, `contentShape`, and every overlay that could draw over the
+    /// page withdrawn while it is up. If a tap ever reaches through, the reader turns a page
+    /// they cannot see while being asked whether they have finished the book.
+    ///
+    /// Driven by a fixture rather than a real publication. The version of this test that walked
+    /// a book to its last page needed a hand-seeded library — so it could only fail on a clean
+    /// machine — and depended on how far one tap carries, which varies with device, type size
+    /// and how busy the machine is; it passed alone and failed in the suite. Neither is a
+    /// property of the colophon.
     @MainActor
-    func testFinishedColophonHoldsThePageBeneathIt() throws {
+    func testFinishedColophonHoldsThePageBeneathIt() {
         let app = XCUIApplication()
-        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
+        app.launchArguments = [
+            "-diple_has_completed_first_launch", "YES",
+            "-diple-test-finished-colophon",
+        ]
         app.launch()
 
-        let book = app.staticTexts["The Picture of Dorian Gray"].firstMatch
-        try XCTSkipUnless(
-            book.waitForExistence(timeout: 5),
-            "Needs a seeded library on this simulator"
-        )
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.32)).tap()
-        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
+        let keepReading = app.buttons["Keep reading"]
+        XCTAssertTrue(keepReading.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Close"].exists)
+        XCTAssertTrue(app.buttons["Second Read"].exists, "a book with passages offers the reread")
 
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
-        // Short of the boundary, deliberately. A jump *past* it disarms the offer by design —
-        // standing beyond the end of the text is not the same as having read through it — so
-        // dragging the bar to the very end is the one approach that can never raise the page.
-        // The taps below are what cross it, which is the crossing the colophon waits for.
-        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.89))
-        let shortOfTheEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.82, dy: 0.89))
-        start.press(forDuration: 0.1, thenDragTo: shortOfTheEnd)
+        let counter = app.staticTexts["colophon.fixture.pageTaps"]
+        XCTAssertTrue(counter.waitForExistence(timeout: 5))
+        let before = counter.label
 
-        let nextPage = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
-        let close = app.buttons["Close"]
-        for _ in 0..<50 where !close.exists {
-            nextPage.tap()
-        }
-        for _ in 0..<10 where !close.exists {
-            app.swipeLeft()
-        }
-        XCTAssertTrue(close.waitForExistence(timeout: 3))
-
-        let webView = app.webViews.firstMatch
-        let textBeforeTaps = webView.descendants(matching: .staticText)
-            .allElementsBoundByIndex.map(\.label)
-        XCTAssertFalse(textBeforeTaps.isEmpty)
+        // Empty page, well clear of the three actions at the top.
+        let pageBeneath = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
         for _ in 0..<3 {
-            nextPage.tap()
+            pageBeneath.tap()
         }
-        let textAfterTaps = webView.descendants(matching: .staticText)
-            .allElementsBoundByIndex.map(\.label)
-        XCTAssertEqual(textAfterTaps, textBeforeTaps)
-        XCTAssertTrue(app.buttons["Keep reading"].exists)
+        XCTAssertEqual(counter.label, before, "the colophon has to take every tap over the page")
 
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Finished colophon holding the page"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
+        // Declining puts the page back, taps and all.
+        keepReading.tap()
+        XCTAssertFalse(keepReading.waitForExistence(timeout: 2), "Keep reading dismisses the page")
+        pageBeneath.tap()
+        XCTAssertNotEqual(counter.label, before, "the page is reachable again once it is gone")
     }
+
 }

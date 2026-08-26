@@ -178,3 +178,55 @@ public struct FinishedColophonView: View {
         return "FINISHED · \(day) \(months[month - 1].uppercased()) \(year)"
     }
 }
+
+#if DEBUG
+/// The colophon over a page that counts the taps it receives.
+///
+/// The property worth guarding is that the final page *holds* the one beneath it: opaque,
+/// taking every tap, nothing turning underneath. A real book cannot demonstrate that
+/// repeatably — reaching its last page needs a seeded library, and how far one tap carries
+/// depends on the device, the type size and how busy the machine is, which is what made the
+/// test that tried it both slow and flaky. Here the page under the colophon is a counter, and
+/// any tap that gets through moves it.
+struct FinishedColophonUITestFixture: View {
+    @State private var pageTaps = 0
+    @State private var isPresented = true
+
+    private let chrome = ReaderChrome.forTheme(.carbon)
+
+    var body: some View {
+        ZStack {
+            chrome.page.ignoresSafeArea()
+
+            Text("Taps reaching the page: \(pageTaps)")
+                .dipleType(.body)
+                .foregroundStyle(chrome.control)
+                .accessibilityIdentifier("colophon.fixture.pageTaps")
+                .allowsHitTesting(false)
+
+            Rectangle()
+                .fill(.clear)
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onTapGesture { pageTaps += 1 }
+                .accessibilityHidden(true)
+
+            if isPresented {
+                FinishedColophonView(
+                    colophon: FinishedColophon(
+                        title: "The Picture of Dorian Gray",
+                        author: "Oscar Wilde",
+                        date: Date(),
+                        quoteCount: 2,
+                        readingEnd: ReadingEnd(progression: 0.96, source: .contents)
+                    ),
+                    chrome: chrome,
+                    onFinish: { isPresented = false },
+                    onOpenSecondRead: { isPresented = false },
+                    onKeepReading: { isPresented = false }
+                )
+            }
+        }
+    }
+}
+#endif

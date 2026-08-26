@@ -4,6 +4,9 @@
     "" : {
 
     },
+    " " : {
+
+    },
     "·" : {
 
     },
@@ -145,6 +148,9 @@
     "Adding to your library…" : {
 
     },
+    "Adjust to move through the book" : {
+
+    },
     "Allow notifications for diple in iOS Settings to receive your daily quote." : {
 
     },
@@ -173,6 +179,9 @@
 
     },
     "BOOKMARK NAME" : {
+
+    },
+    "Bookmark this page" : {
 
     },
     "Bookmarks (%lld)" : {
@@ -226,6 +235,9 @@
     "Close" : {
 
     },
+    "Close book" : {
+
+    },
     "Close note" : {
       "comment" : "Closes the currently revealed Living Margins note"
     },
@@ -248,6 +260,9 @@
 
     },
     "Contents" : {
+
+    },
+    "Contents, bookmarks and quotes" : {
 
     },
     "Continue" : {
@@ -502,6 +517,9 @@
     "items returned to your library" : {
 
     },
+    "Keep reading" : {
+
+    },
     "Keep Screen Awake" : {
 
     },
@@ -676,7 +694,13 @@
     "Reading notes template" : {
 
     },
+    "Reading position" : {
+
+    },
     "Reading queue" : {
+
+    },
+    "Reading settings" : {
 
     },
     "Reminder Time" : {
@@ -764,6 +788,9 @@
 
     },
     "Search Everything" : {
+
+    },
+    "Search in book" : {
 
     },
     "Search library" : {
@@ -889,6 +916,9 @@
     "TAP TO SKIP" : {
 
     },
+    "Taps reaching the page: %lld" : {
+
+    },
     "The backup was merged without deleting anything already on this device." : {
 
     },
@@ -896,6 +926,9 @@
 
     },
     "The page remembers where the reader paused, and the words continue in their own quiet measure." : {
+
+    },
+    "The rest is back matter." : {
 
     },
     "The saved passage and its comment will be removed." : {
@@ -908,6 +941,9 @@
 
     },
     "This only happens once — search will be instant after." : {
+
+    },
+    "This page is bookmarked" : {
 
     },
     "This quote will be removed." : {
