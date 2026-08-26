@@ -195,7 +195,7 @@ public final class ReaderViewModel: ObservableObject {
     ///
     /// Long enough to notice a jump was wrong and undo it; short enough that the page is the
     /// page again by the time the next paragraph is read.
-    private static let returnOfferLifetime: Duration = .seconds(10)
+    private static let returnOfferLifetime: Duration = .seconds(90)
     private var isReturningFromNearbySource = false
 
     /// Watches the positions the navigator reports and picks out the stretches that were

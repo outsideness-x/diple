@@ -218,7 +218,6 @@ public struct ReaderContainerView: View {
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(DipleMotion.gentle, value: viewModel.isReturnOfferVisible)
                 }
 
                 // Overlay Controls (Top & Bottom bars)
@@ -408,6 +407,13 @@ public struct ReaderContainerView: View {
         }
         .animation(DipleMotion.gentle, value: viewModel.toast)
         .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
+        // Here rather than on the offer itself. `.animation(value:)` attached to a view that
+        // only exists while the value is true cannot drive its own insertion — the transition
+        // has nothing animating it back to identity. Every other conditional child in this
+        // view (the colophon, the bars) is animated from this stack; the offer was the one
+        // that was not, and only got its slide because a neighbouring value happened to change
+        // at the same moment.
+        .animation(DipleMotion.gentle, value: viewModel.isReturnOfferVisible)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .animation(DipleMotion.gentle, value: viewModel.activeHighlight?.id)
         .animation(DipleMotion.gentle, value: viewModel.finishedColophon != nil)
