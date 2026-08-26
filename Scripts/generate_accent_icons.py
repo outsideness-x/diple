@@ -3,7 +3,8 @@
 
 The icon is a colophon: a New York "d" in cream on near-black with a rule beneath it in the
 accent. The accent is therefore the *only* thing that differs between the five sets, and the
-brass `AppIcon` is the source every alternate is derived from — never the other way round.
+brass `AppIconColophon` is the source every alternate is derived from — never the other way
+round.
 
 Recolouring is exact rather than approximate. The rule is a solid bar over the plate, so each
 of its pixels is a blend of exactly two colours; the blend factor is recovered by projecting the
@@ -16,11 +17,12 @@ The tinted variant is copied byte for byte. It has to be greyscale — the syste
 luminance from the reader's own tint, and an accent rule under somebody else's hue reads as a
 mistake rather than a choice — so there is nothing in it to recolour.
 
-**The set names carry the artwork, not just the colour.** iOS never re-reads an alternate icon
-whose name is already the one in force, so redrawing one under its old name leaves every reader
-who had it selected looking at the previous artwork forever. `SUFFIX` is what records the
-current design; the next redesign changes it here and in `DipleAccent.alternateIconName`, and
-the two must not disagree.
+**The set names carry the artwork, not just the colour** — the primary set included. iOS never
+re-reads an icon whose name is already the one in force, so redrawing one under its old name
+leaves every reader who had it selected looking at the previous artwork forever. `SUFFIX` is
+what records the current design; the next redesign changes it here, in
+`DipleAccent.alternateIconName`, and in `ASSETCATALOG_COMPILER_APPICON_NAME`, and the three must
+not disagree.
 
 Run from the repository root:
 
@@ -36,11 +38,11 @@ from pathlib import Path
 from PIL import Image
 
 ASSETS = Path("diple/Assets.xcassets")
-SOURCE = ASSETS / "AppIcon.appiconset"
+SOURCE = ASSETS / "AppIconColophon.appiconset"
 
 # Must stay in sync with `DipleAccent` in diple/Theme/DipleAccent.swift: `alternateIconName` is
 # the name of the .appiconset generated here, and brass is `nil` there because brass *is* the
-# primary `AppIcon` and so has no alternate to generate.
+# primary `AppIconColophon` and so has no alternate to generate.
 SUFFIX = "Colophon"
 ACCENTS = {
     "Lilac": "#DF9BE1",

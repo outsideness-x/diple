@@ -43,14 +43,16 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     public var uiColor: UIColor { UIColor(color) }
 
     /// Name of the matching `.appiconset` in `Assets.xcassets`, or `nil` for the accent whose
-    /// artwork ships as the primary `AppIcon` — brass, since it became the default.
+    /// artwork ships as the primary set — brass, since it became the default. `nil` means "the
+    /// primary" to `setAlternateIconName` whatever that set is called, so renaming it does not
+    /// reach here.
     ///
     /// **The names carry the artwork, not just the colour, and that is deliberate.** iOS does
-    /// not re-read an alternate icon whose name is already the one in force: `AppIconManager`
-    /// correctly skips the call when nothing changed, so a reader still on the old artwork under
-    /// the same name keeps seeing it forever. Redrawing an alternate icon therefore means
-    /// renaming its set — which is what `Colophon` records here. The next redesign renames them
-    /// again.
+    /// not re-read an icon whose name is already the one in force: `AppIconManager` correctly
+    /// skips the call when nothing changed, so a reader still on the old artwork under the same
+    /// name keeps seeing it forever. Redrawing an icon therefore means renaming its set — which
+    /// is what `Colophon` records here, and in `ASSETCATALOG_COMPILER_APPICON_NAME` for the
+    /// primary. The next redesign renames them again.
     public var alternateIconName: String? {
         switch self {
         case .lilac: return "AppIconLilacColophon"
