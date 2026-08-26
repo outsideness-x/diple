@@ -147,6 +147,13 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
     @Published public var backLocationStack: [Locator] = []
+    /// Whether the return offer is currently on the page.
+    ///
+    /// Deliberately separate from `backLocationStack` being non-empty. The offer is transient —
+    /// it withdraws itself a few seconds after a jump lands, so a reader who meant to jump is
+    /// not left with a control parked over the text for the rest of the chapter — while the
+    /// stack behind it has to survive, because `navigateToNearbySource` measures its depth.
+    @Published public private(set) var isReturnOfferVisible: Bool = false
     @Published public var settings: ReaderSettings {
         didSet {
             AppSettingsManager.shared.settings.readerSettings = settings
@@ -163,6 +170,7 @@ public final class ReaderViewModel: ObservableObject {
     private var persistTask: Task<Void, Never>? = nil
     private var progressWriteTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
+    private var returnOfferTask: Task<Void, Never>? = nil
     private var sourceEmphasisTask: Task<Void, Never>? = nil
     /// The offer is session-scoped: dismissing it never turns the next locator callback into a
     /// second offer.
@@ -183,6 +191,11 @@ public final class ReaderViewModel: ObservableObject {
         let stackDepthBeforeOrigin: Int
     }
     private var nearbySourceDetour: NearbySourceDetour? = nil
+    /// How long the return offer stays on the page after a jump.
+    ///
+    /// Long enough to notice a jump was wrong and undo it; short enough that the page is the
+    /// page again by the time the next paragraph is read.
+    private static let returnOfferLifetime: Duration = .seconds(10)
     private var isReturningFromNearbySource = false
 
     /// Watches the positions the navigator reports and picks out the stretches that were
@@ -700,6 +713,39 @@ public final class ReaderViewModel: ObservableObject {
 
     public func pushBackLocation(_ locator: Locator) {
         self.backLocationStack.append(locator)
+        armReturnOffer()
+    }
+
+    /// Remembers where reading was, so the jump about to happen can be undone.
+    ///
+    /// Called by every deliberate move through the book. Only a link jump used to record one,
+    /// which left the accidents unrecoverable: a progress bar brushed on the way to the toolbar,
+    /// or the wrong line tapped in the outline, overwrote the reading position and kept no copy
+    /// of it, so there was nowhere to go but hunt for the page by hand.
+    private func recordReturnPoint() {
+        guard let origin = currentLocator ?? initialLocator else { return }
+        pushBackLocation(origin)
+    }
+
+    /// Puts the return offer on the page and restarts its countdown.
+    ///
+    /// It hides the button, never the history: the stack is what `goBackInHistory` walks and
+    /// what the shelf detour counts, and clearing it on a timer would break both.
+    private func armReturnOffer() {
+        guard !backLocationStack.isEmpty else { return }
+        isReturnOfferVisible = true
+        returnOfferTask?.cancel()
+        returnOfferTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.returnOfferLifetime)
+            guard !Task.isCancelled else { return }
+            self?.isReturnOfferVisible = false
+        }
+    }
+
+    private func dismissReturnOffer() {
+        returnOfferTask?.cancel()
+        returnOfferTask = nil
+        isReturnOfferVisible = false
     }
 
     public func goBackInHistory() {
@@ -709,9 +755,17 @@ public final class ReaderViewModel: ObservableObject {
             isReturningFromNearbySource = true
         }
         self.targetLocator = previousLocator
+        // A chain of jumps — a note that cites another note — is walked back a step at a time,
+        // so the offer stands again whenever there is still somewhere behind this one.
+        if backLocationStack.isEmpty {
+            dismissReturnOffer()
+        } else {
+            armReturnOffer()
+        }
     }
 
     public func navigateToLink(_ link: ReadiumShared.Link) {
+        recordReturnPoint()
         self.targetLink = link
     }
 
@@ -729,14 +783,14 @@ public final class ReaderViewModel: ObservableObject {
                 < abs((rhs.locations.totalProgression ?? 0) - clamped)
         }
         if let nearest {
-            self.targetLocator = nearest
+            navigateToLocator(nearest)
             return
         }
 
         // No position list: fall back to the resource containing that fraction.
         guard let pub = publication, !pub.readingOrder.isEmpty else { return }
         let index = min(Int(clamped * Double(pub.readingOrder.count)), pub.readingOrder.count - 1)
-        self.targetLink = pub.readingOrder[index]
+        navigateToLink(pub.readingOrder[index])
     }
 
     public func showToast(_ message: String) {
@@ -749,20 +803,16 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
 
-    public func navigateToLocator(_ locator: Locator) {
-        self.targetLocator = locator
-    }
-
-    /// The in-book search sheet's own entry into the same `navigateToLocator` path the outline
-    /// sheet uses — the only difference is that a search jump also remembers where reading was,
-    /// so the existing "Return to text" button (`backLocationStack`) can bring the reader home.
-    /// An outline/bookmark/highlight jump does not push, because those already describe a place
-    /// *in* the book the reader chose to visit, not a detour away from where they were reading.
-    public func navigateToSearchResult(_ locator: Locator) {
-        if let origin = currentLocator ?? initialLocator {
-            pushBackLocation(origin)
+    /// Moves to a place in the book, remembering where reading was.
+    ///
+    /// `recordingReturn: false` is for the one caller that has already recorded the origin
+    /// itself — `navigateToNearbySource`, which has to capture the stack depth *before* the
+    /// push — and would otherwise put the same locator on the stack twice.
+    public func navigateToLocator(_ locator: Locator, recordingReturn: Bool = true) {
+        if recordingReturn {
+            recordReturnPoint()
         }
-        navigateToLocator(locator)
+        self.targetLocator = locator
     }
 
     public func clearTargetLocator() {
@@ -836,7 +886,10 @@ public final class ReaderViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             self?.sourceEmphasisLocator = nil
         }
-        navigateToLocator(reference.locator)
+        navigateToLocator(reference.locator, recordingReturn: false)
+        // Re-offer on every hop between held passages, not only on the one that opened the
+        // detour: the origin is already on the stack and is still where reading left off.
+        armReturnOffer()
     }
 
     /// Resolves the permanent annotation, if any, for a temporary reference.
@@ -885,6 +938,7 @@ public final class ReaderViewModel: ObservableObject {
         activeQuoteDrag = nil
         sourceEmphasisTask?.cancel()
         sourceEmphasisLocator = nil
+        dismissReturnOffer()
         quoteStore.clear()
     }
 

@@ -178,8 +178,9 @@ public struct ReaderContainerView: View {
                     .readerPageArea()
                 }
 
-                // Floating Return-from-Link Back Button
-                if !viewModel.backLocationStack.isEmpty {
+                // Floating Return Button. Shown after any jump, not only a followed link, and
+                // withdrawn on its own timer — see `isReturnOfferVisible`.
+                if viewModel.isReturnOfferVisible {
                     VStack {
                         HStack {
                             Button {
@@ -205,7 +206,7 @@ public struct ReaderContainerView: View {
                         Spacer()
                     }
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(DipleMotion.gentle, value: viewModel.backLocationStack.count)
+                    .animation(DipleMotion.gentle, value: viewModel.isReturnOfferVisible)
                 }
 
                 // Overlay Controls (Top & Bottom bars)
@@ -482,7 +483,7 @@ public struct ReaderContainerView: View {
         .sheet(isPresented: $viewModel.isSearchPresented) {
             BookSearchSheetView(book: viewModel.book) { hit in
                 if let locator = hit.parsedLocator {
-                    viewModel.navigateToSearchResult(locator)
+                    viewModel.navigateToLocator(locator)
                 }
             }
         }
