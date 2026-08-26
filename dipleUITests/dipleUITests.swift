@@ -309,4 +309,48 @@ final class dipleUITests: XCTestCase {
             app.launch()
         }
     }
+
+    @MainActor
+    func testTemporaryReaderColophonQA() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
+        app.launch()
+
+        let book = app.staticTexts["The Picture of Dorian Gray"].firstMatch
+        XCTAssertTrue(book.waitForExistence(timeout: 5))
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.32)).tap()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.89))
+        let nearEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.91, dy: 0.89))
+        start.press(forDuration: 0.1, thenDragTo: nearEnd)
+
+        let nextPage = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        let close = app.buttons["Close"]
+        for _ in 0..<50 where !close.exists {
+            nextPage.tap()
+        }
+        for _ in 0..<10 where !close.exists {
+            app.swipeLeft()
+        }
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
+
+        let webView = app.webViews.firstMatch
+        let textBeforeTaps = webView.descendants(matching: .staticText)
+            .allElementsBoundByIndex.map(\.label)
+        XCTAssertFalse(textBeforeTaps.isEmpty)
+        for _ in 0..<3 {
+            nextPage.tap()
+        }
+        let textAfterTaps = webView.descendants(matching: .staticText)
+            .allElementsBoundByIndex.map(\.label)
+        XCTAssertEqual(textAfterTaps, textBeforeTaps)
+        XCTAssertTrue(app.buttons["Keep reading"].exists)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Finished colophon blocking the reader"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
 }

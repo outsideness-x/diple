@@ -280,11 +280,7 @@ public final class LibraryViewModel: ObservableObject {
         guard book.progress < 0.995 else { return }
 
         do {
-            try AppDatabase.shared.updateReadingProgress(
-                id: book.id,
-                progress: 1,
-                locator: book.locator
-            )
+            try AppDatabase.shared.markBookAsFinished(id: book.id)
             loadBooks()
             HapticManager.shared.notification(.success)
         } catch {

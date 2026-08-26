@@ -39,12 +39,46 @@ public struct PendingSelection: Equatable {
     }
 }
 
+/// Everything the final page prints, captured at the moment it appears.
+///
+/// Keeping this as a value means the colophon never reaches back into SQLite while SwiftUI is
+/// laying it out. The quote count in particular is a snapshot of the reader's already-loaded
+/// highlights, not a query performed from `body`.
+public struct FinishedColophon: Equatable, Sendable {
+    public let title: String
+    public let author: String
+    public let date: Date
+    public let quoteCount: Int
+    public let readingEnd: ReadingEnd
+
+    public init(
+        title: String,
+        author: String,
+        date: Date,
+        quoteCount: Int,
+        readingEnd: ReadingEnd
+    ) {
+        self.title = title
+        self.author = author
+        self.date = date
+        self.quoteCount = quoteCount
+        self.readingEnd = readingEnd
+    }
+}
+
 @MainActor
 public final class ReaderViewModel: ObservableObject {
     public let book: Book
     @Published public var publication: Publication? = nil
     @Published public var initialLocator: Locator? = nil
     @Published public var currentProgress: Double = 0.0
+    /// The publication-derived boundary between the main text and its back matter.
+    @Published public private(set) var readingEnd: ReadingEnd = .wholeBook
+    /// A frozen description of the final page while it is on screen.
+    @Published public var finishedColophon: FinishedColophon?
+    /// Navigation is owned by the container; the view model only raises this signal after the
+    /// completion write succeeds.
+    @Published public var isSecondReadPresented = false
     /// Prose length of this source, resolved once when the book opens.
     ///
     /// The navigator reports a location on every scrolled pixel (see the Readium notes in
@@ -62,10 +96,20 @@ public final class ReaderViewModel: ObservableObject {
     // sixth can be added beside without noticing. Clearing them back to nil is the navigator
     // reporting the jump handled, which is not itself a jump.
     @Published public var targetLink: ReadiumShared.Link? = nil {
-        didSet { if targetLink != nil { abandonSpeedSample() } }
+        didSet {
+            if targetLink != nil {
+                abandonSpeedSample()
+                canOfferColophonAfterCrossing = false
+            }
+        }
     }
     @Published public var targetLocator: Locator? = nil {
-        didSet { if targetLocator != nil { abandonSpeedSample() } }
+        didSet {
+            if targetLocator != nil {
+                abandonSpeedSample()
+                canOfferColophonAfterCrossing = false
+            }
+        }
     }
     @Published public var tableOfContents: [ReadiumShared.Link] = []
     @Published public var highlights: [Highlight] = [] {
@@ -117,8 +161,19 @@ public final class ReaderViewModel: ObservableObject {
     @Published public private(set) var positions: [Locator] = []
 
     private var persistTask: Task<Void, Never>? = nil
+    private var progressWriteTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
     private var sourceEmphasisTask: Task<Void, Never>? = nil
+    /// The offer is session-scoped: dismissing it never turns the next locator callback into a
+    /// second offer.
+    private var hasOfferedColophon = false
+    /// True only after this session has genuinely occupied a position before the resolved end.
+    /// Deliberate targets clear it in their shared `didSet`; arriving below the boundary arms it
+    /// again, while arriving beyond the boundary stays silent.
+    private var canOfferColophonAfterCrossing = false
+    /// Once completion has been written, ordinary reader teardown must not immediately replace
+    /// `progress = 1` with the locator's fractional progression.
+    private var hasFinishedReading = false
 
     /// A shelf jump is a detour, not reading progress. The origin payload is kept separately so
     /// a reader closed while looking at an earlier passage still reopens where reading stopped.
@@ -349,6 +404,14 @@ public final class ReaderViewModel: ObservableObject {
             // Computing positions can take a moment on large books; the reader is usable
             // without them, only the progress bar cannot be dragged yet.
             self.positions = (try? await pub.positions().get()) ?? []
+            self.readingEnd = ReadingEnd.resolve(
+                landmarks: pub.landmarks,
+                tableOfContents: toc,
+                readingOrder: pub.readingOrder,
+                positions: positions
+            )
+            let openingProgress = initialLocator.map(progress(for:)) ?? currentProgress
+            self.canOfferColophonAfterCrossing = openingProgress < readingEnd.progression
         } catch {
             self.errorMessage = "Failed to open book: \(error.localizedDescription)"
             self.isLoading = false
@@ -358,6 +421,14 @@ public final class ReaderViewModel: ObservableObject {
     public func saveLocation(_ locator: Locator) {
         self.currentLocator = locator
         self.currentProgress = progress(for: locator)
+        if currentProgress < readingEnd.progression {
+            canOfferColophonAfterCrossing = true
+        }
+        offerFinishedColophonIfNeeded()
+        guard finishedColophon == nil else {
+            abandonSpeedSample()
+            return
+        }
         guard nearbySourceDetour == nil else {
             abandonSpeedSample()
             return
@@ -367,6 +438,63 @@ public final class ReaderViewModel: ObservableObject {
             sessionSeconds += sample.seconds
         }
         schedulePersist()
+    }
+
+    private func offerFinishedColophonIfNeeded() {
+        guard currentProgress >= readingEnd.progression,
+              book.progress < 0.995,
+              !hasOfferedColophon,
+              canOfferColophonAfterCrossing
+        else { return }
+
+        hasOfferedColophon = true
+        canOfferColophonAfterCrossing = false
+        cancelPendingProgressWrites()
+        isOverlayVisible = false
+        currentSelection = nil
+        dismissHighlightActions()
+        closeLivingMargin()
+        finishedColophon = FinishedColophon(
+            title: book.title,
+            author: book.author ?? "Unknown Author",
+            date: Date(),
+            quoteCount: highlights.count,
+            readingEnd: readingEnd
+        )
+    }
+
+    /// Accepts the proposed boundary and keeps the saved locator exactly where it is.
+    public func finishReading() {
+        _ = completeReading()
+    }
+
+    /// Accepts completion first; Second Read is opened only after that write succeeds.
+    public func finishAndOpenSecondRead() {
+        guard completeReading() else { return }
+        isSecondReadPresented = true
+    }
+
+    /// Rejects the proposal for this session. Ordinary location persistence continues.
+    public func keepReading() {
+        finishedColophon = nil
+    }
+
+    @discardableResult
+    private func completeReading() -> Bool {
+        cancelPendingProgressWrites()
+        flushReadingSpeed()
+
+        do {
+            try database.markBookAsFinished(id: book.id)
+            hasFinishedReading = true
+            currentProgress = 1
+            finishedColophon = nil
+            return true
+        } catch {
+            Self.log.error("Failed to mark book as finished: \(error, privacy: .public)")
+            showToast("Could not finish this book")
+            return false
+        }
     }
 
     /// Drops the stretch being measured without counting it. Every deliberate move through the
@@ -494,8 +622,7 @@ public final class ReaderViewModel: ObservableObject {
     /// Writes the last known position immediately. Called when the reader closes so the
     /// library grid can be refreshed with a value that is already in the database.
     public func flushPendingProgress() {
-        persistTask?.cancel()
-        persistTask = nil
+        cancelPendingProgressWrites()
         flushReadingSpeed()
         guard let payload = progressPayload() else { return }
         // Called as the reader closes: there is no longer a page to put a toast on, and the
@@ -503,15 +630,25 @@ public final class ReaderViewModel: ObservableObject {
         _ = Self.write(payload, to: database)
     }
 
+    private func cancelPendingProgressWrites() {
+        persistTask?.cancel()
+        persistTask = nil
+        progressWriteTask?.cancel()
+        progressWriteTask = nil
+    }
+
     private func persistProgress() {
         guard let payload = progressPayload() else { return }
-        Task.detached(priority: .utility) { [weak self, database] in
+        progressWriteTask?.cancel()
+        progressWriteTask = Task.detached(priority: .utility) { [weak self, database] in
+            guard !Task.isCancelled else { return }
             guard !Self.write(payload, to: database) else { return }
             await self?.reportProgressFailure()
         }
     }
 
     private func progressPayload() -> ProgressPayload? {
+        guard !hasFinishedReading else { return nil }
         if let detour = nearbySourceDetour {
             return ProgressPayload(
                 bookId: book.id,

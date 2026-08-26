@@ -357,6 +357,17 @@ public struct ReaderContainerView: View {
                 }
 
             }
+
+            if let colophon = viewModel.finishedColophon {
+                FinishedColophonView(
+                    colophon: colophon,
+                    chrome: chrome,
+                    onFinish: viewModel.finishReading,
+                    onOpenSecondRead: viewModel.finishAndOpenSecondRead,
+                    onKeepReading: viewModel.keepReading
+                )
+                .transition(.opacity)
+            }
         }
         // The bar hangs in an overlay rather than as another child of the ZStack above. A
         // ZStack takes the width of its widest child, and this bar has a floor: five 40pt
@@ -377,6 +388,7 @@ public struct ReaderContainerView: View {
         .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .animation(DipleMotion.gentle, value: viewModel.activeHighlight?.id)
+        .animation(DipleMotion.gentle, value: viewModel.finishedColophon != nil)
         .animation(livingMarginAnimation, value: viewModel.activeLivingMarginID != nil)
         .task {
             await viewModel.openBook()
@@ -428,6 +440,10 @@ public struct ReaderContainerView: View {
         // The app draws its own tab bar now, and a bar the app draws has to be told.
         .hidesDipleTabBar()
         .navigationBarBackButtonHidden(true)
+        .navigationDestination(isPresented: $viewModel.isSecondReadPresented) {
+            SecondReadView(book: viewModel.book, onReadingUpdated: onReadingUpdated)
+                .toolbar(.visible, for: .navigationBar)
+        }
         .sheet(isPresented: $viewModel.isSettingsPresented) {
             ReaderSettingsView(settings: $viewModel.settings)
         }
@@ -525,7 +541,8 @@ public struct ReaderContainerView: View {
     @ViewBuilder
     private var livingMarginLayer: some View {
         #if !targetEnvironment(macCatalyst)
-        if let annotation = viewModel.activeLivingMargin {
+        if viewModel.finishedColophon == nil,
+           let annotation = viewModel.activeLivingMargin {
             GeometryReader { geometry in
                 let ratio: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.82 : 0.66
                 let proposed = max(236, geometry.size.width * ratio)
@@ -590,6 +607,7 @@ public struct ReaderContainerView: View {
     @ViewBuilder
     private var restingProgressLine: some View {
         if viewModel.publication != nil,
+           viewModel.finishedColophon == nil,
            !viewModel.isOverlayVisible,
            highlightActionsSubject == nil {
             VStack(spacing: 0) {
@@ -670,7 +688,9 @@ public struct ReaderContainerView: View {
 
     @ViewBuilder
     private var selectionLayer: some View {
-        if let subject = highlightActionsSubject, highlightEditorTarget == nil {
+        if viewModel.finishedColophon == nil,
+           let subject = highlightActionsSubject,
+           highlightEditorTarget == nil {
             // This geometry keeps the safe area: `geo.size` is the safe rect, so aligning the
             // bar to its top edge puts it below the Dynamic Island by construction, with no
             // inset arithmetic and nothing tuned to one device. It matters more than tidiness:

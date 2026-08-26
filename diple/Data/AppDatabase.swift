@@ -431,13 +431,48 @@ public nonisolated final class AppDatabase: Sendable {
     }
 
     public func updateReadingProgress(id: String, progress: Double, locator: String?, lastOpenedAt: Date = Date()) throws {
+        try writeReadingProgress(
+            id: id,
+            progress: progress,
+            locator: .replace(locator),
+            lastOpenedAt: lastOpenedAt
+        )
+    }
+
+    /// Marks a publication complete without moving the place where it will reopen.
+    ///
+    /// Both the shelf action and the reader colophon come through this method so completion
+    /// cannot acquire two subtly different meanings. In particular, a stale `Book` value held
+    /// by either view is never allowed to replace the locator currently stored in SQLite.
+    public func markBookAsFinished(id: String, lastOpenedAt: Date = Date()) throws {
+        try writeReadingProgress(
+            id: id,
+            progress: 1,
+            locator: .preserve,
+            lastOpenedAt: lastOpenedAt
+        )
+    }
+
+    private enum ReadingLocatorUpdate {
+        case replace(String?)
+        case preserve
+    }
+
+    private func writeReadingProgress(
+        id: String,
+        progress: Double,
+        locator: ReadingLocatorUpdate,
+        lastOpenedAt: Date
+    ) throws {
         try writer.write { db in
             if var book = try Book.filter(Column("id") == id).fetchOne(db) {
                 book.progress = progress
                 // High-water mark: reading backwards to reread a chapter must not un-cover a
                 // library card that already showed this book further along.
                 book.furthestProgress = max(book.furthestProgress, progress)
-                book.locator = locator
+                if case let .replace(value) = locator {
+                    book.locator = value
+                }
                 book.lastOpenedAt = lastOpenedAt
                 try book.update(db)
                 try markLocalSave(.book, id: id, at: lastOpenedAt, in: db)
