@@ -62,7 +62,7 @@ public struct NoteCardView: View {
     }
 
     private var formattedDate: String {
-        item.note.updatedAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated))
+        item.note.updatedAt.formatted(.relative(presentation: .named, unitsStyle: .wide))
     }
 
     private var title: String {
@@ -127,16 +127,20 @@ public struct NoteCardView: View {
         .contentShape(Rectangle())
     }
 
-    /// Source, tags and age in one line, ordered by how much each narrows the field — the same
+    /// Source, age and tags in one line, ordered by how much each narrows the field — the same
     /// order and the same reasoning as the library row's dateline, tags last because they are
     /// the part also visible in the filter row above and so the right part to lose to
     /// truncation. Sentence case, not small caps: caps mark section headings here, and metadata
     /// wearing them too means neither is marked.
+    ///
+    /// The age used to be appended *after* the tags, which made it the tail and so the part the
+    /// single line actually dropped — every note with a source and two tags printed "4 days a…".
+    /// The comment above was already right; only the order was wrong.
     private var dateline: String {
         var parts: [String] = []
         if let book = item.book { parts.append(book.title) }
-        parts.append(contentsOf: item.tags.map { "#\($0)" })
         parts.append(formattedDate)
+        parts.append(contentsOf: item.tags.map { "#\($0)" })
         return parts.joined(separator: " · ")
     }
 
