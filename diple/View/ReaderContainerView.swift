@@ -181,8 +181,13 @@ public struct ReaderContainerView: View {
                 if viewModel.isReturnOfferVisible {
                     VStack {
                         HStack {
+                            // Dressed as the toast pill, and for the toast's reason: this sits
+                            // over the *page*, whose theme is a separate choice from the app's,
+                            // so it takes its ink, tint and edge from `chrome`. A solid
+                            // `DipleColor.accent` slab was the app shouting across the book —
+                            // and being opaque, it hid the line of type it landed on, which is
+                            // the one thing a control offering to take you back should not do.
                             Button {
-                                HapticManager.shared.impact(.light)
                                 viewModel.goBackInHistory()
                             } label: {
                                 HStack(spacing: DipleSpace.s) {
@@ -191,11 +196,20 @@ public struct ReaderContainerView: View {
                                     Text("Return to text")
                                         .dipleType(.footnote, weight: .semibold)
                                 }
-                                .foregroundStyle(DipleColor.textOnAccent)
+                                .foregroundStyle(chrome.control)
                                 .diplePadding(.button)
-                                .background(DipleColor.accent, in: Capsule())
-                                .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
+                                .background {
+                                    ZStack {
+                                        Capsule().fill(.thinMaterial)
+                                        Capsule().fill(chrome.tint)
+                                    }
+                                    .environment(\.colorScheme, chrome.colorScheme)
+                                }
+                                .overlay(Capsule().stroke(chrome.separator, lineWidth: DipleStroke.hairline))
+                                .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
                             }
+                            // Touch-down, not tap-end: see `ReaderControlButtonStyle`.
+                            .buttonStyle(.readerControl)
                             Spacer()
                         }
                         .padding(.leading, DipleSpace.xl)
@@ -221,6 +235,7 @@ public struct ReaderContainerView: View {
                                     .foregroundStyle(chrome.control)
                             }
                             .buttonStyle(.readerControl)
+                            .accessibilityLabel("Close book")
 
                             Text(viewModel.book.title)
                                 .dipleType(.body, weight: .semibold)
@@ -244,6 +259,7 @@ public struct ReaderContainerView: View {
                                         .foregroundStyle(chrome.control)
                                 }
                                 .buttonStyle(.readerControl)
+                                .accessibilityLabel("Search in book")
 
                                 Button {
                                     HapticManager.shared.selection()
@@ -258,6 +274,11 @@ public struct ReaderContainerView: View {
                                         )
                                 }
                                 .buttonStyle(.readerControl)
+                                .accessibilityLabel(
+                                    viewModel.isCurrentPositionBookmarked
+                                        ? "This page is bookmarked"
+                                        : "Bookmark this page"
+                                )
                                 .disabled(!viewModel.canAddBookmark)
                                 .opacity(viewModel.canAddBookmark ? 1 : 0.35)
                                 .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
@@ -271,6 +292,7 @@ public struct ReaderContainerView: View {
                                         .foregroundStyle(chrome.control)
                                 }
                                 .buttonStyle(.readerControl)
+                                .accessibilityLabel("Contents, bookmarks and quotes")
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)
@@ -336,6 +358,7 @@ public struct ReaderContainerView: View {
                                         .foregroundStyle(chrome.control)
                                 }
                                 .buttonStyle(.readerControl)
+                                .accessibilityLabel("Reading settings")
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)
@@ -744,8 +767,18 @@ public struct ReaderContainerView: View {
     /// arrives here twice, and now that costs nothing: the second report replaces the first
     /// snapshot. Nothing has to be de-duplicated afterwards because nothing was saved in
     /// between.
+    ///
+    /// `@MainActor` and a written-out body rather than `flatMap(PendingSelection.init)`:
+    /// `Selection` is main-actor-isolated, so passing that initialiser as a function value to
+    /// a nonisolated `flatMap` was the one concurrency warning left in the app. Every caller is
+    /// a navigator callback already on the main actor, so the annotation states what was true.
+    @MainActor
     private func beginPendingSelection(_ selection: Selection?) {
-        viewModel.currentSelection = selection.flatMap(PendingSelection.init)
+        guard let selection else {
+            viewModel.currentSelection = nil
+            return
+        }
+        viewModel.currentSelection = PendingSelection(selection)
     }
 
     private func dismissHighlightActions() {

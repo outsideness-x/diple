@@ -172,7 +172,30 @@ public struct ReadingProgressSlider: View {
         }
         .frame(height: 26)
         .opacity(isEnabled ? 1 : 0.6)
+        // A drag gesture on a `GeometryReader` is invisible to VoiceOver: without this the
+        // only control that moves through the whole book could be read but never operated.
+        // The adjustable action reuses `onSeek`, so a swipe up and a dragged handle land in
+        // exactly the same place — `seek(toProgress:)`, one jump, one return point.
+        .accessibilityElement()
+        .accessibilityLabel("Reading position")
+        .accessibilityValue("\(Int((displayedProgress * 100).rounded()))%")
+        .accessibilityHint(isEnabled ? "Adjust to move through the book" : "")
+        .accessibilityAdjustableAction { direction in
+            guard isEnabled else { return }
+            switch direction {
+            case .increment:
+                onSeek(min(displayedProgress + Self.accessibilityStep, 1))
+            case .decrement:
+                onSeek(max(displayedProgress - Self.accessibilityStep, 0))
+            @unknown default:
+                break
+            }
+        }
     }
+
+    /// One swipe moves a twentieth of the book — a chapter or so in a novel. Smaller steps
+    /// turn "go back a bit" into a minute of swiping; larger ones overshoot the chapter.
+    private static let accessibilityStep: Double = 0.05
 }
 
 /// Background for the reader's top and bottom bars.
