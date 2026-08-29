@@ -176,50 +176,6 @@ public struct ReaderContainerView: View {
                     .readerPageArea()
                 }
 
-                // Floating Return Button. Shown after any jump, not only a followed link, and
-                // withdrawn on its own timer — see `isReturnOfferVisible`.
-                if viewModel.isReturnOfferVisible {
-                    VStack {
-                        HStack {
-                            // Dressed as the toast pill, and for the toast's reason: this sits
-                            // over the *page*, whose theme is a separate choice from the app's,
-                            // so it takes its ink, tint and edge from `chrome`. A solid
-                            // `DipleColor.accent` slab was the app shouting across the book —
-                            // and being opaque, it hid the line of type it landed on, which is
-                            // the one thing a control offering to take you back should not do.
-                            Button {
-                                viewModel.goBackInHistory()
-                            } label: {
-                                HStack(spacing: DipleSpace.s) {
-                                    Image(systemName: "arrow.uturn.backward")
-                                        .dipleIcon(13, weight: .semibold)
-                                    Text("Return to text")
-                                        .dipleType(.footnote, weight: .semibold)
-                                }
-                                .foregroundStyle(chrome.control)
-                                .diplePadding(.button)
-                                .background {
-                                    ZStack {
-                                        Capsule().fill(.thinMaterial)
-                                        Capsule().fill(chrome.tint)
-                                    }
-                                    .environment(\.colorScheme, chrome.colorScheme)
-                                }
-                                .overlay(Capsule().stroke(chrome.separator, lineWidth: DipleStroke.hairline))
-                                .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
-                            }
-                            // Touch-down, not tap-end: see `ReaderControlButtonStyle`.
-                            .buttonStyle(.readerControl)
-                            Spacer()
-                        }
-                        .padding(.leading, DipleSpace.xl)
-                        .padding(.top, viewModel.isOverlayVisible ? 70 : 50)
-
-                        Spacer()
-                    }
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
                 // Overlay Controls (Top & Bottom bars)
                 if viewModel.isOverlayVisible {
                     VStack {
@@ -348,6 +304,46 @@ public struct ReaderContainerView: View {
 
                                 Spacer(minLength: 0)
 
+                                // The way back, in chrome rather than over the text.
+                                //
+                                // The floating pill is the quick undo; this is the guarantee.
+                                // Tapping the centre of any page raises this bar, so a reader
+                                // who never noticed the pill — or who has read past the moment
+                                // it spoke — still has a route back that costs the page
+                                // nothing, and it can be explicit about both directions.
+                                //
+                                // Dimmed rather than withdrawn when a direction has nothing in
+                                // it, following the bookmark control above: a pair that keeps
+                                // its shape is easier to aim at than one that reflows the row
+                                // every time the trail changes depth.
+                                if viewModel.trail.canGoBack || viewModel.trail.canGoForward {
+                                    Button {
+                                        HapticManager.shared.selection()
+                                        viewModel.goBackInHistory()
+                                    } label: {
+                                        Image(systemName: "arrow.uturn.backward")
+                                            .dipleIcon(16, weight: .regular)
+                                            .foregroundStyle(chrome.control)
+                                    }
+                                    .buttonStyle(.readerControl)
+                                    .accessibilityLabel("Go back to where you were reading")
+                                    .disabled(!viewModel.trail.canGoBack)
+                                    .opacity(viewModel.trail.canGoBack ? 1 : 0.35)
+
+                                    Button {
+                                        HapticManager.shared.selection()
+                                        viewModel.goForwardInHistory()
+                                    } label: {
+                                        Image(systemName: "arrow.uturn.forward")
+                                            .dipleIcon(16, weight: .regular)
+                                            .foregroundStyle(chrome.control)
+                                    }
+                                    .buttonStyle(.readerControl)
+                                    .accessibilityLabel("Go forward to where you jumped from")
+                                    .disabled(!viewModel.trail.canGoForward)
+                                    .opacity(viewModel.trail.canGoForward ? 1 : 0.35)
+                                }
+
                                 Button {
                                     HapticManager.shared.selection()
                                     viewModel.isSettingsPresented = true
@@ -368,14 +364,42 @@ public struct ReaderContainerView: View {
                     }
                 }
 
-                if let toast = viewModel.toast {
-                    VStack {
-                        Spacer()
+                // The bottom of the page, as one stack.
+                //
+                // The toast and the way back are both anchored to this edge, and two
+                // independent bottom paddings are a promise that they will not meet — one that
+                // an accessibility type size, or a longer message, breaks silently. Stacking
+                // them makes the separation a fact of the layout instead. The cost is that the
+                // toast now rides on top of the pill when there is one, a few points higher
+                // than it used to sit; a message that moves is better than two that overlap.
+                VStack(spacing: DipleSpace.s) {
+                    Spacer(minLength: 0)
+
+                    if let toast = viewModel.toast {
                         ReaderToastView(message: toast, chrome: chrome)
-                            .padding(.bottom, viewModel.isOverlayVisible ? 110 : 44)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+
+                    if let offer = trailOffer {
+                        ReadingTrailPill(
+                            direction: offer.direction,
+                            destination: offer.destination,
+                            chrome: chrome,
+                            action: {
+                                switch offer.direction {
+                                case .back: viewModel.goBackInHistory()
+                                case .forward: viewModel.goForwardInHistory()
+                                }
+                            }
+                        )
+                        // Trailing, and the pill decides its own width: a chapter name is as
+                        // long as the publisher made it, and a control that spanned the page
+                        // would be the slab this design exists to avoid.
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .transition(.opacity)
+                    }
                 }
+                .readerBottomBand(isOverlayVisible: viewModel.isOverlayVisible)
 
             }
 
@@ -413,7 +437,8 @@ public struct ReaderContainerView: View {
         // view (the colophon, the bars) is animated from this stack; the offer was the one
         // that was not, and only got its slide because a neighbouring value happened to change
         // at the same moment.
-        .animation(DipleMotion.gentle, value: viewModel.isReturnOfferVisible)
+        .animation(DipleMotion.gentle, value: viewModel.isTrailLabelVisible)
+        .animation(DipleMotion.gentle, value: viewModel.trail)
         .animation(DipleMotion.gentle, value: viewModel.currentSelection?.locator)
         .animation(DipleMotion.gentle, value: viewModel.activeHighlight?.id)
         .animation(DipleMotion.gentle, value: viewModel.finishedColophon != nil)
@@ -657,6 +682,35 @@ public struct ReaderContainerView: View {
             .transition(.opacity)
             .accessibilityHidden(true)
         }
+    }
+
+    /// What the floating way back is currently offering, if anything.
+    ///
+    /// Back wins wherever it exists: a reader with somewhere behind them is the one who might
+    /// be lost, and that is the case this control is for. Forward appears only once the trail
+    /// behind has been walked out, where it is the single tap that undoes an overshoot — one
+    /// reflex tap past the note being read is the commonest mistake in the reader, and before
+    /// there was a forward step it cost a hunt through the text for the marker.
+    ///
+    /// It stands down for anything that owns the page more than it does: a live selection,
+    /// whose bar takes the same edge, an open margin, whose panel covers this corner, and the
+    /// final page. It stands down for the raised bars too — those carry the same pair of
+    /// controls in chrome, and one way back at a time is enough.
+    private var trailOffer: (direction: ReadingTrailPill.Direction, destination: String?)? {
+        guard viewModel.publication != nil,
+              viewModel.finishedColophon == nil,
+              !viewModel.isOverlayVisible,
+              highlightActionsSubject == nil,
+              viewModel.activeLivingMargin == nil
+        else { return nil }
+
+        if viewModel.trail.canGoBack {
+            return (.back, viewModel.isTrailLabelVisible ? viewModel.backDestinationLabel : nil)
+        }
+        if viewModel.trail.canGoForward {
+            return (.forward, viewModel.isTrailLabelVisible ? viewModel.forwardDestinationLabel : nil)
+        }
+        return nil
     }
 
     /// What the actions bar is currently about, if anything.

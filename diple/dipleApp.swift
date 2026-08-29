@@ -43,6 +43,14 @@ struct dipleApp: App {
         #endif
     }
 
+    private var isReadingTrailUITestFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-diple-test-reading-trail")
+        #else
+        false
+        #endif
+    }
+
     /// True for **any** XCUI fixture, which is what the seals below have to ask.
     ///
     /// They used to name the living-margins fixture directly, so the second fixture added
@@ -50,7 +58,9 @@ struct dipleApp: App {
     /// screen under test, and notifications and CloudKit starting up mid-run. One property
     /// means the next fixture is sealed by existing rather than by being remembered.
     private var isUITestFixture: Bool {
-        isLivingMarginsUITestFixture || isFinishedColophonUITestFixture
+        isLivingMarginsUITestFixture
+            || isFinishedColophonUITestFixture
+            || isReadingTrailUITestFixture
     }
 
     init() {
@@ -74,6 +84,8 @@ struct dipleApp: App {
                     LivingMarginsUITestFixture()
                 } else if isFinishedColophonUITestFixture {
                     FinishedColophonUITestFixture()
+                } else if isReadingTrailUITestFixture {
+                    ReadingTrailUITestFixture()
                 } else {
                     phoneRoot
                 }

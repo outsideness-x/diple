@@ -354,4 +354,91 @@ final class dipleUITests: XCTestCase {
         XCTAssertNotEqual(counter.label, before, "the page is reachable again once it is gone")
     }
 
+    /// The report this was built from, in both halves.
+    ///
+    /// The way back used to be a pill at the top left of the page — where a page begins, so on a
+    /// footnote page consisting of one line it covered the line — and it withdrew after ninety
+    /// seconds, taking the only route back with it. So the two things worth asserting are that
+    /// it sits below the text rather than on it, and that it is still there once the words on it
+    /// have gone.
+    @MainActor
+    func testTheWayBackSitsBelowTheTextAndOutlastsItsLabel() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-diple_has_completed_first_launch", "YES",
+            "-diple-test-reading-trail",
+        ]
+        app.launch()
+
+        let pill = app.buttons["readingTrail.pill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 10))
+
+        let page = app.staticTexts["The Inland Sea of Japan."]
+        XCTAssertTrue(page.exists)
+        XCTAssertFalse(
+            pill.frame.intersects(page.frame),
+            "the control that offers to take you back must not cover the line you came for"
+        )
+        XCTAssertGreaterThan(
+            pill.frame.minY,
+            page.frame.maxY,
+            "it belongs below the text, not at the corner the eye starts from"
+        )
+
+        let expanded = pill.frame
+        let spoken = XCTAttachment(screenshot: app.screenshot())
+        spoken.name = "The way back, naming where it leads"
+        spoken.lifetime = .keepAlways
+        add(spoken)
+
+        app.buttons["readingTrail.retireLabel"].tap()
+
+        XCTAssertTrue(pill.exists, "retiring the label must not retire the way back")
+        XCTAssertLessThan(pill.frame.width, expanded.width, "it contracts to its glyph")
+
+        let contracted = XCTAttachment(screenshot: app.screenshot())
+        contracted.name = "The way back, contracted, below the page"
+        contracted.lifetime = .keepAlways
+        add(contracted)
+
+        // And it still works: one tap back, and the step just taken becomes the way forward.
+        pill.tap()
+        XCTAssertTrue(pill.waitForExistence(timeout: 3))
+        XCTAssertTrue(
+            pill.label.contains("Go forward"),
+            "a step back that was itself a mistake has to be one tap to undo"
+        )
+    }
+
+    /// The same page at the largest type the system offers, where the pill is at its widest and
+    /// tallest and the line it must stay clear of is at its longest. Project rule: layout has to
+    /// survive Dynamic Type, and a control placed against the bottom of the page is exactly the
+    /// kind that stops doing so quietly.
+    @MainActor
+    func testTheWayBackStaysOffTheTextAtAccessibilitySizes() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-diple_has_completed_first_launch", "YES",
+            "-diple-test-reading-trail",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+
+        let pill = app.buttons["readingTrail.pill"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 10))
+
+        let page = app.staticTexts["The Inland Sea of Japan."]
+        XCTAssertTrue(page.exists)
+        XCTAssertFalse(pill.frame.intersects(page.frame))
+        XCTAssertTrue(
+            app.windows.firstMatch.frame.contains(pill.frame),
+            "a chapter name at accessibility size must not push the control off the page"
+        )
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "The way back at AccessibilityXXXL"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
 }

@@ -146,14 +146,18 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var activeHighlightRect: CGRect? = nil
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
-    @Published public var backLocationStack: [Locator] = []
-    /// Whether the return offer is currently on the page.
+    /// Everywhere this sitting has jumped from, and everywhere a step back has undone.
+    @Published public private(set) var trail = ReadingTrail()
+    /// Whether the way back is currently naming where it leads.
     ///
-    /// Deliberately separate from `backLocationStack` being non-empty. The offer is transient —
-    /// it withdraws itself a few seconds after a jump lands, so a reader who meant to jump is
-    /// not left with a control parked over the text for the rest of the chapter — while the
-    /// stack behind it has to survive, because `navigateToNearbySource` measures its depth.
-    @Published public private(set) var isReturnOfferVisible: Bool = false
+    /// **The label is transient; the control is not.** This was `isReturnOfferVisible`, and it
+    /// took the whole control away with it after ninety seconds — so a reader who jumped, read
+    /// a page and only then wanted to go back had nothing left to press, while the stack that
+    /// could have taken them there was still in memory with no way in. Losing your place is the
+    /// one failure this part of the reader exists to prevent, so the timer now retires only the
+    /// words: the control stands for as long as there is somewhere to return to, contracted to
+    /// a quiet tab (see `ReadingTrailPill`).
+    @Published public private(set) var isTrailLabelVisible: Bool = false
     @Published public var settings: ReaderSettings {
         didSet {
             AppSettingsManager.shared.settings.readerSettings = settings
@@ -170,7 +174,7 @@ public final class ReaderViewModel: ObservableObject {
     private var persistTask: Task<Void, Never>? = nil
     private var progressWriteTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
-    private var returnOfferTask: Task<Void, Never>? = nil
+    private var trailLabelTask: Task<Void, Never>? = nil
     private var sourceEmphasisTask: Task<Void, Never>? = nil
     /// The offer is session-scoped: dismissing it never turns the next locator callback into a
     /// second offer.
@@ -188,14 +192,14 @@ public final class ReaderViewModel: ObservableObject {
     private struct NearbySourceDetour {
         let originLocator: Locator
         let originProgress: Double
-        let stackDepthBeforeOrigin: Int
     }
     private var nearbySourceDetour: NearbySourceDetour? = nil
-    /// How long the return offer stays on the page after a jump.
+    /// How long the way back spells out where it leads before contracting to its glyph.
     ///
-    /// Long enough to notice a jump was wrong and undo it; short enough that the page is the
-    /// page again by the time the next paragraph is read.
-    private static let returnOfferLifetime: Duration = .seconds(90)
+    /// Long enough to read six words without hurrying, short enough that the page is the page
+    /// again by the time the next paragraph is. It ends the *sentence*, not the offer — the
+    /// control itself has no lifetime, see `isTrailLabelVisible`.
+    private static let trailLabelLifetime: Duration = .seconds(7)
     private var isReturningFromNearbySource = false
 
     /// Watches the positions the navigator reports and picks out the stretches that were
@@ -711,9 +715,14 @@ public final class ReaderViewModel: ObservableObject {
         showToast("Could not save your place")
     }
 
+    /// Remembers a place a jump is departing from, and offers the way back to it.
+    ///
+    /// Called straight from the navigators, which is why it stays public and keeps its name:
+    /// following a link inside the book is the one jump the app does not initiate and cannot
+    /// record for itself.
     public func pushBackLocation(_ locator: Locator) {
-        self.backLocationStack.append(locator)
-        armReturnOffer()
+        trail.record(locator)
+        showTrailLabel()
     }
 
     /// Remembers where reading was, so the jump about to happen can be undone.
@@ -727,41 +736,75 @@ public final class ReaderViewModel: ObservableObject {
         pushBackLocation(origin)
     }
 
-    /// Puts the return offer on the page and restarts its countdown.
+    /// Lets the way back say where it leads, and restarts the countdown on those words.
     ///
-    /// It hides the button, never the history: the stack is what `goBackInHistory` walks and
-    /// what the shelf detour counts, and clearing it on a timer would break both.
-    private func armReturnOffer() {
-        guard !backLocationStack.isEmpty else { return }
-        isReturnOfferVisible = true
-        returnOfferTask?.cancel()
-        returnOfferTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.returnOfferLifetime)
+    /// It retires the sentence, never the trail: the stack is what `goBackInHistory` walks, and
+    /// clearing it on a timer is precisely the bug this replaced.
+    private func showTrailLabel() {
+        guard trail.canGoBack || trail.canGoForward else { return }
+        isTrailLabelVisible = true
+        trailLabelTask?.cancel()
+        trailLabelTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.trailLabelLifetime)
             guard !Task.isCancelled else { return }
-            self?.isReturnOfferVisible = false
+            self?.isTrailLabelVisible = false
         }
     }
 
-    private func dismissReturnOffer() {
-        returnOfferTask?.cancel()
-        returnOfferTask = nil
-        isReturnOfferVisible = false
+    /// Takes the words off the control, and nothing else.
+    ///
+    /// Not `private`: this is the whole of what the countdown does, and a test that calls it
+    /// directly is asserting what it does *not* touch — the trail — without waiting out a
+    /// lifetime to do so.
+    func hideTrailLabel() {
+        trailLabelTask?.cancel()
+        trailLabelTask = nil
+        isTrailLabelVisible = false
     }
 
+    /// One step back along the trail, and the step just taken becomes the way forward.
     public func goBackInHistory() {
-        guard let previousLocator = backLocationStack.popLast() else { return }
+        guard let destination = trail.stepBack(leaving: currentLocator) else { return }
+        // Arriving at the origin is what ends a shelf detour, and the origin is recognised by
+        // where it is rather than by how deep the stack was when it was pushed. Counting was
+        // exact only while every jump pushed exactly one entry; the trail now folds a locator
+        // that repeats a report it has already taken, so a depth is no longer an identity.
         if let detour = nearbySourceDetour,
-           backLocationStack.count == detour.stackDepthBeforeOrigin {
+           ReadingTrail.isSameSpot(destination, as: detour.originLocator) {
             isReturningFromNearbySource = true
         }
-        self.targetLocator = previousLocator
-        // A chain of jumps — a note that cites another note — is walked back a step at a time,
-        // so the offer stands again whenever there is still somewhere behind this one.
-        if backLocationStack.isEmpty {
-            dismissReturnOffer()
-        } else {
-            armReturnOffer()
-        }
+        self.targetLocator = destination
+        // Every step names the next one. Walking back out of a chain of notes is the moment a
+        // reader most needs to be told what one more tap would do — and the step that empties
+        // the trail behind is answered by the forward step it has just created, so the note
+        // they may have overshot says so rather than becoming a bare arrow.
+        showTrailLabel()
+    }
+
+    /// What the way back promises, in words: the chapter it leads to, or the position when the
+    /// publication names none. `nil` when there is nowhere behind.
+    public var backDestinationLabel: String? {
+        trail.backDestination.map(ReadingTrail.label(for:))
+    }
+
+    /// The same, for the step that undoes a step back.
+    public var forwardDestinationLabel: String? {
+        trail.forwardDestination.map(ReadingTrail.label(for:))
+    }
+
+    /// One step forward, undoing a step back.
+    ///
+    /// A chain of jumps is walked back a step at a time, and a reader who overshoots — the
+    /// commonest single mistake in the reader, one reflex tap past the note they were reading —
+    /// gets the note back for one tap instead of hunting for its marker in the text again.
+    ///
+    /// Deliberately ordinary navigation, including out of a shelf detour: by the time a step
+    /// back has landed on the origin the detour is over, and a reader who then presses forward
+    /// is choosing to be at the held passage rather than glancing at it.
+    public func goForwardInHistory() {
+        guard let destination = trail.stepForward(leaving: currentLocator) else { return }
+        self.targetLocator = destination
+        showTrailLabel()
     }
 
     public func navigateToLink(_ link: ReadiumShared.Link) {
@@ -871,8 +914,7 @@ public final class ReaderViewModel: ObservableObject {
            let origin = currentLocator ?? initialLocator {
             nearbySourceDetour = NearbySourceDetour(
                 originLocator: origin,
-                originProgress: currentProgress,
-                stackDepthBeforeOrigin: backLocationStack.count
+                originProgress: currentProgress
             )
             pushBackLocation(origin)
         }
@@ -886,8 +928,8 @@ public final class ReaderViewModel: ObservableObject {
         }
         navigateToLocator(reference.locator, recordingReturn: false)
         // Re-offer on every hop between held passages, not only on the one that opened the
-        // detour: the origin is already on the stack and is still where reading left off.
-        armReturnOffer()
+        // detour: the origin is already on the trail and is still where reading left off.
+        showTrailLabel()
     }
 
     /// Resolves the permanent annotation, if any, for a temporary reference.
@@ -936,7 +978,11 @@ public final class ReaderViewModel: ObservableObject {
         activeQuoteDrag = nil
         sourceEmphasisTask?.cancel()
         sourceEmphasisLocator = nil
-        dismissReturnOffer()
+        hideTrailLabel()
+        // The trail ends with the sitting it describes. It is not persisted anywhere, so this
+        // is not a discarded copy of something — it is the whole of it, and keeping it across a
+        // close would offer to return to a page from a session the reader has already left.
+        trail = ReadingTrail()
         quoteStore.clear()
     }
 

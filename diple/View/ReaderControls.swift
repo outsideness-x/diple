@@ -280,6 +280,217 @@ public struct ReaderToastView: View {
     }
 }
 
+/// The band along the bottom of the page that the reader's floating chrome shares: the toast
+/// and the way back.
+///
+/// One modifier rather than a padding repeated at each site, so the two are placed by the same
+/// rule and a fixture can put the real band on screen instead of an approximation of it.
+///
+/// The low resting inset is the whole point of it. `DipleSpace.m` above the safe area drops the
+/// contracted pill into the gutter Readium already leaves below the last line — see
+/// `navigatorContentInset` — rather than onto the line itself, which is the failure the top-left
+/// placement had at the other end of the page.
+public struct ReaderBottomBand: ViewModifier {
+    let isOverlayVisible: Bool
+
+    /// Enough to clear the raised bottom bar, which is two rows and its own edge inset tall.
+    /// Measured against the thing it has to sit above, not chosen for the look of the gap.
+    private static let clearingTheBar: CGFloat = 110
+
+    public func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.bottom, isOverlayVisible ? Self.clearingTheBar : DipleSpace.m)
+    }
+}
+
+public extension View {
+    func readerBottomBand(isOverlayVisible: Bool) -> some View {
+        modifier(ReaderBottomBand(isOverlayVisible: isOverlayVisible))
+    }
+}
+
+/// The way back, after a jump.
+///
+/// One control with two registers, and the difference between them is the whole design.
+///
+/// **Spoken.** For a few seconds after a jump it says where it leads — "Back to Chapter 5", or
+/// a percentage where the publication names nothing. That is the moment the reader needs to be
+/// told their place is kept, and a named destination is a promise they can check rather than an
+/// arrow they have to trust.
+///
+/// **Quiet.** Then it contracts to its glyph and stays, for as long as there is anywhere to
+/// return to. It does not leave. The version this replaced withdrew after ninety seconds and
+/// took the only route back with it, which turned every jump the reader did not immediately
+/// undo into a lost place; the cost of that fix is a control on the page for the rest of the
+/// sitting, and the contracted form is what makes it payable — smaller, unshadowed, in the
+/// chrome's secondary ink, reading as a tab rather than a button.
+///
+/// **It sits at the bottom, and to the trailing side.** It used to sit at the top left, which
+/// is exactly where a page begins and therefore where a reader's eye lands: on the footnote
+/// page in the report that started this, the pill covered the one line the note consisted of.
+/// The bottom trailing corner is the last place read rather than the first, it is where a
+/// paragraph most often stops short of the margin, and the page's chrome — the resting progress
+/// line, the toast — already lives along that edge.
+public struct ReadingTrailPill: View {
+    /// Which way the control is currently offering to go.
+    public enum Direction {
+        case back
+        case forward
+
+        var glyph: String {
+            switch self {
+            case .back: return "arrow.uturn.backward"
+            case .forward: return "arrow.uturn.forward"
+            }
+        }
+
+        var verb: String {
+            switch self {
+            case .back: return "Back to"
+            case .forward: return "Forward to"
+            }
+        }
+    }
+
+    public let direction: Direction
+    /// Where it leads, when it is saying so. `nil` is the contracted form — the whole of the
+    /// difference between the two registers, so neither can be set without the other following.
+    public let destination: String?
+    public let chrome: ReaderChrome
+    public let action: () -> Void
+
+    public init(
+        direction: Direction,
+        destination: String?,
+        chrome: ReaderChrome,
+        action: @escaping () -> Void
+    ) {
+        self.direction = direction
+        self.destination = destination
+        self.chrome = chrome
+        self.action = action
+    }
+
+    /// The smallest a control is allowed to be, from the interface guidelines rather than from
+    /// the look of it — the contracted pill is drawn by its padding like everything else here,
+    /// and this only stops that padding from producing something too small to hit.
+    private static let minimumTouchTarget: CGFloat = 44
+
+    public var body: some View {
+        Button(action: action) {
+            HStack(spacing: DipleSpace.s) {
+                Image(systemName: direction.glyph)
+                    .dipleIcon(13, weight: .semibold)
+
+                if let destination {
+                    Text("\(direction.verb) \(destination)")
+                        .dipleType(.footnote, weight: .semibold)
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(destination == nil ? chrome.secondary : chrome.control)
+            .diplePadding(.button)
+            .frame(minWidth: Self.minimumTouchTarget, minHeight: Self.minimumTouchTarget)
+            .background {
+                ZStack {
+                    Capsule().fill(.thinMaterial)
+                    Capsule().fill(chrome.tint)
+                }
+                .environment(\.colorScheme, chrome.colorScheme)
+            }
+            .overlay(Capsule().stroke(chrome.separator, lineWidth: DipleStroke.hairline))
+            // Depth while it is speaking, none once it is not: a shadow is what separates a
+            // control from the page it interrupts, and the contracted form is not interrupting.
+            .shadow(
+                color: Color.black.opacity(destination == nil ? 0 : 0.35),
+                radius: 10,
+                y: 4
+            )
+        }
+        // Touch-down, not tap-end: see `ReaderControlButtonStyle`.
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(
+            direction == .back
+                ? "Go back to where you were reading"
+                : "Go forward to where you jumped from"
+        )
+        .accessibilityValue(destination ?? "")
+    }
+}
+
+#if DEBUG
+/// A deterministic UI-test surface for the way back.
+///
+/// The rules behind the control — what a jump records, what a step back undoes, how a stop names
+/// itself — are covered against real locators in `ReadingTrailTests`. What cannot be asserted
+/// about a value is the thing this host exists for: *where the control sits on a page of type*,
+/// and that it is still sitting there once the words on it have gone. So it drives the real
+/// `ReadingTrailPill` through the real `readerBottomBand` with the only two inputs the pill has,
+/// over a page laid out like the sparse footnote page in the report that started this — a
+/// screenshot of it is a screenshot of the reader's own geometry, not of an approximation.
+struct ReadingTrailUITestFixture: View {
+    @State private var direction = ReadingTrailPill.Direction.back
+    @State private var isLabelVisible = true
+
+    private let chrome = ReaderChrome.forTheme(.paper)
+
+    private var destination: String? {
+        guard isLabelVisible else { return nil }
+        return direction == .back ? "The Inland Sea" : "Notes"
+    }
+
+    var body: some View {
+        ZStack {
+            chrome.page.ignoresSafeArea()
+
+            // A note, alone at the top of its page: the exact shape the old top-left pill
+            // landed on and covered.
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
+                Text("8")
+                Text("The Inland Sea of Japan.")
+                Spacer()
+            }
+            .font(.system(.title3, design: .serif))
+            .foregroundStyle(chrome.control)
+            .padding(.horizontal, DipleSpace.xl)
+
+            VStack(spacing: DipleSpace.s) {
+                Spacer(minLength: 0)
+
+                ReadingTrailPill(
+                    direction: direction,
+                    destination: destination,
+                    chrome: chrome
+                ) {
+                    // Stepping back off the end of the trail is what leaves a way forward, and
+                    // that flip is the one piece of behaviour worth driving from here.
+                    direction = direction == .back ? .forward : .back
+                }
+                .accessibilityIdentifier("readingTrail.pill")
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .readerBottomBand(isOverlayVisible: false)
+
+            // Stands in for the countdown, which XCUI has no business waiting out: the point
+            // under test is that retiring the words leaves the control standing. Parked in the
+            // opposite corner from the pill so it is never what a placement assertion measures.
+            VStack {
+                Spacer()
+                HStack {
+                    Button("Retire the label") { isLabelVisible = false }
+                        .dipleType(.caption)
+                        .foregroundStyle(chrome.secondary)
+                        .accessibilityIdentifier("readingTrail.retireLabel")
+                    Spacer()
+                }
+            }
+            .padding(DipleSpace.xl)
+        }
+    }
+}
+#endif
+
 /// Gives the reader's icon buttons a tactile press response — SwiftUI's plain buttons
 /// have none, which makes the overlay feel dead on a dark background.
 ///
