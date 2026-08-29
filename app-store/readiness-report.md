@@ -131,6 +131,55 @@ for help is a weaker answer than a page that says how to get it.
 
 ---
 
+## Submitted — Saturday 2026-08-29
+
+The App Store Connect record exists: Apple ID **6806528966**, name `diple.`, SKU
+`com.chemical-pink.diple`, primary language English (U.S.), categories Books / Productivity,
+free in all territories, age rating 4+, App Privacy answered **Data Not Collected**, content
+rights answered **No**.
+
+Xcode's own "create the app record" step failed first with
+`IDEDistribution.DistributionAppRecordProviderError error 0`, which swallows the real reason.
+Creating the record by hand in App Store Connect got past it. Worth remembering for the next
+app: when that dialog errors, go make the record in ASC, where the error message is real.
+
+URLs as filed:
+
+| Field | Value |
+|---|---|
+| Support | `https://diple-reader.vercel.app/privacy#contact` |
+| Marketing | `https://diple-reader.vercel.app/` |
+| Privacy Policy | `https://diple-reader.vercel.app/privacy` |
+
+The support URL carries the anchor deliberately: the contact block lives on the privacy page,
+not on the root, and the anchor lands the reader on it instead of leaving them to scroll a
+legal document. Replace it if a real `/support` page is ever built.
+
+**CloudKit schema is deployed to Production.** Development was completed first by exercising
+the app (tagging a book, tagging a note, linking a note to a book, adding a bookmark — the four
+paths that had never run), and the dead `DipleHighlightReview` record type, left over from the
+v12/v13 spaced-repetition feature, was deleted from Development *before* the deploy so it would
+not land in Production permanently. The deploy diff was pure addition: no line was removed, and
+`Users` was the only type Production already held. The `recordName` QUERYABLE indexes were
+deliberately skipped — they are only needed for the Console's own record browser, and adding
+them later is an ordinary additive deploy.
+
+**Two things were never verified and should be, before this build reaches anyone:**
+
+1. **Production CloudKit sync on a real build.** Everything above proves the *schema* is right;
+   nothing yet proves a distribution-signed build can actually save through it. The submitted
+   build is already installable from TestFlight for internal testers with no review, so this can
+   be checked right now, in parallel with review: two devices on one Apple ID, sync on, then a
+   book with a cover, a highlight with a comment, a bookmark, a tag, a note linked to a book,
+   and a link shared from Safari through the "Save to diple" extension. Watch for `Up to Date`
+   rather than `Needs Attention` — a missing field does not crash the app, it silently parks the
+   record in the outbox.
+2. **`aps-environment` in the exported build.** Still unchecked:
+   `codesign -d --entitlements - <exported>/Payload/diple.app` must read `production`. If it
+   reads `development`, silent CloudKit pushes never arrive and sync only catches up on launch.
+
+---
+
 ## CloudKit Console — what has to happen before the release build
 
 This is a hard blocker that nothing in the build can warn you about. **A TestFlight or App
