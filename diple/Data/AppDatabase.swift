@@ -786,6 +786,20 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// The notes written about one source, newest first.
+    ///
+    /// The reader needs exactly this list and nothing else — every note in the library filtered
+    /// in memory is what the source overview does, and it reads the whole `note` table to
+    /// answer a question about one row's worth of books.
+    public func fetchNotes(forBookID bookID: String) throws -> [Note] {
+        try writer.read { db in
+            try Note
+                .filter(Column("bookId") == bookID)
+                .order(Column("updatedAt").desc)
+                .fetchAll(db)
+        }
+    }
+
     /// Tags for every note at once — the notes board renders them on each card, and one
     /// query per card would mean a query per scroll.
     public func fetchTagsByNote() throws -> [String: [String]] {

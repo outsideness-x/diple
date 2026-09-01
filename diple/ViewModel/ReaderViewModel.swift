@@ -39,6 +39,44 @@ public struct PendingSelection: Equatable {
     }
 }
 
+/// The notes side of an open book, in the one shape the note editor asks for.
+///
+/// Four lists rather than four `@Published` properties, because they are read together and
+/// written together: a save reloads all of them, and four separate publishes would send the
+/// reader four renders for one write.
+///
+/// It carries the **whole** library's notes and books, not only this source's. The editor the
+/// reader raises is `NoteDetailView` itself — the app's one note editor — and it resolves
+/// `[[Wiki links]]`, offers a link menu and lists backlinks out of `all`. Handed only this
+/// book's notes it would quietly be a lesser editor than the same screen in the notes tab: a
+/// link written there would stop resolving here, which is exactly the kind of drift keeping one
+/// editor exists to prevent.
+public struct ReaderNotes: Equatable {
+    /// Written about the source now open, newest first. This is the list the book's own
+    /// apparatus shows.
+    public var forThisBook: [NoteItem] = []
+    /// Every note in the library, for wiki links, backlinks and related notes.
+    public var all: [NoteItem] = []
+    /// Every source, so the editor's "Change source" picker offers the same shelf it does in
+    /// the notes tab.
+    public var books: [Book] = []
+    /// Every tag already in use, offered as suggestions. A tag typed in the reader and one
+    /// typed on the board have to be the same word.
+    public var tagSuggestions: [String] = []
+
+    public init(
+        forThisBook: [NoteItem] = [],
+        all: [NoteItem] = [],
+        books: [Book] = [],
+        tagSuggestions: [String] = []
+    ) {
+        self.forThisBook = forThisBook
+        self.all = all
+        self.books = books
+        self.tagSuggestions = tagSuggestions
+    }
+}
+
 /// Everything the final page prints, captured at the moment it appears.
 ///
 /// Keeping this as a value means the colophon never reaches back into SQLite while SwiftUI is
@@ -120,6 +158,8 @@ public final class ReaderViewModel: ObservableObject {
     @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
     @Published public private(set) var activeLivingMarginID: String? = nil
     @Published public var bookmarks: [Bookmark] = []
+    /// The notes workspace, as the reader sees it.
+    @Published public private(set) var notes = ReaderNotes()
     /// Passages kept beside this one open reader. This value has no database or CloudKit path;
     /// releasing the view model releases the shelf.
     @Published public private(set) var quoteStore = ReadingSessionQuoteStore()
@@ -170,6 +210,10 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var toast: String? = nil
     /// Flat position list, used to turn a progress-bar drag into a real location.
     @Published public private(set) var positions: [Locator] = []
+
+    /// Whether the note editor has written anything since it was raised. Read and cleared by
+    /// `announceSavedNote` when the editor leaves.
+    private var hasSavedNoteWhileEditing = false
 
     private var persistTask: Task<Void, Never>? = nil
     private var progressWriteTask: Task<Void, Never>? = nil
@@ -272,6 +316,7 @@ public final class ReaderViewModel: ObservableObject {
         self.settings = AppSettingsManager.shared.settings.readerSettings
         loadHighlights()
         loadBookmarks()
+        loadNotes()
     }
 
     public func loadHighlights() {
@@ -367,6 +412,78 @@ public final class ReaderViewModel: ObservableObject {
             Self.log.error("Failed to fetch bookmarks: \(error, privacy: .public)")
             showToast("Could not load your bookmarks")
         }
+    }
+
+    // MARK: - Notes
+
+    /// The tag every note written inside this book is born with. `nil` for a source whose title
+    /// normalises to nothing, which is the same answer a hand-typed `#` gets.
+    public var noteTag: String? {
+        TagName.forSource(titled: book.title)
+    }
+
+    public func loadNotes() {
+        do {
+            let tagsByNote = try database.fetchTagsByNote()
+            let books = try database.fetchAllBooks()
+            let booksByID = Dictionary(uniqueKeysWithValues: books.map { ($0.id, $0) })
+            notes = ReaderNotes(
+                forThisBook: try database.fetchNotes(forBookID: book.id).map {
+                    NoteItem(note: $0, tags: tagsByNote[$0.id] ?? [], book: book)
+                },
+                all: try database.fetchAllNotes().map {
+                    NoteItem(note: $0, tags: tagsByNote[$0.id] ?? [], book: $0.bookId.flatMap { booksByID[$0] })
+                },
+                books: books,
+                tagSuggestions: try database.fetchAllTags()
+            )
+        } catch {
+            // Same reasoning as the quotes above: an empty list reads as "they are gone"
+            // rather than "they could not be read".
+            Self.log.error("Failed to fetch notes: \(error, privacy: .public)")
+            showToast("Could not load your notes")
+        }
+    }
+
+    /// Writes a note from the editor raised over the page.
+    ///
+    /// The editor autosaves on a debounce and reports whether the row actually landed, so the
+    /// result is passed straight back rather than swallowed — a failed write must not look
+    /// like a save. Nothing is announced here for the same reason: this runs every few
+    /// keystrokes, behind a sheet the toast could not be seen through. The page says it once,
+    /// when the editor leaves — see `announceSavedNote`.
+    @discardableResult
+    public func saveNote(_ note: Note, tags: [String]) -> Bool {
+        do {
+            var updated = note
+            updated.updatedAt = Date()
+            try database.saveNote(updated, tags: tags)
+            hasSavedNoteWhileEditing = true
+            loadNotes()
+            return true
+        } catch {
+            Self.log.error("Failed to save note: \(error, privacy: .public)")
+            showToast("Could not save your note")
+            return false
+        }
+    }
+
+    public func deleteNote(_ item: NoteItem) {
+        do {
+            try database.deleteNote(id: item.id)
+            loadNotes()
+        } catch {
+            Self.log.error("Failed to delete note: \(error, privacy: .public)")
+            showToast("Could not delete your note")
+        }
+    }
+
+    /// Confirms, on the page, that the thought was kept — once per editing session, and only
+    /// if something was actually written.
+    public func announceSavedNote() {
+        guard hasSavedNoteWhileEditing else { return }
+        hasSavedNoteWhileEditing = false
+        showToast("Note saved")
     }
 
     public func openBook() async {

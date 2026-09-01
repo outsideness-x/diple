@@ -39,6 +39,20 @@ public struct ReaderContainerView: View {
     /// Readium, which recolouring a highlight has no business doing; and it travels through the
     /// CloudKit settings payload, where a per-device marker preference is not worth a field.
     @AppStorage("diple_last_highlight_color") private var lastHighlightColorHex = DipleColor.Highlight.yellow
+    /// The note currently open over the page, if any.
+    ///
+    /// A sheet rather than a push: the reader hides the navigation bar and owns the whole
+    /// screen, and a note is something you step aside to write and then come back from — the
+    /// page has to still be there underneath, at the same place, when it closes.
+    @State private var noteRoute: NoteRoute?
+    /// A note chosen inside the outline sheet, held until that sheet is actually gone.
+    ///
+    /// Raising the second sheet from the row's own action presents it into a hierarchy that is
+    /// still dismissing the first, and it is dropped. `onDismiss` is the moment the screen is
+    /// free again.
+    @State private var pendingNoteRoute: NoteRoute?
+    /// Where a wiki link followed from inside the open note pushes to.
+    @State private var notePath = NavigationPath()
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
@@ -238,6 +252,27 @@ public struct ReaderContainerView: View {
                                 .opacity(viewModel.canAddBookmark ? 1 : 0.35)
                                 .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
 
+                                // A thought about the book, written in the book.
+                                //
+                                // It belongs in this cluster and not with the settings at the
+                                // bottom: search, bookmark and contents are all about the text
+                                // and what has been made from it, which is what a note is. It
+                                // always writes rather than showing a list first — having a
+                                // thought and wanting to keep it is one intention, and the
+                                // notes already written are one segment away in the sheet
+                                // beside it.
+                                Button {
+                                    HapticManager.shared.selection()
+                                    noteRoute = .newFromSource(viewModel.book)
+                                } label: {
+                                    Image(systemName: "square.and.pencil")
+                                        .dipleIcon(16, weight: .regular)
+                                        .foregroundStyle(chrome.control)
+                                }
+                                .buttonStyle(.readerControl)
+                                .accessibilityLabel("Write a note in this book")
+                                .accessibilityIdentifier("reader.newNote")
+
                                 Button {
                                     HapticManager.shared.selection()
                                     viewModel.isOutlinePresented = true
@@ -247,7 +282,7 @@ public struct ReaderContainerView: View {
                                         .foregroundStyle(chrome.control)
                                 }
                                 .buttonStyle(.readerControl)
-                                .accessibilityLabel("Contents, bookmarks and quotes")
+                                .accessibilityLabel("Contents, quotes, notes and bookmarks")
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)
@@ -484,9 +519,11 @@ public struct ReaderContainerView: View {
         // rebuild its projection when that row changes; there is no Living Margins sync model.
         .onReceive(NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)) { _ in
             viewModel.loadHighlights()
+            viewModel.loadNotes()
         }
         .onReceive(NotificationCenter.default.publisher(for: .dipleDataDidRestore)) { _ in
             viewModel.loadHighlights()
+            viewModel.loadNotes()
         }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
@@ -506,10 +543,16 @@ public struct ReaderContainerView: View {
                 viewModel.addBookmark(name: name, colorHex: colorHex)
             }
         }
-        .sheet(isPresented: $viewModel.isOutlinePresented) {
+        .sheet(isPresented: $viewModel.isOutlinePresented, onDismiss: {
+            if let pending = pendingNoteRoute {
+                pendingNoteRoute = nil
+                noteRoute = pending
+            }
+        }) {
             BookOutlineSheetView(
                 tableOfContents: viewModel.tableOfContents,
                 highlights: viewModel.highlights,
+                notes: viewModel.notes.forThisBook,
                 bookmarks: viewModel.bookmarks,
                 onSelectLink: { link in
                     viewModel.navigateToLink(link)
@@ -521,6 +564,15 @@ public struct ReaderContainerView: View {
                 },
                 onDeleteHighlight: { highlight in
                     viewModel.deleteHighlight(highlight)
+                },
+                onSelectNote: { item in
+                    pendingNoteRoute = .existing(item)
+                },
+                onDeleteNote: { item in
+                    viewModel.deleteNote(item)
+                },
+                onNewNote: {
+                    pendingNoteRoute = .newFromSource(viewModel.book)
                 },
                 onSelectBookmark: { bookmark in
                     if let locator = bookmark.parsedLocator {
@@ -546,6 +598,24 @@ public struct ReaderContainerView: View {
         // would be torn out of the hierarchy in the same update that raised it, and the sheet
         // would come up and collapse again. This container outlives all of that.
         .translationTarget(isPresented: $isTranslationPresented, text: translationText)
+        // The one note editor in the app, raised over the page.
+        //
+        // `NoteDetailView` itself rather than a reader-sized version of it: two note editors
+        // drift, and a rule fixed in one stays broken in the other. Everything it needs —
+        // the whole library's notes for wiki links, every source for the picker, every tag
+        // for suggestions — comes from `viewModel.notes`, so the note written here is the
+        // same note, written the same way, as one started on the board.
+        .sheet(item: $noteRoute, onDismiss: {
+            notePath = NavigationPath()
+            viewModel.announceSavedNote()
+        }) { route in
+            NavigationStack(path: $notePath) {
+                notePage(for: route)
+                    .navigationDestination(for: NoteRoute.self) { pushed in
+                        notePage(for: pushed)
+                    }
+            }
+        }
         .sheet(item: $highlightEditorTarget, onDismiss: {
             dismissHighlightActions()
         }) { target in
@@ -565,6 +635,21 @@ public struct ReaderContainerView: View {
                 )
             }
         }
+    }
+
+    /// A note page wired to this book, wherever it is reached from — raised from the page,
+    /// opened out of the outline sheet, or followed through a `[[Wiki link]]` from either.
+    @ViewBuilder
+    private func notePage(for route: NoteRoute) -> some View {
+        NoteDetailView(
+            route: route,
+            books: viewModel.notes.books,
+            suggestedTags: viewModel.notes.tagSuggestions,
+            allNotes: viewModel.notes.all,
+            onSave: { note, tags in viewModel.saveNote(note, tags: tags) },
+            onDelete: { item in viewModel.deleteNote(item) },
+            onOpenNote: { notePath.append(NoteRoute.existing($0)) }
+        )
     }
 
     private var livingMarginAnimation: Animation {

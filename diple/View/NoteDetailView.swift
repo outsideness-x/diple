@@ -18,6 +18,30 @@ public enum NoteRoute: Hashable {
         if case .newFromSource(let book) = self { return book.id }
         return nil
     }
+
+    /// The tags a note is born with.
+    ///
+    /// A note started inside a source — from the reader's own page, or from the source
+    /// overview — carries that source's name as a tag from the moment it exists. It is a
+    /// normal tag, drawn as a normal chip in the properties row and removable with one tap:
+    /// the app files the thought where it was had, and the writer keeps the last word on it.
+    /// See `TagName.forSource(titled:)` for what the word is.
+    public var initialTags: [String] {
+        guard case .newFromSource(let book) = self else { return [] }
+        return [TagName.forSource(titled: book.title)].compactMap { $0 }
+    }
+}
+
+/// A route can also be raised as a sheet — the reader has no stack of its own to push a note
+/// onto, and presents one over the page instead.
+extension NoteRoute: Identifiable {
+    public var id: String {
+        switch self {
+        case .existing(let item): return "existing:\(item.id)"
+        case .new: return "new"
+        case .newFromSource(let book): return "source:\(book.id)"
+        }
+    }
 }
 
 /// A note as a page rather than a form.
@@ -90,13 +114,13 @@ public struct NoteDetailView: View {
         _isEditing = State(initialValue: item == nil)
         _title = State(initialValue: item?.note.title ?? "")
         _body_ = State(initialValue: item?.note.body ?? "")
-        _tags = State(initialValue: item?.tags ?? [])
+        _tags = State(initialValue: item?.tags ?? route.initialTags)
         _selectedBookId = State(initialValue: item?.note.bookId ?? route.initialBookId)
         _draftID = State(initialValue: item?.id ?? UUID().uuidString)
         _lastSavedSnapshot = State(initialValue: Self.snapshot(
             title: item?.note.title ?? "",
             body: item?.note.body ?? "",
-            tags: item?.tags ?? [],
+            tags: item?.tags ?? route.initialTags,
             bookID: item?.note.bookId
         ))
     }
@@ -237,6 +261,19 @@ public struct NoteDetailView: View {
             return .handled
         })
         .animation(DipleMotion.standard, value: isEditing)
+        .onAppear {
+            // A note started *inside* a source opens ready to write. The reader tapped a
+            // pencil with a book in hand and has one sentence in mind; asking them to find the
+            // text field afterwards spends a tap on nothing, and on a phone it is the tap that
+            // loses the thought.
+            //
+            // The board's blank "New note" is deliberately left alone: there the next move is
+            // as likely to be a title, a template or a tag as it is a sentence, and raising the
+            // keyboard over all three would be a guess.
+            if route.item == nil && route.initialBookId != nil {
+                isBodyFocused = true
+            }
+        }
         .onChange(of: title) { _, _ in scheduleSave() }
         .onChange(of: body_) { _, _ in scheduleSave() }
         .onChange(of: tags) { _, _ in scheduleSave() }
