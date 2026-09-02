@@ -67,7 +67,7 @@ public struct ImportLinkSheetView: View {
                 .dipleIcon(26, weight: .light)
                 .foregroundStyle(DipleColor.accent)
 
-            Text("Paste the address of an article. diple keeps the text, the images and the headings — and leaves the banners behind.")
+            Text("Paste the address of an article or a PDF. diple keeps the text, the images and the headings — and leaves the banners behind.")
                 .dipleType(.callout)
                 .foregroundStyle(DipleColor.textTertiary)
                 .multilineTextAlignment(.center)
@@ -175,7 +175,7 @@ public struct ImportLinkSheetView: View {
         guard viewModel.resolvedURL != nil else { return }
         HapticManager.shared.impact(.light)
         isFieldFocused = false
-        viewModel.importArticle { book in
+        viewModel.importLink { book in
             onImported(book)
             dismiss()
         }

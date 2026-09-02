@@ -115,19 +115,52 @@ public nonisolated final class ArticleExtractor {
     /// Tags that survive into the EPUB. Anything else is unwrapped, keeping its children — a
     /// whitelist rather than a blacklist, because pages invent elements faster than anyone can
     /// enumerate them, and an unknown tag in the output is an unstyled tag.
-    private static let allowedTags: Set<String> = [
+    private static let allowedTags: Set<String> = Set([
         "p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code",
         "figure", "figcaption", "img", "a", "em", "strong", "i", "b", "u", "s", "sup", "sub",
         "br", "hr", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption", "dl",
         "dt", "dd", "mark", "small", "cite", "q", "abbr", "time", "kbd", "samp", "var"
+    ]).union(mathMLTags)
+
+    /// MathML, kept whole rather than unwrapped.
+    ///
+    /// Unwrapping a formula does not degrade it, it destroys it: `<msup><mi>x</mi><mn>2</mn>`
+    /// becomes the two characters `x2`, and a page of physics becomes a page of run-together
+    /// letters that still reads like prose to everything downstream. WebKit has rendered
+    /// MathML natively since long before this app's iOS 18 floor, and ReadiumCSS already ships
+    /// a `math { font-family: … }` rule, so the formula only has to survive the sanitiser to
+    /// arrive as a formula.
+    static let mathMLTags: Set<String> = [
+        "math", "semantics", "mrow", "mi", "mo", "mn", "ms", "mtext", "mspace", "msub", "msup",
+        "msubsup", "munder", "mover", "munderover", "mfrac", "msqrt", "mroot", "mstyle",
+        "merror", "mpadded", "mphantom", "mfenced", "menclose", "mtable", "mtr", "mtd",
+        "mlabeledtr", "maction", "mmultiscripts", "mprescripts", "none", "malignmark",
+        "maligngroup", "mglyph"
+    ]
+
+    /// Attributes MathML is allowed to keep. The list is shared by every element rather than
+    /// written per tag: these are presentation attributes of one notation, and a formula that
+    /// loses `stretchy` or `columnalign` is misdrawn rather than merely unstyled.
+    private static let mathMLAttributes: Set<String> = [
+        "display", "xmlns", "mathvariant", "mathsize", "displaystyle", "scriptlevel",
+        "stretchy", "symmetric", "largeop", "movablelimits", "accent", "accentunder", "form",
+        "lspace", "rspace", "linethickness", "notation", "open", "close", "separators",
+        "columnalign", "rowalign", "columnspan", "rowspan", "columnspacing", "rowspacing",
+        "align", "width", "height", "depth", "dir", "fence", "separator", "voffset"
     ]
 
     /// Tags removed outright, contents and all.
+    ///
+    /// `annotation` and `annotation-xml` are here, not merely off the whitelist: a LaTeXML page
+    /// carries the TeX source of every formula inside `<semantics>` next to the MathML that
+    /// draws it, and unwrapping it printed each formula twice — once as glyphs and once as
+    /// `\mathcal{A}_{R}=\{a_{1},\ldots,a_{N}\}`. It is markup meant for a machine, and the
+    /// only correct amount of it on the page is none.
     private static let strippedTags = [
-        "script", "style", "noscript", "iframe", "object", "embed", "form", "input", "textarea",
+        "script", "style", "noscript", "iframe", "form", "input", "textarea",
         "select", "button", "svg", "canvas", "audio", "video", "source", "track", "template",
         "link", "meta", "nav", "aside", "footer", "header", "dialog", "ins", "fieldset",
-        "label", "picture"
+        "label", "annotation", "annotation-xml"
     ]
 
     /// Attributes kept per tag. Everything else goes: classes, inline styles, tracking data
@@ -169,7 +202,9 @@ public nonisolated final class ArticleExtractor {
 
         self.images = try Self.normalizeImages(in: candidate, leadImageURL: head.leadImageURL)
         try Self.pruneToWhitelist(in: candidate)
+        try Self.unwrapEquationTables(in: candidate)
         try Self.stripAttributes(in: candidate)
+        try Self.namespaceMath(in: candidate)
         try Self.removeEmptyElements(in: candidate)
 
         let text = try candidate.text()
@@ -186,6 +221,7 @@ public nonisolated final class ArticleExtractor {
         // block of its own, so leaving that one in place would show the title twice.
         try Self.removeLeadingTitleHeading(in: candidate, matching: metadata.title)
         self.sections = try Self.markSections(in: candidate)
+        try Self.removeDeadFragmentLinks(in: candidate)
         self.searchableText = try candidate.text()
     }
 
@@ -348,6 +384,8 @@ public nonisolated final class ArticleExtractor {
     // MARK: - Noise removal
 
     private static func stripNoise(in body: Element) throws {
+        try liftEmbeddedImages(in: body)
+
         for tag in strippedTags {
             for element in try body.select(tag) where element.parent() != nil {
                 try element.remove()
@@ -367,6 +405,50 @@ public nonisolated final class ArticleExtractor {
             guard containsAny(hint, negativeHints), !containsAny(hint, positiveHints) else { continue }
             try element.remove()
         }
+    }
+
+    /// Turns the other ways a page can point at a picture into an `<img>`, then drops the
+    /// wrappers that are left.
+    ///
+    /// arXiv's LaTeXML output publishes every plotted figure as
+    /// `<object type="image/svg+xml" data="…svg">`, so an `<object>` deleted with its contents
+    /// took all seven figures of a paper with it and left the captions behind, describing
+    /// nothing. `<picture>` is the same mistake in the opposite direction — it is a *wrapper*
+    /// around an ordinary `<img>`, and removing it contents-and-all threw away the image it
+    /// exists to select. It is now simply unwrapped by the whitelist pass, and only its
+    /// `<source>` children are dropped.
+    private static func liftEmbeddedImages(in body: Element) throws {
+        for element in try body.select("object, embed") where element.parent() != nil {
+            let type = (try element.attr("type")).lowercased()
+            let source = element.tagNameNormal() == "object"
+                ? try element.attr("data")
+                : try element.attr("src")
+
+            guard type.hasPrefix("image/") || isImagePath(source) else {
+                try element.remove()
+                continue
+            }
+
+            let image = try element.ownerDocument()?.createElement("img")
+            guard let image else {
+                try element.remove()
+                continue
+            }
+            // `absUrl` resolves against the document's base, exactly as `<img src>` would.
+            let absolute = element.tagNameNormal() == "object"
+                ? try element.absUrl("data")
+                : try element.absUrl("src")
+            _ = try image.attr("src", absolute.isEmpty ? source : absolute)
+            if let alt = try? element.attr("alt"), !alt.isEmpty {
+                _ = try image.attr("alt", alt)
+            }
+            try element.replaceWith(image)
+        }
+    }
+
+    private static func isImagePath(_ value: String) -> Bool {
+        let path = (URL(string: value)?.path ?? value).lowercased()
+        return [".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp"].contains { path.hasSuffix($0) }
     }
 
     private static func hints(for element: Element) -> String {
@@ -613,6 +695,93 @@ public nonisolated final class ArticleExtractor {
         }
     }
 
+    /// Turns a table that is really a display equation back into a block of prose.
+    ///
+    /// LaTeX-to-HTML converters lay every numbered and centred formula out as a one-row table:
+    /// an empty padding cell, the formula, another empty cell, and sometimes `(3)` in a fourth.
+    /// Kept as a table it inherits the full-width rules and the cell hairlines meant for data,
+    /// so a paper's every equation arrived underlined and stretched across the measure.
+    ///
+    /// The test is structural, not a class name: a table with no header cells whose cells hold
+    /// block-level math is a layout, because a real data table does not set its cells in
+    /// display style. Each row becomes one paragraph, the padding cells go, and a short
+    /// non-mathematical cell — the equation number — is kept at the end of its own row, since
+    /// the prose around it refers to it.
+    private static func unwrapEquationTables(in root: Element) throws {
+        for table in try root.select("table").array().reversed() where table.parent() != nil {
+            guard try table.select("th").isEmpty(),
+                  try !table.select("math[display=block]").isEmpty()
+            else { continue }
+
+            var paragraphs: [Element] = []
+            for row in try table.select("tr") {
+                guard let paragraph = try root.ownerDocument()?.createElement("p") else { continue }
+                for cell in try row.select("td") {
+                    guard try !cell.text().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || !cell.select("math").isEmpty()
+                    else { continue }
+                    for node in cell.getChildNodes() {
+                        try paragraph.appendChild(node)
+                    }
+                }
+                if try !paragraph.text().trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || !paragraph.select("math").isEmpty() {
+                    paragraphs.append(paragraph)
+                }
+            }
+
+            guard let first = paragraphs.first else {
+                try table.remove()
+                continue
+            }
+            try table.replaceWith(first)
+            var previous = first
+            for paragraph in paragraphs.dropFirst() {
+                try previous.after(paragraph)
+                previous = paragraph
+            }
+        }
+    }
+
+    /// Declares the MathML namespace on every formula.
+    ///
+    /// The body is serialised as XHTML, where an element belongs to the namespace it declares
+    /// and to nothing else. An HTML parser puts a bare `<math>` in the MathML namespace by
+    /// rule; an XML one puts it in whatever its ancestors declare, which here is XHTML — the
+    /// formula would arrive as a tree of unknown inline elements and render as run-together
+    /// letters, which is the exact failure the whitelist change was made to fix.
+    private static func namespaceMath(in root: Element) throws {
+        for math in try root.select("math") {
+            _ = try math.attr("xmlns", mathMLNamespace)
+        }
+    }
+
+    static let mathMLNamespace = "http://www.w3.org/1998/Math/MathML"
+
+    /// Unwraps links that point inside the document at an anchor no longer there.
+    ///
+    /// Every `id` in the body is stripped except the ones `markSections` writes, so a paper's
+    /// `Cited by: §1.1` and its footnote markers all became links to nothing. A link that does
+    /// nothing when tapped is worse than the words alone, and the words are what was being
+    /// said.
+    private static func removeDeadFragmentLinks(in root: Element) throws {
+        // Compared as strings rather than looked up with a `#id` selector: a LaTeXML anchor is
+        // `#S1.SS1.p1.1`, and every dot in it would be read as a class by the CSS parser.
+        var liveIDs: Set<String> = []
+        for element in try root.select("[id]") {
+            liveIDs.insert(try element.attr("id"))
+        }
+
+        for anchor in try root.select("a") where anchor.parent() != nil {
+            let href = try anchor.attr("href")
+            guard href.hasPrefix("#") else { continue }
+            let fragment = String(href.dropFirst())
+            if fragment.isEmpty || !liveIDs.contains(fragment) {
+                _ = try anchor.unwrap()
+            }
+        }
+    }
+
     private static func isInlineOnlyBlock(_ element: Element) throws -> Bool {
         let blockChildren = try element.select("p, div, section, ul, ol, blockquote, pre, figure, table, h1, h2, h3, h4, h5, h6")
         return blockChildren.isEmpty()
@@ -620,9 +789,12 @@ public nonisolated final class ArticleExtractor {
 
     private static func stripAttributes(in root: Element) throws {
         for element in try root.select("*") {
-            let allowed = allowedAttributes[element.tagNameNormal()] ?? []
+            let tag = element.tagNameNormal()
+            let allowed = mathMLTags.contains(tag)
+                ? mathMLAttributes
+                : (allowedAttributes[tag] ?? [])
             // The downloader's own handle has to survive until the images are resolved.
-            let keep = allowed.union(element.tagNameNormal() == "img" ? ["data-diple-image"] : [])
+            let keep = allowed.union(tag == "img" ? ["data-diple-image"] : [])
             guard let attributes = element.getAttributes() else { continue }
             for name in attributes.asList().map({ $0.getKey() }) where !keep.contains(name.lowercased()) {
                 _ = try element.removeAttr(name)
@@ -637,10 +809,15 @@ public nonisolated final class ArticleExtractor {
         }
     }
 
+    /// `<mprescripts/>`, `<none/>` and `<mspace/>` carry no text and are not media, but a
+    /// formula that loses them is drawn wrong — they are position, not decoration. MathML is
+    /// therefore skipped wholesale rather than each void element being listed.
     private static func removeEmptyElements(in root: Element) throws {
         let selfContained: Set<String> = ["img", "br", "hr", "td", "th"]
         for element in try root.select("*").array().reversed() where element.parent() != nil {
-            guard element !== root, !selfContained.contains(element.tagNameNormal()) else { continue }
+            let tag = element.tagNameNormal()
+            guard element !== root, !selfContained.contains(tag), !mathMLTags.contains(tag)
+            else { continue }
             let hasText = !(try element.text()).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let hasMedia = !(try element.select("img, br, hr").isEmpty())
             if !hasText && !hasMedia {

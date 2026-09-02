@@ -1,10 +1,11 @@
 import Foundation
 
-public nonisolated enum ArticleImportError: LocalizedError {
+public nonisolated enum LinkImportError: LocalizedError {
     case unsupportedScheme
     case requestFailed(status: Int)
-    case notHTML
+    case unsupportedContent
     case pageTooLarge
+    case fileTooLarge
 
     public var errorDescription: String? {
         switch self {
@@ -12,21 +13,29 @@ public nonisolated enum ArticleImportError: LocalizedError {
             return "Only secure HTTPS links can be imported."
         case let .requestFailed(status):
             return "The site answered with error \(status)."
-        case .notHTML:
-            return "That link doesn't point to a web page."
+        case .unsupportedContent:
+            return "That link points to neither a web page nor a PDF."
         case .pageTooLarge:
             return "That page is too large to import."
+        case .fileTooLarge:
+            return "That PDF is too large to import."
         }
     }
 }
 
-/// Fetches a web page and files it in the library as an EPUB.
+/// Fetches whatever a saved link points at and files it in the library.
+///
+/// A reader shares an address, not a format. What is behind it decides how it is filed: a web
+/// page becomes an article packaged as EPUB, a PDF is stored as the PDF it already is. That
+/// decision is made from the response rather than from the address, because the two most
+/// common ways to link a paper — `arxiv.org/pdf/2609.01064` and `example.com/paper` — carry no
+/// `.pdf` extension at all.
 ///
 /// Runs entirely off the main actor. `SWIFT_APPROACHABLE_CONCURRENCY` makes a `nonisolated
 /// async` function run on its *caller's* executor, so being nonisolated is not by itself
 /// enough to keep HTML parsing off the main thread — the work is explicitly detached.
-public nonisolated final class ArticleImporter {
-    public static let shared = ArticleImporter()
+public nonisolated final class LinkImporter {
+    public static let shared = LinkImporter()
 
     /// Ceilings so that one hostile or merely enormous page cannot fill the device or hang the
     /// import. Every one of them degrades rather than fails: an article past the image budget
@@ -42,6 +51,10 @@ public nonisolated final class ArticleImporter {
         case fetching
         case reading
         case images(completed: Int, total: Int)
+        /// `fraction` is nil while the server has not said how big the file is. A download is
+        /// the one stage that can run for a minute on a slow connection, so it reports how far
+        /// it has come rather than repeating one motionless line.
+        case downloading(fraction: Double?)
         case packaging
 
         public var label: String {
@@ -52,6 +65,9 @@ public nonisolated final class ArticleImporter {
                 return "Finding the article…"
             case let .images(completed, total):
                 return total > 0 ? "Saving images \(completed) of \(total)…" : "Saving images…"
+            case let .downloading(fraction):
+                guard let fraction else { return "Downloading the PDF…" }
+                return "Downloading the PDF — \(Int((fraction * 100).rounded()))%"
             case .packaging:
                 return "Adding to your library…"
             }
@@ -77,7 +93,7 @@ public nonisolated final class ArticleImporter {
 
     // MARK: - Entry point
 
-    public func importArticle(
+    public func importLink(
         from url: URL,
         bookID: String? = nil,
         progress: @escaping @Sendable (Stage) -> Void
@@ -90,14 +106,26 @@ public nonisolated final class ArticleImporter {
     private static func perform(
         url: URL,
         bookID: String?,
-        progress: @Sendable (Stage) -> Void
+        progress: @escaping @Sendable (Stage) -> Void
     ) async throws -> Book {
         guard url.scheme?.lowercased() == "https" else {
-            throw ArticleImportError.unsupportedScheme
+            throw LinkImportError.unsupportedScheme
         }
 
         progress(.fetching)
-        let page = try await fetchPage(at: url)
+        let page: Page
+        switch try await fetch(at: url) {
+        case let .html(fetched):
+            page = fetched
+        case let .pdf(finalURL, suggestedFilename):
+            return try await WebPDFImporter.importPDF(
+                from: finalURL,
+                requestedURL: url,
+                bookID: bookID,
+                suggestedFilename: suggestedFilename,
+                progress: progress
+            )
+        }
 
         progress(.reading)
         let article = try ArticleExtractor(html: page.html, url: page.finalURL)
@@ -204,31 +232,69 @@ public nonisolated final class ArticleImporter {
         case limitExceeded
     }
 
-    private static func fetchPage(at url: URL) async throws -> Page {
+    /// What the address turned out to be.
+    private enum Fetched {
+        case html(Page)
+        /// The PDF is *not* carried out of here as bytes. Its body is fetched again, by
+        /// `WebPDFImporter`, straight to a file: this request only ever reads response
+        /// headers and at most a five-byte prefix, and is cancelled before its body is
+        /// touched. One extra round trip buys a download that never passes through memory
+        /// and that can be capped while it is still arriving.
+        case pdf(finalURL: URL, suggestedFilename: String?)
+    }
+
+    private static func fetch(at url: URL) async throws -> Fetched {
         let (bytes, response) = try await session.bytes(from: url)
+        var completed = false
+        defer {
+            // An unconsumed `AsyncBytes` holds its task open. Cancelling on the PDF and error
+            // paths releases the connection instead of leaving the body streaming into nothing.
+            if !completed { bytes.task.cancel() }
+        }
 
         if let http = response as? HTTPURLResponse {
             guard (200..<300).contains(http.statusCode) else {
-                throw ArticleImportError.requestFailed(status: http.statusCode)
+                throw LinkImportError.requestFailed(status: http.statusCode)
             }
-            if let mimeType = http.mimeType?.lowercased(),
-               !mimeType.contains("html"), !mimeType.contains("xml") {
-                throw ArticleImportError.notHTML
+        }
+
+        let finalURL = response.url ?? url
+        let mimeType = (response as? HTTPURLResponse)?.mimeType?.lowercased()
+
+        if let mimeType, mimeType.contains("pdf") {
+            return .pdf(finalURL: finalURL, suggestedFilename: response.suggestedFilename)
+        }
+
+        let isDeclaredHTML = mimeType.map { $0.contains("html") || $0.contains("xml") } ?? true
+        if !isDeclaredHTML {
+            // A generic `application/octet-stream` says nothing, and plenty of servers send a
+            // PDF under it. The file says what it is in its own first five bytes, so the
+            // decision is taken from those rather than from a header or a file extension.
+            let signature = try await readPrefix(bytes, count: pdfSignature.count)
+            guard signature != pdfSignature else {
+                return .pdf(finalURL: finalURL, suggestedFilename: response.suggestedFilename)
             }
+            throw LinkImportError.unsupportedContent
         }
 
         let data: Data
         do {
             data = try await collect(bytes, response: response, limit: maximumHTMLBytes)
         } catch ResponseSizeError.limitExceeded {
-            throw ArticleImportError.pageTooLarge
+            throw LinkImportError.pageTooLarge
         }
+        completed = true
 
-        return Page(
-            html: decode(data, textEncodingName: response.textEncodingName),
-            finalURL: response.url ?? url
+        return .html(
+            Page(
+                html: decode(data, textEncodingName: response.textEncodingName),
+                finalURL: finalURL
+            )
         )
     }
+
+    /// `%PDF-`, the header every PDF is required to open with.
+    static let pdfSignature = Data([0x25, 0x50, 0x44, 0x46, 0x2D])
 
     /// Reads at most `limit` bytes and then cancels the task by throwing. Checking both the
     /// declared length and the stream itself covers honest servers and chunked/misreported
@@ -253,6 +319,18 @@ public nonisolated final class ArticleImporter {
                 throw ResponseSizeError.limitExceeded
             }
             data.append(byte)
+        }
+        return data
+    }
+
+    /// Takes the first `count` bytes off a stream whose kind is not yet known, without the
+    /// size ceiling `collect` applies: a response is not too large just because it is longer
+    /// than its own signature.
+    private static func readPrefix(_ bytes: URLSession.AsyncBytes, count: Int) async throws -> Data {
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count >= count { break }
         }
         return data
     }

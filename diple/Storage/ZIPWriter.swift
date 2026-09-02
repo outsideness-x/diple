@@ -12,7 +12,7 @@ import Foundation
 /// buy nothing and cost the only part of the format that is easy to get wrong.
 ///
 /// The archive is assembled in memory. That is safe because the caller bounds what goes in —
-/// see `ArticleImporter.maximumImageBytes`.
+/// see `LinkImporter.maximumImageBytes`.
 nonisolated struct ZIPWriter {
     private var payload = Data()
     private var entries: [CentralDirectoryEntry] = []

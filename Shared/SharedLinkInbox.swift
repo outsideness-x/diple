@@ -4,8 +4,8 @@ import Foundation
 ///
 /// The extension deliberately does not open the library database or run the article parser:
 /// both belong to the containing app and its sandbox. It only records a validated web address
-/// in the shared App Group. The app removes an entry after the existing `ArticleImporter` has
-/// committed the generated EPUB and its database row, so suspension or a network failure cannot
+/// in the shared App Group. The app removes an entry after the existing `LinkImporter` has
+/// committed the publication and its database row, so suspension or a network failure cannot
 /// turn a successful-looking share into a lost article.
 public nonisolated struct SharedLinkInbox: Sendable {
     public static let appGroupIdentifier = "group.com.chemical-pink.diple"

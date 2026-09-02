@@ -1836,6 +1836,213 @@ final class DipleTests: XCTestCase {
         XCTAssertFalse(body.contains("Меню сайта"))
     }
 
+    // MARK: - Formulas, tables and figures on a scientific page
+
+    /// A LaTeX-to-HTML page carries every formula twice: once as MathML that draws it, and once
+    /// as the TeX source in an `<annotation>` beside it. Unwrapping both printed
+    /// `0.5390.539` and `k∈{1,2,3}k\in\{1,2,3\}` throughout the article.
+    func testArticleExtractorKeepsMathMLAndDropsItsLaTeXTwin() throws {
+        let prose = String(repeating: "This paragraph states a result and then qualifies it. ", count: 10)
+        let html = """
+            <html><head><title>Order-k Markov models</title></head><body>
+              <article class="article-content">
+                <p>\(prose)</p>
+                <p>Fix a raga <math class="ltx_Math" alttext="R" display="inline"><semantics><mi>R</mi>\
+            <annotation encoding="application/x-tex">R</annotation></semantics></math> and let</p>
+                <p>the alphabet <math display="inline"><semantics><msub><mi>A</mi><mi>R</mi></msub>\
+            <annotation encoding="application/x-tex">\\mathcal{A}_{R}</annotation></semantics></math> be finite.</p>
+                <p>\(prose)</p>
+              </article>
+            </body></html>
+            """
+
+        let extractor = try ArticleExtractor(
+            html: html,
+            url: try XCTUnwrap(URL(string: "https://arxiv.org/html/2609.01064v1"))
+        )
+        let body = try extractor.bodyXHTML(resolvedImages: [:])
+
+        XCTAssertTrue(body.contains("<math"), "the formula itself has to survive the sanitiser")
+        XCTAssertTrue(body.contains("<msub"), "structure, not just the characters in it")
+        XCTAssertTrue(
+            body.contains(#"xmlns="http://www.w3.org/1998/Math/MathML""#),
+            "without the namespace an XHTML parser reads MathML as unknown inline elements"
+        )
+        XCTAssertFalse(body.contains("<annotation"), "the TeX twin is markup for a machine")
+        XCTAssertFalse(body.contains("mathcal"), "and its text must not survive either")
+        XCTAssertFalse(extractor.searchableText.contains("mathcal"))
+    }
+
+    /// Display equations arrive as one-row tables with empty padding cells. Left as tables they
+    /// inherit the full-width rules and cell hairlines meant for data.
+    func testArticleExtractorUnwrapsEquationTablesButKeepsRealOnes() throws {
+        let prose = String(repeating: "The estimator is defined below, and then bounded. ", count: 10)
+        let html = """
+            <html><head><title>Estimator</title></head><body>
+              <article class="article-content">
+                <p>\(prose)</p>
+                <table class="ltx_equation ltx_eqn_table"><tbody><tr>
+                  <td class="ltx_eqn_cell ltx_eqn_center_padleft"></td>
+                  <td class="ltx_eqn_cell"><math display="block"><semantics><mrow><mi>x</mi>\
+            <mo>=</mo><mn>1</mn></mrow></semantics></math></td>
+                  <td class="ltx_eqn_cell ltx_eqn_center_padright"></td>
+                </tr></tbody></table>
+                <table><thead><tr><th>Order</th><th>Accuracy</th></tr></thead>
+                  <tbody><tr><td>1</td><td>0.439</td></tr></tbody></table>
+                <p>\(prose)</p>
+              </article>
+            </body></html>
+            """
+
+        let extractor = try ArticleExtractor(
+            html: html,
+            url: try XCTUnwrap(URL(string: "https://arxiv.org/html/paper"))
+        )
+        let body = try extractor.bodyXHTML(resolvedImages: [:])
+
+        XCTAssertEqual(body.components(separatedBy: "<table").count - 1, 1, "only the data table is a table")
+        XCTAssertTrue(body.contains("<th>Order</th>"), "a real table keeps its header")
+        XCTAssertTrue(body.contains(#"<p><math display="block""#), "the equation becomes its own block")
+        XCTAssertFalse(body.contains("<td></td>"), "the padding cells go with the layout they served")
+    }
+
+    /// arXiv publishes every plotted figure as `<object type="image/svg+xml">`. Deleting an
+    /// `<object>` with its contents took all thirteen figures of the sample paper and left the
+    /// captions describing nothing.
+    func testArticleExtractorLiftsObjectAndPictureImages() throws {
+        let prose = String(repeating: "The figure below plots accuracy against missingness. ", count: 10)
+        let html = """
+            <html><head><title>Figures</title></head><body>
+              <article class="article-content">
+                <p>\(prose)</p>
+                <figure><object type="image/svg+xml" data="paper/fig2.svg" width="381" height="270"></object>
+                  <figcaption>Figure 1: accuracy</figcaption></figure>
+                <figure><picture><source srcset="wide.webp"/><img src="plain.png" alt="plot"/></picture>
+                  <figcaption>Figure 2: order</figcaption></figure>
+                <p>\(prose)</p>
+              </article>
+            </body></html>
+            """
+
+        let extractor = try ArticleExtractor(
+            html: html,
+            url: try XCTUnwrap(URL(string: "https://arxiv.org/html/paper"))
+        )
+        XCTAssertEqual(
+            extractor.images.map(\.url.absoluteString),
+            ["https://arxiv.org/html/paper/fig2.svg", "https://arxiv.org/html/plain.png"]
+        )
+
+        let body = try extractor.bodyXHTML(resolvedImages: [0: "images/img-1.svg", 1: "images/img-2.png"])
+        XCTAssertTrue(body.contains(#"src="images/img-1.svg""#))
+        XCTAssertTrue(body.contains(#"src="images/img-2.png""#))
+        XCTAssertTrue(body.contains("Figure 1: accuracy"))
+        XCTAssertFalse(body.contains("<object"))
+    }
+
+    /// Every `id` in the body is stripped but the ones the outline needs, so a paper's
+    /// `Cited by: §1.1` became a link to nowhere.
+    func testArticleExtractorUnwrapsLinksToAnchorsThatNoLongerExist() throws {
+        let prose = String(repeating: "The claim is stated here and defended later on. ", count: 10)
+        let html = """
+            <html><head><title>References</title></head><body>
+              <article class="article-content">
+                <h2>Method</h2>
+                <p>\(prose) Cited by: <a href="#S1.SS1.p1.1">§1.1</a>.</p>
+                <p>See <a href="#section-1">Method</a> and <a href="https://example.com/x">the source</a>. \(prose)</p>
+              </article>
+            </body></html>
+            """
+
+        let extractor = try ArticleExtractor(
+            html: html,
+            url: try XCTUnwrap(URL(string: "https://arxiv.org/html/paper"))
+        )
+        let body = try extractor.bodyXHTML(resolvedImages: [:])
+
+        XCTAssertFalse(body.contains("#S1.SS1.p1.1"), "a dead in-page link is worse than the words alone")
+        XCTAssertTrue(body.contains("§1.1"), "but the words stay")
+        XCTAssertTrue(body.contains(##"href="#section-1""##), "the outline's own anchors still resolve")
+        XCTAssertTrue(body.contains(#"href="https://example.com/x""#), "and links off the page are untouched")
+    }
+
+    func testArticleEPUBDeclaresMathMLOnlyWhenTheBodyHasIt() throws {
+        let metadata = ArticleMetadata(
+            title: "Paper",
+            author: nil,
+            siteName: "arxiv.org",
+            publishedAt: nil,
+            language: "en",
+            canonicalURL: try XCTUnwrap(URL(string: "https://arxiv.org/html/paper")),
+            leadImageURL: nil,
+            wordCount: 400
+        )
+
+        func manifest(bodyXHTML: String) throws -> String {
+            let archive = try ArticleEPUBBuilder(
+                bookId: "book-math",
+                metadata: metadata,
+                sections: [],
+                bodyXHTML: bodyXHTML,
+                assets: [],
+                coverPath: nil
+            ).epubData()
+            let opf = try XCTUnwrap(StoredZIPReader.entry(named: "EPUB/package.opf", in: archive))
+            return String(decoding: opf, as: UTF8.self)
+        }
+
+        XCTAssertTrue(
+            try manifest(bodyXHTML: #"<p><math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math></p>"#)
+                .contains(#"href="article.xhtml" media-type="application/xhtml+xml" properties="mathml""#)
+        )
+        XCTAssertFalse(try manifest(bodyXHTML: "<p>Plain prose.</p>").contains("mathml"))
+    }
+
+    // MARK: - A PDF behind a link
+
+    /// `arxiv.org/pdf/2609.01064` has no extension in its path and offers `2609.01064v1.pdf`
+    /// in `Content-Disposition`. A publication filed without `.pdf` is one
+    /// `PublicationKind.inferred` would later read as an EPUB.
+    func testWebPDFImporterNamesTheFileFromTheServerAndAlwaysEndsInPDF() throws {
+        let url = try XCTUnwrap(URL(string: "https://arxiv.org/pdf/2609.01064"))
+
+        XCTAssertEqual(
+            WebPDFImporter.fileName(suggested: "2609.01064v1.pdf", url: url, requestedURL: url),
+            "2609.01064v1.pdf"
+        )
+        XCTAssertEqual(
+            WebPDFImporter.fileName(suggested: nil, url: url, requestedURL: url),
+            "2609.01064.pdf",
+            "the extension is added, never assumed"
+        )
+        XCTAssertEqual(
+            WebPDFImporter.fileName(suggested: "../../escape.pdf", url: url, requestedURL: url),
+            "escape.pdf",
+            "a server-supplied name may not reach outside the book's folder"
+        )
+        XCTAssertEqual(
+            WebPDFImporter.fileName(
+                suggested: "Unknown",
+                url: try XCTUnwrap(URL(string: "https://example.com/")),
+                requestedURL: try XCTUnwrap(URL(string: "https://example.com/"))
+            ),
+            "document.pdf",
+            "URLSession's own placeholder is not a name"
+        )
+    }
+
+    func testPresentableTitleRefusesAFileNameDressedAsATitle() {
+        XCTAssertEqual(
+            EPUBImporter.presentableTitle("Artificial Rosetta Stone: Constrained MAP Reconstruction"),
+            "Artificial Rosetta Stone: Constrained MAP Reconstruction"
+        )
+        XCTAssertEqual(EPUBImporter.presentableTitle("Microsoft Word - Raga paper"), "Raga paper")
+        XCTAssertNil(EPUBImporter.presentableTitle("Microsoft Word - draft3.docx"))
+        XCTAssertNil(EPUBImporter.presentableTitle("untitled"))
+        XCTAssertNil(EPUBImporter.presentableTitle("  "))
+        XCTAssertNil(EPUBImporter.presentableTitle(nil))
+    }
+
     // MARK: - Share inbox and portable restore
 
     func testSharedLinkInboxNormalizesDeduplicatesAndKeepsFailedWorkRetryable() throws {

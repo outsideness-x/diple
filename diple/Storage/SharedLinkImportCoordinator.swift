@@ -3,8 +3,8 @@ import Combine
 import SwiftUI
 
 /// Drains URLs accepted by the Share Extension through the same importer used by Home.
-/// Entries are acknowledged only after `ArticleImporter` has committed its EPUB and database
-/// row. A failed request therefore stays visible and retryable instead of disappearing into a
+/// Entries are acknowledged only after `LinkImporter` has committed its publication and
+/// database row. A failed request therefore stays visible and retryable instead of disappearing into a
 /// best-effort inter-process notification.
 @MainActor
 public final class SharedLinkImportCoordinator: ObservableObject {
@@ -108,7 +108,7 @@ public final class SharedLinkImportCoordinator: ObservableObject {
                 }
 
                 do {
-                    let book = try await ArticleImporter.shared.importArticle(
+                    let book = try await LinkImporter.shared.importLink(
                         from: normalizedURL,
                         bookID: entry.id.uuidString
                     ) { _ in }

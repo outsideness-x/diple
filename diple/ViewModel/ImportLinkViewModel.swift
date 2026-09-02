@@ -6,7 +6,7 @@ import UIKit
 @MainActor
 public final class ImportLinkViewModel: ObservableObject {
     @Published public var urlText: String = ""
-    @Published public private(set) var stage: ArticleImporter.Stage? = nil
+    @Published public private(set) var stage: LinkImporter.Stage? = nil
     @Published public private(set) var errorMessage: String? = nil
     /// True once the pasteboard is known to hold a link, so the paste affordance only appears
     /// when it would do something.
@@ -67,7 +67,7 @@ public final class ImportLinkViewModel: ObservableObject {
         errorMessage = nil
     }
 
-    public func importArticle(onFinished: @escaping (Book) -> Void) {
+    public func importLink(onFinished: @escaping (Book) -> Void) {
         guard let url = resolvedURL, !isImporting else { return }
 
         errorMessage = nil
@@ -75,7 +75,7 @@ public final class ImportLinkViewModel: ObservableObject {
 
         Task {
             do {
-                let book = try await ArticleImporter.shared.importArticle(from: url) { stage in
+                let book = try await LinkImporter.shared.importLink(from: url) { stage in
                     Task { @MainActor [weak self] in
                         self?.stage = stage
                     }

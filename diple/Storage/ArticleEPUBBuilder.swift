@@ -81,9 +81,13 @@ public nonisolated struct ArticleEPUBBuilder {
 
     private func packageOPF() -> String {
         let language = metadata.language ?? "en"
+        // EPUB 3 requires a content document that contains MathML to say so in the manifest.
+        // Declared from the markup rather than from a flag on the builder, so the manifest
+        // cannot disagree with the file it describes.
+        let mathML = bodyXHTML.contains("<math") ? #" properties="mathml""# : ""
         var items: [String] = [
             #"<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>"#,
-            #"<item id="article" href="article.xhtml" media-type="application/xhtml+xml"/>"#,
+            #"<item id="article" href="article.xhtml" media-type="application/xhtml+xml"\#(mathML)/>"#,
             #"<item id="stylesheet" href="styles/article.css" media-type="text/css"/>"#
         ]
 
@@ -420,6 +424,15 @@ public nonisolated struct ArticleEPUBBuilder {
           page-break-inside: avoid;
         }
 
+        /* Except when it holds a table. `break-inside: avoid` on a figure taller than the page
+           does not shrink it — the overflow is simply not drawn, and a twelve-row table of
+           results loses its bottom rows with nothing to say they existed. */
+        figure:has(table) {
+          -webkit-column-break-inside: auto;
+          break-inside: auto;
+          page-break-inside: auto;
+        }
+
         /* Keeps a tall image on one page instead of letting it be sliced by the column. */
         figure img {
           max-height: 82vh;
@@ -496,21 +509,70 @@ public nonisolated struct ArticleEPUBBuilder {
           opacity: 0.28;
         }
 
+        /* ---- Formulas ---- */
+
+        /* An inline formula sits in a line of prose and must not be allowed to set that line's
+           height on its own; a display one is a block of its own, centred, and given somewhere
+           to go when a wide derivation does not fit the measure. */
+        math {
+          font-size: 1em;
+        }
+
+        math[display="block"] {
+          display: block;
+          margin: 1.4em 0;
+          text-align: center;
+        }
+
+        /* Equation tables are unwrapped into paragraphs by the extractor, and this is what
+           those paragraphs are: one formula, centred, with its number after it.
+
+           The paragraph, not the formula, is what scrolls. A derivation is as wide as it is —
+           on the sample paper two came out 459 and 571 CSS pixels against a 390 pixel measure
+           — and `overflow` on the `math` box itself does not contain it: WebKit does not make
+           a MathML box a scroll container, so the overflow reached `body` and took the whole
+           column with it. An ordinary block does establish one. */
+        .diple-body p:has(> math[display="block"]) {
+          margin: 1.4em 0;
+          overflow-x: auto;
+          overflow-y: hidden;
+        }
+
+        .diple-body p:has(> math[display="block"]) > math[display="block"] {
+          margin: 0;
+        }
+
         /* ---- Tables ---- */
 
+        /* `table-layout: fixed` is what keeps a table inside the measure at all. Automatic
+           layout sizes columns to their content and then lets the table be as wide as it
+           likes — a results table on the sample paper came out 403 pixels against a 390 pixel
+           measure, and its last column was simply not drawn, with nothing to say it was
+           missing. Fixed layout divides the measure it is given and wraps inside the cells
+           instead. A table cannot be given a scrollbar the way an equation can: `overflow`
+           needs `display: block`, which throws away the column alignment that makes it a
+           table. */
         table {
           width: 100%;
+          table-layout: fixed;
           margin: 1.6em 0;
           border-collapse: collapse;
           font-size: 0.88em;
         }
 
+        /* A table of results has as many columns as the author needed, and a paginated column
+           cannot scroll. Breaking inside the cell keeps every value on the page; the
+           alternative is a table that runs off the edge and takes its last columns with it. */
         th,
         td {
           position: relative;
           padding: 0.5em 0.7em 0.5em 0;
           text-align: left;
           vertical-align: top;
+          overflow-wrap: break-word;
+          word-wrap: break-word;
+          -webkit-hyphens: none;
+          hyphens: none;
         }
 
         th::after,

@@ -33,8 +33,28 @@ public nonisolated final class BookStorageService: Sendable {
     /// Copies EPUB file from external URL into Documents/Books/<uuid>/<filename>
     /// Returns local file URL and relative path (e.g. "Books/<uuid>/<filename>")
     public func importEPUB(from sourceURL: URL, bookId: String) throws -> (fileURL: URL, relativePath: String) {
+        try importFile(
+            from: sourceURL,
+            bookId: bookId,
+            fileName: sourceURL.lastPathComponent.isEmpty ? "book.epub" : sourceURL.lastPathComponent
+        )
+    }
+
+    /// Copies any publication into Documents/Books/<uuid>/<fileName>.
+    ///
+    /// The name is given rather than taken from `sourceURL` because a downloaded publication
+    /// arrives in a temporary file whose name is a UUID; what it should be called on the shelf
+    /// comes from the server's `Content-Disposition` or from the address it was fetched from.
+    /// `fileName` is reduced to a single path component, so nothing can be written outside the
+    /// book's own folder.
+    public func importFile(
+        from sourceURL: URL,
+        bookId: String,
+        fileName: String
+    ) throws -> (fileURL: URL, relativePath: String) {
         let targetFolder = try bookDirectory(id: bookId)
-        let fileName = sourceURL.lastPathComponent.isEmpty ? "book.epub" : sourceURL.lastPathComponent
+        let sanitized = URL(fileURLWithPath: fileName).lastPathComponent
+        let fileName = sanitized.isEmpty || sanitized == "." ? "book" : sanitized
         let targetFileURL = targetFolder.appendingPathComponent(fileName)
         let temporaryURL = targetFolder.appendingPathComponent(".import-\(UUID().uuidString)")
 
