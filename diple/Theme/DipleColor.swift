@@ -24,10 +24,16 @@ import UIKit
 /// of the reader repaint on the same signal as the SwiftUI ones.
 ///
 /// The two ramps are not inversions of each other. On dark, higher means lighter, and the
-/// canvas is the darkest thing on screen. On light, the canvas is a soft grey and cards are
-/// **white** — paper laid on a desk, not a grey card on a white wall. Inverting the dark ramp
+/// canvas is the darkest thing on screen. On light, the canvas is warm paper and cards are
+/// **white** — a sheet laid on a desk, not a grey card on a white wall. Inverting the dark ramp
 /// literally would put white behind everything and grey cards on top, which is the arrangement
 /// that makes a light interface look like an unstyled form.
+///
+/// **The undertone flips with the appearance, and only the dark half is cold.** The cold cast
+/// described above is what gives a near-black interface depth; carried across to light it does
+/// the opposite, because there is no such thing as blue paper. The light canvas is therefore
+/// pushed the other way, into yellow — the direction every paper stock is off-white in — while
+/// the cards stay a true white, so a card reads as a fresh sheet laid on a warmer one.
 public enum DipleColor {
 
     /// One token, two values. `UIColor`'s dynamic provider is the only mechanism that resolves
@@ -47,8 +53,14 @@ public enum DipleColor {
     // MARK: - Surfaces
 
     /// The floor of the app. Window and scroll-view backgrounds.
+    ///
+    /// `#F7F5F1` on light, not the `#F4F4F7` it was. The old value carried the same cold cast
+    /// as the dark ramp — blue channel above red and green — which is right for a near-black
+    /// interface and wrong for a light one: it reads as clinical rather than as paper, and it
+    /// is the single largest area on the screen, so it sets the register for everything laid
+    /// on it. The new value is the same lightness with the channels reversed into yellow.
     public static let canvas = adaptive(
-        light: UIColor(red: 0.957, green: 0.957, blue: 0.969, alpha: 1),
+        light: UIColor(red: 0.969, green: 0.961, blue: 0.945, alpha: 1),
         dark: UIColor(red: 0.043, green: 0.043, blue: 0.059, alpha: 1)
     )
 
@@ -66,8 +78,11 @@ public enum DipleColor {
 
     /// Controls inside a raised surface: segment backgrounds, chips, progress tracks.
     /// On light this goes *down* from the card rather than up: a control set into paper.
+    /// Warmed with the canvas: a control set into paper has to be the same paper, a shade
+    /// down. Left cold it would have read as a grey plate dropped onto a warm sheet — the one
+    /// mismatch a reader notices without being able to name it.
     public static let surfaceOverlay = adaptive(
-        light: UIColor(red: 0.925, green: 0.925, blue: 0.945, alpha: 1),
+        light: UIColor(red: 0.929, green: 0.918, blue: 0.898, alpha: 1),
         dark: UIColor(red: 0.137, green: 0.137, blue: 0.173, alpha: 1)
     )
 
@@ -242,7 +257,7 @@ public extension UIColor {
     }
 
     static let dipleCanvas = dipleAdaptive(
-        light: UIColor(red: 0.957, green: 0.957, blue: 0.969, alpha: 1),
+        light: UIColor(red: 0.969, green: 0.961, blue: 0.945, alpha: 1),
         dark: UIColor(red: 0.043, green: 0.043, blue: 0.059, alpha: 1)
     )
     static let dipleSurface = dipleAdaptive(
