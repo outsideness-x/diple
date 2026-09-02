@@ -136,6 +136,13 @@ public enum DipleColor {
 
     /// Accent as light rather than paint — the radial falloff behind an interactive element.
     /// Colour is directed with glow, not with saturated fills.
+    ///
+    /// **The accent is flooded into exactly one object per screen, and that object is the
+    /// screen's action.** Everything else that is merely *chosen* — a filter, a typeface, a
+    /// segment — is marked with `View.dipleSelected`, which rings it instead. A screen with
+    /// five saturated objects has no main one, which is what Settings had: a filled appearance
+    /// segment, a ringed swatch, a filled haptic segment and two accent switches, none of them
+    /// that screen's action.
     public static var accentGlow: Color { Color.dipleAccent.opacity(0.30) }
 
     /// Accent as **text**. The only accent token allowed in a `foregroundStyle`.

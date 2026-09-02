@@ -130,11 +130,13 @@ public struct AppSettingsView: View {
                                                 } label: {
                                                     Text(intensity.rawValue)
                                                         .dipleType(.footnote)
-                                                        .foregroundColor(isSelected ? .black : DipleColor.textSecondary)
+                                                        .foregroundColor(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
                                                         .frame(maxWidth: .infinity)
                                                         .padding(.vertical, DipleSpace.m)
-                                                        .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
-                                                        .cornerRadius(DipleRadius.s)
+                                                        .dipleSelected(
+                                                            isSelected,
+                                                            in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+                                                        )
                                                 }
                                             }
                                         }
@@ -762,8 +764,8 @@ private struct HandDrawnHeart: Shape {
 /// Light / Dark / System, as three equal segments above the accent swatches.
 ///
 /// A segmented row rather than a toggle: "System" is a real third choice, not the absence of
-/// the other two, and a switch labelled "Dark mode" cannot say so. Selection is a filled pill,
-/// the same shape the haptic-intensity row uses for a chosen option on this screen.
+/// the other two, and a switch labelled "Dark mode" cannot say so. Selection is the app's one
+/// ring (`dipleSelected`), the same mark the haptic row and every filter chip carry.
 private struct AppearanceOptionButton: View {
     let option: DipleAppearance
     let isSelected: Bool
@@ -777,11 +779,11 @@ private struct AppearanceOptionButton: View {
                 Text(option.title)
                     .dipleType(.caption, weight: .medium)
             }
-            .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
+            .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, DipleSpace.m)
-            .background(
-                isSelected ? DipleColor.accent : DipleColor.surfaceOverlay,
+            .dipleSelected(
+                isSelected,
                 in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
             )
             .contentShape(Rectangle())

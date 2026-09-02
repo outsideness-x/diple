@@ -234,6 +234,13 @@ public struct ReaderSettingsView: View {
 
     // MARK: - Pickers
 
+    /// The one control that rings itself by hand instead of calling `dipleSelected`.
+    ///
+    /// That modifier tints a chosen option with `accentSoft`, which is right everywhere the
+    /// fill underneath is chrome — and wrong here, where the fill *is* the answer: laying a
+    /// wash of accent over the Paper swatch would show the reader a paper they are not about
+    /// to get. So the swatch keeps its page colour under every state and takes the ring alone,
+    /// at the same `DipleStroke.selection` weight as everything else.
     private func themeButton(_ pageTheme: ReaderPageTheme) -> some View {
         let isSelected = settings.theme == pageTheme
         return Button {
@@ -254,7 +261,7 @@ public struct ReaderSettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
-                    .stroke(isSelected ? DipleColor.accent : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? DipleColor.accent : Color.clear, lineWidth: DipleStroke.selection)
             }
         }
         .buttonStyle(.readerControl)
@@ -290,14 +297,17 @@ public struct ReaderSettingsView: View {
             // including for the shipped faces, where `Font.custom(_:relativeTo:)` is the
             // scaling form and the bare `Font.custom(_:size:)` is not.
             fontOptionLabel(fontOption)
-                .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
+                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, DipleSpace.s)
                 .padding(.vertical, DipleSpace.m)
-                .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
-                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
+                .dipleSelected(
+                    isSelected,
+                    in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous),
+                    resting: DipleColor.surfaceRaised
+                )
         }
         .buttonStyle(.readerControl)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
@@ -311,13 +321,16 @@ public struct ReaderSettingsView: View {
         } label: {
             Text(mode.rawValue)
                 .dipleType(.callout, weight: .medium)
-                .foregroundStyle(isSelected ? DipleColor.textOnAccent : DipleColor.textSecondary)
+                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DipleSpace.m)
-                .background(isSelected ? DipleColor.accent : DipleColor.surfaceRaised)
-                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
+                .dipleSelected(
+                    isSelected,
+                    in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous),
+                    resting: DipleColor.surfaceRaised
+                )
         }
         .buttonStyle(.readerControl)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])

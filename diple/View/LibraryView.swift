@@ -595,10 +595,9 @@ public struct LibraryView: View {
                     } label: {
                         Text(option.rawValue)
                             .dipleType(.micro)
-                            .foregroundStyle(type == option ? DipleColor.textOnAccent : DipleColor.textTertiary)
+                            .foregroundStyle(type == option ? DipleColor.accentInk : DipleColor.textTertiary)
                             .diplePadding(.chip)
-                            .background(type == option ? DipleColor.accent : DipleColor.surfaceOverlay)
-                            .clipShape(Capsule())
+                            .dipleSelected(type == option, in: Capsule())
                     }
                     .buttonStyle(.plain)
                 }
@@ -669,9 +668,9 @@ public struct LibraryView: View {
                 Text(status.compactTitle ?? sort.compactTitle)
                     .dipleType(.micro, weight: .semibold)
             }
-            .foregroundStyle(status == .any ? DipleColor.textSecondary : DipleColor.textOnAccent)
+            .foregroundStyle(status == .any ? DipleColor.textSecondary : DipleColor.accentInk)
             .diplePadding(.chip)
-            .background(status == .any ? DipleColor.surfaceOverlay : DipleColor.accent, in: Capsule())
+            .dipleSelected(status != .any, in: Capsule())
         }
         .buttonStyle(.readerControl)
         .accessibilityLabel("Filter and sort")

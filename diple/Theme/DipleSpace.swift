@@ -54,6 +54,11 @@ public enum DipleStroke {
     public static let hairline: CGFloat = 0.5
     /// 1 — an edge that must survive over an unpredictable background (a book page).
     public static let regular: CGFloat = 1
+    /// 1.5 — the ring that marks a chosen option. Off the whole-point scale deliberately: it
+    /// has to be heavier than a separating edge, so it is not mistaken for one, and lighter
+    /// than the progress line, which is a mark rather than an outline. One value for every
+    /// chosen state in the app, from a 60 pt chip to a 160 pt theme swatch.
+    public static let selection: CGFloat = 1.5
     /// 3 — the reader's resting progress line. Thicker than a separator on purpose: it is not
     /// an edge between two surfaces but a mark that has to be legible at a glance, over paper,
     /// sepia or night, without becoming a bar. It sits on the very bottom edge of the display,

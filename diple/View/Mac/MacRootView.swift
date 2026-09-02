@@ -893,9 +893,9 @@ private struct MacNotesCollection: View {
     private func macSmartChip(_ title: String, icon: String, selected: Bool) -> some View {
         Label(title, systemImage: icon)
             .dipleType(.micro)
-            .foregroundStyle(selected ? DipleColor.textOnAccent : DipleColor.textTertiary)
+            .foregroundStyle(selected ? DipleColor.accentInk : DipleColor.textTertiary)
             .diplePadding(.chip)
-            .background(selected ? DipleColor.accent : DipleColor.surfaceOverlay, in: Capsule())
+            .dipleSelected(selected, in: Capsule())
     }
 }
 

@@ -277,10 +277,9 @@ public struct NotesView: View {
     private func filterChip(_ title: String, systemImage: String, isSelected: Bool) -> some View {
         Label(title, systemImage: systemImage)
             .dipleType(.micro)
-            .foregroundColor(isSelected ? DipleColor.textOnAccent : DipleColor.textTertiary)
+            .foregroundColor(isSelected ? DipleColor.accentInk : DipleColor.textTertiary)
             .diplePadding(.chip)
-            .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
-            .clipShape(Capsule())
+            .dipleSelected(isSelected, in: Capsule())
     }
 
     @ViewBuilder

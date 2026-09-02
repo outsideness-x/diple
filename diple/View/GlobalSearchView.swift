@@ -144,12 +144,11 @@ public struct GlobalSearchView: View {
                     .monospacedDigit()
             }
             .foregroundStyle(
-                isSelected ? DipleColor.textOnAccent
+                isSelected ? DipleColor.accentInk
                     : (isEmpty ? DipleColor.textQuaternary : DipleColor.textTertiary)
             )
             .diplePadding(.chip)
-            .background(isSelected ? DipleColor.accent : DipleColor.surfaceOverlay)
-            .clipShape(Capsule())
+            .dipleSelected(isSelected, in: Capsule())
         }
         .buttonStyle(.plain)
         .disabled(isEmpty && kind != nil)

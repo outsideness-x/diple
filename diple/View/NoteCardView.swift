@@ -19,13 +19,15 @@ public struct TagChipView: View {
     }
 
     private var foreground: Color {
-        if isSelected { return .black }
-        return kind == .book ? DipleColor.accent : DipleColor.textTertiary
+        if isSelected || kind == .book { return DipleColor.accentInk }
+        return DipleColor.textTertiary
     }
 
-    private var background: Color {
-        if isSelected { return DipleColor.accent }
-        return kind == .book ? DipleColor.accent.opacity(0.14) : DipleColor.surfaceOverlay
+    /// A book chip is tinted even when it is not chosen — that tint is what tells the two kinds
+    /// apart at a glance — so it rests on `accentSoft` rather than on the neutral overlay, and
+    /// `dipleSelected` rings it on top of that when it is also the current filter.
+    private var resting: Color {
+        kind == .book ? DipleColor.accentSoft : DipleColor.surfaceOverlay
     }
 
     public var body: some View {
@@ -41,8 +43,7 @@ public struct TagChipView: View {
         }
         .foregroundColor(foreground)
         .diplePadding(.chip)
-        .background(background)
-        .clipShape(Capsule())
+        .dipleSelected(isSelected, in: Capsule(), resting: resting)
     }
 }
 
