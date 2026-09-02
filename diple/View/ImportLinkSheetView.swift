@@ -33,7 +33,7 @@ public struct ImportLinkSheetView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle("Save a Link")
+            .navigationTitle("Save a link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {

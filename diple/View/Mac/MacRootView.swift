@@ -106,14 +106,14 @@ public struct MacRootView: View {
                     Button {
                         isImportingLink = true
                     } label: {
-                        Label("Save Link", systemImage: "link")
+                        Label("Save link", systemImage: "link")
                     }
                     .keyboardShortcut("l", modifiers: [.command, .shift])
 
                     Button {
                         isImportingFile = true
                     } label: {
-                        Label("Import File", systemImage: "folder")
+                        Label("Import file", systemImage: "folder")
                     }
                     .keyboardShortcut("o", modifiers: .command)
 
@@ -122,7 +122,7 @@ public struct MacRootView: View {
                     Button {
                         createNewNote()
                     } label: {
-                        Label("New Note", systemImage: "square.and.pencil")
+                        Label("New note", systemImage: "square.and.pencil")
                     }
                     .keyboardShortcut("n", modifiers: .command)
                 } label: {
@@ -292,11 +292,11 @@ public struct MacRootView: View {
                     library.updateMetadata(for: book.id, title: title, author: author, coverData: coverData)
                 }
             }
-            .alert("Delete Book?", isPresented: $library.showDeleteConfirmation) {
+            .alert("Delete book?", isPresented: $library.showDeleteConfirmation) {
                 Button("Delete", role: .destructive) { library.deleteConfirmedBook() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The publication and reading position will be removed. Its quotes will remain in Quotes, where you can delete them manually.")
+                Text("The file and your reading position are removed. Saved passages stay in Highlights.")
             }
 
         case .highlights:
@@ -458,7 +458,7 @@ private struct MacLibraryCollection: View {
                         message: query.isEmpty
                             ? "Import an EPUB or PDF to start your library."
                             : "Try a different title, author or source.",
-                        actionTitle: query.isEmpty ? "Import File" : nil,
+                        actionTitle: query.isEmpty ? "Import file" : nil,
                         actionIcon: "plus",
                         action: query.isEmpty ? onImportFile : nil
                     )
@@ -506,7 +506,7 @@ private struct MacLibraryCollection: View {
                                                 Button("Mark as Finished") { onMarkAsFinished(book) }
                                             }
                                             Button("Tags…") { onEditTags(book) }
-                                            Button("Edit Metadata") { onEdit(book) }
+                                            Button("Edit metadata") { onEdit(book) }
                                             Divider()
                                             // The desktop sidebar does not split by location
                                             // yet, so this is the only place on the Mac where
@@ -557,14 +557,14 @@ private struct MacLibraryCollection: View {
             Spacer()
 
             Button(action: onImportLink) {
-                Label("Save Link", systemImage: "link")
+                Label("Save link", systemImage: "link")
                     .dipleType(.footnote)
             }
             .buttonStyle(.plain)
             .foregroundStyle(DipleColor.textSecondary)
 
             Button(action: onImportFile) {
-                Label("Import File", systemImage: "plus")
+                Label("Import file", systemImage: "plus")
                     .dipleType(.footnote, weight: .semibold)
                     .foregroundStyle(DipleColor.textOnAccent)
                     .padding(.horizontal, DipleSpace.m)
@@ -793,7 +793,7 @@ private struct MacNotesCollection: View {
                     icon: "square.and.pencil",
                     title: "Start with a thought",
                     message: "Notes are quiet pages for ideas, summaries and connections.",
-                    actionTitle: "New Note",
+                    actionTitle: "New note",
                     actionIcon: "plus",
                     action: onCreate
                 )
@@ -1073,7 +1073,7 @@ private struct MacBookInspector: View {
                     }
                 }
 
-                Button("Edit Metadata", action: onEdit)
+                Button("Edit metadata", action: onEdit)
                     .dipleType(.footnote)
                     .foregroundStyle(DipleColor.textSecondary)
             }
@@ -1140,13 +1140,13 @@ private struct MacQuotesInspector: View {
                         Button {
                             model.beginEditingComment(quote)
                         } label: {
-                            Label(quote.comment == nil ? "Add Comment" : "Edit Comment", systemImage: "bubble.left")
+                            Label(quote.comment == nil ? "Add comment" : "Edit comment", systemImage: "bubble.left")
                         }
 
                         Button(role: .destructive) {
                             model.confirmDelete(quote)
                         } label: {
-                            Label("Delete Quote", systemImage: "trash")
+                            Label("Delete passage", systemImage: "trash")
                         }
                     }
                 }
@@ -1154,13 +1154,13 @@ private struct MacQuotesInspector: View {
             .padding(DipleSpace.xxl)
         }
         .background(DipleColor.surface)
-        .alert("Delete Quote?", isPresented: $model.showDeleteConfirmation) {
+        .alert("Delete passage?", isPresented: $model.showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 model.deleteConfirmedQuote()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This quote will be removed.")
+            Text("This passage will be removed.")
         }
         .sheet(item: $model.quoteForComment) { quote in
             QuoteCommentEditorView(
@@ -1293,7 +1293,7 @@ private struct MacNoteInspector: View {
                     Button(role: .destructive) {
                         isShowingDeleteConfirmation = true
                     } label: {
-                        Label("Delete Note", systemImage: "trash")
+                        Label("Delete note", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -1409,7 +1409,7 @@ private struct MacNoteInspector: View {
             .id(formulaSessionID)
             .frame(minWidth: 620, minHeight: 680)
         }
-        .alert("Delete Note?", isPresented: $isShowingDeleteConfirmation) {
+        .alert("Delete note?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 isDeleting = true
                 saveTask?.cancel()
@@ -1768,10 +1768,10 @@ private struct MacSearchInspector: View {
                 }
 
                 if let note {
-                    Button("Open Note") { onOpenNote(note) }
+                    Button("Open note") { onOpenNote(note) }
                         .buttonStyle(.borderedProminent)
                 } else if let book {
-                    Button("Open Publication") { onRead(book) }
+                    Button("Open publication") { onRead(book) }
                         .buttonStyle(.borderedProminent)
                 }
             }

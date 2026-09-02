@@ -97,7 +97,7 @@ public struct NotesView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "An unknown error occurred.")
             }
-            .alert("Delete Note?", isPresented: $viewModel.showDeleteConfirmation) {
+            .alert("Delete note?", isPresented: $viewModel.showDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
                     viewModel.deleteConfirmedNote()
                 }
@@ -365,7 +365,7 @@ public struct NotesView: View {
                 HStack(spacing: DipleSpace.s) {
                     Image(systemName: "plus")
                         .dipleIcon(14, weight: .semibold)
-                    Text("New Note")
+                    Text("New note")
                         .dipleType(.body, weight: .semibold)
                 }
                 .foregroundStyle(DipleColor.textOnAccent)

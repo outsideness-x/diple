@@ -26,7 +26,7 @@ public struct BookActionsMenu: ViewModifier {
             Button {
                 onShowOverview()
             } label: {
-                Label("Source Overview", systemImage: "info.circle")
+                Label("Source overview", systemImage: "info.circle")
             }
 
             if LibraryStatusFilter.finished.includes(book) {
@@ -67,7 +67,7 @@ public struct BookActionsMenu: ViewModifier {
             Button {
                 onEdit()
             } label: {
-                Label("Edit Metadata", systemImage: "pencil")
+                Label("Edit metadata", systemImage: "pencil")
             }
 
             Button(role: .destructive) {

@@ -63,7 +63,7 @@ public struct DipleRestoreReviewView: View {
                     .padding(.bottom, DipleSpace.xxxl)
                 }
             }
-            .navigationTitle("Restore Backup")
+            .navigationTitle("Restore backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {

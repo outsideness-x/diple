@@ -80,7 +80,7 @@ public struct ReaderContainerView: View {
                 VStack(spacing: DipleSpace.m) {
                     ProgressView()
                         .tint(DipleColor.accent)
-                    Text("Loading book...")
+                    Text("Loading book…")
                         .dipleType(.callout, weight: .medium)
                         .foregroundStyle(DipleColor.textSecondary)
                 }
@@ -282,7 +282,7 @@ public struct ReaderContainerView: View {
                                         .foregroundStyle(chrome.control)
                                 }
                                 .buttonStyle(.readerControl)
-                                .accessibilityLabel("Contents, quotes, notes and bookmarks")
+                                .accessibilityLabel("Contents, highlights, notes and bookmarks")
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)

@@ -36,7 +36,7 @@ public struct DatabaseUnavailableView: View {
                             .dipleType(.display, weight: .semibold)
                             .foregroundStyle(DipleColor.textPrimary)
 
-                        Text("diple could not read the file that holds your books, quotes and notes. Nothing has been deleted — the file is still on this device exactly as it was.")
+                        Text("diple could not read the file that holds your books, highlights and notes. Nothing has been deleted — the file is still on this device exactly as it was.")
                             .dipleType(.callout)
                             .foregroundStyle(DipleColor.textSecondary)
                     }
@@ -103,7 +103,7 @@ public struct DatabaseUnavailableView: View {
         }
         .alert("Start a new library?", isPresented: $isConfirmingReset) {
             Button("Cancel", role: .cancel) {}
-            Button("Start New Library", role: .destructive) { reset() }
+            Button("Start a new library", role: .destructive) { reset() }
         } message: {
             Text("diple will open with an empty library next time. The unreadable file stays on this device.")
         }

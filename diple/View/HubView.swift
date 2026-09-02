@@ -88,7 +88,7 @@ public struct HubView: View {
                 .foregroundStyle(DipleColor.textTertiary)
 
             VStack(spacing: DipleSpace.s) {
-                Text("No Quotes Yet")
+                Text("No passages yet")
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 

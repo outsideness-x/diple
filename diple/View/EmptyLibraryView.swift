@@ -16,7 +16,7 @@ public struct EmptyLibraryView: View {
             DipleMark(size: 56)
 
             VStack(spacing: DipleSpace.s) {
-                Text("Library is Empty")
+                Text("Library is empty")
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 
@@ -35,7 +35,7 @@ public struct EmptyLibraryView: View {
                     HStack(spacing: DipleSpace.s) {
                         Image(systemName: "plus")
                             .dipleIcon(14, weight: .semibold)
-                        Text("Import a Book")
+                        Text("Import a book")
                             .dipleType(.body, weight: .semibold)
                     }
                     .foregroundStyle(DipleColor.textOnAccent)
@@ -54,7 +54,7 @@ public struct EmptyLibraryView: View {
                     HStack(spacing: DipleSpace.s) {
                         Image(systemName: "link")
                             .dipleIcon(12, weight: .semibold)
-                        Text("Save a Link")
+                        Text("Save a link")
                             .dipleType(.footnote, weight: .semibold)
                     }
                     .foregroundStyle(DipleColor.textSecondary)

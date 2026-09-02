@@ -80,7 +80,7 @@ public struct GlobalSearchView: View {
             .navigationDestination(for: GlobalSearchResult.self) { result in
                 destination(for: result)
             }
-            .alert("Search Error", isPresented: Binding(
+            .alert("Search error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } }
             )) {
@@ -211,7 +211,7 @@ public struct GlobalSearchView: View {
                 .foregroundStyle(DipleColor.accentInk)
 
             VStack(spacing: DipleSpace.s) {
-                Text("Search Everything")
+                Text("Search everything")
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
 
@@ -232,7 +232,7 @@ public struct GlobalSearchView: View {
             Image(systemName: "text.magnifyingglass")
                 .dipleIcon(28, weight: .light)
                 .foregroundStyle(DipleColor.textQuaternary)
-            Text("Nothing Found")
+            Text("Nothing found")
                 .dipleType(.headline)
                 .foregroundStyle(DipleColor.textPrimary)
             Text("Try fewer words or a different spelling.")

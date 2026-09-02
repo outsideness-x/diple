@@ -122,7 +122,7 @@ public struct EditBookMetadataView: View {
                     .padding(.horizontal, DipleSpace.xxl)
                 }
             }
-            .navigationTitle("Edit Metadata")
+            .navigationTitle("Edit metadata")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {

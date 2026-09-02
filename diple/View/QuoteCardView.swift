@@ -75,7 +75,7 @@ public struct QuoteCardView: View {
                                 .foregroundStyle(DipleColor.textTertiary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(comment == nil ? "Add comment to quote" : "Edit quote comment")
+                        .accessibilityLabel(comment == nil ? "Add comment to passage" : "Edit the comment on this passage")
                     }
                 }
             }
@@ -88,18 +88,18 @@ public struct QuoteCardView: View {
                 UIPasteboard.general.string = quote.text
                 HapticManager.shared.impact(.light)
             } label: {
-                Label("Copy Quote", systemImage: "doc.on.doc")
+                Label("Copy passage", systemImage: "doc.on.doc")
             }
 
             if let onCommentRequest {
                 Button(action: onCommentRequest) {
-                    Label(comment == nil ? "Add Comment" : "Edit Comment", systemImage: "bubble.left")
+                    Label(comment == nil ? "Add comment" : "Edit comment", systemImage: "bubble.left")
                 }
             }
 
             if let onDeleteRequest {
                 Button(role: .destructive, action: onDeleteRequest) {
-                    Label("Delete Quote", systemImage: "trash")
+                    Label("Delete passage", systemImage: "trash")
                 }
             }
         }
@@ -128,7 +128,7 @@ public struct QuoteCommentEditorView: View {
     public var body: some View {
         NavigationStack {
             Form {
-                Section("Quote") {
+                Section("Passage") {
                     Text(quote.text)
                         .dipleType(.readingCaption)
                         .foregroundStyle(DipleColor.textSecondary)
@@ -136,20 +136,20 @@ public struct QuoteCommentEditorView: View {
                 }
 
                 Section("Comment") {
-                    TextField("Your thoughts about this quote", text: $comment, axis: .vertical)
+                    TextField("Your thoughts about this passage", text: $comment, axis: .vertical)
                         .lineLimit(4...12)
                         .textInputAutocapitalization(.sentences)
                 }
 
                 if quote.comment != nil {
                     Section {
-                        Button("Remove Comment", role: .destructive) {
+                        Button("Remove comment", role: .destructive) {
                             onSave("")
                         }
                     }
                 }
             }
-            .navigationTitle(quote.comment == nil ? "Add Comment" : "Edit Comment")
+            .navigationTitle(quote.comment == nil ? "Add comment" : "Edit comment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

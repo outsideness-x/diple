@@ -124,7 +124,7 @@ final class dipleUITests: XCTestCase {
 
         XCTAssertTrue(export.isHittable)
         XCTAssertTrue(restore.isHittable)
-        XCTAssertTrue(app.staticTexts["iCloud Sync"].exists)
+        XCTAssertTrue(app.staticTexts["iCloud sync"].exists)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Data restore controls"

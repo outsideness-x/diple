@@ -202,7 +202,7 @@ public struct NoteDetailView: View {
                 }
             }
         }
-        .navigationTitle(isEditing ? (route.item == nil ? "New Note" : "Editing") : "")
+        .navigationTitle(isEditing ? (route.item == nil ? "New note" : "Editing") : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .toolbar { toolbarContent }
@@ -240,7 +240,7 @@ public struct NoteDetailView: View {
             Button("Add") { commitTagDraft() }
             Button("Cancel", role: .cancel) { tagDraft = "" }
         }
-        .alert("Delete Note?", isPresented: $showDeleteConfirmation) {
+        .alert("Delete note?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 if let item = route.item {
                     onDelete(item)
@@ -350,7 +350,7 @@ public struct NoteDetailView: View {
                         UIPasteboard.general.string = NoteMarkdown.plainText(body_)
                         HapticManager.shared.impact(.light)
                     } label: {
-                        Label("Copy Plain Text", systemImage: "text.alignleft")
+                        Label("Copy plain text", systemImage: "text.alignleft")
                     }
 
                     if route.item != nil {

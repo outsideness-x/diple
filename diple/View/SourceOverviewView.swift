@@ -157,7 +157,7 @@ public struct SourceOverviewView: View {
                     onOpenNote: { path.append(NoteRoute.existing($0)) }
                 )
             }
-            .alert("Source Error", isPresented: Binding(
+            .alert("Source error", isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } }
             )) {

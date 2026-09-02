@@ -152,7 +152,7 @@ public struct LibraryView: View {
                         VStack(spacing: DipleSpace.m) {
                             ProgressView()
                                 .tint(DipleColor.accent)
-                            Text("Importing book...")
+                            Text("Adding to your library…")
                                 .dipleType(.callout, weight: .medium)
                                 .foregroundStyle(DipleColor.textPrimary)
                         }
@@ -191,13 +191,13 @@ public struct LibraryView: View {
                         Button {
                             isLinkImporterPresented = true
                         } label: {
-                            Label("Save a Link", systemImage: "link")
+                            Label("Save a link", systemImage: "link")
                         }
 
                         Button {
                             isFileImporterPresented = true
                         } label: {
-                            Label("Import a File", systemImage: "folder")
+                            Label("Import a file", systemImage: "folder")
                         }
                     } label: {
                         Image(systemName: "plus")
@@ -229,14 +229,14 @@ public struct LibraryView: View {
             } message: {
                 Text(viewModel.errorMessage ?? "An unknown error occurred.")
             }
-            .alert("Delete Book?", isPresented: $viewModel.showDeleteConfirmation) {
+            .alert("Delete book?", isPresented: $viewModel.showDeleteConfirmation) {
                 Button("Delete", role: .destructive) {
                     viewModel.deleteConfirmedBook()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 if let book = viewModel.bookToDelete {
-                    Text("Are you sure you want to delete '\(book.title)'? This will remove the book file and metadata. Its quotes will remain in Quotes, where you can delete them manually.")
+                    Text("The file and your reading position are removed. Saved passages stay in Highlights.")
                 }
             }
             .navigationDestination(for: BookRoute.self) { route in
@@ -477,7 +477,7 @@ public struct LibraryView: View {
         }
     }
 
-    /// An empty shelf and a search that found nothing are different facts, and "Nothing Found"
+    /// An empty shelf and a search that found nothing are different facts, and "Nothing found"
     /// over a cleared inbox reads as a failure rather than as the goal.
     @ViewBuilder
     private var emptyShelf: some View {
@@ -683,7 +683,7 @@ public struct LibraryView: View {
                 .dipleIcon(24, weight: .light)
                 .foregroundStyle(DipleColor.textQuaternary)
 
-            Text("Nothing Found")
+            Text("Nothing found")
                 .dipleType(.headline)
                 .foregroundStyle(DipleColor.textPrimary)
 
@@ -692,7 +692,7 @@ public struct LibraryView: View {
                 .foregroundStyle(DipleColor.textTertiary)
                 .multilineTextAlignment(.center)
 
-            Button("Clear Search and Filters") {
+            Button("Clear search and filters") {
                 searchText = ""
                 type = .all
                 status = .any

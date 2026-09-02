@@ -87,7 +87,7 @@ public struct AddBookmarkSheetView: View {
                 .padding(.horizontal, DipleSpace.xxl)
                 .padding(.top, DipleSpace.xxl)
             }
-            .navigationTitle("Add Bookmark")
+            .navigationTitle("Add bookmark")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {

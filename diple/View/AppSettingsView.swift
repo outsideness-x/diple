@@ -89,7 +89,7 @@ public struct AppSettingsView: View {
                                 // Enable Haptics Toggle
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Enable Haptics")
+                                        Text("Enable haptics")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
                                         Text("Vibrate on interactions and events")
@@ -115,7 +115,7 @@ public struct AppSettingsView: View {
                                 if settingsManager.settings.isHapticsEnabled {
                                     // Intensity Selector
                                     VStack(alignment: .leading, spacing: DipleSpace.m) {
-                                        Text("Haptic Intensity")
+                                        Text("Haptic intensity")
                                             .dipleType(.callout, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
 
@@ -148,7 +148,7 @@ public struct AppSettingsView: View {
                                     // Chapter Transition Vibration Toggle
                                     HStack {
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Chapter Transition Vibration")
+                                            Text("Chapter transition vibration")
                                                 .dipleType(.body, weight: .medium)
                                                 .foregroundStyle(DipleColor.textPrimary)
                                             Text("Vibrate when moving to next chapter")
@@ -183,7 +183,7 @@ public struct AppSettingsView: View {
                             VStack(spacing: 1) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Default Continuous Scroll")
+                                        Text("Default continuous scroll")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
                                         Text("Open books in continuous vertical scrolling mode")
@@ -207,7 +207,7 @@ public struct AppSettingsView: View {
 
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Keep Screen Awake")
+                                        Text("Keep screen awake")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
                                         Text("Screen dims after 10 minutes without page turns instead of after a few seconds")
@@ -242,7 +242,7 @@ public struct AppSettingsView: View {
                             VStack(spacing: 1) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Daily Quote")
+                                        Text("Daily passage")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
                                         Text("Return to one saved passage each day")
@@ -273,7 +273,7 @@ public struct AppSettingsView: View {
                                 if isDailyResurfacingEnabled {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Reminder Time")
+                                            Text("Reminder time")
                                                 .dipleType(.body, weight: .medium)
                                                 .foregroundStyle(DipleColor.textPrimary)
                                             Text("A quiet nudge to revisit a saved thought")
@@ -282,7 +282,7 @@ public struct AppSettingsView: View {
                                         }
                                         Spacer()
                                         DatePicker(
-                                            "Reminder Time",
+                                            "Reminder time",
                                             selection: $dailyResurfacingTime,
                                             displayedComponents: .hourAndMinute
                                         )
@@ -307,10 +307,10 @@ public struct AppSettingsView: View {
                             VStack(spacing: 1) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("iCloud Sync")
+                                        Text("iCloud sync")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Sync your library, quotes and notes across your devices")
+                                        Text("Sync your library, highlights and notes across your devices")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
                                     }
@@ -400,7 +400,7 @@ public struct AppSettingsView: View {
                                             .frame(width: 28)
 
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Privacy Policy")
+                                            Text("Privacy policy")
                                                 .dipleType(.body, weight: .medium)
                                                 .foregroundStyle(DipleColor.textPrimary)
                                             Text("How diple handles your library and iCloud sync")
@@ -457,12 +457,12 @@ public struct AppSettingsView: View {
                     await CloudSyncService.shared.refreshStatus()
                 }
             }
-            .alert("Notifications Are Off", isPresented: $showDailyResurfacingPermissionAlert) {
+            .alert("Notifications are off", isPresented: $showDailyResurfacingPermissionAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Allow notifications for diple in iOS Settings to receive your daily quote.")
+                Text("Allow notifications for diple in iOS Settings to receive your daily passage.")
             }
-            .alert("Data File Error", isPresented: Binding(
+            .alert("Data file error", isPresented: Binding(
                 get: { dataErrorMessage != nil },
                 set: { if !$0 { dataErrorMessage = nil } }
             )) {

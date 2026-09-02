@@ -63,7 +63,7 @@ public struct HighlightEditorView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 bottomActions
             }
-            .alert("Delete Highlight?", isPresented: $isDeleteConfirmationPresented) {
+            .alert("Delete passage?", isPresented: $isDeleteConfirmationPresented) {
                 Button("Delete", role: .destructive) {
                     onDelete?()
                     dismiss()

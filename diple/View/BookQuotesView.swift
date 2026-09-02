@@ -42,13 +42,13 @@ public struct BookQuotesView: View {
         } message: {
             Text(viewModel.errorMessage ?? "An unknown error occurred.")
         }
-        .alert("Delete Quote?", isPresented: $viewModel.showDeleteConfirmation) {
+        .alert("Delete passage?", isPresented: $viewModel.showDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 viewModel.deleteConfirmedQuote()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This quote will be removed.")
+            Text("This passage will be removed.")
         }
         .sheet(item: $viewModel.quoteForComment) { quote in
             QuoteCommentEditorView(
@@ -80,7 +80,7 @@ public struct BookQuotesView: View {
                     .foregroundStyle(DipleColor.textQuaternary)
             }
 
-            Text("\(viewModel.quotes.count) \(viewModel.quotes.count == 1 ? "quote" : "quotes")")
+            Text("\(viewModel.quotes.count) \(viewModel.quotes.count == 1 ? "passage" : "passages")")
                 .dipleType(.caption, weight: .medium)
                 .foregroundStyle(DipleColor.textTertiary)
                 .padding(.top, DipleSpace.xs)
