@@ -11,6 +11,15 @@ import SwiftUI
 /// The fix is to stop fighting the page. Chrome takes the page's own tone — bright over
 /// paper, dark over night — and the controls invert with it, so contrast is correct in every
 /// theme without a slab anywhere.
+///
+/// **Every value here is fixed to the page, never to the app's appearance.** Paper and Sepia
+/// always got this right by accident — their ink is written as literal black and sepia — while
+/// Carbon and Ink took `DipleColor.textPrimary`, which is a *dynamic* colour and resolves
+/// against the trait collection. So a reader with the interface set to Light and the page set
+/// to Carbon got 93%-black ink on a dark blurred bar: the percentage, the chapter and every
+/// glyph in the top bar were nearly invisible, and only in that one combination, which is why
+/// it survived. The page theme is a separate choice from the app's appearance, and the bar
+/// belongs to the page — so it takes white ink over a night page whatever the app is doing.
 public struct ReaderChrome: Equatable {
     /// Drives the material's own light/dark rendering.
     public let colorScheme: ColorScheme
@@ -39,8 +48,8 @@ public struct ReaderChrome: Equatable {
             return ReaderChrome(
                 colorScheme: .dark,
                 tint: DipleColor.canvas.opacity(0.55),
-                control: DipleColor.textPrimary,
-                secondary: DipleColor.textSecondary,
+                control: SwiftUI.Color.white.opacity(0.93),
+                secondary: SwiftUI.Color.white.opacity(0.70),
                 separator: SwiftUI.Color.white.opacity(0.10),
                 track: SwiftUI.Color.white.opacity(0.18),
                 page: DipleColor.Page.carbonBackground
@@ -53,8 +62,8 @@ public struct ReaderChrome: Equatable {
             return ReaderChrome(
                 colorScheme: .dark,
                 tint: DipleColor.canvas.opacity(0.55),
-                control: DipleColor.textPrimary,
-                secondary: DipleColor.textSecondary,
+                control: SwiftUI.Color.white.opacity(0.93),
+                secondary: SwiftUI.Color.white.opacity(0.70),
                 separator: SwiftUI.Color.white.opacity(0.10),
                 track: SwiftUI.Color.white.opacity(0.18),
                 page: DipleColor.Page.inkBackground

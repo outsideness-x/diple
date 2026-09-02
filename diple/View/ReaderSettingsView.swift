@@ -285,6 +285,16 @@ public struct ReaderSettingsView: View {
         return Text(fontOption.title).font(.custom(family, size: 15, relativeTo: .subheadline))
     }
 
+    /// A specimen, on the paper it will be printed on.
+    ///
+    /// The theme swatches above are the best control on this sheet because each is drawn in its
+    /// own page colour: the choice is legible before it is made. The typeface buttons sat on
+    /// interface chrome instead and so showed the face on a ground it will never appear on —
+    /// and the selected one, when selection was still a fill, overprinted the specimen with
+    /// accent and stopped being a specimen at all.
+    ///
+    /// Both grids now say the same thing the same way: the reader's current page colour and
+    /// ink, the ring for the one that is chosen.
     private func fontFamilyButton(fontOption: ReaderFont) -> some View {
         let isSelected = settings.font == fontOption
         return Button {
@@ -297,17 +307,21 @@ public struct ReaderSettingsView: View {
             // including for the shipped faces, where `Font.custom(_:relativeTo:)` is the
             // scaling form and the bare `Font.custom(_:size:)` is not.
             fontOptionLabel(fontOption)
-                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
+                .foregroundStyle(settings.theme.swatchInk)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, DipleSpace.s)
                 .padding(.vertical, DipleSpace.m)
-                .dipleSelected(
-                    isSelected,
-                    in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous),
-                    resting: DipleColor.surfaceRaised
-                )
+                .background(settings.theme.swatchBackground)
+                .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
+                        .stroke(
+                            isSelected ? DipleColor.accent : Color.clear,
+                            lineWidth: DipleStroke.selection
+                        )
+                }
         }
         .buttonStyle(.readerControl)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])

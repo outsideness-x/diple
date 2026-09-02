@@ -56,10 +56,32 @@ public enum ReaderScript: String {
     ///
     /// Applied to Latin text this is a no-op in practice: Latin already breaks at spaces, and
     /// `keep-all` only additionally suppresses breaks inside hyphenated words.
+    ///
+    /// **Latin gets a floor under hyphenation instead.** `hyphens` stays on — Russian and German
+    /// compounds at a phone measure give an ugly rag without it, which is why it was turned on
+    /// with ragged-right rather than only with justify — but with nothing restraining it WebKit
+    /// hyphenates anything it can, and an English page came out with a hyphen on roughly two
+    /// lines in five: `re-search`, `ele-ment`, `with-out`, `tradi-tions` and `explic-itly` all
+    /// on one screen. Matter, the reference for this page, does not hyphenate at all.
+    ///
+    /// Four letters before the break and three after is what separates a compound worth
+    /// breaking from a short word that should have moved to the next line whole. Verified in a
+    /// WKWebView rather than assumed, by measuring the rendered height of a single word in a
+    /// box narrower than it: `research` and `element` stop breaking, `reconstruction` and
+    /// `internationalization` still do. The properties are inherited, so `:root` reaches the
+    /// whole document — the same mechanism `word-break` above relies on.
+    ///
+    /// CJK does not get them: East Asian typesetting does not hyphenate, and there is nothing
+    /// for a limit to restrain.
     public var cssOverrides: [String: String?] {
         switch self {
-        case .latin: return [:]
-        case .cjk: return ["word-break": "keep-all", "overflow-wrap": "break-word"]
+        case .latin:
+            return [
+                "-webkit-hyphenate-limit-before": "4",
+                "-webkit-hyphenate-limit-after": "3",
+            ]
+        case .cjk:
+            return ["word-break": "keep-all", "overflow-wrap": "break-word"]
         }
     }
 

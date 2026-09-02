@@ -66,6 +66,15 @@ public struct ReaderContainerView: View {
         ReaderChrome.forTheme(viewModel.settings.theme)
     }
 
+    /// What the bottom bar prints after the figures: the chapter, or the book when the
+    /// publication names no chapter. One line, always populated, and never the same string
+    /// twice on one screen — see the note where the top bar's title used to be.
+    private var placeLine: String {
+        let chapter = viewModel.currentLocator?.title?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return chapter.isEmpty ? viewModel.book.title : chapter
+    }
+
     public var body: some View {
         ZStack {
             // The page stops at the safe area, so the bands the status bar and the resting
@@ -206,12 +215,12 @@ public struct ReaderContainerView: View {
                             .buttonStyle(.readerControl)
                             .accessibilityLabel("Close book")
 
-                            Text(viewModel.book.title)
-                                .dipleType(.body, weight: .semibold)
-                                .foregroundStyle(chrome.control)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-
+                            // No title here. It was printed twice on one screen — at the top
+                            // of this bar and again, truncated, at the end of the bottom one —
+                            // and this is the copy that says least: the reader opened the book
+                            // a moment ago and knows which one it is. What they can lose track
+                            // of is where they are inside it, and that is what the bottom bar
+                            // reports. Dropping it also gives the four tools their room back.
                             Spacer()
 
                             // Tighter than the outer bar's spacing on purpose: this trio reads
@@ -305,7 +314,10 @@ public struct ReaderContainerView: View {
                                 let percentage = Int((viewModel.currentProgress * 100).rounded())
                                 Text("\(percentage)%")
                                     .dipleType(.footnote, weight: .semibold)
-                                    .foregroundStyle(DipleColor.accentInk)
+                                    // Chrome ink, not accent. A number is a fact, not an
+                                    // action, and the accent in this bar is already spent on
+                                    // the line that fills to exactly this value.
+                                    .foregroundStyle(chrome.control)
                                     .monospacedDigit()
                                     .contentTransition(.numericText())
                                     .animation(DipleMotion.standard, value: percentage)
@@ -328,14 +340,14 @@ public struct ReaderContainerView: View {
                                         .layoutPriority(1)
                                 }
 
-                                if let chapter = viewModel.currentLocator?.title,
-                                   !chapter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Text(chapter)
-                                        .dipleType(.footnote, weight: .regular)
-                                        .foregroundStyle(chrome.secondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.tail)
-                                }
+                                // Where in the book, in one place: the chapter when the
+                                // publication names one, the book itself when it does not — so
+                                // the line is always there and never doubles the top bar.
+                                Text(placeLine)
+                                    .dipleType(.footnote, weight: .regular)
+                                    .foregroundStyle(chrome.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
 
                                 Spacer(minLength: 0)
 
