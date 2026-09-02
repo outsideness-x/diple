@@ -17,7 +17,7 @@ public struct EmptyLibraryView: View {
 
             VStack(spacing: DipleSpace.s) {
                 Text("Library is empty")
-                    .dipleType(.title)
+                    .dipleType(.editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
 
                 Text("Import an EPUB or a PDF, or paste the link to an article and read it here without the page around it.")

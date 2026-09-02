@@ -104,7 +104,7 @@ public struct SourceLeadView: View {
                     // screen with a resurfaced quote, and whichever of the two is set larger is
                     // the one the screen is about — a reading app's front page is about the
                     // book you are in the middle of.
-                    .dipleType(.display)
+                    .dipleType(.editorialLead)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 3)
                     .multilineTextAlignment(.leading)

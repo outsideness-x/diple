@@ -41,7 +41,7 @@ public struct QuoteCardView: View {
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text(quote.text)
-                    .dipleType(.readingBody)
+                    .dipleType(.editorialQuote)
                     .readingLineSpacing(for: quote.text)
                     .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)

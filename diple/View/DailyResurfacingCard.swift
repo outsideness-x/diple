@@ -65,7 +65,7 @@ public struct DailyResurfacingCard: View {
             // saying TODAY'S HIGHLIGHT under it is the same word twice, and FROM YOUR LIBRARY
             // answered a question nobody had — there is nowhere else a highlight could be from.
             Text(item.quote.text)
-                .dipleType(.readingBody)
+                .dipleType(.editorialQuote)
                 .readingLineSpacing(for: item.quote.text)
                 .foregroundStyle(DipleColor.textPrimary)
                 .multilineTextAlignment(.leading)

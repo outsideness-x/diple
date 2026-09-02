@@ -94,7 +94,7 @@ public struct HighlightEditorView: View {
                     .foregroundStyle(DipleColor.textTertiary)
 
                 Text(quote)
-                    .dipleType(.readingCaption)
+                    .dipleType(.editorialQuote)
                     .readingLineSpacing(for: quote)
                     .foregroundStyle(DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)

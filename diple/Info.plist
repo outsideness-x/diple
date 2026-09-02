@@ -29,6 +29,7 @@
 		<string>OpenDyslexic-Italic.otf</string>
 		<string>OpenDyslexic-BoldItalic.otf</string>
 		<string>Caveat-Variable.ttf</string>
+		<string>Literata-Variable.ttf</string>
 	</array>
 	<!-- No UIUserInterfaceStyle here on purpose. It used to be pinned to Dark, which was
 	     right while the app had one appearance: it kept the launch screen, system sheets and

@@ -351,7 +351,7 @@ public struct NotesView: View {
 
             VStack(spacing: DipleSpace.s) {
                 Text("Write the first note")
-                    .dipleType(.title)
+                    .dipleType(.editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
 
                 Text("Start with the thought itself. You can connect a source or add tags when they become useful.")

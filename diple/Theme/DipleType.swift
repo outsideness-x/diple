@@ -14,16 +14,58 @@ import UIKit
 ///    type is set tight so headings read as one mass; small type is opened up so it stays
 ///    legible. Stored as a *ratio* of the size, per the design rule (−1%…−3% for headings,
 ///    +1%…+3% for small caps), so tracking scales together with the glyphs.
-/// 3. **One family.** Every role in the app is San Francisco. The reading roles below used to
-///    be `design: .serif`, which on iOS is New York — a second typeface appearing without
-///    warning in quote cards, cover placeholders and search results, and one with no Hangul
-///    coverage, so Korean fell back to a third face inside a single line. The reading roles
-///    still exist, because a quoted passage is set differently from a row label, but the
-///    difference is now size, weight and measure rather than a change of typeface.
+/// 3. **Two families, and the second one is named at every site that uses it.** The interface is
+///    San Francisco. The reading roles below used to be `design: .serif`, which on iOS is New
+///    York — a second typeface appearing without warning in quote cards, cover placeholders and
+///    search results, and one with no Hangul coverage, so Korean fell back to a third face
+///    inside a single line. That is why blanket serif is still forbidden, and why the reading
+///    roles differ from the interface ones by size, weight and measure rather than by family.
+///
+///    The `editorial*` roles are the exception, and they are an enumerated list rather than a
+///    category: the wordmark, the lead's headline, a saved passage, a note's own title, and the
+///    heading of an empty state or a colophon. Nowhere else. A publisher has a voice in type and
+///    the app had none; five places is what buys the voice without the leak.
+///
+///    The Hangul problem does not follow the face here, and the difference is the whole reason
+///    this is safe. New York broke Korean *inside the reader's web view*, where the CSS keyword
+///    that selects it swallows the rest of the cascade (see "Шрифт читалки" in CLAUDE.md). In a
+///    SwiftUI `Text` there is no cascade to swallow: CoreText falls back per glyph, exactly as
+///    `Caveat` — which has no Hangul either — already does for a Korean note. So an editorial
+///    role sets Latin and Cyrillic in Literata and lets Korean arrive in the system face. A
+///    mixed line is the cost, and it is affordable at a headline and unaffordable down a column
+///    of labels, which is precisely the line the enumerated list draws.
+public enum DipleFontFamily: Sendable {
+    /// San Francisco. Everything not named in the editorial list.
+    case system
+    /// Literata, bundled. A reading serif drawn for Google Play Books, so it is a publisher's
+    /// face by construction rather than by association; full Cyrillic and Greek, no Hangul.
+    case editorial
+
+    /// Literata ships as one variable file, and iOS knows it by its family name.
+    private static let editorialFamily = "Literata"
+
+    /// The font for this family at an **already scaled** size.
+    ///
+    /// `Font.custom(_:size:)` — the bare form, not `custom(_:size:relativeTo:)`. That looks like
+    /// the Dynamic Type mistake this file exists to prevent, and here it is the opposite: the
+    /// size handed in has already been through `UIFontMetrics` in `scaledSize(for:)`, so the
+    /// scaling form would apply the reader's setting a second time and compound it.
+    func font(size: CGFloat, weight: Font.Weight, design: Font.Design) -> Font {
+        switch self {
+        case .system:
+            return .system(size: size, weight: weight, design: design)
+        case .editorial:
+            return .custom(Self.editorialFamily, size: size).weight(weight)
+        }
+    }
+}
+
 public struct DipleTextStyle: Sendable {
     public let size: CGFloat
     public let weight: Font.Weight
     public let design: Font.Design
+    /// Which of the two faces sets this role.
+    public let family: DipleFontFamily
     /// The system style this role scales against.
     public let metrics: Font.TextStyle
     /// Letter-spacing as a fraction of the rendered size. Negative tightens.
@@ -33,12 +75,14 @@ public struct DipleTextStyle: Sendable {
         size: CGFloat,
         weight: Font.Weight,
         design: Font.Design = .default,
+        family: DipleFontFamily = .system,
         metrics: Font.TextStyle,
         trackingRatio: CGFloat
     ) {
         self.size = size
         self.weight = weight
         self.design = design
+        self.family = family
         self.metrics = metrics
         self.trackingRatio = trackingRatio
     }
@@ -87,7 +131,65 @@ public struct DipleTextStyle: Sendable {
     /// 14 — a quote compressed into a list row.
     public static let readingCaption = DipleTextStyle(size: 14, weight: .regular, metrics: .footnote, trackingRatio: 0)
 
+    // MARK: - Editorial roles (Literata)
+    //
+    // The complete list. A fifth one is a decision, not a convenience — see the note on
+    // `DipleFontFamily` above about why this stays enumerated.
+    //
+    // **The sizes here are not the sizes they replace, and the reason is set width rather than
+    // taste.** Measured with CoreText at 26 pt on "Artificial Rosetta Stone": SF semibold sets
+    // it in 270.4 pt, Literata medium in 290.7 — 7.5% wider, which costs about a word of
+    // measure on every headline in the app. Apparent size is *not* what differs: the two faces
+    // have the same cap height (0.705 em) and near-identical x-height (0.510 against 0.519), so
+    // matching by point size would have been matching the wrong quantity. Each role below is
+    // set to the size at which Literata occupies the measure its predecessor did.
+
+    /// 34 — the wordmark, on the front page and nowhere else. A publication prints its name
+    /// once, at the top of page one, not in the running head of every screen.
+    public static let wordmark = DipleTextStyle(
+        size: 34, weight: .regular, family: .editorial,
+        metrics: .largeTitle, trackingRatio: -0.02
+    )
+
+    /// 24 — the headline of the lead item, and of the colophon's own title. This is the block
+    /// the front page is about, and the place a serif earns most: a title of a *work*, not a
+    /// label on a control.
+    ///
+    /// 24, not the 26 of the `display` it replaces. At 26 it sets 7.5% wider than the SF it
+    /// took over from, and this headline was already the one thing on Home allowed to run to
+    /// three lines and truncate. At 24 the measure matches to within a point, so no title
+    /// anywhere reflows; the 8% of cap height given up is invisible beside a 17 pt quote.
+    public static let editorialLead = DipleTextStyle(
+        size: 24, weight: .medium, family: .editorial,
+        metrics: .title, trackingRatio: -0.015
+    )
+
+    /// 17 — a saved passage, set as the quotation it is. Regular weight and open tracking, for
+    /// the reason recorded on `readingQuote`: weight is how a heading announces itself, and a
+    /// quote borrowing it starts declaiming instead of speaking.
+    ///
+    /// Deliberately not the 19 of `readingQuote`. Home's quote was moved *down* to 16 once
+    /// before, because at 19 it ran to eight unbounded lines and took nearly half the screen
+    /// from the lead — see the note on hierarchy in CLAUDE.md. Literata sets 10% wider again,
+    /// so 19 here would be worse than the 19 that was rejected. 17 keeps the step up from body
+    /// copy that says "this is quoted" while leaving the lead its rank.
+    public static let editorialQuote = DipleTextStyle(
+        size: 17, weight: .regular, family: .editorial,
+        metrics: .body, trackingRatio: 0
+    )
+
+    /// 20 — the heading of an empty state or of the colophon. The one place an editorial face
+    /// sets interface copy, and it is allowed because it is alone on its screen.
+    public static let editorialTitle = DipleTextStyle(
+        size: 20, weight: .medium, family: .editorial,
+        metrics: .title3, trackingRatio: -0.01
+    )
+
     // MARK: - Note roles (system sans)
+    //
+    // The body of a note stays San Francisco deliberately. A note is what the reader wrote, not
+    // what a publisher set, and it is the text most likely to mix three scripts in one
+    // paragraph — the case an editorial face handles worst.
 
     /// 24 — the editable title of a note.
     public static let noteTitle = DipleTextStyle(size: 24, weight: .semibold, metrics: .title2, trackingRatio: -0.018)
@@ -116,7 +218,11 @@ public struct DipleTextStyle: Sendable {
     /// The font for this role, already scaled. `weight` overrides the role's default for the
     /// cases where the same size carries two emphases in one screen.
     public func font(for typeSize: DynamicTypeSize, weight override: Font.Weight? = nil) -> Font {
-        .system(size: scaledSize(for: typeSize), weight: override ?? weight, design: design)
+        family.font(
+            size: scaledSize(for: typeSize),
+            weight: override ?? weight,
+            design: design
+        )
     }
 
     /// Letter-spacing in points at the rendered size.
@@ -233,6 +339,10 @@ private struct DipleTypeSpecimen: View {
         ("readingTitle", .readingTitle), ("readingQuote", .readingQuote),
         ("readingBody", .readingBody), ("readingCaption", .readingCaption)
     ]
+    private let editorial: [(String, DipleTextStyle)] = [
+        ("wordmark", .wordmark), ("editorialLead", .editorialLead),
+        ("editorialQuote", .editorialQuote), ("editorialTitle", .editorialTitle)
+    ]
 
     var body: some View {
         ScrollView {
@@ -256,6 +366,22 @@ private struct DipleTypeSpecimen: View {
 
                     ForEach(content, id: \.0) { role in
                         Text("\(role.0) · 책을 읽는 사람")
+                            .dipleType(role.1)
+                            .foregroundStyle(DipleColor.textPrimary)
+                    }
+                }
+
+                // Three scripts on purpose. Latin and Cyrillic must be Literata; Hangul must
+                // fall back to the system face cleanly rather than to tofu. That fallback is
+                // the whole assumption the editorial roles rest on, so it is looked at rather
+                // than assumed.
+                VStack(alignment: .leading, spacing: DipleSpace.m) {
+                    Text("EDITORIAL — LITERATA")
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.textTertiary)
+
+                    ForEach(editorial, id: \.0) { role in
+                        Text("«Пиранези» · 책을 읽는 · \(role.0)")
                             .dipleType(role.1)
                             .foregroundStyle(DipleColor.textPrimary)
                     }

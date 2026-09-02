@@ -64,7 +64,7 @@ public struct FinishedColophonView: View {
     private var identity: some View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
             Text(colophon.title)
-                .dipleType(.display)
+                .dipleType(.editorialLead)
                 .foregroundStyle(chrome.control)
                 .fixedSize(horizontal: false, vertical: true)
 

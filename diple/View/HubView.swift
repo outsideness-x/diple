@@ -89,7 +89,7 @@ public struct HubView: View {
 
             VStack(spacing: DipleSpace.s) {
                 Text("No passages yet")
-                    .dipleType(.title)
+                    .dipleType(.editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
 
                 Text("Highlight a passage while reading and it will show up here, grouped by book.")

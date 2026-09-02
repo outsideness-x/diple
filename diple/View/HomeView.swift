@@ -189,7 +189,7 @@ public struct HomeView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text("diple.")
-                    .dipleType(.hero)
+                    .dipleType(.wordmark)
                     .foregroundStyle(DipleColor.textPrimary)
 
                 Text(dayTitle)
