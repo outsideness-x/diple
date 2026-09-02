@@ -32,9 +32,20 @@ public struct NoteItem: Identifiable, Equatable, Hashable {
 
         let opening = NoteMarkdown.plainText(note.body)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !opening.isEmpty else { return "Untitled" }
+        guard !opening.isEmpty else { return Self.untitled }
         return Self.shortened(opening)
     }
+
+    /// The stand-in headline for a note with nothing in it yet.
+    ///
+    /// Named rather than written out at each site because three views used to grey the title by
+    /// comparing it against the literal `"Untitled"`. That is a rule enforced by spelling: it
+    /// survives only as long as nobody localises the word or changes it, and when it breaks it
+    /// breaks silently — an empty note simply stops looking empty.
+    static let untitled = "Untitled"
+
+    /// Whether this note has anything to call itself yet. What the views actually wanted.
+    public var isUntitled: Bool { displayTitle == Self.untitled }
 
     /// The body as a card shows it, with whatever `displayTitle` already used taken off the
     /// front.

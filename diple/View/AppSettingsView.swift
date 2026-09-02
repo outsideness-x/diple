@@ -623,7 +623,7 @@ public struct AppSettingsView: View {
         // The row is the one place in Settings whose height depends on something outside the
         // reader's control: an error message and the Check button come and go with the phase.
         // Easing that change keeps a real sync from snapping the sections below it up and down.
-        .animation(.easeInOut(duration: 0.2), value: snapshot.phase)
+        .animation(DipleMotion.gentle, value: snapshot.phase)
         .accessibilityIdentifier("settings.sync.status")
         .accessibilityElement(children: .contain)
     }

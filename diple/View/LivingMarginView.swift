@@ -92,7 +92,7 @@ struct LivingMarginPanel: View {
                 try? await Task.sleep(for: .milliseconds(85))
                 guard !Task.isCancelled else { return }
             }
-            withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.24)) {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.12) : DipleMotion.standard) {
                 revealsNote = true
             }
             noteIsFocused = true

@@ -154,7 +154,7 @@ public struct ImportLinkSheetView: View {
             }
             .padding(DipleSpace.m)
             .craftSurface(DipleColor.surface, radius: DipleRadius.s)
-            .animation(.easeInOut(duration: 0.2), value: stage)
+            .animation(DipleMotion.standard, value: stage)
         } else {
             Button(action: startImport) {
                 Text("Save to Library")
@@ -167,7 +167,7 @@ public struct ImportLinkSheetView: View {
             .buttonStyle(.readerControl)
             .disabled(viewModel.resolvedURL == nil)
             .opacity(viewModel.resolvedURL == nil ? 0.4 : 1)
-            .animation(.easeOut(duration: 0.18), value: viewModel.resolvedURL)
+            .animation(DipleMotion.standard, value: viewModel.resolvedURL)
         }
     }
 

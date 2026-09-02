@@ -99,11 +99,11 @@ public struct ReaderContainerView: View {
                     Button("Close") {
                         dismiss()
                     }
+                    .dipleType(.body, weight: .medium)
                     .foregroundStyle(DipleColor.textPrimary)
-                    .padding(.horizontal, DipleSpace.xl)
-                    .padding(.vertical, DipleSpace.s)
-                    .background(DipleColor.surfaceOverlay)
-                    .cornerRadius(DipleRadius.s)
+                    .diplePadding(.buttonLarge)
+                    .craftSurface(DipleColor.surfaceOverlay, radius: DipleRadius.s)
+                    .buttonStyle(.readerControl)
                 }
             } else if let publication = viewModel.publication {
                 if viewModel.book.isPDF {

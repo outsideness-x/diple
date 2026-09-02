@@ -100,7 +100,7 @@ public struct NoteCardView: View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
             Text(title)
                 .dipleType(.headline)
-                .foregroundStyle(title == "Untitled" ? DipleColor.textTertiary : DipleColor.textPrimary)
+                .foregroundStyle(item.isUntitled ? DipleColor.textTertiary : DipleColor.textPrimary)
                 .multilineTextAlignment(.leading)
                 .lineLimit(2)
 
@@ -178,7 +178,7 @@ public struct NoteCardView: View {
 
                 Text(title)
                     .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(title == "Untitled" ? DipleColor.textTertiary : DipleColor.textPrimary)
+                    .foregroundStyle(item.isUntitled ? DipleColor.textTertiary : DipleColor.textPrimary)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
 

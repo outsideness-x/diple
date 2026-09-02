@@ -354,7 +354,7 @@ public struct NoteOutlineRowView: View {
                         Text(item.displayTitle)
                             .dipleType(.body, weight: .semibold)
                             .foregroundStyle(
-                                item.displayTitle == "Untitled" ? DipleColor.textTertiary : DipleColor.textPrimary
+                                item.isUntitled ? DipleColor.textTertiary : DipleColor.textPrimary
                             )
                             .multilineTextAlignment(.leading)
                             .lineLimit(2)
