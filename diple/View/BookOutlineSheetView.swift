@@ -301,7 +301,7 @@ public struct BookOutlineSheetView: View {
                 Text("Write a note")
                     .dipleType(.footnote, weight: .semibold)
             }
-            .foregroundStyle(DipleColor.accent)
+            .foregroundStyle(DipleColor.accentInk)
             .frame(maxWidth: .infinity, minHeight: 48)
             .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.m))
         }
@@ -347,7 +347,7 @@ public struct NoteOutlineRowView: View {
                     HStack(alignment: .top, spacing: DipleSpace.s) {
                         Image(systemName: "note.text")
                             .dipleIcon(11, weight: .semibold)
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                             .frame(width: 24, height: 24)
                             .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 

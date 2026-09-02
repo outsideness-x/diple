@@ -69,7 +69,7 @@ public struct BookTagsSheetView: View {
                         HapticManager.shared.selection()
                         dismiss()
                     }
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                 }
             }
             .alert("New tag", isPresented: $isAddingTag) {

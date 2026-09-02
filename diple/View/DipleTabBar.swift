@@ -68,7 +68,7 @@ public struct DipleTabBar: View {
                         .dipleType(.tag, weight: .semibold)
                 }
             }
-            .foregroundStyle(isSelected ? DipleColor.accent : DipleColor.textSecondary)
+            .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
             .frame(minWidth: 44)
             .frame(height: 44)
             .padding(.horizontal, isCollapsed ? 0 : DipleSpace.m)
@@ -95,7 +95,7 @@ public struct DipleTabBar: View {
         } label: {
             Image(systemName: RootTabView.Tab.search.symbol)
                 .dipleIcon(18, weight: .medium)
-                .foregroundStyle(isSelected ? DipleColor.accent : DipleColor.textSecondary)
+                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
                 .frame(width: 52, height: 52)
                 .background { glass(Circle()) }
                 .overlay {
@@ -103,7 +103,7 @@ public struct DipleTabBar: View {
                         Circle().fill(DipleColor.accentSoft)
                         Image(systemName: RootTabView.Tab.search.symbol)
                             .dipleIcon(18, weight: .medium)
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                     }
                 }
                 .clipShape(Circle())

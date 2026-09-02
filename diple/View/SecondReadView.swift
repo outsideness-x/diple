@@ -31,7 +31,7 @@ public struct SecondReadEntryView: View {
 
             Image(systemName: "arrow.right")
                 .dipleIcon(13, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
                 .accessibilityHidden(true)
         }
         .padding(DipleSpace.l)

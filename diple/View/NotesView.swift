@@ -82,7 +82,7 @@ public struct NotesView: View {
                     NavigationLink(value: NoteRoute.new) {
                         Image(systemName: "plus")
                             .dipleIcon(16, weight: .medium)
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                     }
                     .buttonStyle(.readerControl)
                     .accessibilityLabel("New note")
@@ -142,7 +142,7 @@ public struct NotesView: View {
     private var workspaceHeader: some View {
         Text("CONTINUE THINKING")
             .dipleType(.nano, weight: .semibold)
-            .foregroundStyle(DipleColor.accent)
+            .foregroundStyle(DipleColor.accentInk)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DipleSpace.xl)
             .padding(.top, DipleSpace.m)
@@ -325,7 +325,7 @@ public struct NotesView: View {
         VStack(spacing: DipleSpace.m) {
             Image(systemName: viewModel.query.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass")
                 .dipleIcon(24, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
             Text(viewModel.query.isEmpty ? "Nothing in this view" : "No matching notes")
                 .dipleType(.headline)
                 .foregroundStyle(DipleColor.textPrimary)
@@ -336,7 +336,7 @@ public struct NotesView: View {
             if !viewModel.query.isEmpty {
                 Button("Clear search") { viewModel.query = "" }
                     .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
             }
         }
         .frame(maxWidth: .infinity)
@@ -348,7 +348,7 @@ public struct NotesView: View {
         VStack(spacing: DipleSpace.xl) {
             Image(systemName: "note.text")
                 .dipleIcon(30, weight: .thin)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
 
             VStack(spacing: DipleSpace.s) {
                 Text("Write the first note")

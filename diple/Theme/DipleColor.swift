@@ -123,6 +123,23 @@ public enum DipleColor {
     /// Colour is directed with glow, not with saturated fills.
     public static var accentGlow: Color { Color.dipleAccent.opacity(0.30) }
 
+    /// Accent as **text**. The only accent token allowed in a `foregroundStyle`.
+    ///
+    /// `accent` is a fill colour: it is read through `textOnAccent`, which is dark ink, and it
+    /// is chosen to be light enough for that to work. Printing it *as* ink on the light canvas
+    /// inverts the arrangement and drops every accent below 3:1 — see `DipleAccent.inkHex`. So
+    /// foreground and fill are two tokens, and the split is by appearance: light takes the
+    /// darkened value, dark takes the accent unchanged, where it already measures 8:1.
+    ///
+    /// Computed rather than `static let` for the same reason as `accent` above: a stored value
+    /// would capture whichever accent was current at first access and never see a later change.
+    public static var accentInk: Color {
+        adaptive(
+            light: UIColor(Color(hex: DipleAccent.current.inkHex)),
+            dark: UIColor(DipleAccent.current.color)
+        )
+    }
+
     // MARK: - Status
 
     /// Both are darkened for light: the dark-theme values are tuned to glow against #0B0B0F

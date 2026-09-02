@@ -43,7 +43,7 @@ public struct NoteSlashMenu: View {
                         HStack(spacing: DipleSpace.m) {
                             Image(systemName: command.systemImage)
                                 .dipleIcon(13, weight: .medium)
-                                .foregroundStyle(DipleColor.accent)
+                                .foregroundStyle(DipleColor.accentInk)
                                 .frame(width: 22)
                             Text(command.title)
                                 .dipleType(.callout)

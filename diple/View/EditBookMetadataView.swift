@@ -52,7 +52,7 @@ public struct EditBookMetadataView: View {
                                         Text("Photos")
                                             .dipleType(.footnote)
                                     }
-                                    .foregroundStyle(DipleColor.accent)
+                                    .foregroundStyle(DipleColor.accentInk)
                                     .padding(.horizontal, DipleSpace.m)
                                     .padding(.vertical, DipleSpace.s)
                                     .background(DipleColor.surfaceOverlay)
@@ -148,7 +148,7 @@ public struct EditBookMetadataView: View {
                         }
                     }
                     .dipleType(.body, weight: .semibold)
-                    .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : DipleColor.accent)
+                    .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : DipleColor.accentInk)
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }

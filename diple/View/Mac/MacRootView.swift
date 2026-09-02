@@ -679,7 +679,7 @@ private struct MacContinueReadingCard: View {
                 VStack(alignment: .leading, spacing: DipleSpace.s) {
                     Text("CONTINUE READING")
                         .dipleType(.nano)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                     Text(book.title)
                         .dipleType(.headline)
                         .foregroundStyle(DipleColor.textPrimary)
@@ -701,7 +701,7 @@ private struct MacContinueReadingCard: View {
 
                 Image(systemName: "arrow.right")
                     .dipleIcon(14)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
             }
             .padding(DipleSpace.l)
             .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
@@ -755,7 +755,7 @@ private struct MacHighlightsCollection: View {
                                     Spacer()
                                     Text("\(summary.quoteCount)")
                                         .dipleType(.footnote, weight: .semibold)
-                                        .foregroundStyle(DipleColor.accent)
+                                        .foregroundStyle(DipleColor.accentInk)
                                         .monospacedDigit()
                                     Image(systemName: "chevron.right")
                                         .dipleIcon(11)
@@ -962,7 +962,7 @@ private struct MacSearchResultRow: View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Image(systemName: result.kind.systemImage)
                 .dipleIcon(13)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
                 .frame(width: 28, height: 28)
                 .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 
@@ -1123,7 +1123,7 @@ private struct MacQuotesInspector: View {
                             HStack(alignment: .top, spacing: DipleSpace.s) {
                                 Image(systemName: "bubble.left")
                                     .dipleIcon(10, weight: .medium)
-                                    .foregroundStyle(DipleColor.accent)
+                                    .foregroundStyle(DipleColor.accentInk)
                                 Text(comment)
                                     .dipleType(.caption)
                                     .foregroundStyle(DipleColor.textSecondary)
@@ -1307,7 +1307,7 @@ private struct MacNoteInspector: View {
                 } label: {
                     Image(systemName: isPreviewing ? "square.and.pencil" : "eye")
                         .dipleIcon(14)
-                        .foregroundStyle(isPreviewing ? DipleColor.accent : DipleColor.textSecondary)
+                        .foregroundStyle(isPreviewing ? DipleColor.accentInk : DipleColor.textSecondary)
                 }
                 .buttonStyle(.plain)
                 .help(isPreviewing ? "Edit note" : "Preview rendered note")
@@ -1744,7 +1744,7 @@ private struct MacSearchInspector: View {
             VStack(alignment: .leading, spacing: DipleSpace.xl) {
                 Label(result.kind.title, systemImage: result.kind.systemImage)
                     .dipleType(.micro, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
 
                 Text(result.title)
                     .dipleType(.readingTitle)
@@ -1834,7 +1834,7 @@ private struct MacEmptyCollection: View {
         VStack(spacing: DipleSpace.l) {
             Image(systemName: icon)
                 .dipleIcon(28, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
                 .frame(width: 60, height: 60)
                 .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.l))
             Text(title)

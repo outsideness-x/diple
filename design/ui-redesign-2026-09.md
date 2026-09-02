@@ -135,7 +135,7 @@ public extension DipleAccent {
         case .mint:       return "#1F7A5C"
         case .clay:       return "#A34A2A"
         case .periwinkle: return "#4257B2"
-        case .brass:      return "#8A6D2F"
+        case .brass:      return "#7F6329"
         }
     }
 }

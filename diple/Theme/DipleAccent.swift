@@ -38,6 +38,27 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
 
     public var color: Color { Color(hex: hex) }
 
+    /// The same colour, darkened until it is legible as *text* on light paper.
+    ///
+    /// Every accent in the picker is a mid-to-light tint — that is what makes `textOnAccent`
+    /// work as dark ink on a filled chip — and the same property makes all five fail WCAG
+    /// contrast the moment one is used as a foreground colour on the light canvas: mint
+    /// measures 1.76:1 against white, brass 2.35:1, and the floor for text is 4.5:1. On the
+    /// dark canvas the same brass gives 8:1, so this is a light-appearance value only, which
+    /// is why `DipleColor.accentInk` resolves to `hex` in dark and to this in light.
+    ///
+    /// Hue is kept and only lightness is taken out, so a reader who chose mint still gets a
+    /// green sentence rather than a different colour's.
+    public var inkHex: String {
+        switch self {
+        case .lilac: return "#8E4E90"
+        case .mint: return "#1F7A5C"
+        case .clay: return "#A34A2A"
+        case .periwinkle: return "#4257B2"
+        case .brass: return "#7F6329"
+        }
+    }
+
     /// Bridged from `color` rather than parsed a second time — it is a plain sRGB value, not a
     /// dynamic one, so the bridge needs no environment/trait context to resolve correctly.
     public var uiColor: UIColor { UIColor(color) }

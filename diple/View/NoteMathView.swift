@@ -260,7 +260,7 @@ public struct NoteMathBlockView: View {
             HStack(spacing: DipleSpace.s) {
                 Text("ƒx")
                     .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                 Text("EQUATION")
                     .dipleType(.nano)
                     .foregroundStyle(DipleColor.textQuaternary)
@@ -446,7 +446,7 @@ public struct NoteFormulaComposer: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .foregroundStyle(canInsert ? DipleColor.accent : DipleColor.textQuaternary)
+                    .foregroundStyle(canInsert ? DipleColor.accentInk : DipleColor.textQuaternary)
                     .disabled(!canInsert)
                     .accessibilityIdentifier("formula.insert")
                 }
@@ -466,7 +466,7 @@ public struct NoteFormulaComposer: View {
                 VStack(spacing: DipleSpace.s) {
                     Image(systemName: "function")
                         .dipleIcon(22)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                     Text("Type LaTeX or choose a building block")
                         .dipleType(.callout)
                         .foregroundStyle(DipleColor.textTertiary)

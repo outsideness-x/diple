@@ -111,7 +111,7 @@ public struct AddBookmarkSheetView: View {
                         dismiss()
                     }
                     .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                 }
             }
         }

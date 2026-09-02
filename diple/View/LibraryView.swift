@@ -202,7 +202,7 @@ public struct LibraryView: View {
                     } label: {
                         Image(systemName: "plus")
                             .dipleIcon(16)
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                     }
                     .buttonStyle(.readerControl)
                     .simultaneousGesture(TapGesture().onEnded {
@@ -551,7 +551,7 @@ public struct LibraryView: View {
         VStack(spacing: DipleSpace.m) {
             Image(systemName: location.systemImage)
                 .dipleIcon(24, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
 
             Text(emptyLocationTitle)
                 .dipleType(.headline)
@@ -701,7 +701,7 @@ public struct LibraryView: View {
                 HapticManager.shared.selection()
             }
             .dipleType(.footnote, weight: .semibold)
-            .foregroundStyle(DipleColor.accent)
+            .foregroundStyle(DipleColor.accentInk)
             .buttonStyle(.readerControl)
         }
         .frame(maxWidth: .infinity)

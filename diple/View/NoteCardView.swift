@@ -171,7 +171,7 @@ public struct NoteCardView: View {
             HStack(alignment: .top, spacing: DipleSpace.s) {
                 Image(systemName: item.book == nil ? "note.text" : "book.pages")
                     .dipleIcon(12, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                     .frame(width: 26, height: 26)
                     .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 

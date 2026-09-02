@@ -117,7 +117,7 @@ public struct BookSearchSheetView: View {
 
             Image(systemName: "magnifyingglass")
                 .dipleIcon(30, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
 
             VStack(spacing: DipleSpace.s) {
                 Text(viewModel.invitationTitle)

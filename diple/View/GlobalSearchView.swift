@@ -209,7 +209,7 @@ public struct GlobalSearchView: View {
 
             Image(systemName: "magnifyingglass")
                 .dipleIcon(30, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
 
             VStack(spacing: DipleSpace.s) {
                 Text("Search Everything")
@@ -315,7 +315,7 @@ private struct GlobalSearchResultRow: View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Image(systemName: result.kind.systemImage)
                 .dipleIcon(14, weight: .medium)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {

@@ -65,7 +65,7 @@ public struct ImportLinkSheetView: View {
         VStack(spacing: DipleSpace.l) {
             Image(systemName: "link")
                 .dipleIcon(26, weight: .light)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
 
             Text("Paste the address of an article or a PDF. diple keeps the text, the images and the headings — and leaves the banners behind.")
                 .dipleType(.callout)
@@ -127,7 +127,7 @@ public struct ImportLinkSheetView: View {
                         Text("Paste from clipboard")
                             .dipleType(.micro, weight: .semibold)
                     }
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                     .diplePadding(.chip)
                     .background(DipleColor.accentSoft, in: Capsule())
                 }

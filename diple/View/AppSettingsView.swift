@@ -394,7 +394,7 @@ public struct AppSettingsView: View {
                                     HStack(spacing: DipleSpace.m) {
                                         Image(systemName: "hand.raised.fill")
                                             .dipleIcon(17, weight: .medium)
-                                            .foregroundStyle(DipleColor.accent)
+                                            .foregroundStyle(DipleColor.accentInk)
                                             .frame(width: 28)
 
                                         VStack(alignment: .leading, spacing: 2) {
@@ -442,7 +442,7 @@ public struct AppSettingsView: View {
                         dismiss()
                     }
                     .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                 }
             }
             .onChange(of: dailyResurfacingTime) { _, newTime in
@@ -512,7 +512,7 @@ public struct AppSettingsView: View {
             HStack(spacing: DipleSpace.m) {
                 Image(systemName: systemImage)
                     .dipleIcon(17, weight: .medium)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                     .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -607,7 +607,7 @@ public struct AppSettingsView: View {
                             systemImage: "arrow.clockwise"
                         )
                         .dipleType(.footnote, weight: .semibold)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                         .frame(minHeight: 44)
                     }
                     .buttonStyle(.readerControl)

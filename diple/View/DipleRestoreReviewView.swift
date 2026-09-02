@@ -70,7 +70,7 @@ public struct DipleRestoreReviewView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(phase.isComplete ? "Done" : "Cancel") { dismiss() }
                         .dipleType(.body, weight: .semibold)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                         .disabled(phase == .restoring)
                 }
             }
@@ -167,7 +167,7 @@ public struct DipleRestoreReviewView: View {
         HStack(spacing: DipleSpace.m) {
             Image(systemName: icon)
                 .dipleIcon(15, weight: .medium)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {

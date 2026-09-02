@@ -29,7 +29,7 @@ public struct DatabaseUnavailableView: View {
                 VStack(alignment: .leading, spacing: DipleSpace.xl) {
                     Image(systemName: "exclamationmark.triangle")
                         .dipleIcon(32)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
 
                     VStack(alignment: .leading, spacing: DipleSpace.m) {
                         Text("Your library didn't open")
@@ -67,7 +67,7 @@ public struct DatabaseUnavailableView: View {
                     case .done:
                         Text("Done. Close diple and open it again to start with an empty library.")
                             .dipleType(.callout, weight: .medium)
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                             .fixedSize(horizontal: false, vertical: true)
 
                     case let .failed(message):

@@ -305,7 +305,7 @@ public struct ReaderContainerView: View {
                                 let percentage = Int((viewModel.currentProgress * 100).rounded())
                                 Text("\(percentage)%")
                                     .dipleType(.footnote, weight: .semibold)
-                                    .foregroundStyle(DipleColor.accent)
+                                    .foregroundStyle(DipleColor.accentInk)
                                     .monospacedDigit()
                                     .contentTransition(.numericText())
                                     .animation(DipleMotion.standard, value: percentage)

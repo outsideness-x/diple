@@ -72,7 +72,7 @@ public struct BookTagPickerView: View {
                             onSelect(nil)
                             dismiss()
                         }
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                     }
                 }
             }
@@ -102,7 +102,7 @@ public struct BookTagPickerView: View {
             if book.id == selectedBookId {
                 Image(systemName: "checkmark")
                     .dipleIcon(13, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
             }
         }
         .padding(DipleSpace.m)

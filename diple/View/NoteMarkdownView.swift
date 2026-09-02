@@ -530,7 +530,7 @@ public struct NoteMarkdownView: View {
         HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
             Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
                 .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
-                .foregroundStyle(task.isCompleted ? DipleColor.accent : DipleColor.textQuaternary)
+                .foregroundStyle(task.isCompleted ? DipleColor.accentInk : DipleColor.textQuaternary)
                 .contentTransition(.symbolEffect(.replace))
 
             // The rule is drawn rather than switched on. `.strikethrough` is a text attribute:
@@ -620,7 +620,7 @@ public struct NoteMarkdownView: View {
             HStack(alignment: .top, spacing: DipleSpace.m) {
                 Image(systemName: kind.icon)
                     .dipleIcon(15, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                     .frame(width: 24, height: 24)
                     .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
 

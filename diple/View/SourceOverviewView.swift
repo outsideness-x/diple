@@ -125,7 +125,7 @@ public struct SourceOverviewView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                 }
             }
             .navigationDestination(for: Book.self) { book in
@@ -182,7 +182,7 @@ public struct SourceOverviewView: View {
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Text(viewModel.book.sourceKind.title)
                     .dipleType(.nano, weight: .semibold)
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                 Text(viewModel.book.title)
                     .dipleType(.title)
                     .foregroundStyle(DipleColor.textPrimary)
@@ -294,7 +294,7 @@ private struct SourceNoteRow: View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Image(systemName: "note.text")
                 .dipleIcon(13, weight: .semibold)
-                .foregroundStyle(DipleColor.accent)
+                .foregroundStyle(DipleColor.accentInk)
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(item.displayTitle)
                     .dipleType(.body, weight: .semibold)

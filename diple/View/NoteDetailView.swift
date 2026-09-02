@@ -317,7 +317,7 @@ public struct NoteDetailView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Done") { commit() }
                     .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(canSave ? DipleColor.accent : DipleColor.textQuaternary)
+                    .foregroundStyle(canSave ? DipleColor.accentInk : DipleColor.textQuaternary)
                     .disabled(!canSave)
             }
         } else {
@@ -328,7 +328,7 @@ public struct NoteDetailView: View {
                 } label: {
                     Image(systemName: "square.and.pencil")
                         .dipleIcon(16)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                 }
                 .buttonStyle(.readerControl)
             }
@@ -466,7 +466,7 @@ public struct NoteDetailView: View {
                 VStack(alignment: .leading, spacing: DipleSpace.xs) {
                     Text("CONNECTIONS")
                         .dipleType(.nano)
-                        .foregroundStyle(DipleColor.accent)
+                        .foregroundStyle(DipleColor.accentInk)
                     Text("Part of a larger thought")
                         .dipleType(.headline)
                         .foregroundStyle(DipleColor.textPrimary)
@@ -496,7 +496,7 @@ public struct NoteDetailView: View {
                     HStack(spacing: DipleSpace.m) {
                         Image(systemName: "note.text")
                             .dipleIcon(12, weight: .semibold)
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                             .frame(width: 28, height: 28)
                             .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.s))
                         VStack(alignment: .leading, spacing: DipleSpace.xs) {
@@ -691,7 +691,7 @@ public struct NoteDetailView: View {
                         Image(systemName: "xmark")
                             .dipleIcon(9, weight: .bold)
                     }
-                    .foregroundStyle(DipleColor.accent)
+                    .foregroundStyle(DipleColor.accentInk)
                     .diplePadding(.chip)
                     .background(DipleColor.accentSoft, in: Capsule())
                 }
