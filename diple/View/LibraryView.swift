@@ -41,6 +41,15 @@ public struct LibraryView: View {
 
     @State private var overviewBook: Book?
     @State private var searchText = ""
+    /// Whether the field is on the page. It is not, at rest.
+    ///
+    /// A shelf is browsed far more often than it is searched, and a field resting on it
+    /// costs ~56 pt of the page every time it is not being used — on this screen that was
+    /// the difference between meeting the chrome budget and missing it. Summoned from the
+    /// shelf heading, where the other two controls over "how this shelf is presented"
+    /// already live, and it stays for as long as there is a query in it.
+    @State private var isSearchFieldShown = false
+    @FocusState private var isSearchFocused: Bool
     @State private var location: BookLocation = .inbox
     @State private var hasResolvedInitialLocation = false
     @State private var type: LibraryTypeFilter = .all
@@ -161,55 +170,12 @@ public struct LibraryView: View {
                     }
                 }
             }
-            .navigationTitle("diple.")
+            // Set but hidden: it is what a pushed screen labels its own back button with.
+            // The shelf prints its own name in the masthead instead — the wordmark belongs on
+            // the front page, not in the running head of every screen.
+            .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: "Title, author or source"
-            )
-            // Titles and authors are matched, not written: sentence capitalisation and
-            // autocorrect only get in the way of a filter typed a letter at a time.
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        HapticManager.shared.selection()
-                        NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .dipleIcon(16)
-                            .foregroundStyle(DipleColor.textSecondary)
-                    }
-                    .buttonStyle(.readerControl)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button {
-                            isLinkImporterPresented = true
-                        } label: {
-                            Label("Save a link", systemImage: "link")
-                        }
-
-                        Button {
-                            isFileImporterPresented = true
-                        } label: {
-                            Label("Import a file", systemImage: "folder")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .dipleIcon(16)
-                            .foregroundStyle(DipleColor.accentInk)
-                    }
-                    .buttonStyle(.readerControl)
-                    .simultaneousGesture(TapGesture().onEnded {
-                        HapticManager.shared.selection()
-                    })
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .fileImporter(
                 isPresented: $isFileImporterPresented,
                 allowedContentTypes: [.epub, .pdf],
@@ -293,6 +259,7 @@ public struct LibraryView: View {
     private var gridBrowser: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DipleSpace.xxxl) {
+                masthead
                 browseControls
 
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
@@ -343,6 +310,7 @@ public struct LibraryView: View {
     private var listBrowser: some View {
         List {
             Group {
+                masthead
                 browseControls
                 shelfHeader
 
@@ -446,17 +414,75 @@ public struct LibraryView: View {
     /// `SourceLeadView` stays shared — Home still uses it, and the Mac shell has its own
     /// arrangement — so nothing is deleted, only this screen's use of it.
 
+    /// The head of the shelf.
+    ///
+    /// Scrolls with the page rather than sitting in a bar above it, which is why it is a row of
+    /// the browser rather than a `toolbar`: a masthead is the top of the page, not furniture
+    /// bolted over it.
+    private var masthead: some View {
+        DipleMasthead(title: "Library", strapline: strapline) {
+            Menu {
+                Button {
+                    isLinkImporterPresented = true
+                } label: {
+                    Label("Save a link", systemImage: "link")
+                }
+
+                Button {
+                    isFileImporterPresented = true
+                } label: {
+                    Label("Import a file", systemImage: "folder")
+                }
+            } label: {
+                MastheadGlyph(systemImage: "plus")
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Add to your library")
+            .simultaneousGesture(TapGesture().onEnded {
+                HapticManager.shared.selection()
+            })
+
+            MastheadButton(systemImage: "gearshape", label: "Settings") {
+                NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
+            }
+        }
+    }
+
+    /// What the whole library holds, not what the current shelf shows — the count under the
+    /// name answers "how much is in here", and the shelf heading below already answers "how
+    /// much of it is on this shelf".
+    private var strapline: String {
+        let total = viewModel.books.count
+        let unread = viewModel.books.filter { LibraryStatusFilter.unread.includes($0) }.count
+        let sources = total == 1 ? "1 source" : "\(total) sources"
+        return unread > 0 ? "\(sources) · \(unread) unread" : sources
+    }
+
+    /// Two rows where there used to be four.
+    ///
+    /// The type chips and the tag row both moved into `filterMenu`. Neither is a frequent
+    /// choice, and each was costing a permanent row of the page: with the search field, the
+    /// location rule, the chips, the tags and the shelf heading, a reader met five rows of
+    /// control before the first cover — measured at 326 pt of an 874 pt display, which is the
+    /// same complaint that removed the lead from this screen and did not go away when it did.
+    ///
+    /// The field sits *under* the rubric rather than over it, because it narrows what is on
+    /// the shelf below rather than leading anywhere; a field placed above the thing it searches
+    /// reads as a way out of the screen, and there is a whole tab for that.
     @ViewBuilder
     private var browseControls: some View {
         VStack(alignment: .leading, spacing: DipleSpace.l) {
             locationPicker
 
-            if viewModel.books.count > 1 {
-                filterBar
-            }
-
-            if !viewModel.allTags.isEmpty {
-                tagBar
+            if isSearchFieldShown || !searchText.isEmpty {
+                DipleSearchField(
+                    text: $searchText,
+                    prompt: "Title, author or source",
+                    identifier: "library.search"
+                )
+                .focused($isSearchFocused)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .onAppear { isSearchFocused = true }
             }
         }
     }
@@ -472,9 +498,35 @@ public struct LibraryView: View {
                 .foregroundStyle(DipleColor.textQuaternary)
                 .monospacedDigit()
 
+            searchToggle
             layoutToggle
             filterMenu
         }
+    }
+
+    /// Puts the field on the page, or takes it off and clears what was in it — leaving a query
+    /// behind on a field nobody can see is a shelf that looks broken for no visible reason.
+    private var searchToggle: some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) {
+                if isSearchFieldShown || !searchText.isEmpty {
+                    searchText = ""
+                    isSearchFieldShown = false
+                    isSearchFocused = false
+                } else {
+                    isSearchFieldShown = true
+                }
+            }
+        } label: {
+            Image(systemName: isSearchFieldShown || !searchText.isEmpty ? "xmark" : "magnifyingglass")
+                .dipleIcon(11, weight: .semibold)
+                .foregroundStyle(DipleColor.textSecondary)
+                .diplePadding(.chip)
+                .background(DipleColor.surfaceOverlay, in: Capsule())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(isSearchFieldShown || !searchText.isEmpty ? "Close search" : "Search the library")
     }
 
     /// An empty shelf and a search that found nothing are different facts, and "Nothing found"
@@ -526,25 +578,58 @@ public struct LibraryView: View {
 
     /// The queue, as three places rather than three filters.
     ///
-    /// A segmented control rather than another chip row: location is where you *are*, and the
-    /// chips below narrow what you see once you are there. Two rows of identical capsules would
-    /// have flattened that difference into one undifferentiated wall of filters.
+    /// Set as a rubric, not as a control. It was a system `Picker(.segmented)` — the only piece
+    /// of stock UIKit on the screen, and it read as one: a settings widget where the page wanted
+    /// a section head. A section is announced in type. The current place is set at full strength
+    /// with a rule under it, the two you might go to are dimmed, and nothing is boxed.
     ///
-    /// The count rides inside the segment label instead of a badge beside it, because a badge
-    /// would either be clipped by the segment or push the label out of it at large Dynamic Type.
+    /// The distinction the segmented control was there to protect still holds and is now carried
+    /// by the difference in kind rather than by the difference in shape: location is *where you
+    /// are*, and everything in the filter menu narrows what you see once you are there.
+    ///
+    /// The count rides as a superior figure rather than in the label, because "Inbox 2" reads as
+    /// a name containing a number and `Inbox²` reads as a name with a count attached.
     private var locationPicker: some View {
-        Picker("Location", selection: $location) {
+        HStack(alignment: .bottom, spacing: DipleSpace.xl) {
             ForEach(BookLocation.allCases, id: \.self) { option in
-                let count = viewModel.count(in: option)
-                Text(count > 0 ? "\(option.title) \(count)" : option.title)
-                    .tag(option)
+                locationSegment(option)
             }
-        }
-        .pickerStyle(.segmented)
-        .onChange(of: location) { _, _ in
-            HapticManager.shared.selection()
+            Spacer(minLength: 0)
         }
         .accessibilityLabel("Reading queue")
+    }
+
+    private func locationSegment(_ option: BookLocation) -> some View {
+        let isSelected = location == option
+        let count = viewModel.count(in: option)
+        return Button {
+            guard !isSelected else { return }
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) { location = option }
+        } label: {
+            HStack(alignment: .top, spacing: DipleSpace.hair) {
+                Text(option.title)
+                    .dipleType(.headline, weight: isSelected ? .semibold : .regular)
+
+                if count > 0 {
+                    Text("\(count)")
+                        .dipleType(.tag)
+                        .monospacedDigit()
+                        .baselineOffset(7)
+                }
+            }
+            .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textQuaternary)
+            .padding(.bottom, DipleSpace.s)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(isSelected ? DipleColor.accent : Color.clear)
+                    .frame(height: DipleStroke.selection)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(count > 0 ? "\(option.title), \(count)" : option.title)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var emptyLocation: some View {
@@ -583,76 +668,48 @@ public struct LibraryView: View {
         }
     }
 
-    private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DipleSpace.s) {
-                ForEach(LibraryTypeFilter.allCases) { option in
-                    Button {
-                        HapticManager.shared.selection()
-                        withAnimation(DipleMotion.standard) {
-                            type = option
-                        }
-                    } label: {
-                        Text(option.rawValue)
-                            .dipleType(.micro)
-                            .foregroundStyle(type == option ? DipleColor.accentInk : DipleColor.textTertiary)
-                            .diplePadding(.chip)
-                            .dipleSelected(type == option, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .contentMargins(.horizontal, 0, for: .scrollContent)
-        .accessibilityLabel("Library filters")
-    }
-
-    /// Tags get a row of their own rather than joining the type chips above.
+    /// Everything that narrows the shelf, in one control.
     ///
-    /// They are a different axis: type asks what a source *is*, a tag is what the reader
-    /// decided it is about, and a source has exactly one type but any number of tags. Mixing
-    /// them into one strip of identical capsules would say they are alternatives to each other,
-    /// and tapping two of them would then look like it should widen the result rather than
-    /// narrow it. Multi-select and the outline treatment both come from that.
-    private var tagBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DipleSpace.s) {
-                ForEach(viewModel.allTags, id: \.self) { tag in
-                    Button {
-                        HapticManager.shared.selection()
-                        withAnimation(DipleMotion.standard) {
-                            if selectedTags.contains(tag) {
-                                selectedTags.remove(tag)
-                            } else {
-                                selectedTags.insert(tag)
-                            }
-                        }
-                    } label: {
-                        TagChipView(label: tag, kind: .text, isSelected: selectedTags.contains(tag))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .contentMargins(.horizontal, 0, for: .scrollContent)
-        .accessibilityLabel("Tag filters")
-    }
-
-    /// Status and sort in one menu, not two controls.
+    /// Four things live here now: what a source *is* (type), how far into it the reader got
+    /// (status), what they filed it under (tags) and how the shelf is ordered. Type and tags
+    /// used to be permanent rows of capsules on the page. They are low-frequency choices — a
+    /// reader picks a type or a tag occasionally and browses constantly — and each was costing
+    /// a row of the page every time it was not being used.
     ///
-    /// Location, type and tags each already have a visible row; putting status and sort out as
-    /// separate chips too would give the header four controls, and at accessibility text sizes
-    /// the section heading and the count lose that fight long before the controls do. They pair
-    /// naturally anyway — both answer "how should this shelf be presented" rather than "what is
-    /// on it".
+    /// Type and tags remain different axes and are still not offered as if they were
+    /// alternatives to each other: a source has exactly one type, so type is a `Picker`, while
+    /// tags are any number and so are toggles. Selecting two tags narrows (AND), as it always
+    /// did — a filter that widened on a second tap would not be a filter.
     ///
-    /// The label prints the chosen status when there is one. A filter that is on but invisible
-    /// is a library that looks broken.
+    /// The label prints what is on. A filter that is active but invisible is a library that
+    /// looks broken, and that is now truer than it was, because none of these has a chip on
+    /// the page to speak for it.
     private var filterMenu: some View {
         Menu {
+            Picker("Type", selection: $type) {
+                ForEach(LibraryTypeFilter.allCases) { option in
+                    Text(option.rawValue).tag(option)
+                }
+            }
+
             Picker("Status", selection: $status) {
                 ForEach(LibraryStatusFilter.allCases) { option in
                     Text(option.rawValue).tag(option)
+                }
+            }
+
+            if !viewModel.allTags.isEmpty {
+                Menu("Tags") {
+                    ForEach(viewModel.allTags, id: \.self) { tag in
+                        Toggle(isOn: Binding(
+                            get: { selectedTags.contains(tag) },
+                            set: { isOn in
+                                if isOn { selectedTags.insert(tag) } else { selectedTags.remove(tag) }
+                            }
+                        )) {
+                            Text("#\(tag)")
+                        }
+                    }
                 }
             }
 
@@ -663,18 +720,39 @@ public struct LibraryView: View {
             }
         } label: {
             HStack(spacing: DipleSpace.xs) {
-                Image(systemName: status == .any ? "arrow.up.arrow.down" : "line.3.horizontal.decrease")
+                Image(systemName: isNarrowed ? "line.3.horizontal.decrease" : "arrow.up.arrow.down")
                     .dipleIcon(10, weight: .semibold)
-                Text(status.compactTitle ?? sort.compactTitle)
+                Text(narrowingTitle)
                     .dipleType(.micro, weight: .semibold)
+                    .lineLimit(1)
             }
-            .foregroundStyle(status == .any ? DipleColor.textSecondary : DipleColor.accentInk)
+            .foregroundStyle(isNarrowed ? DipleColor.accentInk : DipleColor.textSecondary)
             .diplePadding(.chip)
-            .dipleSelected(status != .any, in: Capsule())
+            .dipleSelected(isNarrowed, in: Capsule())
         }
         .buttonStyle(.readerControl)
         .accessibilityLabel("Filter and sort")
-        .accessibilityValue("\(status.rawValue), \(sort.rawValue)")
+        .accessibilityValue("\(type.rawValue), \(status.rawValue), \(sort.rawValue)")
+    }
+
+    /// Whether anything at all is narrowing the shelf. Search is excluded on purpose: the field
+    /// is visible on the page and speaks for itself.
+    private var isNarrowed: Bool {
+        type != .all || status != .any || !selectedTags.isEmpty
+    }
+
+    /// What the menu's own label prints. One thing at a time, in the order a reader would name
+    /// it, and a count once more than one narrowing is on — three words in a capsule is a
+    /// paragraph, and the menu itself is one tap away for the detail.
+    private var narrowingTitle: String {
+        var active: [String] = []
+        if type != .all { active.append(type.rawValue) }
+        if let status = status.compactTitle { active.append(status) }
+        if selectedTags.count == 1, let tag = selectedTags.first { active.append("#\(tag)") }
+        else if selectedTags.count > 1 { active.append("\(selectedTags.count) tags") }
+
+        guard let first = active.first else { return sort.compactTitle }
+        return active.count == 1 ? first : "\(first) +\(active.count - 1)"
     }
 
     private var noResults: some View {
