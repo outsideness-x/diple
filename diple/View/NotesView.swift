@@ -17,6 +17,12 @@ public struct NotesView: View {
     /// stack the cards push onto.
     @State private var path = NavigationPath()
 
+    /// Whether the field is on the page. It is not, at rest — the same trade the shelf makes:
+    /// a board is read far more often than it is searched, and a resident field charges the
+    /// page for every time it is not being used.
+    @State private var isSearchFieldShown = false
+    @FocusState private var isSearchFocused: Bool
+
     /// No maximum, deliberately.
     ///
     /// A cap of 360 pt only ever binds in one situation: a single column on a screen wider
@@ -57,38 +63,10 @@ public struct NotesView: View {
                 // invalidating the active destination and making the editor appear to vanish.
                 workspace
             }
+            // Set but hidden: it is what a pushed screen labels its own back button with.
             .navigationTitle("Notes")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        ForEach(NoteSort.allCases) { sort in
-                            Button {
-                                viewModel.sort = sort
-                            } label: {
-                                Label(sort.title, systemImage: sort.systemImage)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .dipleIcon(15)
-                            .foregroundStyle(DipleColor.textSecondary)
-                    }
-                    .accessibilityLabel("Sort notes")
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    NavigationLink(value: NoteRoute.new) {
-                        Image(systemName: "plus")
-                            .dipleIcon(16, weight: .medium)
-                            .foregroundStyle(DipleColor.accentInk)
-                    }
-                    .buttonStyle(.readerControl)
-                    .accessibilityLabel("New note")
-                    .accessibilityIdentifier("notes.new")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: NoteRoute.self) { route in
                 destination(for: route)
             }
@@ -112,11 +90,11 @@ public struct NotesView: View {
     private var workspace: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.l, pinnedViews: [.sectionHeaders]) {
+                masthead
+
                 if viewModel.items.isEmpty {
                     emptyState
                 } else {
-                    workspaceHeader
-
                     Section {
                         if viewModel.filteredItems.isEmpty {
                             noResults
@@ -134,81 +112,114 @@ public struct NotesView: View {
         .tracksTabBarCollapse()
     }
 
-    /// The label alone. The slogan under it argued a position about note apps every time the
-    /// screen was opened — a manifesto is worth reading once, and this one cost a title line
-    /// above a list a reader visits constantly. That voice already exists where it does some
-    /// work: the empty state, which explains what to write and why. What is left is a label
-    /// for the board below it.
-    private var workspaceHeader: some View {
-        Text("CONTINUE THINKING")
-            .dipleType(.nano, weight: .semibold)
-            .foregroundStyle(DipleColor.accentInk)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DipleSpace.xl)
-            .padding(.top, DipleSpace.m)
+    /// The head of the board.
+    ///
+    /// `CONTINUE THINKING` is gone from above it. It was a run of accent small caps heading
+    /// nothing — what sat under it was the pinned control band, not the list — and it spent the
+    /// app's loudest colour on a label with no function. The board's name is in the masthead
+    /// now, where the shelf's and the front page's are.
+    ///
+    /// Sort and layout share one control, for the reason the shelf already pairs status with
+    /// sort: both answer "how should this board be presented" rather than "what is on it".
+    private var masthead: some View {
+        DipleMasthead(title: "Notes", strapline: strapline) {
+            Menu {
+                Picker("Sort", selection: $viewModel.sort) {
+                    ForEach(NoteSort.allCases) { option in
+                        Label(option.title, systemImage: option.systemImage).tag(option)
+                    }
+                }
+
+                Picker("Layout", selection: layoutBinding) {
+                    Label("Cards", systemImage: "square.grid.2x2").tag(NoteLayout.cards)
+                    Label("List", systemImage: "rectangle.grid.1x2").tag(NoteLayout.list)
+                }
+            } label: {
+                MastheadGlyph(systemImage: "arrow.up.arrow.down")
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Sort and lay out the board")
+
+            Button {
+                HapticManager.shared.selection()
+                withAnimation(DipleMotion.standard) {
+                    if isSearchFieldShown || !viewModel.query.isEmpty {
+                        viewModel.query = ""
+                        isSearchFieldShown = false
+                        isSearchFocused = false
+                    } else {
+                        isSearchFieldShown = true
+                    }
+                }
+            } label: {
+                MastheadGlyph(
+                    systemImage: isSearchFieldShown || !viewModel.query.isEmpty
+                        ? "xmark" : "magnifyingglass"
+                )
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel(
+                isSearchFieldShown || !viewModel.query.isEmpty ? "Close search" : "Search every note"
+            )
+
+            Button {
+                HapticManager.shared.selection()
+                path.append(NoteRoute.new)
+            } label: {
+                MastheadGlyph(systemImage: "plus")
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("New note")
+            .accessibilityIdentifier("notes.new")
+        }
+        .padding(.horizontal, DipleSpace.xl)
     }
 
+    private var strapline: String? {
+        let count = viewModel.items.count
+        guard count > 0 else { return nil }
+        return count == 1 ? "1 note" : "\(count) notes"
+    }
+
+    /// `layout` is a computed property over `@AppStorage`, and a `Picker` needs a binding.
+    private var layoutBinding: Binding<NoteLayout> {
+        Binding(get: { layout }, set: { newValue in
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.snappy) { layout = newValue }
+        })
+    }
+
+    /// The filter row, and the field when it has been asked for.
+    ///
+    /// It pins, and it is painted in the canvas with a hairline under it rather than in a
+    /// material. A material earns its blur when there is something behind it worth seeing
+    /// through to — that is why the reader's bars use one over a page of type. Over a list of
+    /// notes there is only the canvas behind it, so the blur bought nothing and charged a
+    /// visible grey plate with a hard edge straight across the page.
     private var controls: some View {
         VStack(spacing: DipleSpace.m) {
-            HStack(spacing: DipleSpace.s) {
-                HStack(spacing: DipleSpace.s) {
-                    Image(systemName: "magnifyingglass")
-                        .dipleIcon(14)
-                        .foregroundStyle(DipleColor.textQuaternary)
-
-                    TextField("Search every note", text: $viewModel.query)
-                        .dipleType(.callout)
-                        .foregroundStyle(DipleColor.textPrimary)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("notes.search")
-
-                    if !viewModel.query.isEmpty {
-                        Button {
-                            viewModel.query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .dipleIcon(13)
-                                .foregroundStyle(DipleColor.textQuaternary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Clear search")
-                    }
-                }
-                .diplePadding(.field)
-                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DipleRadius.m)
-                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+            if isSearchFieldShown || !viewModel.query.isEmpty {
+                DipleSearchField(
+                    text: $viewModel.query,
+                    prompt: "Search every note",
+                    identifier: "notes.search"
                 )
-
-                Button {
-                    HapticManager.shared.selection()
-                    withAnimation(DipleMotion.snappy) {
-                        layout = layout == .cards ? .list : .cards
-                    }
-                } label: {
-                    Image(systemName: layout == .cards ? "rectangle.grid.1x2" : "square.grid.2x2")
-                        .dipleIcon(15)
-                        .foregroundStyle(DipleColor.textSecondary)
-                        .frame(width: 36, height: 36)
-                        .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DipleRadius.m)
-                                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(layout == .cards ? "Show as list" : "Show as cards")
+                .focused($isSearchFocused)
+                .onAppear { isSearchFocused = true }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             filterBar
         }
         .padding(.horizontal, DipleSpace.xl)
-        .padding(.top, DipleSpace.l)
+        .padding(.top, DipleSpace.s)
         .padding(.bottom, DipleSpace.m)
-        .background(.ultraThinMaterial)
-        .background(DipleColor.canvas.opacity(0.88))
+        .background(DipleColor.canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DipleColor.hairline)
+                .frame(height: DipleStroke.hairline)
+        }
     }
 
     /// A new note has no card on the board, so there is nothing for it to expand out of —
