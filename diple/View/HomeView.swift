@@ -101,6 +101,8 @@ public struct HomeView: View {
 
                         if library.books.isEmpty && notes.items.isEmpty && highlights.totalQuoteCount == 0 {
                             firstStep
+                        } else {
+                            foot
                         }
                     }
                     .padding(.horizontal, DipleSpace.xl)
@@ -231,6 +233,47 @@ public struct HomeView: View {
                 .foregroundStyle(DipleColor.textTertiary)
             content()
         }
+    }
+
+    /// The foot of the front page.
+    ///
+    /// The page runs out after a lead and a few rows and then stops — two thirds of the display
+    /// left blank, with nothing saying whether that is the end or something that failed to
+    /// load. A publication ends with its imprint: a rule, and one line of what the volume holds.
+    ///
+    /// It goes on Home and nowhere else. The shelf and the board end in a list whose last row
+    /// already draws its own rule, and both print their count in the masthead — a second one at
+    /// the bottom would be the tautology this app keeps removing. The front page is the one
+    /// with a wordmark at the top, and a masthead is what earns an imprint at the bottom.
+    ///
+    /// One line of facts, no streak and no badge. It reports what is here; it does not grade
+    /// the reader on it.
+    private var foot: some View {
+        VStack(spacing: DipleSpace.m) {
+            Rectangle()
+                .fill(DipleColor.hairline)
+                .frame(width: 32, height: DipleStroke.hairline)
+
+            Text(footLine)
+                .dipleType(.micro, weight: .regular)
+                .foregroundStyle(DipleColor.textQuaternary)
+                .monospacedDigit()
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, DipleSpace.xxl)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var footLine: String {
+        var parts: [String] = []
+        let sources = library.books.count
+        if sources > 0 { parts.append(sources == 1 ? "1 source" : "\(sources) sources") }
+        let passages = highlights.totalQuoteCount
+        if passages > 0 { parts.append(passages == 1 ? "1 passage" : "\(passages) passages") }
+        let written = notes.items.count
+        if written > 0 { parts.append(written == 1 ? "1 note" : "\(written) notes") }
+        return parts.joined(separator: " · ")
     }
 
     private var firstStep: some View {
