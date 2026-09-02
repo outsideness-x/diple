@@ -33,7 +33,6 @@ public struct HomeView: View {
     @State private var path = NavigationPath()
     @Namespace private var readingNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init() {}
 
@@ -53,7 +52,6 @@ public struct HomeView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.xxxl) {
                         masthead
-                        quickCapture
 
                         // No heading over the lead. A newspaper does not label its lead
                         // story, and this one was labelled twice over: the section said
@@ -170,90 +168,56 @@ public struct HomeView: View {
         }
     }
 
-    /// The masthead: the wordmark, the day under it, and the way into Settings.
+    /// The masthead.
     ///
-    /// It used to be a 17pt `diple.` centred in a navigation bar with the date beneath it in
-    /// accent small caps — a wordmark shrunk to the size of a back button, and a date shouting
-    /// in the app's brand colour for no reason a reader could act on. A masthead is what a
-    /// publication puts at the top of a page: the name at full size, the date under it in
-    /// plain sentence case, both ranged left, and nothing else competing.
-    ///
-    /// This is also the first place on iOS the `hero` role has anywhere to stand — every other
-    /// screen title in the app is a system inline `navigationTitle`, which is why the role was
-    /// added with only the Mac shell using it.
+    /// The shared component now, not a local one: three roots opening three different ways read
+    /// as three applications. What stays particular to Home is that this is the one place the
+    /// wordmark is printed at all, and the one strapline that is a date rather than a count.
     ///
     /// The rotating aphorism that used to sit here is still gone, for the reason recorded when
     /// it went: Notes opened on a near-identical line, and it spent the widest type in the app
     /// on something nobody could act on. The date stays because it orients rather than declaims.
+    ///
+    /// **The three capture buttons are gone from the page.** They were three utility rectangles
+    /// of equal weight in the second-best band of the front page — the one place a reading app
+    /// should be showing something to read — and the library already carried the identical menu
+    /// under a `+`. One affordance in the head, in both places, says the same thing and gives
+    /// the lead its band back.
     private var masthead: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text("diple.")
-                    .dipleType(.wordmark)
-                    .foregroundStyle(DipleColor.textPrimary)
+        DipleMasthead(title: "diple.", strapline: dayTitle, isWordmark: true) {
+            Menu {
+                Button {
+                    isImportingLink = true
+                } label: {
+                    Label("Save a link", systemImage: "link")
+                }
 
-                Text(dayTitle)
-                    .dipleType(.footnote, weight: .regular)
-                    .foregroundStyle(DipleColor.textTertiary)
+                Button {
+                    isImportingFile = true
+                } label: {
+                    Label("Import a file", systemImage: "doc.badge.plus")
+                }
+
+                Button {
+                    path.append(NoteRoute.new)
+                } label: {
+                    Label("New note", systemImage: "square.and.pencil")
+                }
+            } label: {
+                MastheadGlyph(systemImage: "plus")
             }
-
-            Spacer(minLength: DipleSpace.m)
-
-            Button {
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Add to your library")
+            .accessibilityIdentifier("home.add")
+            .simultaneousGesture(TapGesture().onEnded {
                 HapticManager.shared.selection()
+            })
+
+            MastheadButton(systemImage: "gearshape", label: "Settings") {
                 // The shell presents Settings, not this screen: a sheet owned here would be
                 // torn down the moment an accent is chosen inside it. See `dipleApp`.
                 NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
-            } label: {
-                Image(systemName: "gearshape")
-                    .dipleIcon(16)
-                    .foregroundStyle(DipleColor.textSecondary)
-                    .frame(width: 44, height: 44)
             }
-            .buttonStyle(.readerControl)
-            .accessibilityLabel("Settings")
-        }
-    }
-
-    /// The three capture actions.
-    ///
-    /// One row normally, one per row at accessibility sizes — the same trade the library grid and
-    /// the notes board already make. Three buttons sharing a phone's width give each about 120 pt,
-    /// and at the top of the Dynamic Type scale that is narrower than the words in them: the row
-    /// read "Sav / e link", "Imp / ort", "Ne / w not / e", broken mid-word in all three at once.
-    /// A stack gives each label the full measure, and the row is short enough that the height it
-    /// costs is affordable at exactly the sizes that need it.
-    @ViewBuilder
-    private var quickCapture: some View {
-        let actions = Group {
-            HomeQuickAction(title: "Save link", systemImage: "link") {
-                isImportingLink = true
-            }
-
-            HomeQuickAction(title: "Import", systemImage: "doc.badge.plus") {
-                isImportingFile = true
-            }
-
-            NavigationLink(value: NoteRoute.new) {
-                Label("New note", systemImage: "square.and.pencil")
-                    .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 44)
-                    .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: DipleRadius.m)
-                            .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-                    }
-            }
-            .buttonStyle(.readerControl)
-            .accessibilityIdentifier("home.newNote")
-        }
-
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: DipleSpace.s) { actions }
-        } else {
-            HStack(spacing: DipleSpace.s) { actions }
         }
     }
 
@@ -347,31 +311,6 @@ public struct HomeView: View {
         } else {
             reader.navigationTransition(.zoom(sourceID: book.id, in: readingNamespace))
         }
-    }
-}
-
-private struct HomeQuickAction: View {
-    let title: String
-    let systemImage: String
-    let action: () -> Void
-
-    var body: some View {
-        Button {
-            HapticManager.shared.selection()
-            action()
-        } label: {
-            Label(title, systemImage: systemImage)
-                .dipleType(.footnote, weight: .semibold)
-                .foregroundStyle(DipleColor.textSecondary)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 44)
-                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-                .overlay {
-                    RoundedRectangle(cornerRadius: DipleRadius.m)
-                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-                }
-        }
-        .buttonStyle(.readerControl)
     }
 }
 
