@@ -153,6 +153,12 @@ public final class ReaderViewModel: ObservableObject {
     @Published public var highlights: [Highlight] = [] {
         didSet { synchronizeLivingMargins() }
     }
+    /// The words filed against this book's passages, by highlight id. Kept beside `highlights`
+    /// rather than folded into `Highlight` — the tags are their own table, and a record type
+    /// that carried them would have to be written and read in two pieces everywhere.
+    @Published public private(set) var highlightTags: [String: [String]] = [:]
+    /// Every word used on a passage anywhere in the library, for the editor's menu.
+    @Published public private(set) var highlightTagSuggestions: [String] = []
     /// A transient projection of highlights carrying personal writing. Readium receives this
     /// list as semantic locator decorations; no marker position is persisted.
     @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
@@ -322,6 +328,12 @@ public final class ReaderViewModel: ObservableObject {
     public func loadHighlights() {
         do {
             self.highlights = try database.fetchHighlights(forBookId: book.id)
+            // Narrowed to this book for the chips, but the suggestion list is the reader's
+            // whole vocabulary: the word for this passage was very likely first typed in a
+            // different book, and a menu that only offers words from the one you are inside
+            // makes the reader retype what they already have.
+            self.highlightTags = try database.fetchTagsByHighlight(forBookId: book.id)
+            self.highlightTagSuggestions = try database.fetchAllHighlightTags()
         } catch {
             // Saying nothing would show the book with none of its quotes on it, which reads
             // as "they are gone" rather than "they could not be read".
@@ -1242,12 +1254,21 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
 
-    public func updateHighlight(_ highlight: Highlight, colorHex: String, comment: String?) {
+    /// `tags` keeps the database's meaning: `nil` is "not talking about tags", `[]` is "the
+    /// reader took the last one off". `setHighlightColor` relies on it — recolouring from the
+    /// actions bar must leave both the thought and the filing alone.
+    public func updateHighlight(
+        _ highlight: Highlight,
+        colorHex: String,
+        comment: String?,
+        tags: [String]? = nil
+    ) {
         do {
             try database.updateHighlight(
                 id: highlight.id,
                 colorHex: colorHex,
-                comment: comment
+                comment: comment,
+                tags: tags
             )
             loadHighlights()
             HapticManager.shared.impact(.light)

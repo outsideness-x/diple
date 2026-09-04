@@ -45,6 +45,29 @@ public struct Highlight: Codable, FetchableRecord, PersistableRecord, Identifiab
     }
 }
 
+/// A reader's own word attached to one saved passage.
+///
+/// A third table beside `noteTag` and `bookTag`, and a third vocabulary — deliberately, on the
+/// rule those two already set: a source's tags say where a text belongs on the shelf, a note's
+/// tags describe a thought the reader wrote from nothing, and a passage's tags say what this
+/// particular sentence *is* to them — `objection`, `definition`, `for the essay`. Pouring them
+/// into one list would make every word typed on one side a suggestion on the other, and the
+/// suggestion menu is the whole value of a vocabulary. What all three share is `TagName`, so
+/// "are these the same tag" keeps exactly one answer everywhere.
+public struct HighlightTag: Codable, FetchableRecord, PersistableRecord, Equatable, Hashable, Sendable {
+    public var highlightId: String
+    public var tag: String
+
+    public init(highlightId: String, tag: String) {
+        self.highlightId = highlightId
+        self.tag = tag
+    }
+
+    public static func normalized(_ raw: String) -> String? {
+        TagName.normalized(raw)
+    }
+}
+
 /// One row per book id that still has quotes, grouped from `highlight` itself rather than
 /// joined outward from `book` — a deleted book must still produce a group instead of quietly
 /// dropping its quotes from the hub.

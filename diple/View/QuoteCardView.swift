@@ -5,15 +5,20 @@ import SwiftUI
 /// because it also carries navigation to the passage.
 public struct QuoteCardView: View {
     public let quote: Highlight
+    /// Passed in rather than read here: a list draws many of these, and a card that fetched its
+    /// own tags would put a query behind every row of a scroll.
+    public let tags: [String]
     public let onCommentRequest: (() -> Void)?
     public let onDeleteRequest: (() -> Void)?
 
     public init(
         quote: Highlight,
+        tags: [String] = [],
         onCommentRequest: (() -> Void)? = nil,
         onDeleteRequest: (() -> Void)? = nil
     ) {
         self.quote = quote
+        self.tags = tags
         self.onCommentRequest = onCommentRequest
         self.onDeleteRequest = onDeleteRequest
     }
@@ -61,6 +66,16 @@ public struct QuoteCardView: View {
                     }
                 }
 
+                if !tags.isEmpty {
+                    // The reader's own words, under their own quiet line — the same chip the
+                    // notes board uses, so a tag looks like a tag wherever it is read.
+                    FlowLayout(spacing: DipleSpace.xs) {
+                        ForEach(tags, id: \.self) { tag in
+                            TagChipView(label: tag, kind: .text)
+                        }
+                    }
+                }
+
                 HStack(spacing: DipleSpace.m) {
                     Text(formattedDate)
                         .dipleType(.micro)
@@ -92,8 +107,11 @@ public struct QuoteCardView: View {
             }
 
             if let onCommentRequest {
+                // One room with two doors, both saying what they open: the inline control
+                // beneath the quote is the common act — write the thought — while the menu
+                // names the sheet for what it now holds, a comment and the passage's tags.
                 Button(action: onCommentRequest) {
-                    Label(comment == nil ? "Add comment" : "Edit comment", systemImage: "bubble.left")
+                    Label("Edit passage", systemImage: "square.and.pencil")
                 }
             }
 
@@ -107,22 +125,32 @@ public struct QuoteCardView: View {
 }
 
 /// A focused editor shared by the iPhone/iPad quote list and the Mac quote inspector.
+///
+/// It holds everything a reader adds *to* a passage — the thought and the filing — while the
+/// reader's own `HighlightEditorView` additionally owns colour, because colour is a mark on the
+/// page and this screen has no page. Two editors, two jobs; one vocabulary between them.
 public struct QuoteCommentEditorView: View {
     public let quote: Highlight
-    public let onSave: (String) -> Void
+    public let suggestions: [String]
+    public let onSave: (String, [String]) -> Void
     public let onCancel: () -> Void
 
     @State private var comment: String
+    @State private var tags: [String]
 
     public init(
         quote: Highlight,
-        onSave: @escaping (String) -> Void,
+        tags: [String] = [],
+        suggestions: [String] = [],
+        onSave: @escaping (String, [String]) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.quote = quote
+        self.suggestions = suggestions
         self.onSave = onSave
         self.onCancel = onCancel
         self._comment = State(initialValue: quote.comment ?? "")
+        self._tags = State(initialValue: tags)
     }
 
     public var body: some View {
@@ -141,15 +169,22 @@ public struct QuoteCommentEditorView: View {
                         .textInputAutocapitalization(.sentences)
                 }
 
+                Section("Tags") {
+                    TagField(tags: $tags, suggestions: suggestions, emptyPrompt: "File this passage")
+                        .padding(.vertical, DipleSpace.xs)
+                }
+
                 if quote.comment != nil {
                     Section {
+                        // Removing the thought leaves the filing alone: they are separate
+                        // things the reader added, and one button must not take both.
                         Button("Remove comment", role: .destructive) {
-                            onSave("")
+                            onSave("", tags)
                         }
                     }
                 }
             }
-            .navigationTitle(quote.comment == nil ? "Add comment" : "Edit comment")
+            .navigationTitle("Passage")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -157,7 +192,7 @@ public struct QuoteCommentEditorView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        onSave(comment)
+                        onSave(comment, tags)
                     }
                     .fontWeight(.semibold)
                 }

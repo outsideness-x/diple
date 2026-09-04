@@ -1,18 +1,26 @@
 import SwiftUI
 
 /// One editor for both a fresh text selection and an existing highlight. Keeping color,
-/// comment, copy and deletion in a single sheet avoids nested menus over the reading page and
-/// makes a tap on an existing decoration behave exactly like creating it in the first place.
+/// comment, tags, copy and deletion in a single sheet avoids nested menus over the reading page
+/// and makes a tap on an existing decoration behave exactly like creating it in the first place.
+///
+/// Tags come last, after the thought rather than before it. They are a filing act — what this
+/// sentence *is* to the reader — and putting them above the comment would push the field the
+/// editor actually exists for below the fold of a medium detent.
 public struct HighlightEditorView: View {
     public let quote: String
     public let isExisting: Bool
-    public let onSave: (String, String?) -> Void
+    /// Every word already used on a passage anywhere in the library. Sources and notes keep
+    /// their own vocabularies; see `HighlightTag`.
+    public let tagSuggestions: [String]
+    public let onSave: (String, String?, [String]) -> Void
     public let onDelete: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedColorHex: String
     @State private var comment: String
+    @State private var tags: [String]
     @State private var isDeleteConfirmationPresented = false
     @State private var didCopy = false
     @State private var isSaving = false
@@ -22,16 +30,20 @@ public struct HighlightEditorView: View {
         quote: String,
         initialColorHex: String = DipleColor.Highlight.yellow,
         initialComment: String? = nil,
+        initialTags: [String] = [],
+        tagSuggestions: [String] = [],
         isExisting: Bool,
-        onSave: @escaping (String, String?) -> Void,
+        onSave: @escaping (String, String?, [String]) -> Void,
         onDelete: (() -> Void)? = nil
     ) {
         self.quote = quote
         self.isExisting = isExisting
+        self.tagSuggestions = tagSuggestions
         self.onSave = onSave
         self.onDelete = onDelete
         _selectedColorHex = State(initialValue: initialColorHex)
         _comment = State(initialValue: initialComment ?? "")
+        _tags = State(initialValue: initialTags)
     }
 
     public var body: some View {
@@ -44,6 +56,7 @@ public struct HighlightEditorView: View {
                         quoteCard
                         colorPicker
                         commentEditor
+                        tagEditor
                     }
                     .padding(.horizontal, DipleSpace.xl)
                     .padding(.top, DipleSpace.m)
@@ -192,6 +205,22 @@ public struct HighlightEditorView: View {
         }
     }
 
+    private var tagEditor: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("TAGS")
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+                Spacer()
+                Text("OPTIONAL")
+                    .dipleType(.nano)
+                    .foregroundStyle(DipleColor.textQuaternary)
+            }
+
+            TagField(tags: $tags, suggestions: tagSuggestions, emptyPrompt: "File this passage")
+        }
+    }
+
     private var bottomActions: some View {
         HStack(spacing: DipleSpace.s) {
             if isExisting, onDelete != nil {
@@ -268,7 +297,7 @@ public struct HighlightEditorView: View {
         let normalizedComment = trimmed.isEmpty ? nil : trimmed
 
         guard !reduceMotion else {
-            onSave(selectedColorHex, normalizedComment)
+            onSave(selectedColorHex, normalizedComment, tags)
             dismiss()
             return
         }
@@ -278,7 +307,7 @@ public struct HighlightEditorView: View {
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(380))
-            onSave(selectedColorHex, normalizedComment)
+            onSave(selectedColorHex, normalizedComment, tags)
             dismiss()
         }
     }

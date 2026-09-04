@@ -5,6 +5,7 @@ import Combine
 private final class SourceOverviewViewModel: ObservableObject {
     @Published var book: Book
     @Published var highlights: [Highlight] = []
+    @Published var highlightTags: [String: [String]] = [:]
     @Published var notes: [NoteItem] = []
     @Published var tags: [String] = []
     @Published var characters: Int?
@@ -19,6 +20,7 @@ private final class SourceOverviewViewModel: ObservableObject {
         do {
             book = try AppDatabase.shared.fetchBook(id: book.id) ?? book
             highlights = try AppDatabase.shared.fetchHighlights(forBookId: book.id)
+            highlightTags = try AppDatabase.shared.fetchTagsByHighlight(forBookId: book.id)
             tags = try AppDatabase.shared.fetchTags(forBookId: book.id)
             characters = try AppDatabase.shared.contentCharacterCount(
                 bookID: book.id,
@@ -75,7 +77,10 @@ public struct SourceOverviewView: View {
                         if !viewModel.highlights.isEmpty {
                             section("HIGHLIGHTS", count: viewModel.highlights.count) {
                                 ForEach(viewModel.highlights.prefix(3)) { highlight in
-                                    QuoteCardView(quote: highlight)
+                                    QuoteCardView(
+                                        quote: highlight,
+                                        tags: viewModel.highlightTags[highlight.id] ?? []
+                                    )
                                 }
 
                                 if viewModel.highlights.count > 3 {

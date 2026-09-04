@@ -72,6 +72,12 @@ public final class HubViewModel: ObservableObject {
 @MainActor
 public final class BookQuotesViewModel: ObservableObject {
     @Published public private(set) var quotes: [Highlight] = []
+    /// This book's tags by highlight id, loaded once per refresh so the list can draw a chip
+    /// row on every card without a query per card.
+    @Published public private(set) var tagsByQuote: [String: [String]] = [:]
+    /// The whole library's passage vocabulary. The word this quote wants was very likely first
+    /// typed in another book, so the menu offers all of them, not only this book's.
+    @Published public private(set) var tagSuggestions: [String] = []
     @Published public var errorMessage: String? = nil
     @Published public var showErrorAlert: Bool = false
     @Published public var quoteToDelete: Highlight? = nil
@@ -95,10 +101,16 @@ public final class BookQuotesViewModel: ObservableObject {
     public func load() {
         do {
             quotes = try AppDatabase.shared.fetchHighlights(forBookId: bookId)
+            tagsByQuote = try AppDatabase.shared.fetchTagsByHighlight(forBookId: bookId)
+            tagSuggestions = try AppDatabase.shared.fetchAllHighlightTags()
         } catch {
             errorMessage = "Failed to load quotes: \(error.localizedDescription)"
             showErrorAlert = true
         }
+    }
+
+    public func tags(for quote: Highlight) -> [String] {
+        tagsByQuote[quote.id] ?? []
     }
 
     public func confirmDelete(_ quote: Highlight) {
@@ -114,14 +126,22 @@ public final class BookQuotesViewModel: ObservableObject {
         quoteForComment = nil
     }
 
-    public func saveComment(_ comment: String) {
+    /// The comment and the tags are written together because the editor collects them
+    /// together: two calls would put two records in the CloudKit outbox and two rewrites of
+    /// the same search document for one tap of Save.
+    public func saveComment(_ comment: String, tags: [String]) {
         guard let quote = quoteForComment else { return }
         do {
-            try AppDatabase.shared.updateHighlightComment(id: quote.id, comment: comment)
+            try AppDatabase.shared.updateHighlight(
+                id: quote.id,
+                colorHex: quote.colorHex,
+                comment: comment,
+                tags: tags
+            )
             quoteForComment = nil
             load()
         } catch {
-            errorMessage = "Failed to save comment: \(error.localizedDescription)"
+            errorMessage = "Failed to save passage: \(error.localizedDescription)"
             showErrorAlert = true
         }
     }

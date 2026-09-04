@@ -24,6 +24,7 @@ public struct BookQuotesView: View {
                     ForEach(viewModel.quotes) { quote in
                         QuoteCardView(
                             quote: quote,
+                            tags: viewModel.tags(for: quote),
                             onCommentRequest: { viewModel.beginEditingComment(quote) },
                             onDeleteRequest: { viewModel.confirmDelete(quote) }
                         )
@@ -53,6 +54,8 @@ public struct BookQuotesView: View {
         .sheet(item: $viewModel.quoteForComment) { quote in
             QuoteCommentEditorView(
                 quote: quote,
+                tags: viewModel.tags(for: quote),
+                suggestions: viewModel.tagSuggestions,
                 onSave: viewModel.saveComment,
                 onCancel: viewModel.cancelCommentEditing
             )

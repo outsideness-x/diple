@@ -389,6 +389,19 @@ public nonisolated final class AppDatabase: Sendable {
             try db.create(index: "bookTag_on_tag", on: "bookTag", columns: ["tag"])
         }
 
+        /// The third tag table, shaped exactly like the first two. No backfill: a passage saved
+        /// before this migration has no tags because nobody could give it any, and inventing a
+        /// word for it — its book's name, its colour — would put a tag in the vocabulary that
+        /// the reader never typed and would then have to clean out of every suggestion menu.
+        migrator.registerMigration("v18_createHighlightTagTable") { db in
+            try db.create(table: "highlightTag") { t in
+                t.column("highlightId", .text).notNull()
+                t.column("tag", .text).notNull()
+                t.primaryKey(["highlightId", "tag"])
+            }
+            try db.create(index: "highlightTag_on_tag", on: "highlightTag", columns: ["tag"])
+        }
+
         return migrator
     }
 
@@ -635,7 +648,10 @@ public nonisolated final class AppDatabase: Sendable {
 
     // MARK: - Highlight CRUD
 
-    public func saveHighlight(_ highlight: Highlight) throws {
+    /// `tags` is written in the same transaction as the passage rather than by a second call.
+    /// The importer arrives with a passage and its words together, and a quote that existed
+    /// untagged for even one commit would reach the search index — and iCloud — twice.
+    public func saveHighlight(_ highlight: Highlight, tags: [String] = []) throws {
         try writer.write { db in
             var highlight = highlight
             let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
@@ -644,10 +660,17 @@ public nonisolated final class AppDatabase: Sendable {
                 highlight.bookAuthor = book.author
             }
             try highlight.save(db)
+            try Self.replaceTags(tags, forHighlightId: highlight.id, in: db)
             try indexHighlight(highlight, book: book, in: db)
             try markLocalSave(.highlight, id: highlight.id, at: highlight.createdAt, in: db)
         }
         signalSyncIfNeeded()
+    }
+
+    public func fetchHighlight(id: String) throws -> Highlight? {
+        try writer.read { db in
+            try Highlight.filter(Column("id") == id).fetchOne(db)
+        }
     }
 
     public func fetchHighlights(forBookId bookId: String) throws -> [Highlight] {
@@ -656,28 +679,17 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
-    public func updateHighlightComment(id: String, comment: String?, changedAt: Date = Date()) throws {
-        try writer.write { db in
-            guard var highlight = try Highlight.filter(Column("id") == id).fetchOne(db) else {
-                return
-            }
-            let trimmed = comment?.trimmingCharacters(in: .whitespacesAndNewlines)
-            highlight.comment = (trimmed?.isEmpty ?? true) ? nil : trimmed
-            try highlight.update(db)
-            let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
-            try indexHighlight(highlight, book: book, in: db)
-            try markLocalSave(.highlight, id: id, at: changedAt, in: db)
-        }
-        signalSyncIfNeeded()
-    }
-
     /// Edits the two user-facing properties of a saved highlight atomically. The locator,
     /// quote text and capture date remain immutable; changing appearance or adding context
     /// must not turn the passage into a different object or reset its place in the library.
+    /// `tags` is optional in the strong sense: `nil` means "this caller is not talking about
+    /// tags, leave them", and `[]` means "the reader removed the last one". Recolouring a
+    /// passage from the actions bar must not be able to strip its words off it.
     public func updateHighlight(
         id: String,
         colorHex: String,
         comment: String?,
+        tags: [String]? = nil,
         changedAt: Date = Date()
     ) throws {
         try writer.write { db in
@@ -688,11 +700,81 @@ public nonisolated final class AppDatabase: Sendable {
             highlight.colorHex = colorHex
             highlight.comment = (trimmed?.isEmpty ?? true) ? nil : trimmed
             try highlight.update(db)
+            if let tags {
+                try Self.replaceTags(tags, forHighlightId: id, in: db)
+            }
             let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
             try indexHighlight(highlight, book: book, in: db)
             try markLocalSave(.highlight, id: id, at: changedAt, in: db)
         }
         signalSyncIfNeeded()
+    }
+
+    /// Replaces one passage's tag set. Separate from `updateHighlight` because the hub tags a
+    /// quote without touching its colour or its comment, and passing the two through unchanged
+    /// only to leave them unchanged is how a save ends up quietly rewriting them.
+    public func setTags(_ tags: [String], forHighlightId id: String, changedAt: Date = Date()) throws {
+        try writer.write { db in
+            guard let highlight = try Highlight.filter(Column("id") == id).fetchOne(db) else { return }
+            try Self.replaceTags(tags, forHighlightId: id, in: db)
+            let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
+            try indexHighlight(highlight, book: book, in: db)
+            try markLocalSave(.highlight, id: id, at: changedAt, in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
+    /// The one body that writes a passage's tag rows. Every caller — save, edit, remote apply,
+    /// import, restore — goes through it, so normalisation and de-duplication cannot come out
+    /// differently depending on which door the tags walked in.
+    private static func replaceTags(_ tags: [String], forHighlightId id: String, in db: Database) throws {
+        _ = try HighlightTag.filter(Column("highlightId") == id).deleteAll(db)
+        for tag in Set(tags.compactMap(HighlightTag.normalized)).sorted() {
+            try HighlightTag(highlightId: id, tag: tag).insert(db)
+        }
+    }
+
+    public func fetchTags(forHighlightId id: String) throws -> [String] {
+        try writer.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT tag FROM highlightTag WHERE highlightId = ? ORDER BY tag",
+                arguments: [id]
+            )
+        }
+    }
+
+    /// Tags for many passages at once: a list of quotes draws a chip row per card, and one
+    /// query per card would mean a query per scroll — the same reason `fetchTagsByBook` exists.
+    ///
+    /// `bookId` narrows it to one publication. The reader and a book's quote list both want
+    /// exactly that, and a library carrying a decade of imported highlights should not read
+    /// every tag row it owns to draw the chips on one page.
+    public func fetchTagsByHighlight(forBookId bookId: String? = nil) throws -> [String: [String]] {
+        try writer.read { db in
+            let rows: [Row]
+            if let bookId {
+                rows = try Row.fetchAll(db, sql: """
+                    SELECT highlightTag.highlightId AS highlightId, highlightTag.tag AS tag
+                    FROM highlightTag
+                    JOIN highlight ON highlight.id = highlightTag.highlightId
+                    WHERE highlight.bookId = ?
+                    ORDER BY highlightTag.tag
+                    """, arguments: [bookId])
+            } else {
+                rows = try Row.fetchAll(db, sql: "SELECT highlightId, tag FROM highlightTag ORDER BY tag")
+            }
+            return rows.reduce(into: [String: [String]]()) { result, row in
+                let id: String = row["highlightId"]
+                result[id, default: []].append(row["tag"])
+            }
+        }
+    }
+
+    public func fetchAllHighlightTags() throws -> [String] {
+        try writer.read { db in
+            try String.fetchAll(db, sql: "SELECT DISTINCT tag FROM highlightTag ORDER BY tag")
+        }
     }
 
     /// Quotes are deliberately fetched independently of their books: a saved passage may
@@ -732,6 +814,9 @@ public nonisolated final class AppDatabase: Sendable {
     public func deleteHighlight(id: String) throws {
         try writer.write { db in
             _ = try Highlight.filter(Column("id") == id).deleteAll(db)
+            // No foreign key on `highlightTag` either, so the rows go by hand or they stay
+            // behind and put a dead word in every suggestion menu forever.
+            _ = try HighlightTag.filter(Column("highlightId") == id).deleteAll(db)
             try deleteSearchDocument(type: .highlight, id: id, in: db)
             try markLocalDelete(.highlight, id: id, at: Date(), in: db)
         }
@@ -884,14 +969,17 @@ public nonisolated final class AppDatabase: Sendable {
             }
 
             var existingHighlightIDs = Set(try String.fetchAll(db, sql: "SELECT id FROM highlight"))
-            for incoming in payload.highlights where !existingHighlightIDs.contains(incoming.id) {
-                var highlight = incoming
+            for tagged in payload.highlights where !existingHighlightIDs.contains(tagged.highlight.id) {
+                var highlight = tagged.highlight
                 let book = booksByID[highlight.bookId]
                 if let book {
                     highlight.bookTitle = highlight.bookTitle ?? book.title
                     highlight.bookAuthor = highlight.bookAuthor ?? book.author
                 }
                 try highlight.insert(db)
+                // An existing passage wins outright, so this only ever runs for a quote being
+                // added — there is no local tag set here to merge with or to overwrite.
+                try Self.replaceTags(tagged.tags, forHighlightId: highlight.id, in: db)
                 try indexHighlight(highlight, book: book, in: db)
                 try markLocalSave(.highlight, id: highlight.id, at: restoredAt, in: db)
                 existingHighlightIDs.insert(highlight.id)
@@ -958,7 +1046,7 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
-        let highlightsAdded = payload.highlights.lazy.filter { !existingHighlightIDs.contains($0.id) }.count
+        let highlightsAdded = payload.highlights.lazy.filter { !existingHighlightIDs.contains($0.highlight.id) }.count
         return DipleRestorePreview(
             sourcePositionsUpdated: sourcePositionsUpdated,
             sourceReferencesMissing: sourceReferencesMissing,
@@ -1221,9 +1309,15 @@ public nonisolated final class AppDatabase: Sendable {
 
     // MARK: - Global Search
 
+    /// A highlight's row carries its book's title and byline so a result can be *shown* with
+    /// them, but it must not be *found* by them: a search for a book's name would otherwise
+    /// answer with every passage ever saved from it instead of the book. So a passage matches
+    /// only on the columns holding the reader's own words — the quote and the comment in
+    /// `body`, and now the tags. A tag is as much the reader's word about this sentence as the
+    /// comment is, and a vocabulary you cannot search back is a vocabulary you cannot use.
     public func search(_ query: String, limit: Int = 60) throws -> [GlobalSearchResult] {
         guard let matchQuery = Self.ftsMatchQuery(query) else { return [] }
-        let highlightBodyQuery = "body : (\(matchQuery))"
+        let highlightBodyQuery = "{body tags} : (\(matchQuery))"
 
         return try writer.read { db in
             let rows = try Row.fetchAll(
@@ -1376,23 +1470,33 @@ public nonisolated final class AppDatabase: Sendable {
     /// `book` is the live row when it still exists; a highlight whose book is gone falls back
     /// to the snapshot taken at save time, which is what keeps it searchable under its former
     /// title instead of disappearing from the index along with the book.
+    ///
+    /// Tags are read straight out of `highlightTag` rather than taken as a parameter, for the
+    /// reason spelled out on `indexBook`: this runs from save, edit, remote apply, import and
+    /// restore, and only some of those have a tag set in hand.
     private func indexHighlight(_ highlight: Highlight, book: Book?, in db: Database) throws {
         try deleteSearchDocument(type: .highlight, id: highlight.id, in: db)
         let title = book?.title ?? highlight.bookTitle ?? ""
         let subtitle = [book?.author ?? highlight.bookAuthor, book?.sourceURL]
             .compactMap { $0 }
             .joined(separator: " ")
+        let tags = try String.fetchAll(
+            db,
+            sql: "SELECT tag FROM highlightTag WHERE highlightId = ? ORDER BY tag",
+            arguments: [highlight.id]
+        )
         try db.execute(
             sql: """
                 INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
-                VALUES ('highlight', ?, ?, ?, ?, ?, '')
+                VALUES ('highlight', ?, ?, ?, ?, ?, ?)
                 """,
             arguments: [
                 highlight.id,
                 highlight.bookId,
                 title,
                 subtitle,
-                [highlight.text, highlight.comment].compactMap { $0 }.joined(separator: " ")
+                [highlight.text, highlight.comment].compactMap { $0 }.joined(separator: " "),
+                tags.joined(separator: " ")
             ]
         )
     }
@@ -1525,9 +1629,17 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
-    public func fetchHighlightForSync(id: String) throws -> Highlight? {
+    public func fetchHighlightForSync(id: String) throws -> SyncedHighlight? {
         try writer.read { db in
-            try Highlight.filter(Column("id") == id).fetchOne(db)
+            guard let highlight = try Highlight.filter(Column("id") == id).fetchOne(db) else { return nil }
+            let tags = try HighlightTag
+                .filter(Column("highlightId") == id)
+                .order(Column("tag"))
+                .fetchAll(db)
+                .map(\.tag)
+            // A device that has the schema always knows its own answer, so this end never
+            // sends `nil`: an untagged passage genuinely has none.
+            return SyncedHighlight(highlight: highlight, tags: tags)
         }
     }
 
@@ -1596,12 +1708,12 @@ public nonisolated final class AppDatabase: Sendable {
     }
 
     @discardableResult
-    public func applyRemoteHighlight(_ highlight: Highlight, modifiedAt: Date, systemFields: Data) throws -> Bool {
+    public func applyRemoteHighlight(_ synced: SyncedHighlight, modifiedAt: Date, systemFields: Data) throws -> Bool {
         try writer.write { db in
+            var highlight = synced.highlight
             guard try shouldAcceptRemote(.highlight, id: highlight.id, modifiedAt: modifiedAt, in: db) else {
                 return false
             }
-            var highlight = highlight
             let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
             // A record saved before this device's snapshot columns existed decodes with a nil
             // title/author; a book that is still around locally is the only place left to
@@ -1611,6 +1723,13 @@ public nonisolated final class AppDatabase: Sendable {
                 highlight.bookAuthor = highlight.bookAuthor ?? book.author
             }
             try highlight.save(db)
+            // Same rule as a source's tags: absent means "this record predates tagging", and
+            // taking that for "no tags" would let one un-upgraded device strip the words off
+            // every passage in the library.
+            if let tags = synced.tags {
+                try Self.replaceTags(tags, forHighlightId: highlight.id, in: db)
+            }
+            // After the tag rows, never before: `indexHighlight` reads them back out.
             try indexHighlight(highlight, book: book, in: db)
             try storeRemoteMetadata(.highlight, id: highlight.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
             return true

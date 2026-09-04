@@ -1259,7 +1259,7 @@ final class DipleTests: XCTestCase {
         let json = try XCTUnwrap(String(data: encoder.encode(payload), encoding: .utf8))
 
         XCTAssertEqual(payload.sources.map(\.id), [book.id])
-        XCTAssertEqual(payload.highlights.map(\.bookId), [book.id])
+        XCTAssertEqual(payload.highlights.map(\.highlight.bookId), [book.id])
         XCTAssertEqual(payload.notes.first?.tags, ["idea"])
         XCTAssertFalse(json.contains("Books/private/internal.epub"))
     }
@@ -1292,8 +1292,9 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(try database.search("한국").map(\.kind), [.note])
         XCTAssertNoThrow(try database.search(#"\"quoted-value\""#))
 
-        try database.updateHighlightComment(
+        try database.updateHighlight(
             id: highlight.id,
+            colorHex: highlight.colorHex,
             comment: "Мой комментарий о структуре доказательства"
         )
         XCTAssertEqual(
@@ -1329,13 +1330,14 @@ final class DipleTests: XCTestCase {
         try database.saveHighlight(highlight)
 
         let changedAt = Date(timeIntervalSince1970: 200)
-        try database.updateHighlightComment(
+        try database.updateHighlight(
             id: highlight.id,
+            colorHex: highlight.colorHex,
             comment: "  A personal connection.  ",
             changedAt: changedAt
         )
         XCTAssertEqual(
-            try database.fetchHighlightForSync(id: highlight.id)?.comment,
+            try database.fetchHighlightForSync(id: highlight.id)?.highlight.comment,
             "A personal connection."
         )
         XCTAssertEqual(
@@ -1343,8 +1345,101 @@ final class DipleTests: XCTestCase {
             changedAt
         )
 
-        try database.updateHighlightComment(id: highlight.id, comment: " \n ")
-        XCTAssertNil(try database.fetchHighlightForSync(id: highlight.id)?.comment)
+        try database.updateHighlight(id: highlight.id, colorHex: highlight.colorHex, comment: " \n ")
+        XCTAssertNil(try database.fetchHighlightForSync(id: highlight.id)?.highlight.comment)
+    }
+
+    /// Tags on a passage are a third vocabulary beside a source's and a note's, stored in a
+    /// third table and normalised by the one `TagName` rule. What this pins down is the two
+    /// places the shape could quietly go wrong: the search index has to carry the words, and a
+    /// deleted passage has to take its rows with it instead of leaving a dead word in every
+    /// suggestion menu.
+    func testHighlightTagsAreNormalizedSearchableAndVanishWithThePassage() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let book = Book(
+            id: "tagged-book",
+            title: "Tagged Book",
+            filePath: "Books/tagged-book/book.epub",
+            addedAt: Date(timeIntervalSince1970: 10)
+        )
+        try database.saveBook(book)
+        try database.setTags(["Physics"], forBookId: book.id)
+
+        let highlight = Highlight(
+            id: "tagged-highlight",
+            bookId: book.id,
+            locator: "{}",
+            text: "Пассаж о симметрии",
+            createdAt: Date(timeIntervalSince1970: 20)
+        )
+        try database.saveHighlight(highlight, tags: ["  #Objection ", "objection", "한국어"])
+
+        XCTAssertEqual(
+            try database.fetchTags(forHighlightId: highlight.id),
+            ["objection", "한국어"],
+            "one tag rule for every vocabulary: trimmed, un-hashed, lowercased, de-duplicated"
+        )
+        XCTAssertEqual(try database.fetchAllHighlightTags(), ["objection", "한국어"])
+        XCTAssertEqual(
+            try database.fetchAllBookTags(),
+            ["physics"],
+            "a source's vocabulary must not start suggesting words typed on a passage"
+        )
+        XCTAssertEqual(try database.search("objection").map(\.kind), [.highlight])
+
+        // Recolouring says nothing about tags, and must therefore leave them alone.
+        try database.updateHighlight(id: highlight.id, colorHex: "#FF375F", comment: nil)
+        XCTAssertEqual(try database.fetchTags(forHighlightId: highlight.id), ["objection", "한국어"])
+
+        // An emptied set is a statement, and it reaches the index.
+        try database.updateHighlight(id: highlight.id, colorHex: "#FF375F", comment: nil, tags: [])
+        XCTAssertTrue(try database.fetchTags(forHighlightId: highlight.id).isEmpty)
+        XCTAssertTrue(try database.search("objection").isEmpty)
+
+        try database.setTags(["later"], forHighlightId: highlight.id)
+        XCTAssertEqual(try database.fetchTagsByHighlight(forBookId: book.id), [highlight.id: ["later"]])
+
+        try database.deleteHighlight(id: highlight.id)
+        XCTAssertTrue(
+            try database.fetchAllHighlightTags().isEmpty,
+            "a deleted passage takes its words with it; there is no foreign key to do it for us"
+        )
+    }
+
+    /// A record saved before passages could be tagged carries no `tags` field at all, and that
+    /// is not the same statement as "this passage has none". Reading the first as the second
+    /// would let one device still on the old build strip the words off the whole library.
+    func testRemoteHighlightWithoutTagsKeepsTheLocalOnesWhileAnEmptyListClearsThem() throws {
+        let database = try AppDatabase(DatabaseQueue(), syncEnabled: true)
+        let highlight = Highlight(
+            id: "remote-tagged",
+            bookId: "absent-book",
+            locator: "{}",
+            text: "A passage that outlived its book",
+            createdAt: Date(timeIntervalSince1970: 100)
+        )
+        try database.saveHighlight(highlight, tags: ["keep"])
+
+        var incoming = highlight
+        incoming.comment = "Edited on another device"
+        XCTAssertTrue(
+            try database.applyRemoteHighlight(
+                SyncedHighlight(highlight: incoming, tags: nil),
+                modifiedAt: Date(timeIntervalSince1970: 200),
+                systemFields: Data()
+            )
+        )
+        XCTAssertEqual(try database.fetchTags(forHighlightId: highlight.id), ["keep"])
+        XCTAssertEqual(try database.fetchHighlightForSync(id: highlight.id)?.tags, ["keep"])
+
+        XCTAssertTrue(
+            try database.applyRemoteHighlight(
+                SyncedHighlight(highlight: incoming, tags: []),
+                modifiedAt: Date(timeIntervalSince1970: 300),
+                systemFields: Data()
+            )
+        )
+        XCTAssertTrue(try database.fetchTags(forHighlightId: highlight.id).isEmpty)
     }
 
     func testFTSMatchQueryTreatsOnlyTheLastTokenAsAPrefix() throws {
@@ -1678,8 +1773,8 @@ final class DipleTests: XCTestCase {
         // A book deletion that arrives from another device must leave the same trail as a
         // local one: the highlight survives with its snapshot, and no delete is queued for it.
         let survivingHighlight = try XCTUnwrap(database.fetchHighlightForSync(id: highlight.id))
-        XCTAssertEqual(survivingHighlight.bookTitle, book.title)
-        XCTAssertEqual(survivingHighlight.bookAuthor, book.author)
+        XCTAssertEqual(survivingHighlight.highlight.bookTitle, book.title)
+        XCTAssertEqual(survivingHighlight.highlight.bookAuthor, book.author)
         XCTAssertFalse(
             try database.fetchSyncOutbox().contains { $0.entity == .highlight && $0.pendingOperation == .delete }
         )
@@ -2194,20 +2289,26 @@ final class DipleTests: XCTestCase {
                 )
             ],
             highlights: [
-                Highlight(
-                    id: existingHighlight.id,
-                    bookId: existingHighlight.bookId,
-                    locator: "{}",
-                    text: "Backup must not replace this",
-                    createdAt: early
+                .init(
+                    highlight: Highlight(
+                        id: existingHighlight.id,
+                        bookId: existingHighlight.bookId,
+                        locator: "{}",
+                        text: "Backup must not replace this",
+                        createdAt: early
+                    ),
+                    tags: ["ignored-because-the-local-passage-wins"]
                 ),
-                Highlight(
-                    id: "new-highlight",
-                    bookId: "source-file-not-on-device",
-                    locator: "{}",
-                    text: "A quote survives without its source file",
-                    createdAt: middle,
-                    bookTitle: "Missing Source"
+                .init(
+                    highlight: Highlight(
+                        id: "new-highlight",
+                        bookId: "source-file-not-on-device",
+                        locator: "{}",
+                        text: "A quote survives without its source file",
+                        createdAt: middle,
+                        bookTitle: "Missing Source"
+                    ),
+                    tags: ["  #Reinstated  ", "reinstated"]
                 )
             ],
             notes: [
@@ -2272,6 +2373,17 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(highlights.count, 2)
         XCTAssertEqual(highlights[existingHighlight.id]?.text, "Local quote")
         XCTAssertEqual(highlights["new-highlight"]?.text, "A quote survives without its source file")
+        let highlightTags = try database.fetchTagsByHighlight()
+        XCTAssertEqual(
+            highlightTags["new-highlight"],
+            ["reinstated"],
+            "a restored passage brings its words, normalised and de-duplicated"
+        )
+        XCTAssertNil(
+            highlightTags[existingHighlight.id],
+            "an existing passage wins whole: the backup's words do not land on it either"
+        )
+        XCTAssertEqual(try database.search("reinstated").map(\.kind), [.highlight])
 
         let notes = Dictionary(uniqueKeysWithValues: try database.fetchAllNotes().map { ($0.id, $0) })
         XCTAssertEqual(notes.count, 3)
@@ -2301,7 +2413,14 @@ final class DipleTests: XCTestCase {
                 "addedAt": "2026-08-20T12:00:00Z",
                 "progress": 0.4
               }],
-              "highlights": [],
+              "highlights": [{
+                "id": "legacy-highlight",
+                "bookId": "legacy-article",
+                "locator": "{}",
+                "text": "A passage written flat, before passages had tags",
+                "colorHex": "#FFD60A",
+                "createdAt": "2026-08-21T12:00:00Z"
+              }],
               "notes": []
             }
             """.utf8
@@ -2309,6 +2428,11 @@ final class DipleTests: XCTestCase {
 
         let decoded = try DipleBackupRestorer.shared.decode(legacy)
         XCTAssertEqual(decoded.sources.first?.kind, .article)
+        // Versions 1 and 2 wrote a highlight's own fields unwrapped. The wrapper reads that
+        // shape as well as its own, so an old export stays restorable without the payload
+        // having to branch on `version`.
+        XCTAssertEqual(decoded.highlights.first?.highlight.id, "legacy-highlight")
+        XCTAssertEqual(decoded.highlights.first?.tags, [])
 
         let invalid = DipleExportPayload(
             format: "some-other-export",

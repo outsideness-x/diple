@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// portable value here is reading position, saved passages, reflections and
 /// notes. Stable ids preserve relationships for a future importer or any outside script.
 public nonisolated struct DipleExportPayload: Codable, Sendable {
-    public static let currentVersion = 2
+    public static let currentVersion = 3
 
     public nonisolated struct Source: Codable, Sendable {
         public let id: String
@@ -75,11 +75,44 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         }
     }
 
+    /// A saved passage and the words it was filed under.
+    ///
+    /// Version 3 wraps what versions 1 and 2 wrote flat. The wrapper reads both shapes itself
+    /// rather than making the payload branch on `version`, for the same reason `Source` decodes
+    /// its own missing `kind`: the file says what it says, and one type that knows how to read
+    /// every version of itself cannot fall out of step with a number stored somewhere else.
+    public nonisolated struct TaggedHighlight: Codable, Sendable {
+        public let highlight: Highlight
+        public let tags: [String]
+
+        public init(highlight: Highlight, tags: [String]) {
+            self.highlight = highlight
+            self.tags = tags
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case highlight, tags
+        }
+
+        public init(from decoder: Decoder) throws {
+            if let values = try? decoder.container(keyedBy: CodingKeys.self),
+               values.contains(.highlight) {
+                highlight = try values.decode(Highlight.self, forKey: .highlight)
+                tags = try values.decodeIfPresent([String].self, forKey: .tags) ?? []
+                return
+            }
+            // A version 1 or 2 export: the highlight's own fields, unwrapped, and no tags
+            // because the app that wrote them had none to write.
+            highlight = try Highlight(from: decoder)
+            tags = []
+        }
+    }
+
     public let format: String
     public let version: Int
     public let exportedAt: Date
     public let sources: [Source]
-    public let highlights: [Highlight]
+    public let highlights: [TaggedHighlight]
     public let notes: [TaggedNote]
 
     public init(database: AppDatabase = .shared, exportedAt: Date = Date()) throws {
@@ -101,7 +134,10 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
                 readingPosition: $0.locator
             )
         }
-        self.highlights = try database.fetchAllHighlights()
+        let tagsByHighlight = try database.fetchTagsByHighlight()
+        self.highlights = try database.fetchAllHighlights().map {
+            TaggedHighlight(highlight: $0, tags: tagsByHighlight[$0.id] ?? [])
+        }
         self.notes = try database.fetchAllNotes().map {
             TaggedNote(note: $0, tags: tagsByNote[$0.id] ?? [])
         }
@@ -112,7 +148,7 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         version: Int = currentVersion,
         exportedAt: Date,
         sources: [Source],
-        highlights: [Highlight],
+        highlights: [TaggedHighlight],
         notes: [TaggedNote]
     ) {
         self.format = format
@@ -240,7 +276,7 @@ public nonisolated final class DipleBackupRestorer: Sendable {
         else { throw DipleBackupError.unreasonableItemCount }
 
         let sourceIDs = payload.sources.map(\.id)
-        let highlightIDs = payload.highlights.map(\.id)
+        let highlightIDs = payload.highlights.map(\.highlight.id)
         let noteIDs = payload.notes.map(\.note.id)
         guard (sourceIDs + highlightIDs + noteIDs).allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
             throw DipleBackupError.invalidIdentifier

@@ -637,9 +637,11 @@ public struct ReaderContainerView: View {
                     quote: highlight.text,
                     initialColorHex: highlight.colorHex,
                     initialComment: highlight.comment,
+                    initialTags: viewModel.highlightTags[highlight.id] ?? [],
+                    tagSuggestions: viewModel.highlightTagSuggestions,
                     isExisting: true,
-                    onSave: { colorHex, comment in
-                        viewModel.updateHighlight(highlight, colorHex: colorHex, comment: comment)
+                    onSave: { colorHex, comment, tags in
+                        viewModel.updateHighlight(highlight, colorHex: colorHex, comment: comment, tags: tags)
                     },
                     onDelete: {
                         viewModel.deleteHighlight(highlight)

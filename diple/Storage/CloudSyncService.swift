@@ -430,7 +430,8 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         Self.write(tags: tags, to: record)
     }
 
-    private static func populate(highlight: Highlight, record: CKRecord) {
+    private static func populate(highlight synced: SyncedHighlight, record: CKRecord) {
+        let highlight = synced.highlight
         record["bookID"] = highlight.bookId as CKRecordValue
         record["locator"] = highlight.locator as CKRecordValue
         record["text"] = highlight.text as CKRecordValue
@@ -439,6 +440,9 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["createdAt"] = highlight.createdAt as CKRecordValue
         record["bookTitle"] = highlight.bookTitle as CKRecordValue?
         record["bookAuthor"] = highlight.bookAuthor as CKRecordValue?
+        // The same string list a note and a source already carry, written through the same
+        // helper — including the `tagsCount` companion that lets an emptied set travel.
+        Self.write(tags: synced.tags ?? [], to: record)
     }
 
     private static func populate(bookmark: Bookmark, record: CKRecord) {
@@ -625,16 +629,22 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             // Records written before this field existed simply lack it — `as?` decodes those
             // as nil, and `applyRemoteHighlight` refills them from the local book when it can.
             return try database.applyRemoteHighlight(
-                Highlight(
-                    id: key.id,
-                    bookId: bookID,
-                    locator: locator,
-                    text: text,
-                    comment: record["comment"] as? String,
-                    colorHex: colorHex,
-                    createdAt: createdAt,
-                    bookTitle: record["bookTitle"] as? String,
-                    bookAuthor: record["bookAuthor"] as? String
+                SyncedHighlight(
+                    highlight: Highlight(
+                        id: key.id,
+                        bookId: bookID,
+                        locator: locator,
+                        text: text,
+                        comment: record["comment"] as? String,
+                        colorHex: colorHex,
+                        createdAt: createdAt,
+                        bookTitle: record["bookTitle"] as? String,
+                        bookAuthor: record["bookAuthor"] as? String
+                    ),
+                    // Unlike a note — which carries its tags outright — a passage keeps the
+                    // book's "absent means unknown" reading: quotes existed for versions before
+                    // they could be tagged, so a record without the field is old, not empty.
+                    tags: Self.tags(from: record)
                 ),
                 modifiedAt: modifiedAt,
                 systemFields: systemFields

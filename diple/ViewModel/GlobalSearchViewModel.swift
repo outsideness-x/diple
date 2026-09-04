@@ -82,7 +82,7 @@ public final class GlobalSearchViewModel: ObservableObject {
     }
 
     private func highlightBookAuthor(for highlightID: String) -> String? {
-        (try? AppDatabase.shared.fetchHighlightForSync(id: highlightID))?.bookAuthor
+        (try? AppDatabase.shared.fetchHighlight(id: highlightID))?.bookAuthor
     }
 
     private func indexLegacyArticles() {

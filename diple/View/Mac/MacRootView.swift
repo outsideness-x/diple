@@ -1165,6 +1165,8 @@ private struct MacQuotesInspector: View {
         .sheet(item: $model.quoteForComment) { quote in
             QuoteCommentEditorView(
                 quote: quote,
+                tags: model.tags(for: quote),
+                suggestions: model.tagSuggestions,
                 onSave: model.saveComment,
                 onCancel: model.cancelCommentEditing
             )

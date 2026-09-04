@@ -39,6 +39,22 @@ public nonisolated struct SyncedNote: Sendable {
     public let tags: [String]
 }
 
+/// A passage together with the words the reader filed it under. Tags are not a second synced
+/// entity for the same reason a note's are not: they are part of what the passage *is*, and a
+/// separate record would let a device receive a quote and its vocabulary at two different
+/// moments — long enough for the search index to be rebuilt from half of it.
+public nonisolated struct SyncedHighlight: Sendable {
+    public let highlight: Highlight
+    /// `nil` means the record says nothing about tags — it predates them — and the local set
+    /// must be kept. `[]` means the sender really has none. See `CloudSyncService.tags(from:)`.
+    public let tags: [String]?
+
+    public init(highlight: Highlight, tags: [String]?) {
+        self.highlight = highlight
+        self.tags = tags
+    }
+}
+
 extension Notification.Name {
     /// Posted after a remote batch has been committed to the local store.
     static let dipleRemoteDataDidChange = Notification.Name("diple.remoteDataDidChange")
