@@ -939,6 +939,109 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    // MARK: - Importing somebody else's highlights
+
+    /// What importing this file would do, measured before anything is written.
+    public func previewHighlightImport(_ document: HighlightImportDocument) throws -> HighlightImportPreview {
+        try writer.read { db in try Self.plan(document, in: db).preview }
+    }
+
+    /// Writes a Kindle or Readwise export into the library, in one transaction.
+    ///
+    /// Imported passages form **their own groups and never attach to a book already on the
+    /// shelf**, even when the titles match exactly. Nothing in either file describes a position
+    /// inside this device's copy of the publication, so a quote hung on a real book would sit in
+    /// its list unable to open the page it names. `Highlight.bookTitle`/`bookAuthor` — the
+    /// snapshot that already lets a quote outlive its book — is what gives the group a name.
+    ///
+    /// Nothing is ever deleted or overwritten. A passage whose id is already here is skipped
+    /// whole, which is what makes running the same `My Clippings.txt` through this twice a
+    /// no-op rather than a doubled library. See `HighlightImportIdentity`.
+    public func importHighlights(
+        _ document: HighlightImportDocument,
+        at importedAt: Date = Date()
+    ) throws -> HighlightImportReport {
+        let preview = try writer.write { db -> HighlightImportPreview in
+            let plan = try Self.plan(document, in: db)
+            for row in plan.rows {
+                let highlight = Highlight(
+                    id: row.id,
+                    bookId: row.bookID,
+                    // Empty, not a fabricated locator: `Locator.from(jsonString:)` reads an
+                    // empty string as "no position" before it tries to parse anything, and
+                    // every screen that could navigate to a passage already asks it first. An
+                    // invented `{}` would be a position that only fails further downstream.
+                    locator: "",
+                    text: row.passage.text,
+                    comment: row.passage.note,
+                    colorHex: ImportedHighlightColor.hex(forName: row.passage.colorName),
+                    // A file that did not say when keeps the moment it arrived. That is a true
+                    // statement about the passage, and it keeps daily resurfacing — which sorts
+                    // oldest first — from treating an unreadable date as the epoch.
+                    createdAt: row.passage.createdAt ?? importedAt,
+                    bookTitle: row.passage.bookTitle,
+                    bookAuthor: row.passage.bookAuthor
+                )
+                try highlight.insert(db)
+                try Self.replaceTags(row.passage.tags, forHighlightId: row.id, in: db)
+                // `book: nil` is the truth, not a shortcut: there is no library row for this
+                // group, and `indexHighlight` falls back to the passage's own snapshot.
+                try indexHighlight(highlight, book: nil, in: db)
+                try markLocalSave(.highlight, id: row.id, at: importedAt, in: db)
+            }
+            return plan.preview
+        }
+
+        signalSyncIfNeeded()
+        // The same notification a portable restore posts, and for the same reason: a local file
+        // just changed the library, and every live view model has to reread rather than each
+        // screen learning about the importer.
+        NotificationCenter.default.post(name: .dipleDataDidRestore, object: nil)
+        return HighlightImportReport(preview: preview, importedAt: importedAt)
+    }
+
+    private struct HighlightImportPlan {
+        struct Row {
+            let id: String
+            let bookID: String
+            let passage: ImportedPassage
+        }
+
+        let rows: [Row]
+        let preview: HighlightImportPreview
+    }
+
+    /// The one place the file is turned into rows, shared by the preview and the write so the
+    /// review sheet cannot promise a different number from the one the transaction produces.
+    private static func plan(_ document: HighlightImportDocument, in db: Database) throws -> HighlightImportPlan {
+        var known = Set(try String.fetchAll(db, sql: "SELECT id FROM highlight"))
+        var rows: [HighlightImportPlan.Row] = []
+        var alreadyHere = 0
+
+        for passage in document.passages {
+            let bookID = HighlightImportIdentity.bookID(title: passage.bookTitle, author: passage.bookAuthor)
+            let id = HighlightImportIdentity.passageID(bookID: bookID, text: passage.text)
+            // `known` grows as we go, so a file that repeats a passage — Kindle rewrites the
+            // whole clippings file on every sync — counts it once, exactly as a second import
+            // of the same file would.
+            guard !known.contains(id) else {
+                alreadyHere += 1
+                continue
+            }
+            known.insert(id)
+            rows.append(HighlightImportPlan.Row(id: id, bookID: bookID, passage: passage))
+        }
+
+        return HighlightImportPlan(
+            rows: rows,
+            preview: HighlightImportPreview(
+                passagesToAdd: rows.count,
+                passagesAlreadyHere: alreadyHere,
+                sourceCount: document.sourceCount
+            )
+        )
+    }
+
     /// Merges one validated export in a single SQLite transaction.
     ///
     /// Missing publication files are never represented by fake `book` rows: they would render

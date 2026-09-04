@@ -78,7 +78,7 @@ public struct BookQuotesView: View {
             }
 
             if summary.isRemovedFromLibrary {
-                Text("Removed from library")
+                Text("Not in your library")
                     .dipleType(.footnote, weight: .regular)
                     .foregroundStyle(DipleColor.textQuaternary)
             }

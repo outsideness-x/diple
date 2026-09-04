@@ -1101,7 +1101,7 @@ private struct MacQuotesInspector: View {
                         .dipleType(.readingTitle)
                         .foregroundStyle(DipleColor.textPrimary)
                     if summary.isRemovedFromLibrary {
-                        Text("Removed from library")
+                        Text("Not in your library")
                             .dipleType(.caption)
                             .foregroundStyle(DipleColor.textQuaternary)
                     }

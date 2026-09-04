@@ -23,6 +23,9 @@ public struct AppSettingsView: View {
     @State private var isRestorePickerPresented = false
     @State private var isReadingRestore = false
     @State private var restoreCandidate: DipleRestoreCandidate?
+    @State private var isImportPickerPresented = false
+    @State private var isReadingImport = false
+    @State private var importCandidate: HighlightImportCandidate?
 
     public init() {}
 
@@ -380,6 +383,19 @@ public struct AppSettingsView: View {
                                 .disabled(isReadingRestore)
                                 .accessibilityIdentifier("settings.data.restore")
                                 .accessibilityHint("Choose a Diple JSON backup and review it before restoring")
+
+                                dataAction(
+                                    title: "Import Highlights",
+                                    detail: "Kindle’s My Clippings.txt or a Readwise CSV export. Passages arrive as their own groups in Highlights; importing the same file twice adds nothing.",
+                                    systemImage: "tray.and.arrow.down",
+                                    showsProgress: isReadingImport
+                                ) {
+                                    isImportPickerPresented = true
+                                    HapticManager.shared.selection()
+                                }
+                                .disabled(isReadingImport)
+                                .accessibilityIdentifier("settings.data.import")
+                                .accessibilityHint("Choose a Kindle or Readwise export and review it before importing")
                             }
                             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
                         }
@@ -493,10 +509,30 @@ public struct AppSettingsView: View {
                     dataErrorMessage = "Couldn’t open that backup: \(error.localizedDescription)"
                 }
             }
+            .fileImporter(
+                isPresented: $isImportPickerPresented,
+                allowedContentTypes: HighlightImporter.readableTypes,
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    prepareHighlightImport(from: url)
+                case .failure(let error):
+                    dataErrorMessage = "Couldn’t open that file: \(error.localizedDescription)"
+                }
+            }
             .sheet(item: $restoreCandidate) { candidate in
                 DipleRestoreReviewView(candidate: candidate) {
                     try await Task.detached(priority: .userInitiated) {
                         try DipleBackupRestorer.shared.restore(candidate.payload)
+                    }.value
+                }
+            }
+            .sheet(item: $importCandidate) { candidate in
+                HighlightImportReviewView(candidate: candidate) {
+                    try await Task.detached(priority: .userInitiated) {
+                        try HighlightImporter.shared.commit(candidate.document)
                     }.value
                 }
             }
@@ -664,6 +700,30 @@ public struct AppSettingsView: View {
                 restoreCandidate = DipleRestoreCandidate(payload: loaded.0, preview: loaded.1)
             case .failure(let error):
                 dataErrorMessage = "Couldn’t read that backup: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Reading a clippings file with a decade of highlights in it is real work — parsing, then a
+    /// full pass over the library to see what is already here — so it happens off the main actor
+    /// exactly as a backup does, and the row spins while it runs.
+    private func prepareHighlightImport(from url: URL) {
+        guard !isReadingImport else { return }
+        isReadingImport = true
+        Task {
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Result {
+                    let document = try HighlightImporter.shared.load(from: url)
+                    let preview = try HighlightImporter.shared.preview(document)
+                    return (document, preview)
+                }
+            }.value
+            isReadingImport = false
+            switch outcome {
+            case .success(let loaded):
+                importCandidate = HighlightImportCandidate(document: loaded.0, preview: loaded.1)
+            case .failure(let error):
+                dataErrorMessage = error.localizedDescription
             }
         }
     }

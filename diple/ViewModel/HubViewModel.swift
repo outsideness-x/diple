@@ -15,11 +15,16 @@ public struct BookQuoteSummary: Identifiable, Equatable, Hashable {
     public var id: String { bookId }
     public var isRemovedFromLibrary: Bool { book == nil }
 
-    /// Mirrors `Book.subtitle`'s shape so a removed group's row reads the same way a live
-    /// book's does, with the missing book spelled out instead of silently omitted.
+    /// Mirrors `Book.subtitle`'s shape so a group without a book reads the same way a live
+    /// book's does, with the absence spelled out instead of silently omitted.
+    ///
+    /// "Not in your library" rather than "Removed from library", because there are now two ways
+    /// to get here and only one of them is a removal: a book deleted from the shelf, and a
+    /// passage imported from Kindle or Readwise for a book that was never here at all. One line
+    /// is true of both; the old one would have called every imported quote a deletion.
     public var subtitle: String {
         guard let book else {
-            return [author, "Removed from library"].compactMap { $0 }.joined(separator: " · ")
+            return [author, "Not in your library"].compactMap { $0 }.joined(separator: " · ")
         }
         return book.subtitle
     }

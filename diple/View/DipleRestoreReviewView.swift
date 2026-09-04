@@ -80,45 +80,14 @@ public struct DipleRestoreReviewView: View {
     }
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.l) {
-            ZStack {
-                RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
-                    .fill(DipleColor.surfaceRaised)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
-                            .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-                    }
-
-                VStack(spacing: DipleSpace.s) {
-                    Image(systemName: phase.isComplete ? "checkmark" : "arrow.counterclockwise")
-                        .dipleIcon(24, weight: .medium)
-                        .foregroundStyle(phase.isComplete ? DipleColor.textOnAccent : DipleColor.textPrimary)
-                        .frame(width: 52, height: 52)
-                        .background(phase.isComplete ? DipleColor.accent : DipleColor.surfaceOverlay, in: Circle())
-
-                    Capsule()
-                        .fill(DipleColor.accent)
-                        .frame(width: 28, height: 2)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 154)
-
-            VStack(alignment: .leading, spacing: DipleSpace.s) {
-                Text(phase.isComplete ? "Your library is restored" : "Bring your work back")
-                    .dipleType(.display)
-                    .foregroundStyle(DipleColor.textPrimary)
-
-                Text(
-                    phase.isComplete
-                        ? "The backup was merged without deleting anything already on this device."
-                        : "Exported \(candidate.payload.exportedAt.formatted(date: .abbreviated, time: .shortened)). Review the merge before anything changes."
-                )
-                .dipleType(.callout)
-                .foregroundStyle(DipleColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        ReviewHero(
+            systemImage: "arrow.counterclockwise",
+            isComplete: phase.isComplete,
+            title: phase.isComplete ? "Your library is restored" : "Bring your work back",
+            detail: phase.isComplete
+                ? "The backup was merged without deleting anything already on this device."
+                : "Exported \(candidate.payload.exportedAt.formatted(date: .abbreviated, time: .shortened)). Review the merge before anything changes."
+        )
     }
 
     private var changeSummary: some View {
@@ -129,23 +98,23 @@ public struct DipleRestoreReviewView: View {
                 .padding(.horizontal, DipleSpace.xs)
 
             VStack(spacing: 1) {
-                restoreRow(
+                ReviewCountRow(
                     icon: "book.closed",
                     title: "Reading positions",
-                    value: candidate.preview.sourcePositionsUpdated,
-                    detail: candidate.preview.sourcePositionsUpdated == 1 ? "newer position" : "newer positions"
+                    detail: candidate.preview.sourcePositionsUpdated == 1 ? "newer position" : "newer positions",
+                    value: candidate.preview.sourcePositionsUpdated
                 )
-                restoreRow(
+                ReviewCountRow(
                     icon: "quote.opening",
                     title: "Highlights",
-                    value: candidate.preview.highlightsAdded,
-                    detail: candidate.preview.highlightsAdded == 1 ? "passage to add" : "passages to add"
+                    detail: candidate.preview.highlightsAdded == 1 ? "passage to add" : "passages to add",
+                    value: candidate.preview.highlightsAdded
                 )
-                restoreRow(
+                ReviewCountRow(
                     icon: "note.text",
                     title: "Notes",
-                    value: candidate.preview.notesAdded + candidate.preview.notesUpdated,
-                    detail: noteDetail
+                    detail: noteDetail,
+                    value: candidate.preview.notesAdded + candidate.preview.notesUpdated
                 )
             }
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
@@ -163,36 +132,8 @@ public struct DipleRestoreReviewView: View {
         }
     }
 
-    private func restoreRow(icon: String, title: String, value: Int, detail: String) -> some View {
-        HStack(spacing: DipleSpace.m) {
-            Image(systemName: icon)
-                .dipleIcon(15, weight: .medium)
-                .foregroundStyle(DipleColor.accentInk)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .dipleType(.body, weight: .medium)
-                    .foregroundStyle(DipleColor.textPrimary)
-                Text(detail)
-                    .dipleType(.caption)
-                    .foregroundStyle(DipleColor.textTertiary)
-            }
-
-            Spacer()
-
-            Text("\(value)")
-                .dipleType(.title)
-                .foregroundStyle(value > 0 ? DipleColor.textPrimary : DipleColor.textQuaternary)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, DipleSpace.l)
-        .padding(.vertical, DipleSpace.m)
-        .background(DipleColor.surfaceRaised)
-    }
-
     private var safetyNote: some View {
-        noteSurface(
+        ReviewNote(
             icon: "shield.checkered",
             title: "A safe merge",
             detail: "Nothing local is deleted. Newer local notes and reading positions stay exactly as they are; matching items are never duplicated."
@@ -201,7 +142,7 @@ public struct DipleRestoreReviewView: View {
 
     private var missingSourcesNote: some View {
         let count = candidate.preview.sourceReferencesMissing
-        return noteSurface(
+        return ReviewNote(
             icon: "doc.badge.ellipsis",
             title: count == 1 ? "1 source file is not on this device" : "\(count) source files are not on this device",
             detail: "Portable backups contain your positions, highlights and notes, not the original EPUB or PDF files. Their highlights and linked notes will still return. Import the original files before restoring if you also want their reading positions reconnected."
@@ -209,7 +150,7 @@ public struct DipleRestoreReviewView: View {
     }
 
     private func failureNote(_ message: String) -> some View {
-        noteSurface(
+        ReviewNote(
             icon: "exclamationmark.triangle",
             title: "Restore stopped safely",
             detail: message,
@@ -217,49 +158,14 @@ public struct DipleRestoreReviewView: View {
         )
     }
 
-    private func noteSurface(
-        icon: String,
-        title: String,
-        detail: String,
-        colour: Color = DipleColor.accent
-    ) -> some View {
-        HStack(alignment: .top, spacing: DipleSpace.m) {
-            Image(systemName: icon)
-                .dipleIcon(16, weight: .medium)
-                .foregroundStyle(colour)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text(title)
-                    .dipleType(.body, weight: .medium)
-                    .foregroundStyle(DipleColor.textPrimary)
-                Text(detail)
-                    .dipleType(.caption)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DipleSpace.l)
-        .craftSurface(DipleColor.surface, radius: DipleRadius.m)
-    }
-
     private func completedSummary(_ report: DipleRestoreReport) -> some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
-            Text("RESTORED")
-                .dipleType(.micro, weight: .semibold)
-                .foregroundStyle(DipleColor.textTertiary)
-            Text("\(report.preview.changeCount)")
-                .dipleType(.hero)
-                .foregroundStyle(DipleColor.textPrimary)
-                .monospacedDigit()
-            Text(report.preview.changeCount == 1 ? "item returned to your library" : "items returned to your library")
-                .dipleType(.callout)
-                .foregroundStyle(DipleColor.textTertiary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DipleSpace.l)
-        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
+        ReviewOutcome(
+            label: "RESTORED",
+            value: report.preview.changeCount,
+            detail: report.preview.changeCount == 1
+                ? "item returned to your library"
+                : "items returned to your library"
+        )
     }
 
     @ViewBuilder
@@ -267,25 +173,16 @@ public struct DipleRestoreReviewView: View {
         switch phase {
         case .complete:
             Button("Done") { dismiss() }
-                .primaryRestoreButton()
+                .reviewPrimaryButton()
 
         case .restoring:
-            HStack(spacing: DipleSpace.m) {
-                ProgressView().tint(DipleColor.textOnAccent)
-                Text("Restoring…")
-                    .dipleType(.body, weight: .semibold)
-            }
-            .foregroundStyle(DipleColor.textOnAccent)
-            .frame(maxWidth: .infinity)
-            .diplePadding(.buttonLarge)
-            .background(DipleColor.accent, in: Capsule())
-            .accessibilityElement(children: .combine)
+            ReviewProgressCapsule("Restoring…")
 
         case .review, .failed:
             Button(restoreButtonTitle) {
                 beginRestore()
             }
-            .primaryRestoreButton()
+            .reviewPrimaryButton()
             .disabled(candidate.preview.isNoOp)
             .opacity(candidate.preview.isNoOp ? 0.45 : 1)
         }
@@ -317,17 +214,5 @@ private extension DipleRestoreReviewView.Phase {
     var isComplete: Bool {
         if case .complete = self { return true }
         return false
-    }
-}
-
-private extension View {
-    func primaryRestoreButton() -> some View {
-        self
-            .dipleType(.body, weight: .semibold)
-            .foregroundStyle(DipleColor.textOnAccent)
-            .frame(maxWidth: .infinity)
-            .diplePadding(.buttonLarge)
-            .background(DipleColor.accent, in: Capsule())
-            .buttonStyle(.readerControl)
     }
 }
