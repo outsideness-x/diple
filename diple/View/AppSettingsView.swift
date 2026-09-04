@@ -26,33 +26,216 @@ public struct AppSettingsView: View {
     @State private var isImportPickerPresented = false
     @State private var isReadingImport = false
     @State private var importCandidate: HighlightImportCandidate?
+    @State private var isMarkdownFolderPickerPresented = false
+    @State private var isWritingMarkdown = false
+    @State private var markdownReport: MarkdownExportReport?
 
     public init() {}
 
     public var body: some View {
         NavigationStack {
-            ZStack {
-                DipleColor.canvas.ignoresSafeArea()
+            settingsPage
+                .alert("Notifications are off", isPresented: $showDailyResurfacingPermissionAlert) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("Allow notifications for diple in iOS Settings to receive your daily passage.")
+                }
+                .alert("Data file error", isPresented: Binding(
+                    get: { dataErrorMessage != nil },
+                    set: { if !$0 { dataErrorMessage = nil } }
+                )) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(dataErrorMessage ?? "An unknown error occurred.")
+                }
+                .alert("Markdown written", isPresented: Binding(
+                    get: { markdownReport != nil },
+                    set: { if !$0 { markdownReport = nil } }
+                )) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(markdownReport.map(Self.markdownSummary) ?? "")
+                }
+                .fileExporter(
+                    isPresented: $isExportPresented,
+                    document: exportDocument,
+                    contentType: .json,
+                    defaultFilename: "diple-export-\(Date.now.formatted(.iso8601.year().month().day()))"
+                ) { result in
+                    if case .failure(let error) = result {
+                        dataErrorMessage = "Couldn’t save your export: \(error.localizedDescription)"
+                    }
+                }
+                .fileImporter(
+                    isPresented: $isRestorePickerPresented,
+                    allowedContentTypes: [.json],
+                    allowsMultipleSelection: false
+                ) { result in
+                    switch result {
+                    case .success(let urls):
+                        guard let url = urls.first else { return }
+                        prepareRestore(from: url)
+                    case .failure(let error):
+                        dataErrorMessage = "Couldn’t open that backup: \(error.localizedDescription)"
+                    }
+                }
+                .fileImporter(
+                    isPresented: $isImportPickerPresented,
+                    allowedContentTypes: HighlightImporter.readableTypes,
+                    allowsMultipleSelection: false
+                ) { result in
+                    switch result {
+                    case .success(let urls):
+                        guard let url = urls.first else { return }
+                        prepareHighlightImport(from: url)
+                    case .failure(let error):
+                        dataErrorMessage = "Couldn’t open that file: \(error.localizedDescription)"
+                    }
+                }
+                .fileImporter(
+                    isPresented: $isMarkdownFolderPickerPresented,
+                    allowedContentTypes: [.folder],
+                    allowsMultipleSelection: false
+                ) { result in
+                    switch result {
+                    case .success(let urls):
+                        guard let url = urls.first else { return }
+                        writeMarkdown(into: url)
+                    case .failure(let error):
+                        dataErrorMessage = "Couldn’t open that folder: \(error.localizedDescription)"
+                    }
+                }
+                .sheet(item: $restoreCandidate) { candidate in
+                    DipleRestoreReviewView(candidate: candidate) {
+                        try await Task.detached(priority: .userInitiated) {
+                            try DipleBackupRestorer.shared.restore(candidate.payload)
+                        }.value
+                    }
+                }
+                .sheet(item: $importCandidate) { candidate in
+                    HighlightImportReviewView(candidate: candidate) {
+                        try await Task.detached(priority: .userInitiated) {
+                            try HighlightImporter.shared.commit(candidate.document)
+                        }.value
+                    }
+                }
+        }
+    }
 
-                ScrollView {
-                    VStack(spacing: 28) {
-                        // APPEARANCE SECTION
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("APPEARANCE")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
+    /// The page itself. Everything that *presents* something — the pickers, the sheets and
+    /// the alerts — is chained onto it in `body` instead, because the whole screen in one
+    /// expression is more than the type checker will solve in reasonable time.
+    @ViewBuilder
+    private var settingsPage: some View {
+        ZStack {
+            DipleColor.canvas.ignoresSafeArea()
 
-                            VStack(spacing: 1) {
-                                HStack(spacing: DipleSpace.s) {
-                                    ForEach(DipleAppearance.allCases) { option in
-                                        AppearanceOptionButton(
-                                            option: option,
-                                            isSelected: settingsManager.settings.appearance == option
-                                        ) {
-                                            HapticManager.shared.selection()
-                                            withAnimation(DipleMotion.standard) {
-                                                settingsManager.settings.appearance = option
+            ScrollView {
+                VStack(spacing: 28) {
+                    // APPEARANCE SECTION
+                    VStack(alignment: .leading, spacing: DipleSpace.l) {
+                        Text("APPEARANCE")
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
+
+                        VStack(spacing: 1) {
+                            HStack(spacing: DipleSpace.s) {
+                                ForEach(DipleAppearance.allCases) { option in
+                                    AppearanceOptionButton(
+                                        option: option,
+                                        isSelected: settingsManager.settings.appearance == option
+                                    ) {
+                                        HapticManager.shared.selection()
+                                        withAnimation(DipleMotion.standard) {
+                                            settingsManager.settings.appearance = option
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
+
+                            HStack(spacing: DipleSpace.xl) {
+                                ForEach(DipleAccent.allCases, id: \.rawValue) { accent in
+                                    AccentSwatchButton(
+                                        accent: accent,
+                                        isSelected: settingsManager.settings.accent == accent
+                                    ) {
+                                        settingsManager.settings.accent = accent
+                                        AppIconManager.apply(accent)
+                                        HapticManager.shared.selection()
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
+
+                        }
+                        .cornerRadius(DipleRadius.m)
+                    }
+
+                    // HAPTICS SECTION
+                    VStack(alignment: .leading, spacing: DipleSpace.l) {
+                        Text("HAPTICS & VIBRATION")
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
+
+                        VStack(spacing: 1) {
+                            // Enable Haptics Toggle
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Enable haptics")
+                                        .dipleType(.body, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+                                    Text("Vibrate on interactions and events")
+                                        .dipleType(.caption)
+                                        .foregroundStyle(DipleColor.textTertiary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { settingsManager.settings.isHapticsEnabled },
+                                    set: { newValue in
+                                        settingsManager.settings.isHapticsEnabled = newValue
+                                        if newValue {
+                                            HapticManager.shared.impact(.light)
+                                        }
+                                    }
+                                ))
+                                .tint(DipleColor.accent)
+                            }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
+
+                            if settingsManager.settings.isHapticsEnabled {
+                                // Intensity Selector
+                                VStack(alignment: .leading, spacing: DipleSpace.m) {
+                                    Text("Haptic intensity")
+                                        .dipleType(.callout, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+
+                                    HStack(spacing: DipleSpace.m) {
+                                        ForEach(HapticIntensity.allCases) { intensity in
+                                            let isSelected = settingsManager.settings.hapticIntensity == intensity
+                                            Button {
+                                                settingsManager.settings.hapticIntensity = intensity
+                                                HapticManager.shared.impact(
+                                                    intensity == .light ? .light : (intensity == .medium ? .medium : .heavy)
+                                                )
+                                            } label: {
+                                                Text(intensity.rawValue)
+                                                    .dipleType(.footnote)
+                                                    .foregroundColor(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
+                                                    .frame(maxWidth: .infinity)
+                                                    .padding(.vertical, DipleSpace.m)
+                                                    .dipleSelected(
+                                                        isSelected,
+                                                        in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+                                                    )
                                             }
                                         }
                                     }
@@ -61,52 +244,22 @@ public struct AppSettingsView: View {
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
 
-                                HStack(spacing: DipleSpace.xl) {
-                                    ForEach(DipleAccent.allCases, id: \.rawValue) { accent in
-                                        AccentSwatchButton(
-                                            accent: accent,
-                                            isSelected: settingsManager.settings.accent == accent
-                                        ) {
-                                            settingsManager.settings.accent = accent
-                                            AppIconManager.apply(accent)
-                                            HapticManager.shared.selection()
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, DipleSpace.l)
-                                .padding(.vertical, DipleSpace.m)
-                                .background(DipleColor.surfaceRaised)
-
-                            }
-                            .cornerRadius(DipleRadius.m)
-                        }
-
-                        // HAPTICS SECTION
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("HAPTICS & VIBRATION")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
-
-                            VStack(spacing: 1) {
-                                // Enable Haptics Toggle
+                                // Chapter Transition Vibration Toggle
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Enable haptics")
+                                        Text("Chapter transition vibration")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Vibrate on interactions and events")
+                                        Text("Vibrate when moving to next chapter")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
                                     }
                                     Spacer()
                                     Toggle("", isOn: Binding(
-                                        get: { settingsManager.settings.isHapticsEnabled },
+                                        get: { settingsManager.settings.chapterHapticsEnabled },
                                         set: { newValue in
-                                            settingsManager.settings.isHapticsEnabled = newValue
-                                            if newValue {
-                                                HapticManager.shared.impact(.light)
-                                            }
+                                            settingsManager.settings.chapterHapticsEnabled = newValue
+                                            HapticManager.shared.selection()
                                         }
                                     ))
                                     .tint(DipleColor.accent)
@@ -114,428 +267,329 @@ public struct AppSettingsView: View {
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
+                            }
+                        }
+                        .cornerRadius(DipleRadius.m)
+                    }
 
-                                if settingsManager.settings.isHapticsEnabled {
-                                    // Intensity Selector
-                                    VStack(alignment: .leading, spacing: DipleSpace.m) {
-                                        Text("Haptic intensity")
-                                            .dipleType(.callout, weight: .medium)
-                                            .foregroundStyle(DipleColor.textPrimary)
+                    // READER DEFAULTS SECTION
+                    VStack(alignment: .leading, spacing: DipleSpace.l) {
+                        Text("READER DEFAULTS")
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
 
-                                        HStack(spacing: DipleSpace.m) {
-                                            ForEach(HapticIntensity.allCases) { intensity in
-                                                let isSelected = settingsManager.settings.hapticIntensity == intensity
-                                                Button {
-                                                    settingsManager.settings.hapticIntensity = intensity
-                                                    HapticManager.shared.impact(
-                                                        intensity == .light ? .light : (intensity == .medium ? .medium : .heavy)
-                                                    )
-                                                } label: {
-                                                    Text(intensity.rawValue)
-                                                        .dipleType(.footnote)
-                                                        .foregroundColor(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
-                                                        .frame(maxWidth: .infinity)
-                                                        .padding(.vertical, DipleSpace.m)
-                                                        .dipleSelected(
-                                                            isSelected,
-                                                            in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
-                                                        )
-                                                }
-                                            }
-                                        }
+                        VStack(spacing: 1) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Default continuous scroll")
+                                        .dipleType(.body, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+                                    Text("Open books in continuous vertical scrolling mode")
+                                        .dipleType(.caption)
+                                        .foregroundStyle(DipleColor.textTertiary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { settingsManager.settings.defaultScrollReadingMode },
+                                    set: { newValue in
+                                        settingsManager.settings.defaultScrollReadingMode = newValue
+                                        settingsManager.settings.readerSettings.readingMode = newValue ? .scroll : .paginated
+                                        HapticManager.shared.selection()
                                     }
-                                    .padding(.horizontal, DipleSpace.l)
-                                    .padding(.vertical, DipleSpace.m)
-                                    .background(DipleColor.surfaceRaised)
+                                ))
+                                .tint(DipleColor.accent)
+                            }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
 
-                                    // Chapter Transition Vibration Toggle
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Chapter transition vibration")
-                                                .dipleType(.body, weight: .medium)
-                                                .foregroundStyle(DipleColor.textPrimary)
-                                            Text("Vibrate when moving to next chapter")
-                                                .dipleType(.caption)
-                                                .foregroundStyle(DipleColor.textTertiary)
-                                        }
-                                        Spacer()
-                                        Toggle("", isOn: Binding(
-                                            get: { settingsManager.settings.chapterHapticsEnabled },
-                                            set: { newValue in
-                                                settingsManager.settings.chapterHapticsEnabled = newValue
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Keep screen awake")
+                                        .dipleType(.body, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+                                    Text("Screen dims after 10 minutes without page turns instead of after a few seconds")
+                                        .dipleType(.caption)
+                                        .foregroundStyle(DipleColor.textTertiary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { settingsManager.settings.keepScreenAwakeWhileReading },
+                                    set: { newValue in
+                                        settingsManager.settings.keepScreenAwakeWhileReading = newValue
+                                        HapticManager.shared.selection()
+                                    }
+                                ))
+                                .tint(DipleColor.accent)
+                            }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
+
+                        }
+                        .cornerRadius(DipleRadius.m)
+                    }
+
+                    // DAILY RESURFACING SECTION
+                    VStack(alignment: .leading, spacing: DipleSpace.l) {
+                        Text("DAILY RESURFACING")
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
+
+                        VStack(spacing: 1) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Daily passage")
+                                        .dipleType(.body, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+                                    Text("Return to one saved passage each day")
+                                        .dipleType(.caption)
+                                        .foregroundStyle(DipleColor.textTertiary)
+                                }
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { isDailyResurfacingEnabled },
+                                    set: { newValue in
+                                        Task {
+                                            let isEnabled = await DailyResurfacingService.shared.setNotificationsEnabled(newValue)
+                                            isDailyResurfacingEnabled = isEnabled
+                                            if newValue && !isEnabled {
+                                                showDailyResurfacingPermissionAlert = true
+                                            } else {
                                                 HapticManager.shared.selection()
                                             }
-                                        ))
-                                        .tint(DipleColor.accent)
+                                        }
                                     }
-                                    .padding(.horizontal, DipleSpace.l)
-                                    .padding(.vertical, DipleSpace.m)
-                                    .background(DipleColor.surfaceRaised)
-                                }
+                                ))
+                                .tint(DipleColor.accent)
                             }
-                            .cornerRadius(DipleRadius.m)
-                        }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
 
-                        // READER DEFAULTS SECTION
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("READER DEFAULTS")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
-
-                            VStack(spacing: 1) {
+                            if isDailyResurfacingEnabled {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Default continuous scroll")
+                                        Text("Reminder time")
                                             .dipleType(.body, weight: .medium)
                                             .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Open books in continuous vertical scrolling mode")
+                                        Text("A quiet nudge to revisit a saved thought")
                                             .dipleType(.caption)
                                             .foregroundStyle(DipleColor.textTertiary)
                                     }
                                     Spacer()
-                                    Toggle("", isOn: Binding(
-                                        get: { settingsManager.settings.defaultScrollReadingMode },
-                                        set: { newValue in
-                                            settingsManager.settings.defaultScrollReadingMode = newValue
-                                            settingsManager.settings.readerSettings.readingMode = newValue ? .scroll : .paginated
-                                            HapticManager.shared.selection()
-                                        }
-                                    ))
+                                    DatePicker(
+                                        "Reminder time",
+                                        selection: $dailyResurfacingTime,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
                                     .tint(DipleColor.accent)
                                 }
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
                                 .background(DipleColor.surfaceRaised)
-
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Keep screen awake")
-                                            .dipleType(.body, weight: .medium)
-                                            .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Screen dims after 10 minutes without page turns instead of after a few seconds")
-                                            .dipleType(.caption)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                    }
-                                    Spacer()
-                                    Toggle("", isOn: Binding(
-                                        get: { settingsManager.settings.keepScreenAwakeWhileReading },
-                                        set: { newValue in
-                                            settingsManager.settings.keepScreenAwakeWhileReading = newValue
-                                            HapticManager.shared.selection()
-                                        }
-                                    ))
-                                    .tint(DipleColor.accent)
-                                }
-                                .padding(.horizontal, DipleSpace.l)
-                                .padding(.vertical, DipleSpace.m)
-                                .background(DipleColor.surfaceRaised)
-
                             }
-                            .cornerRadius(DipleRadius.m)
                         }
+                        .cornerRadius(DipleRadius.m)
+                    }
 
-                        // DAILY RESURFACING SECTION
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("DAILY RESURFACING")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
+                    // ICLOUD SECTION
+                    VStack(alignment: .leading, spacing: DipleSpace.l) {
+                        Text("ICLOUD")
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
 
-                            VStack(spacing: 1) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Daily passage")
-                                            .dipleType(.body, weight: .medium)
-                                            .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Return to one saved passage each day")
-                                            .dipleType(.caption)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                    }
-                                    Spacer()
-                                    Toggle("", isOn: Binding(
-                                        get: { isDailyResurfacingEnabled },
-                                        set: { newValue in
-                                            Task {
-                                                let isEnabled = await DailyResurfacingService.shared.setNotificationsEnabled(newValue)
-                                                isDailyResurfacingEnabled = isEnabled
-                                                if newValue && !isEnabled {
-                                                    showDailyResurfacingPermissionAlert = true
-                                                } else {
-                                                    HapticManager.shared.selection()
-                                                }
-                                            }
-                                        }
-                                    ))
-                                    .tint(DipleColor.accent)
+                        VStack(spacing: 1) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("iCloud sync")
+                                        .dipleType(.body, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+                                    Text("Sync your library, highlights and notes across your devices")
+                                        .dipleType(.caption)
+                                        .foregroundStyle(DipleColor.textTertiary)
                                 }
-                                .padding(.horizontal, DipleSpace.l)
-                                .padding(.vertical, DipleSpace.m)
-                                .background(DipleColor.surfaceRaised)
-
-                                if isDailyResurfacingEnabled {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Reminder time")
-                                                .dipleType(.body, weight: .medium)
-                                                .foregroundStyle(DipleColor.textPrimary)
-                                            Text("A quiet nudge to revisit a saved thought")
-                                                .dipleType(.caption)
-                                                .foregroundStyle(DipleColor.textTertiary)
-                                        }
-                                        Spacer()
-                                        DatePicker(
-                                            "Reminder time",
-                                            selection: $dailyResurfacingTime,
-                                            displayedComponents: .hourAndMinute
-                                        )
-                                        .labelsHidden()
-                                        .tint(DipleColor.accent)
-                                    }
-                                    .padding(.horizontal, DipleSpace.l)
-                                    .padding(.vertical, DipleSpace.m)
-                                    .background(DipleColor.surfaceRaised)
-                                }
-                            }
-                            .cornerRadius(DipleRadius.m)
-                        }
-
-                        // ICLOUD SECTION
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("ICLOUD")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
-
-                            VStack(spacing: 1) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("iCloud sync")
-                                            .dipleType(.body, weight: .medium)
-                                            .foregroundStyle(DipleColor.textPrimary)
-                                        Text("Sync your library, highlights and notes across your devices")
-                                            .dipleType(.caption)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                    }
-                                    Spacer()
-                                    Toggle("", isOn: Binding(
-                                        get: { isICloudSyncEnabled },
-                                        set: { newValue in
-                                            isICloudSyncEnabled = newValue
-                                            CloudSyncService.isEnabled = newValue
-                                            HapticManager.shared.selection()
-                                            Task {
-                                                if newValue {
-                                                    UIApplication.shared.registerForRemoteNotifications()
-                                                    await CloudSyncService.shared.start()
-                                                } else {
-                                                    await CloudSyncService.shared.stop()
-                                                }
-                                            }
-                                        }
-                                    ))
-                                    .tint(DipleColor.accent)
-                                }
-                                .padding(.horizontal, DipleSpace.l)
-                                .padding(.vertical, DipleSpace.m)
-                                .background(DipleColor.surfaceRaised)
-
-                                if isICloudSyncEnabled {
-                                    syncStatusRow(syncStatusStore.snapshot)
-                                }
-                            }
-                            .cornerRadius(DipleRadius.m)
-                        }
-
-                        // DATA OWNERSHIP SECTION
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("YOUR DATA")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
-
-                            VStack(spacing: 1) {
-                                dataAction(
-                                    title: "Export Diple Data",
-                                    detail: "Reading positions, highlights and notes in versioned JSON. Original EPUB and PDF files stay where they are.",
-                                    systemImage: "square.and.arrow.up"
-                                ) {
-                                    do {
-                                        exportDocument = DipleExportDocument(payload: try DipleExportPayload())
-                                        isExportPresented = true
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: { isICloudSyncEnabled },
+                                    set: { newValue in
+                                        isICloudSyncEnabled = newValue
+                                        CloudSyncService.isEnabled = newValue
                                         HapticManager.shared.selection()
-                                    } catch {
-                                        dataErrorMessage = "Couldn’t prepare your export: \(error.localizedDescription)"
-                                    }
-                                }
-                                .accessibilityIdentifier("settings.data.export")
-                                .accessibilityHint("Creates a versioned JSON backup you can save or share")
-
-                                dataAction(
-                                    title: "Restore Diple Data",
-                                    detail: "Review and safely merge a Diple JSON backup. Nothing already on this device is deleted.",
-                                    systemImage: "arrow.counterclockwise",
-                                    showsProgress: isReadingRestore
-                                ) {
-                                    isRestorePickerPresented = true
-                                    HapticManager.shared.selection()
-                                }
-                                .disabled(isReadingRestore)
-                                .accessibilityIdentifier("settings.data.restore")
-                                .accessibilityHint("Choose a Diple JSON backup and review it before restoring")
-
-                                dataAction(
-                                    title: "Import Highlights",
-                                    detail: "Kindle’s My Clippings.txt or a Readwise CSV export. Passages arrive as their own groups in Highlights; importing the same file twice adds nothing.",
-                                    systemImage: "tray.and.arrow.down",
-                                    showsProgress: isReadingImport
-                                ) {
-                                    isImportPickerPresented = true
-                                    HapticManager.shared.selection()
-                                }
-                                .disabled(isReadingImport)
-                                .accessibilityIdentifier("settings.data.import")
-                                .accessibilityHint("Choose a Kindle or Readwise export and review it before importing")
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
-                        }
-
-                        // PRIVACY SECTION
-                        if let privacyPolicyURL = Self.privacyPolicyURL {
-                            VStack(alignment: .leading, spacing: DipleSpace.l) {
-                                Text("PRIVACY")
-                                    .dipleType(.micro, weight: .semibold)
-                                    .foregroundStyle(DipleColor.textTertiary)
-                                    .padding(.horizontal, DipleSpace.xs)
-
-                                Link(destination: privacyPolicyURL) {
-                                    HStack(spacing: DipleSpace.m) {
-                                        Image(systemName: "hand.raised.fill")
-                                            .dipleIcon(17, weight: .medium)
-                                            .foregroundStyle(DipleColor.accentInk)
-                                            .frame(width: 28)
-
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Privacy policy")
-                                                .dipleType(.body, weight: .medium)
-                                                .foregroundStyle(DipleColor.textPrimary)
-                                            Text("How diple handles your library and iCloud sync")
-                                                .dipleType(.caption)
-                                                .foregroundStyle(DipleColor.textTertiary)
-                                                .multilineTextAlignment(.leading)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        Task {
+                                            if newValue {
+                                                UIApplication.shared.registerForRemoteNotifications()
+                                                await CloudSyncService.shared.start()
+                                            } else {
+                                                await CloudSyncService.shared.stop()
+                                            }
                                         }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                                        Spacer(minLength: DipleSpace.s)
-
-                                        Image(systemName: "arrow.up.right")
-                                            .dipleIcon(13, weight: .semibold)
-                                            .foregroundStyle(DipleColor.textTertiary)
                                     }
-                                    .padding(.horizontal, DipleSpace.l)
-                                    .padding(.vertical, DipleSpace.m)
-                                    .background(DipleColor.surfaceRaised)
-                                    .contentShape(Rectangle())
-                                }
-                                .accessibilityHint("Opens the privacy policy in your browser")
+                                ))
+                                .tint(DipleColor.accent)
                             }
-                            .cornerRadius(DipleRadius.m)
-                        }
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
 
-                        SettingsColophon()
+                            if isICloudSyncEnabled {
+                                syncStatusRow(syncStatusStore.snapshot)
+                            }
+                        }
+                        .cornerRadius(DipleRadius.m)
                     }
-                    .padding(.horizontal, DipleSpace.xl)
-                    .padding(.top, DipleSpace.xl)
-                    .padding(.bottom, DipleSpace.xxxl)
+
+                    dataSection
+
+                    // PRIVACY SECTION
+                    if let privacyPolicyURL = Self.privacyPolicyURL {
+                        VStack(alignment: .leading, spacing: DipleSpace.l) {
+                            Text("PRIVACY")
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.horizontal, DipleSpace.xs)
+
+                            Link(destination: privacyPolicyURL) {
+                                HStack(spacing: DipleSpace.m) {
+                                    Image(systemName: "hand.raised.fill")
+                                        .dipleIcon(17, weight: .medium)
+                                        .foregroundStyle(DipleColor.accentInk)
+                                        .frame(width: 28)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Privacy policy")
+                                            .dipleType(.body, weight: .medium)
+                                            .foregroundStyle(DipleColor.textPrimary)
+                                        Text("How diple handles your library and iCloud sync")
+                                            .dipleType(.caption)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                            .multilineTextAlignment(.leading)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                    Spacer(minLength: DipleSpace.s)
+
+                                    Image(systemName: "arrow.up.right")
+                                        .dipleIcon(13, weight: .semibold)
+                                        .foregroundStyle(DipleColor.textTertiary)
+                                }
+                                .padding(.horizontal, DipleSpace.l)
+                                .padding(.vertical, DipleSpace.m)
+                                .background(DipleColor.surfaceRaised)
+                                .contentShape(Rectangle())
+                            }
+                            .accessibilityHint("Opens the privacy policy in your browser")
+                        }
+                        .cornerRadius(DipleRadius.m)
+                    }
+
+                    SettingsColophon()
                 }
+                .padding(.horizontal, DipleSpace.xl)
+                .padding(.top, DipleSpace.xl)
+                .padding(.bottom, DipleSpace.xxxl)
             }
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(DipleColor.canvas, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
+                    HapticManager.shared.selection()
+                    dismiss()
+                }
+                .dipleType(.body, weight: .semibold)
+                .foregroundStyle(DipleColor.accentInk)
+            }
+        }
+        .onChange(of: dailyResurfacingTime) { _, newTime in
+            Task {
+                await DailyResurfacingService.shared.setNotificationTime(newTime)
+            }
+        }
+        .task {
+            if isICloudSyncEnabled {
+                await CloudSyncService.shared.refreshStatus()
+            }
+        }
+    }
+
+
+    /// Pulled out of `body` because it had to be: with a fourth row the settings screen tipped
+    /// past what the type checker will solve in one expression. It is also the honest shape —
+    /// this section is one subject, and reading it beside the toggles above obscured both.
+    @ViewBuilder
+    private var dataSection: some View {
+        // DATA OWNERSHIP SECTION
+        VStack(alignment: .leading, spacing: DipleSpace.l) {
+            Text("YOUR DATA")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+                .padding(.horizontal, DipleSpace.xs)
+
+            VStack(spacing: 1) {
+                dataAction(
+                    title: "Export Diple Data",
+                    detail: "Reading positions, highlights and notes in versioned JSON. Original EPUB and PDF files stay where they are.",
+                    systemImage: "square.and.arrow.up"
+                ) {
+                    do {
+                        exportDocument = DipleExportDocument(payload: try DipleExportPayload())
+                        isExportPresented = true
                         HapticManager.shared.selection()
-                        dismiss()
+                    } catch {
+                        dataErrorMessage = "Couldn’t prepare your export: \(error.localizedDescription)"
                     }
-                    .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.accentInk)
                 }
-            }
-            .onChange(of: dailyResurfacingTime) { _, newTime in
-                Task {
-                    await DailyResurfacingService.shared.setNotificationTime(newTime)
+                .accessibilityIdentifier("settings.data.export")
+                .accessibilityHint("Creates a versioned JSON backup you can save or share")
+
+                dataAction(
+                    title: "Restore Diple Data",
+                    detail: "Review and safely merge a Diple JSON backup. Nothing already on this device is deleted.",
+                    systemImage: "arrow.counterclockwise",
+                    showsProgress: isReadingRestore
+                ) {
+                    isRestorePickerPresented = true
+                    HapticManager.shared.selection()
                 }
-            }
-            .task {
-                if isICloudSyncEnabled {
-                    await CloudSyncService.shared.refreshStatus()
+                .disabled(isReadingRestore)
+                .accessibilityIdentifier("settings.data.restore")
+                .accessibilityHint("Choose a Diple JSON backup and review it before restoring")
+
+                dataAction(
+                    title: "Export as Markdown",
+                    detail: "One file per book and one per note, into a folder you choose. Obsidian, a text editor or grep can read them; wiki links keep working.",
+                    systemImage: "folder",
+                    showsProgress: isWritingMarkdown
+                ) {
+                    isMarkdownFolderPickerPresented = true
+                    HapticManager.shared.selection()
                 }
-            }
-            .alert("Notifications are off", isPresented: $showDailyResurfacingPermissionAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("Allow notifications for diple in iOS Settings to receive your daily passage.")
-            }
-            .alert("Data file error", isPresented: Binding(
-                get: { dataErrorMessage != nil },
-                set: { if !$0 { dataErrorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(dataErrorMessage ?? "An unknown error occurred.")
-            }
-            .fileExporter(
-                isPresented: $isExportPresented,
-                document: exportDocument,
-                contentType: .json,
-                defaultFilename: "diple-export-\(Date.now.formatted(.iso8601.year().month().day()))"
-            ) { result in
-                if case .failure(let error) = result {
-                    dataErrorMessage = "Couldn’t save your export: \(error.localizedDescription)"
+                .disabled(isWritingMarkdown)
+                .accessibilityIdentifier("settings.data.markdown")
+                .accessibilityHint("Choose a folder to write your highlights and notes into as Markdown")
+
+                dataAction(
+                    title: "Import Highlights",
+                    detail: "Kindle’s My Clippings.txt or a Readwise CSV export. Passages arrive as their own groups in Highlights; importing the same file twice adds nothing.",
+                    systemImage: "tray.and.arrow.down",
+                    showsProgress: isReadingImport
+                ) {
+                    isImportPickerPresented = true
+                    HapticManager.shared.selection()
                 }
+                .disabled(isReadingImport)
+                .accessibilityIdentifier("settings.data.import")
+                .accessibilityHint("Choose a Kindle or Readwise export and review it before importing")
             }
-            .fileImporter(
-                isPresented: $isRestorePickerPresented,
-                allowedContentTypes: [.json],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    guard let url = urls.first else { return }
-                    prepareRestore(from: url)
-                case .failure(let error):
-                    dataErrorMessage = "Couldn’t open that backup: \(error.localizedDescription)"
-                }
-            }
-            .fileImporter(
-                isPresented: $isImportPickerPresented,
-                allowedContentTypes: HighlightImporter.readableTypes,
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    guard let url = urls.first else { return }
-                    prepareHighlightImport(from: url)
-                case .failure(let error):
-                    dataErrorMessage = "Couldn’t open that file: \(error.localizedDescription)"
-                }
-            }
-            .sheet(item: $restoreCandidate) { candidate in
-                DipleRestoreReviewView(candidate: candidate) {
-                    try await Task.detached(priority: .userInitiated) {
-                        try DipleBackupRestorer.shared.restore(candidate.payload)
-                    }.value
-                }
-            }
-            .sheet(item: $importCandidate) { candidate in
-                HighlightImportReviewView(candidate: candidate) {
-                    try await Task.detached(priority: .userInitiated) {
-                        try HighlightImporter.shared.commit(candidate.document)
-                    }.value
-                }
-            }
+            .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
         }
     }
 
@@ -702,6 +756,45 @@ public struct AppSettingsView: View {
                 dataErrorMessage = "Couldn’t read that backup: \(error.localizedDescription)"
             }
         }
+    }
+
+    /// The folder is chosen every time rather than remembered.
+    ///
+    /// A stored security-scoped bookmark is a permission that can quietly die — the folder is
+    /// moved, iCloud Drive evicts it, the vault is restored from a backup — and repairing it
+    /// needs a second row in Settings whose only job is to explain a failure. The picker already
+    /// reopens where it was last used, so choosing again costs one tap and can never be stale.
+    private func writeMarkdown(into folder: URL) {
+        guard !isWritingMarkdown else { return }
+        isWritingMarkdown = true
+        Task {
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Result { try MarkdownLibraryExporter.shared.export(to: folder) }
+            }.value
+            isWritingMarkdown = false
+            switch outcome {
+            case .success(let report):
+                HapticManager.shared.notification(.success)
+                markdownReport = report
+            case .failure(let error):
+                dataErrorMessage = "Couldn’t write into that folder: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// Counts, then the two things a reader would otherwise have to discover by diffing the
+    /// folder: what was already there, and what diple refused to touch.
+    private static func markdownSummary(_ report: MarkdownExportReport) -> String {
+        var lines = [
+            "\(report.passagesWritten) \(report.passagesWritten == 1 ? "passage" : "passages") across \(report.fileCount) \(report.fileCount == 1 ? "file" : "files")."
+        ]
+        if report.passagesAlreadyThere > 0 {
+            lines.append("\(report.passagesAlreadyThere) were already in the folder and were left alone.")
+        }
+        if report.skippedForeignFiles > 0 {
+            lines.append("\(report.skippedForeignFiles) \(report.skippedForeignFiles == 1 ? "file was" : "files were") not written by diple, so they were written beside rather than over.")
+        }
+        return lines.joined(separator: "\n\n")
     }
 
     /// Reading a clippings file with a decade of highlights in it is real work — parsing, then a

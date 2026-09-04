@@ -6,7 +6,7 @@ import SwiftUI
 /// but flattens everything above it: a heading arrives as ordinary text and a list loses its
 /// bullets. Reading a note is the one place in the app where that structure is the point, so
 /// blocks are parsed here and inline syntax is left to the system parser inside each one.
-public enum NoteBlock: Identifiable, Equatable {
+public nonisolated enum NoteBlock: Identifiable, Equatable {
     case heading(level: Int, text: String)
     case paragraph(String)
     case bulleted([String])
@@ -34,7 +34,7 @@ public enum NoteBlock: Identifiable, Equatable {
     }
 }
 
-public struct NoteTask: Equatable {
+public nonisolated struct NoteTask: Equatable {
     public let text: String
     public let isCompleted: Bool
     /// Where this item came from in the raw note, so ticking it rewrites the line it was
@@ -49,7 +49,7 @@ public struct NoteTask: Equatable {
     }
 }
 
-public enum NoteCallout: String, Equatable {
+public nonisolated enum NoteCallout: String, Equatable {
     case note
     case tip
     case important
@@ -69,7 +69,12 @@ public enum NoteCallout: String, Equatable {
     }
 }
 
-public enum NoteMarkdown {
+/// `nonisolated` because none of this is a view: it is a parser over a string and the value
+/// types it produces. The project defaults every declaration to `@MainActor`, which pinned a
+/// pure parse to the main thread and put it out of reach of anything working in the background —
+/// the folder export writes a file per note off the main actor and needs the same rules the
+/// board draws with, not a second copy of them.
+public nonisolated enum NoteMarkdown {
     public struct OutlineItem: Identifiable, Equatable {
         public let level: Int
         public let title: String

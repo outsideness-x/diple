@@ -4,7 +4,7 @@ import Combine
 
 /// A note with everything the board needs to draw it: its tags and the library item it
 /// points at, resolved once at load time.
-public struct NoteItem: Identifiable, Equatable, Hashable {
+public nonisolated struct NoteItem: Identifiable, Equatable, Hashable {
     public let note: Note
     public let tags: [String]
     public let book: Book?

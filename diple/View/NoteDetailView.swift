@@ -581,18 +581,12 @@ public struct NoteDetailView: View {
         return "\(minutes) min read"
     }
 
+    /// Share and Copy hand out the same bytes the folder export writes, from the same
+    /// serialiser — a note shared to a friend and a note exported to a vault must not be two
+    /// different documents. What is local here is only that it reads the *live* editor state,
+    /// so sharing a note mid-edit shares what is on screen.
     private var exportMarkdown: String {
-        var parts: [String] = []
-        if !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            parts.append("# \(title.trimmingCharacters(in: .whitespacesAndNewlines))")
-        }
-        if !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            parts.append(body_.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        if !tags.isEmpty {
-            parts.append(tags.map { "#\($0)" }.joined(separator: " "))
-        }
-        return parts.joined(separator: "\n\n")
+        NoteMarkdownExport.document(title: title, body: body_, tags: tags)
     }
 
     // MARK: - Editing
