@@ -201,7 +201,7 @@ can write:
 |---|---|
 | `DipleBook` | `title`, `author`, `fileName`, `coverFileName`, `addedAt`, `lastOpenedAt`, `progress`, `furthestProgress`, `locator`, `sourceURL`, `sourceKind`, `location`, `tags` (STRING LIST), `tagsCount` (INT64), `modifiedAt` |
 | `DipleBookAsset` | `publication` (ASSET), `fileName`, `cover` (ASSET), `coverFileName`, `modifiedAt` |
-| `DipleHighlight` | `bookID`, `locator`, `text`, `comment`, `colorHex`, `createdAt`, `bookTitle`, `bookAuthor`, `modifiedAt` |
+| `DipleHighlight` | `bookID`, `locator`, `text`, `comment`, `colorHex`, `createdAt`, `bookTitle`, `bookAuthor`, **`tags` (STRING LIST)**, **`tagsCount` (INT64)**, `modifiedAt` |
 | `DipleBookmark` | `bookID`, `locator`, `name`, `colorHex`, `createdAt`, `modifiedAt` |
 | `DipleNote` | `title`, `body`, `bookID`, `createdAt`, `updatedAt`, `tags` (STRING LIST), `tagsCount` (INT64), `modifiedAt` |
 | `DipleSettings` | `payload` (BYTES), `modifiedAt` |
@@ -214,6 +214,23 @@ has no element type for CloudKit to infer from, see the comment on `CloudSyncSer
 deleted), `sourceURL` (an imported article), `cover` / `coverFileName`, and `location` other
 than the default. Either exercise each one on a dev device, or add the missing field by hand in
 the Console with the type from the table above.
+
+> **New since the v1.0 deploy, and a hard blocker for the next release:** `DipleHighlight` gained
+> `tags` and `tagsCount` when passages became taggable. The Production schema deployed on
+> 2026-08-29 does **not** carry them, and `tagsCount` is written on **every** highlight save —
+> not only on tagged ones. Until these two fields are deployed, a TestFlight or App Store build
+> has every highlight record refused and parked in the outbox: not "tags do not sync" but
+> "highlights stop syncing", with no crash and no message beyond `Needs Attention` in Settings.
+>
+> Creating them in Development needs one specific action, because `tags` is written only when it
+> is non-empty (an empty list has no element type for CloudKit to infer): **save a highlight with
+> at least one tag** on an Xcode-installed build with sync on. Any highlight save creates
+> `tagsCount`; only a tagged one creates `tags`. Adding both by hand in the Console with the
+> types above works too.
+>
+> Nothing else added since v1.0 touches the schema: the fore-edge, the ink stroke, the widget,
+> the Markdown export, the passage echoes and the Kindle/Readwise import are all local, and
+> imported passages are ordinary `DipleHighlight` rows.
 
 **Step 2 — Deploy Schema Changes to Production.** Schema → "Deploy Schema Changes…", review the
 diff, deploy.
