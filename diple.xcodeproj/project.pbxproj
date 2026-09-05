@@ -14,6 +14,7 @@
 		D0A17C01301E0A0000A3309A /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = D0A17C00301E0A0000A3309A /* SwiftSoup */; };
 		D0E100013022100000A3309A /* dipleShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0E100033022100000A3309A /* dipleShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D0F04A013022000000A3309A /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = D0F04A033022000000A3309A /* SwiftMath */; };
+		D0E200013022200000A3309A /* dipleWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0E200033022200000A3309A /* dipleWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -38,6 +39,13 @@
 			remoteGlobalIDString = D0E100093022100000A3309A;
 			remoteInfo = dipleShareExtension;
 		};
+		D0E200023022200000A3309A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D071D6D2301DE6DA00A3309A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D0E200093022200000A3309A;
+			remoteInfo = dipleWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -48,6 +56,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				D0E100013022100000A3309A /* dipleShareExtension.appex in Embed Foundation Extensions */,
+				D0E200013022200000A3309A /* dipleWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -59,6 +68,7 @@
 		D071D6E7301DE6DD00A3309A /* dipleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = dipleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D071D6F1301DE6DD00A3309A /* dipleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = dipleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0E100033022100000A3309A /* dipleShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = dipleShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D0E200033022200000A3309A /* dipleWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = dipleWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -75,6 +85,13 @@
 				Info.plist,
 			);
 			target = D0E100093022100000A3309A /* dipleShareExtension */;
+		};
+		D0E200043022200000A3309A /* Exceptions for "dipleWidget" folder in "dipleWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D0E200093022200000A3309A /* dipleWidgetExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -108,6 +125,14 @@
 				D0E100043022100000A3309A /* Exceptions for "dipleShareExtension" folder in "dipleShareExtension" target */,
 			);
 			path = dipleShareExtension;
+			sourceTree = "<group>";
+		};
+		D0E200063022200000A3309A /* dipleWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D0E200043022200000A3309A /* Exceptions for "dipleWidget" folder in "dipleWidgetExtension" target */,
+			);
+			path = dipleWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -147,6 +172,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0E200073022200000A3309A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -167,6 +199,7 @@
 			children = (
 				D071D6DA301DE6DB00A3309A /* diple.app */,
 				D0E100033022100000A3309A /* dipleShareExtension.appex */,
+				D0E200033022200000A3309A /* dipleWidgetExtension.appex */,
 				D071D6E7301DE6DD00A3309A /* dipleTests.xctest */,
 				D071D6F1301DE6DD00A3309A /* dipleUITests.xctest */,
 			);
@@ -189,6 +222,7 @@
 			);
 			dependencies = (
 				D0E1000C3022100000A3309A /* PBXTargetDependency */,
+				D0E2000C3022200000A3309A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D071D6DC301DE6DB00A3309A /* diple */,
@@ -276,6 +310,29 @@
 			productReference = D0E100033022100000A3309A /* dipleShareExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		D0E200093022200000A3309A /* dipleWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D0E2000D3022200000A3309A /* Build configuration list for PBXNativeTarget "dipleWidgetExtension" */;
+			buildPhases = (
+				D0E2000B3022200000A3309A /* Sources */,
+				D0E200073022200000A3309A /* Frameworks */,
+				D0E2000A3022200000A3309A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D0E100053022100000A3309A /* Shared */,
+				D0E200063022200000A3309A /* dipleWidget */,
+			);
+			name = dipleWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = dipleWidgetExtension;
+			productReference = D0E200033022200000A3309A /* dipleWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -296,6 +353,9 @@
 					D071D6F0301DE6DD00A3309A = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = D071D6D9301DE6DB00A3309A;
+					};
+					D0E200093022200000A3309A = {
+						CreatedOnToolsVersion = 26.3;
 					};
 					D0E100093022100000A3309A = {
 						CreatedOnToolsVersion = 26.3;
@@ -323,6 +383,7 @@
 			targets = (
 				D071D6D9301DE6DB00A3309A /* diple */,
 				D0E100093022100000A3309A /* dipleShareExtension */,
+				D0E200093022200000A3309A /* dipleWidgetExtension */,
 				D071D6E6301DE6DD00A3309A /* dipleTests */,
 				D071D6F0301DE6DD00A3309A /* dipleUITests */,
 			);
@@ -352,6 +413,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D0E1000A3022100000A3309A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0E2000A3022200000A3309A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -389,6 +457,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D0E2000B3022200000A3309A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -406,6 +481,11 @@
 			isa = PBXTargetDependency;
 			target = D0E100093022100000A3309A /* dipleShareExtension */;
 			targetProxy = D0E100023022100000A3309A /* PBXContainerItemProxy */;
+		};
+		D0E2000C3022200000A3309A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D0E200093022200000A3309A /* dipleWidgetExtension */;
+			targetProxy = D0E200023022200000A3309A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -759,6 +839,70 @@
 			};
 			name = Release;
 		};
+		D0E2000E3022200000A3309A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = dipleWidget/dipleWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
+				DEVELOPMENT_TEAM = KX98K6BPAP;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = dipleWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.chemical-pink.diple.Widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = "2,6";
+			};
+			name = Debug;
+		};
+		D0E2000F3022200000A3309A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = dipleWidget/dipleWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
+				DEVELOPMENT_TEAM = KX98K6BPAP;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = dipleWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.chemical-pink.diple.Widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				"TARGETED_DEVICE_FAMILY[sdk=macosx*]" = "2,6";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -803,6 +947,15 @@
 			buildConfigurations = (
 				D0E1000E3022100000A3309A /* Debug */,
 				D0E1000F3022100000A3309A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D0E2000D3022200000A3309A /* Build configuration list for PBXNativeTarget "dipleWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0E2000E3022200000A3309A /* Debug */,
+				D0E2000F3022200000A3309A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

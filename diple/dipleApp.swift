@@ -136,7 +136,25 @@ struct dipleApp: App {
                 AppIconManager.apply(settingsManager.settings.accent)
                 if !isUITestFixture {
                     sharedLinkCoordinator.processPending()
+                    // Activation is the one moment the app reliably gets, and the widget's copy
+                    // only ever needs to be as fresh as the last time diple was opened.
+                    DailyResurfacingService.shared.refreshWidgetSnapshot()
                 }
+            }
+            // A restore, an import or an iCloud batch can change the whole pool the day's
+            // passage is drawn from. Both notifications already exist and every root view
+            // listens to them; the widget's copy is one more reader of the same signal.
+            .onReceive(NotificationCenter.default.publisher(for: .dipleDataDidRestore)) { _ in
+                DailyResurfacingService.shared.refreshWidgetSnapshot()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)) { _ in
+                DailyResurfacingService.shared.refreshWidgetSnapshot()
+            }
+            // Tapping the widget lands on Highlights, through the same door the daily
+            // notification already opens — one route into that screen, not two.
+            .onOpenURL { url in
+                guard url.scheme == "diple", url.host == "daily" else { return }
+                DailyResurfacingService.shared.requestOpenFromNotification()
             }
             .task {
                 // The window exists by now, which it did not when the settings manager was

@@ -9,6 +9,19 @@
 	     system stack when importing an article and CloudKit's own transport, both exempt. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- The widget's only way back into the app. It opens Highlights through the same
+	     notification route the daily reminder already uses; see dipleApp's onOpenURL. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.chemical-pink.diple</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>diple</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

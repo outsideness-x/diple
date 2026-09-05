@@ -39,6 +39,9 @@ public final class DailyResurfacingViewModel: ObservableObject {
             guard let quote = try DailyResurfacingService.shared.showAnotherQuote() else { return }
             item = makeItem(for: quote)
             canShowAnother = try DailyResurfacingService.shared.hasAnotherQuote()
+            // Another changes what *today* is, and the widget is showing today. Without this
+            // the Home Screen would keep the passage the reader has just moved on from.
+            DailyResurfacingService.shared.refreshWidgetSnapshot()
             HapticManager.shared.impact(.light)
         } catch {
             errorMessage = "Failed to show another highlight: \(error.localizedDescription)"
