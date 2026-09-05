@@ -27,6 +27,9 @@ enum MacCommand: String, Sendable, CaseIterable {
     case goHighlights
     case goNotes
     case goSearch
+    /// Put the caret in whatever field narrows the column that is open. Distinct from
+    /// `goSearch`, which is a *place*: ⌘F on the shelf must not throw away the shelf.
+    case findInColumn
     /// Find inside the open book. Only ever answered while a book is open over the shell —
     /// page turns are not here because Readium's own `DirectionalNavigationAdapter` observes
     /// the arrow and space keys straight from the navigator, which is the only place they can
@@ -126,14 +129,18 @@ struct DipleMacCommands: Commands {
                 .keyboardShortcut("5", modifiers: .command)
             Button("Notes") { MacCommand.goNotes.post() }
                 .keyboardShortcut("6", modifiers: .command)
+            Button("Search Everything") { MacCommand.goSearch.post() }
+                .keyboardShortcut("7", modifiers: .command)
 
             Divider()
 
             // ⌘F means "find in what I am looking at": the open column's own filter on the
             // shelf, and the text of the book once one is open over it. The two are the same
             // command because they are the same intent, and only one of the two shells is ever
-            // on screen to answer it.
-            Button("Find") { MacCommand.goSearch.post() }
+            // on screen to answer it. Reaching the global index is a *place*, and has its own
+            // key beside the other six shelves — ⌘F on a filtered shelf must not throw the
+            // filter away to get there.
+            Button("Find") { MacCommand.findInColumn.post() }
                 .keyboardShortcut("f", modifiers: .command)
             Button("Find in Book") { MacCommand.findInBook.post() }
                 .keyboardShortcut("f", modifiers: [.command, .option])
@@ -143,6 +150,38 @@ struct DipleMacCommands: Commands {
             Link("diple. on the Web", destination: DipleLinks.website)
             Link("Privacy Policy", destination: DipleLinks.privacy)
         }
+    }
+}
+
+/// The size the desktop shell needs before it *is* one.
+///
+/// At the 1024×768 Catalyst opens with, `NavigationSplitView` drops the sidebar and the window
+/// launches as two columns — so the first thing a new reader sees is a shell with no shelves in
+/// it, and no sign that the sidebar exists at all. A `frame(minWidth:)` on the content does not
+/// fix that: it constrains the view inside the window, not the window.
+///
+/// The minimum is what the three columns need at their own minimums plus room for a cover grid
+/// two tiles wide; the requested size is a comfortable reading desk, and it is only requested
+/// once per session, because after the first launch macOS restores whatever size the reader
+/// chose.
+enum DipleMacWindow {
+    private static var hasSized = false
+
+    @MainActor
+    static func configure() {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first
+        else { return }
+
+        scene.sizeRestrictions?.minimumSize = CGSize(width: 1120, height: 720)
+
+        guard !hasSized else { return }
+        hasSized = true
+        guard let current = scene.effectiveGeometry.systemFrame as CGRect?, current.width < 1120 else { return }
+        scene.requestGeometryUpdate(
+            .Mac(systemFrame: CGRect(origin: current.origin, size: CGSize(width: 1360, height: 900)))
+        )
     }
 }
 

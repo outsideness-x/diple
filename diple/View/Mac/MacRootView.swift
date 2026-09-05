@@ -65,7 +65,7 @@ public struct MacRootView: View {
             case .articles: return "4"
             case .highlights: return "5"
             case .notes: return "6"
-            case .search: return "F"
+            case .search: return "7"
             }
         }
 
@@ -158,7 +158,9 @@ public struct MacRootView: View {
                 .navigationSplitViewColumnWidth(min: 380, ideal: 640)
         } detail: {
             inspector
-                .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 460)
+                // Narrower than it was. At the width the window opens at, an inspector allowed
+                // 460 pt left the cover grid two tiles wide under a header that had to fold.
+                .navigationSplitViewColumnWidth(min: 288, ideal: 330, max: 400)
         }
         .controlSize(.large)
         .background(DipleColor.canvas)
@@ -229,6 +231,7 @@ public struct MacRootView: View {
             }
         }
         .onAppear(perform: reloadAll)
+        .onAppear(perform: DipleMacWindow.configure)
     }
 
     // MARK: - Commands
@@ -250,22 +253,21 @@ public struct MacRootView: View {
         case .refresh:
             reloadAll()
 
-        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes:
+        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes, .goSearch:
             guard !isReading, let destination = Source.forCommand(command) else { return }
             source = destination
+            if destination == .search { searchFocusRequest = .search }
 
-        case .goSearch:
-            // ⌘F means "narrow what I am looking at" wherever the column has a field of its
-            // own, and "search everything" only where it has none. Jumping to the global index
-            // from a shelf the reader was already filtering would throw the filter away.
+        case .findInColumn:
+            // Narrow what is open, rather than going somewhere. Every shelf has a field of its
+            // own, so this never has to fall back to the global index — and must not, because
+            // that would throw away the filter the reader was already typing into.
             guard !isReading else { return }
             switch source {
             case .library, .unread, .reading, .articles: searchFocusRequest = .library
             case .highlights: searchFocusRequest = .highlights
             case .notes: searchFocusRequest = .notes
-            case .search, .none:
-                source = .search
-                searchFocusRequest = .search
+            case .search, .none: searchFocusRequest = .search
             }
 
         case .findInBook:
@@ -334,9 +336,10 @@ public struct MacRootView: View {
                     HStack(spacing: DipleSpace.s) {
                         Image(systemName: "plus")
                             .dipleIcon(12, weight: .semibold)
-                        Text("Import publication")
+                        Text("Import")
                             .dipleType(.footnote, weight: .medium)
-                        Spacer()
+                            .lineLimit(1)
+                        Spacer(minLength: DipleSpace.s)
                         Text("⌘O")
                             .dipleType(.nano)
                             .foregroundStyle(DipleColor.textQuaternary)
@@ -571,23 +574,27 @@ private struct MacColumnHeader<Actions: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
-            HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
-                Text(title)
-                    // A bare screen title standing alone at the top of its column, sharing the
-                    // line with nothing but its own count. That is what `hero` is for.
-                    .dipleType(.hero)
-                    .foregroundStyle(DipleColor.textPrimary)
-
-                if let count {
-                    Text("\(count)")
-                        .dipleType(.micro)
-                        .foregroundStyle(DipleColor.textQuaternary)
-                        .monospacedDigit()
+            // The middle column is the one that gives up width first — the sidebar and the
+            // inspector both have minimums — so this row has to survive being narrow. It used
+            // to be one `HStack`, and at the width the window opens at SwiftUI compressed the
+            // labels rather than the gaps: the screen title broke across two lines as "Libr /
+            // ary" and the import button read "Im / po / rt". Every control is fixed to its own
+            // ideal width now, and when the row no longer fits the actions drop to a line of
+            // their own instead of the words breaking.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
+                    titleBlock
+                    Spacer(minLength: DipleSpace.m)
+                    actions()
                 }
 
-                Spacer(minLength: DipleSpace.m)
-
-                actions()
+                VStack(alignment: .leading, spacing: DipleSpace.m) {
+                    titleBlock
+                    HStack(spacing: DipleSpace.s) {
+                        Spacer(minLength: 0)
+                        actions()
+                    }
+                }
             }
 
             if let context {
@@ -609,6 +616,26 @@ private struct MacColumnHeader<Actions: View>: View {
             Rectangle()
                 .fill(DipleColor.separator)
                 .frame(height: DipleStroke.hairline)
+        }
+    }
+
+    private var titleBlock: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
+            Text(title)
+                // A bare screen title standing alone at the top of its column, sharing the
+                // line with nothing but its own count. That is what `hero` is for.
+                .dipleType(.hero)
+                .foregroundStyle(DipleColor.textPrimary)
+                .lineLimit(1)
+                .fixedSize()
+
+            if let count {
+                Text("\(count)")
+                    .dipleType(.micro)
+                    .foregroundStyle(DipleColor.textQuaternary)
+                    .monospacedDigit()
+                    .fixedSize()
+            }
         }
     }
 
@@ -645,6 +672,8 @@ private struct MacPrimaryButton: View {
             Label(title, systemImage: systemImage)
                 .dipleType(.footnote, weight: .semibold)
                 .foregroundStyle(DipleColor.textOnAccent)
+                .lineLimit(1)
+                .fixedSize()
                 .padding(.horizontal, DipleSpace.m)
                 .padding(.vertical, DipleSpace.s)
                 .background(
@@ -681,6 +710,8 @@ private struct MacSecondaryButton: View {
             }
             .dipleType(.footnote)
             .foregroundStyle(isHovering ? DipleColor.textPrimary : DipleColor.textSecondary)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, DipleSpace.s)
             .padding(.vertical, DipleSpace.s)
             .background(
@@ -1169,6 +1200,23 @@ private struct MacBookTile: View {
     }
 }
 
+/// The reading measure, drawn rather than asked for. See the note at its call sites.
+private struct MacProgressLine: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(DipleColor.surfaceOverlay)
+                Capsule()
+                    .fill(DipleColor.accent)
+                    .frame(width: proxy.size.width * min(max(progress, 0), 1))
+            }
+        }
+        .frame(height: DipleStroke.progressLine)
+    }
+}
+
 private struct MacContinueReadingCard: View {
     let book: Book
     let onOpen: () -> Void
@@ -1199,8 +1247,12 @@ private struct MacContinueReadingCard: View {
                         .dipleType(.caption)
                         .foregroundStyle(DipleColor.textTertiary)
 
-                    ProgressView(value: book.progress)
-                        .tint(DipleColor.accent)
+                    // Not `ProgressView`. Catalyst draws the linear style in the system's own
+                    // grey and ignores `tint`, so the one line on this card that says how far
+                    // the reader has come was the only element on the screen carrying no colour
+                    // from the app at all — while the same measure is already drawn in the
+                    // accent across the foot of every cover in the grid below it.
+                    MacProgressLine(progress: book.progress)
                 }
 
                 Spacer()
@@ -1660,11 +1712,15 @@ private struct MacBookInspector: View {
 
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
                     MacMetadataRow(label: "Progress") {
-                        HStack(spacing: DipleSpace.s) {
-                            ProgressView(value: book.progress)
-                                .tint(DipleColor.accent)
+                        HStack(spacing: DipleSpace.m) {
+                            // `MacProgressLine`, for the reason given at its definition:
+                            // Catalyst paints the linear `ProgressView` in the system grey and
+                            // ignores `tint`, so this row reported the reader's own progress in
+                            // a colour the app does not use anywhere else.
+                            MacProgressLine(progress: book.progress)
                             Text(book.progress.formatted(.percent.precision(.fractionLength(0))))
                                 .monospacedDigit()
+                                .fixedSize()
                         }
                     }
                     MacMetadataRow(label: "Added") {
@@ -2416,7 +2472,7 @@ private struct MacInspectorPlaceholder: View {
         ("⌘O", "Import a publication"),
         ("⌘N", "New note"),
         ("⌘F", "Search this column"),
-        ("⌘1…6", "Move between shelves"),
+        ("⌘1…7", "Move between shelves"),
         ("⌘↩", "Open the selected book")
     ]
 

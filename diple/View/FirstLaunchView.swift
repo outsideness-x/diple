@@ -2,6 +2,18 @@ import SwiftUI
 
 enum FirstLaunchStorage {
     static let completionKey = "diple_has_completed_first_launch"
+
+    /// What the invitation at the foot of the intro says.
+    ///
+    /// There is nothing to tap on a Mac. The word is the first thing the app ever says to a
+    /// desktop reader, and it was telling them to do something their machine cannot do.
+    static func invitation(hasFinished: Bool) -> String {
+        #if targetEnvironment(macCatalyst)
+        return hasFinished ? "CLICK TO BEGIN" : "CLICK TO SKIP"
+        #else
+        return hasFinished ? "TAP TO BEGIN" : "TAP TO SKIP"
+        #endif
+    }
 }
 
 /// The one-time opening title for a new installation.
@@ -117,7 +129,7 @@ private struct FirstLaunchView: View {
                             .fill(DipleColor.accent)
                             .frame(width: 20, height: 2)
 
-                        Text(hasFinishedStory ? "TAP TO BEGIN" : "TAP TO SKIP")
+                        Text(FirstLaunchStorage.invitation(hasFinished: hasFinishedStory))
                             .dipleType(.nano)
                             .foregroundStyle(DipleColor.textQuaternary)
                             .contentTransition(.opacity)

@@ -1102,7 +1102,7 @@ private extension View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .dipleMacCommand)) { note in
             switch MacCommand(note) {
-            case .findInBook, .goSearch: onFind()
+            case .findInBook, .findInColumn: onFind()
             default: break
             }
         }
