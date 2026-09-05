@@ -538,6 +538,10 @@ public struct ReaderContainerView: View {
             viewModel.loadHighlights()
             viewModel.loadNotes()
         }
+        .macReaderKeyboard(
+            onClose: { dismiss() },
+            onFind: { viewModel.isSearchPresented = true }
+        )
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         // The app draws its own tab bar now, and a bar the app draws has to be told.
@@ -1062,6 +1066,48 @@ private extension View {
         self
 #else
         translationPresentation(isPresented: isPresented, text: text)
+#endif
+    }
+}
+
+private extension View {
+    /// What the keyboard does while a book is open, on the Mac.
+    ///
+    /// Page turns are **not** here — Readium's `DirectionalNavigationAdapter`, bound inside the
+    /// navigator's representable, owns the arrows and the space bar because the web view is
+    /// first responder by then and eats them before a SwiftUI shortcut is consulted. What is
+    /// left are the two things the page itself has no opinion about: leaving the book, and
+    /// looking inside it.
+    ///
+    /// Escape is a button rather than a menu item because nothing else in the app binds it and
+    /// a full-window presentation is what the Mac has always used it to leave. `.opacity(0)`
+    /// rather than `.hidden()`: a hidden view is out of the hierarchy and its shortcut is never
+    /// registered.
+    ///
+    /// ⌘F arrives as a *command* rather than a shortcut declared here, so it cannot compete
+    /// with the same key in the menu bar. The shell ignores it while a book is open and the
+    /// reader only exists while one is, so exactly one of the two answers each press.
+    @ViewBuilder
+    func macReaderKeyboard(
+        onClose: @escaping () -> Void,
+        onFind: @escaping () -> Void
+    ) -> some View {
+#if targetEnvironment(macCatalyst)
+        background {
+            Button("Close book", action: onClose)
+                .keyboardShortcut(.escape, modifiers: [])
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .dipleMacCommand)) { note in
+            switch MacCommand(note) {
+            case .findInBook, .goSearch: onFind()
+            default: break
+            }
+        }
+#else
+        self
 #endif
     }
 }

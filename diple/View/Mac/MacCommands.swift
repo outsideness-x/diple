@@ -18,8 +18,6 @@ enum MacCommand: String, Sendable, CaseIterable {
     case importFile
     case importLink
     // View
-    case toggleSidebar
-    case toggleInspector
     case refresh
     // Go
     case goLibrary
@@ -29,12 +27,11 @@ enum MacCommand: String, Sendable, CaseIterable {
     case goHighlights
     case goNotes
     case goSearch
-    // Reader — only ever answered while a book is open over the shell.
-    case closeReader
+    /// Find inside the open book. Only ever answered while a book is open over the shell —
+    /// page turns are not here because Readium's own `DirectionalNavigationAdapter` observes
+    /// the arrow and space keys straight from the navigator, which is the only place they can
+    /// be read reliably once the web view holds first responder.
     case findInBook
-    case nextPage
-    case previousPage
-    case toggleReaderChrome
 }
 
 extension Notification.Name {
@@ -104,15 +101,11 @@ struct DipleMacCommands: Commands {
         CommandGroup(replacing: .printItem) {}
         CommandGroup(replacing: .saveItem) {}
 
+        // No sidebar toggle here. SwiftUI already gives `NavigationSplitView` one — "Show
+        // Sidebar", ⌃⌘S — and adding a second item on the same key is not merely redundant:
+        // UIKit refuses to build a menu containing two commands with one shortcut, by raising
+        // an exception inside `buildMenu` that aborts the app before its first window.
         CommandGroup(after: .sidebar) {
-            Button("Toggle Sidebar") { MacCommand.toggleSidebar.post() }
-                .keyboardShortcut("s", modifiers: [.command, .control])
-
-            Button("Toggle Inspector") { MacCommand.toggleInspector.post() }
-                .keyboardShortcut("i", modifiers: [.command, .control])
-
-            Divider()
-
             Button("Refresh") { MacCommand.refresh.post() }
                 .keyboardShortcut("r", modifiers: .command)
         }
@@ -136,7 +129,11 @@ struct DipleMacCommands: Commands {
 
             Divider()
 
-            Button("Search Everything") { MacCommand.goSearch.post() }
+            // ⌘F means "find in what I am looking at": the open column's own filter on the
+            // shelf, and the text of the book once one is open over it. The two are the same
+            // command because they are the same intent, and only one of the two shells is ever
+            // on screen to answer it.
+            Button("Find") { MacCommand.goSearch.post() }
                 .keyboardShortcut("f", modifiers: .command)
             Button("Find in Book") { MacCommand.findInBook.post() }
                 .keyboardShortcut("f", modifiers: [.command, .option])
@@ -173,10 +170,22 @@ final class DipleMenuBuilder: UIResponder, UIApplicationDelegate {
     override func buildMenu(with builder: UIMenuBuilder) {
         super.buildMenu(with: builder)
         guard builder.system == .main else { return }
-        builder.remove(menu: .format)
-        // Nothing in the window is a customisable toolbar, so "Customize Toolbar…" opens an
-        // empty sheet.
-        builder.remove(menu: .toolbar)
+        // Nothing in the window is a customisable toolbar, so "Customize Toolbar…" would open
+        // an empty sheet.
+        remove(.format, .toolbar, from: builder)
+    }
+
+    /// Removes each menu **only if the builder actually has it**.
+    ///
+    /// `UIMenuBuilder.remove(menu:)` is not a no-op for a menu that is not there: it raises an
+    /// `NSException`, and an exception raised inside `buildMenu` aborts the process during
+    /// `_runWithMainScene` — the app crashes before its first window, with a stack that names
+    /// UIKit and not the line that asked. Which menus exist depends on what the scene has
+    /// built, so asking is the only safe form.
+    private func remove(_ identifiers: UIMenu.Identifier..., from builder: UIMenuBuilder) {
+        for identifier in identifiers where builder.menu(for: identifier) != nil {
+            builder.remove(menu: identifier)
+        }
     }
 }
 

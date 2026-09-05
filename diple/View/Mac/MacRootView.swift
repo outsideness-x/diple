@@ -247,12 +247,7 @@ public struct MacRootView: View {
             guard !isReading else { return }
             isImportingLink = true
 
-        case .toggleSidebar:
-            withAnimation(DipleMotion.snappy) {
-                columnVisibility = columnVisibility == .all ? .doubleColumn : .all
-            }
-
-        case .toggleInspector, .refresh:
+        case .refresh:
             reloadAll()
 
         case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes:
@@ -273,7 +268,7 @@ public struct MacRootView: View {
                 searchFocusRequest = .search
             }
 
-        case .closeReader, .findInBook, .nextPage, .previousPage, .toggleReaderChrome:
+        case .findInBook:
             // Answered by the reader itself, which is presented above this view.
             break
         }

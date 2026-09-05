@@ -129,6 +129,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             navigator.observeDecorationInteractions(inGroup: "living-margins") { [weak coordinator = context.coordinator] event in
                 coordinator?.activateLivingMargin(id: event.decoration.id)
             }
+            context.coordinator.bindKeyboardPageTurns(to: navigator)
             return navigator
         } catch {
             // Trapping here would crash the app on a book it simply cannot render.
@@ -205,6 +206,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public class Coordinator: NSObject, EPUBNavigatorDelegate, SelectableNavigatorDelegate, UIGestureRecognizerDelegate {
         var parent: EPUBNavigatorRepresentable
         weak var navigator: EPUBNavigatorViewController?
+        /// Retained for as long as the navigator is: unbinding happens in its `deinit`.
+        /// Catalyst only — see `bindKeyboardPageTurns`.
+        private var directionalNavigation: DirectionalNavigationAdapter?
         var lastFreshHighlightID: String? = nil
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
@@ -255,6 +259,32 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         /// The right-edge recognizer lives on the navigator itself, not in a transparent SwiftUI
         /// strip above it. It therefore participates in UIKit's gesture arbitration and can fail
         /// a vertical movement without stealing scrolling, selection or Readium's page taps.
+        /// Arrow keys and the space bar turn pages, on the Mac.
+        ///
+        /// Readium's own adapter rather than a `keyboardShortcut` in SwiftUI, and not because
+        /// it is shorter: once the page is drawn, the web view is first responder, and it
+        /// consumes arrow keys for its own scrolling before any shortcut registered further up
+        /// the chain is consulted. The adapter observes the navigator's input pipeline, which
+        /// is downstream of that, and it already knows the publication's reading progression —
+        /// so ← turns the right way in a right-to-left book without this file deciding what
+        /// "forward" means.
+        ///
+        /// Pointer events are switched off deliberately. The adapter can also turn pages on a
+        /// click near the viewport edge, but a click already means something here — the tap
+        /// delegate toggles the reader's chrome — and two meanings for one click on a page is
+        /// how a reader loses the controls they were reaching for.
+        func bindKeyboardPageTurns(to navigator: EPUBNavigatorViewController) {
+            #if targetEnvironment(macCatalyst)
+            let adapter = DirectionalNavigationAdapter(
+                pointerPolicy: .init(types: []),
+                keyboardPolicy: .init(handleArrowKeys: true, handleSpaceKey: true),
+                animatedTransition: true
+            )
+            adapter.bind(to: navigator)
+            directionalNavigation = adapter
+            #endif
+        }
+
         func installLivingMarginsEdgePan(on view: UIView) {
             let recognizer = UIScreenEdgePanGestureRecognizer(
                 target: self,

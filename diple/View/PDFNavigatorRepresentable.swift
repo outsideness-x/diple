@@ -74,6 +74,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             )
             context.coordinator.navigator = navigator
             context.coordinator.lastPreferences = preferences
+            context.coordinator.bindKeyboardPageTurns(to: navigator)
             return navigator
         } catch {
             // See the note in `EPUBNavigatorRepresentable`: a book we cannot render must
@@ -106,6 +107,23 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         private var didClearSelection = false
         private var inFlightTarget: NavigationTarget? = nil
         private let selectionSettle = SelectionSettle()
+        /// See `EPUBNavigatorRepresentable.Coordinator.bindKeyboardPageTurns`.
+        private var directionalNavigation: DirectionalNavigationAdapter?
+
+        /// Arrow keys and the space bar, on the Mac. Same reasoning, same policy and the same
+        /// deliberate silence on pointer events as the EPUB navigator's — see
+        /// `EPUBNavigatorRepresentable.Coordinator.bindKeyboardPageTurns`.
+        func bindKeyboardPageTurns(to navigator: PDFNavigatorViewController) {
+            #if targetEnvironment(macCatalyst)
+            let adapter = DirectionalNavigationAdapter(
+                pointerPolicy: .init(types: []),
+                keyboardPolicy: .init(handleArrowKeys: true, handleSpaceKey: true),
+                animatedTransition: true
+            )
+            adapter.bind(to: navigator)
+            directionalNavigation = adapter
+            #endif
+        }
 
         /// See `EPUBNavigatorRepresentable.Coordinator.clearSelectionIfNeeded`.
         func clearSelectionIfNeeded(_ hasSelection: Bool, in navigator: PDFNavigatorViewController) {
