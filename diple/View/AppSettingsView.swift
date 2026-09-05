@@ -20,13 +20,13 @@ public struct AppSettingsView: View {
     @State private var exportDocument = DipleExportDocument()
     @State private var isExportPresented = false
     @State private var dataErrorMessage: String?
-    @State private var isRestorePickerPresented = false
+    @State private var isPickerPresented = false
+    /// What the one file picker was opened for. See `FilePickerRequest`.
+    @State private var pickerRequest: FilePickerRequest = .restore
     @State private var isReadingRestore = false
     @State private var restoreCandidate: DipleRestoreCandidate?
-    @State private var isImportPickerPresented = false
     @State private var isReadingImport = false
     @State private var importCandidate: HighlightImportCandidate?
-    @State private var isMarkdownFolderPickerPresented = false
     @State private var isWritingMarkdown = false
     @State private var markdownReport: MarkdownExportReport?
 
@@ -66,43 +66,26 @@ public struct AppSettingsView: View {
                         dataErrorMessage = "Couldn’t save your export: \(error.localizedDescription)"
                     }
                 }
+                // **One importer, not three.** SwiftUI presents a single `fileImporter` per
+                // view: with three of them chained here only the last one ever opened, which
+                // silently took Restore — a feature that had worked for months — down with the
+                // two new rows. Nothing in a build or a test says so; the picker simply does
+                // not appear. So the request is state and the presentation is one modifier.
                 .fileImporter(
-                    isPresented: $isRestorePickerPresented,
-                    allowedContentTypes: [.json],
+                    isPresented: $isPickerPresented,
+                    allowedContentTypes: pickerRequest.contentTypes,
                     allowsMultipleSelection: false
                 ) { result in
                     switch result {
                     case .success(let urls):
                         guard let url = urls.first else { return }
-                        prepareRestore(from: url)
+                        switch pickerRequest {
+                        case .restore: prepareRestore(from: url)
+                        case .importHighlights: prepareHighlightImport(from: url)
+                        case .markdownFolder: writeMarkdown(into: url)
+                        }
                     case .failure(let error):
-                        dataErrorMessage = "Couldn’t open that backup: \(error.localizedDescription)"
-                    }
-                }
-                .fileImporter(
-                    isPresented: $isImportPickerPresented,
-                    allowedContentTypes: HighlightImporter.readableTypes,
-                    allowsMultipleSelection: false
-                ) { result in
-                    switch result {
-                    case .success(let urls):
-                        guard let url = urls.first else { return }
-                        prepareHighlightImport(from: url)
-                    case .failure(let error):
-                        dataErrorMessage = "Couldn’t open that file: \(error.localizedDescription)"
-                    }
-                }
-                .fileImporter(
-                    isPresented: $isMarkdownFolderPickerPresented,
-                    allowedContentTypes: [.folder],
-                    allowsMultipleSelection: false
-                ) { result in
-                    switch result {
-                    case .success(let urls):
-                        guard let url = urls.first else { return }
-                        writeMarkdown(into: url)
-                    case .failure(let error):
-                        dataErrorMessage = "Couldn’t open that folder: \(error.localizedDescription)"
+                        dataErrorMessage = "\(pickerRequest.failure): \(error.localizedDescription)"
                     }
                 }
                 .sheet(item: $restoreCandidate) { candidate in
@@ -556,8 +539,7 @@ public struct AppSettingsView: View {
                     systemImage: "arrow.counterclockwise",
                     showsProgress: isReadingRestore
                 ) {
-                    isRestorePickerPresented = true
-                    HapticManager.shared.selection()
+                    present(.restore)
                 }
                 .disabled(isReadingRestore)
                 .accessibilityIdentifier("settings.data.restore")
@@ -569,8 +551,7 @@ public struct AppSettingsView: View {
                     systemImage: "folder",
                     showsProgress: isWritingMarkdown
                 ) {
-                    isMarkdownFolderPickerPresented = true
-                    HapticManager.shared.selection()
+                    present(.markdownFolder)
                 }
                 .disabled(isWritingMarkdown)
                 .accessibilityIdentifier("settings.data.markdown")
@@ -582,8 +563,7 @@ public struct AppSettingsView: View {
                     systemImage: "tray.and.arrow.down",
                     showsProgress: isReadingImport
                 ) {
-                    isImportPickerPresented = true
-                    HapticManager.shared.selection()
+                    present(.importHighlights)
                 }
                 .disabled(isReadingImport)
                 .accessibilityIdentifier("settings.data.import")
@@ -756,6 +736,38 @@ public struct AppSettingsView: View {
                 dataErrorMessage = "Couldn’t read that backup: \(error.localizedDescription)"
             }
         }
+    }
+
+    /// What the single file picker is being opened for.
+    ///
+    /// It exists because there can only be one: three `fileImporter` modifiers on one view
+    /// leave two of them dead, and the dead ones fail by doing nothing at all.
+    private enum FilePickerRequest {
+        case restore
+        case importHighlights
+        case markdownFolder
+
+        var contentTypes: [UTType] {
+            switch self {
+            case .restore: return [.json]
+            case .importHighlights: return HighlightImporter.readableTypes
+            case .markdownFolder: return [.folder]
+            }
+        }
+
+        var failure: String {
+            switch self {
+            case .restore: return "Couldn’t open that backup"
+            case .importHighlights: return "Couldn’t open that file"
+            case .markdownFolder: return "Couldn’t open that folder"
+            }
+        }
+    }
+
+    private func present(_ request: FilePickerRequest) {
+        pickerRequest = request
+        isPickerPresented = true
+        HapticManager.shared.selection()
     }
 
     /// The folder is chosen every time rather than remembered.
