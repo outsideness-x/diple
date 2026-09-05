@@ -563,6 +563,8 @@ public struct ReaderContainerView: View {
         }) {
             BookOutlineSheetView(
                 tableOfContents: viewModel.tableOfContents,
+                positions: viewModel.positions,
+                progress: viewModel.currentProgress,
                 highlights: viewModel.highlights,
                 notes: viewModel.notes.forThisBook,
                 bookmarks: viewModel.bookmarks,

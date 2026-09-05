@@ -6,6 +6,11 @@ import ReadiumShared
 /// question — "what is in this book, mine included".
 public struct BookOutlineSheetView: View {
     public let tableOfContents: [ReadiumShared.Link]
+    /// The publication's position list, which is what lets Contents be drawn as the book's own
+    /// edge rather than as a list of equal rows. Empty is survivable — see `BookForeEdge`.
+    public let positions: [ReadiumShared.Locator]
+    /// Where reading is, in the same `totalProgression` the edge and every locator use.
+    public let progress: Double
     public let highlights: [Highlight]
     public let notes: [NoteItem]
     public let bookmarks: [Bookmark]
@@ -35,6 +40,8 @@ public struct BookOutlineSheetView: View {
 
     public init(
         tableOfContents: [ReadiumShared.Link],
+        positions: [ReadiumShared.Locator] = [],
+        progress: Double = 0,
         highlights: [Highlight],
         notes: [NoteItem] = [],
         bookmarks: [Bookmark] = [],
@@ -48,6 +55,8 @@ public struct BookOutlineSheetView: View {
         onDeleteBookmark: @escaping (Bookmark) -> Void = { _ in }
     ) {
         self.tableOfContents = tableOfContents
+        self.positions = positions
+        self.progress = progress
         self.highlights = highlights
         self.notes = notes
         self.bookmarks = bookmarks
@@ -101,30 +110,7 @@ public struct BookOutlineSheetView: View {
 
             switch selectedTab {
             case .contents:
-                if tableOfContents.isEmpty {
-                    VStack(spacing: DipleSpace.m) {
-                        Spacer()
-                        Image(systemName: "list.bullet.indent")
-                            .dipleIcon(32, weight: .thin)
-                            .foregroundStyle(DipleColor.textTertiary)
-                        Text("No table of contents")
-                            .dipleType(.body, weight: .medium)
-                            .foregroundStyle(DipleColor.textTertiary)
-                        Spacer()
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(tableOfContents, id: \.self) { link in
-                                TOCRowView(link: link, depth: 0) { selectedLink in
-                                    onSelectLink(selectedLink)
-                                    dismiss()
-                                }
-                            }
-                        }
-                        .padding(.vertical, DipleSpace.s)
-                    }
-                }
+                contentsSection
 
             case .quotes:
                 if highlights.isEmpty {
@@ -236,6 +222,76 @@ public struct BookOutlineSheetView: View {
     }
 
     /// `Quotes 3`, and plain `Quotes` when there are none.
+    /// Contents, drawn as the book's own edge rather than as a list.
+    ///
+    /// The list it replaces answered "what is in this book" and was silent on the question a
+    /// reader mid-book actually has — how much of this chapter is left — because thirty pages
+    /// and three pages are the same row. Two costs are accepted for that. A book of two hundred
+    /// chapters is aimed at with the lens rather than scrolled, which is a different skill; and
+    /// a chapter cannot be found by scanning names down a column, only by its place. In exchange
+    /// the whole book is on screen at once, at its true proportions, with the reading position
+    /// and every saved passage on the same axis.
+    private var contentsSection: some View {
+        Group {
+            if tableOfContents.isEmpty {
+                VStack(spacing: DipleSpace.m) {
+                    Spacer()
+                    Image(systemName: "list.bullet.indent")
+                        .dipleIcon(32, weight: .thin)
+                        .foregroundStyle(DipleColor.textTertiary)
+                    Text("No table of contents")
+                        .dipleType(.body, weight: .medium)
+                        .foregroundStyle(DipleColor.textTertiary)
+                    Spacer()
+                }
+            } else {
+                let chapters = ForeEdgeBuilder.chapters(
+                    tableOfContents: tableOfContents,
+                    positions: positions
+                )
+                let edge = BookForeEdge.make(chapters)
+
+                VStack(spacing: 0) {
+                    BookForeEdgeView(
+                        edge: edge,
+                        chapters: chapters,
+                        marks: marks,
+                        progress: progress,
+                        onSelect: { link in
+                            onSelectLink(link)
+                            dismiss()
+                        }
+                    )
+
+                    if !edge.isMeasured {
+                        // Said out loud, because an edge whose thicknesses mean nothing must
+                        // not be read as one whose thicknesses mean something.
+                        Text("Equal stretches — this book doesn\u{2019}t say where its chapters begin.")
+                            .dipleType(.caption)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, DipleSpace.xl)
+                            .padding(.bottom, DipleSpace.m)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Saved passages as ticks on the edge. A passage whose locator carries no place in the
+    /// whole book is left off rather than put at zero: a mark in the wrong place is worse than
+    /// a mark missing, and the reader has no way to tell the difference.
+    private var marks: [ForeEdgeMark] {
+        highlights.compactMap { highlight in
+            guard let progression = highlight.parsedLocator?.locations.totalProgression else { return nil }
+            return ForeEdgeMark(
+                id: highlight.id,
+                progress: progression,
+                colorHex: highlight.colorHex
+            )
+        }
+    }
+
     private func label(_ name: String, _ count: Int) -> String {
         count > 0 ? "\(name) \(count)" : name
     }
