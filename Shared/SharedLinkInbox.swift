@@ -8,7 +8,29 @@ import Foundation
 /// committed the publication and its database row, so suspension or a network failure cannot
 /// turn a successful-looking share into a lost article.
 public nonisolated struct SharedLinkInbox: Sendable {
-    public static let appGroupIdentifier = "group.com.chemical-pink.diple"
+    /// The App Group directory this queue and the widget's snapshot both live in.
+    ///
+    /// **Two names, because macOS only accepts one of them.** An App Group identifier is
+    /// required to begin with the team identifier on macOS, and a Mac Catalyst build asking for
+    /// the bare iOS name gets `nil` back from
+    /// `containerURL(forSecurityApplicationGroupIdentifier:)` — silently, with no error to log:
+    /// the Share Extension's queue and the widget's copy of the day's passage simply never find
+    /// a directory to be in. Both names are declared in the Catalyst entitlements
+    /// (`diple-macos.entitlements`), and this asks for the prefixed one first so the app keeps
+    /// working if the platform ever starts honouring the short form too.
+    ///
+    /// The team identifier is spelled out rather than read from the entitlements at runtime.
+    /// It is already spelled out in `project.pbxproj` as `DEVELOPMENT_TEAM`, and a lookup that
+    /// can fail would only turn a build-time mismatch into a runtime one.
+    public static let appGroupIdentifier: String = {
+        #if targetEnvironment(macCatalyst)
+        let prefixed = "KX98K6BPAP.group.com.chemical-pink.diple"
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: prefixed) != nil {
+            return prefixed
+        }
+        #endif
+        return "group.com.chemical-pink.diple"
+    }()
 
     public struct Entry: Codable, Hashable, Identifiable, Sendable {
         public let id: UUID

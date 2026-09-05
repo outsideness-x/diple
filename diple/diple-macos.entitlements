@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The Mac Catalyst half of `diple.entitlements`. It exists because two of the keys below
+	  cannot be shared with iOS at all:
+
+	  * App Sandbox is mandatory for the Mac App Store and meaningless on iOS, where every app
+	    is sandboxed by construction. Without it the upload is rejected at validation.
+	  * An App Group identifier on macOS must begin with the team identifier. Given the
+	    unprefixed iOS name, `containerURL(forSecurityApplicationGroupIdentifier:)` returns nil
+	    on the Mac and returns it silently — the Share Extension's queue and the widget's
+	    snapshot simply never find their directory. Both names are declared so the runtime
+	    lookup in `SharedLinkInbox.appGroupIdentifier` can prefer the prefixed one and still
+	    resolve if the platform ever accepts the bare form.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Importing an article, and CloudKit's own transport. No server runs in the app, so the
+	     matching `network.server` is deliberately absent. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!--
+	  Read-write rather than read-only, and both halves are used: a publication is opened for
+	  reading through the file importer or a Finder drag, and Settings writes a backup with
+	  `fileExporter` and a Markdown library into a folder the reader chooses. Read-only would
+	  fail the second pair at the moment of writing, which is the worst place to find out.
+	-->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.developer.aps-environment</key>
+	<string>development</string>
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.chemical-pink.diple</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>$(TeamIdentifierPrefix)group.com.chemical-pink.diple</string>
+		<string>group.com.chemical-pink.diple</string>
+	</array>
+</dict>
+</plist>
