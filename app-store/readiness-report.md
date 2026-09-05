@@ -232,6 +232,19 @@ the Console with the type from the table above.
 > the Markdown export, the passage echoes and the Kindle/Readwise import are all local, and
 > imported passages are ordinary `DipleHighlight` rows.
 
+> The two fields to add, copied from what `DipleBook` and `DipleNote` already carry so all three
+> record types define tags the same way:
+>
+> ```
+> tags       LIST<STRING> QUERYABLE SEARCHABLE
+> tagsCount  INT64        QUERYABLE SORTABLE
+> ```
+>
+> The **types** are the part that has to be right the first time — after a deploy a field's type
+> is permanent. The indexes are not: they can be added or dropped later, and sync does not use
+> them at all (`CKSyncEngine` works from zone change tokens, never from queries). They are here
+> only so the Console's record browser can list highlights, and so the three tag fields match.
+
 **Step 2 — Deploy Schema Changes to Production.** Schema → "Deploy Schema Changes…", review the
 diff, deploy.
 
