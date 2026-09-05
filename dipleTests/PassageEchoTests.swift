@@ -124,6 +124,34 @@ final class PassageEchoTests: XCTestCase {
         XCTAssertFalse(index.keys.contains("a"), "a single letter connects nothing")
     }
 
+    /// The defect a screenshot found before a test did: on a library of a dozen passages the
+    /// corpus-derived floor let `it`, `is` and `in` through, and two passages were joined on
+    /// function words. A two-letter Latin or Cyrillic word is never the subject of a passage;
+    /// two Korean characters can be a whole one.
+    func testFunctionWordsAreTooShortToConnectAnything() {
+        XCTAssertFalse(PassageEchoCorpus.isUsableWord("it"))
+        XCTAssertFalse(PassageEchoCorpus.isUsableWord("in"))
+        XCTAssertFalse(PassageEchoCorpus.isUsableWord("же"))
+        XCTAssertTrue(PassageEchoCorpus.isUsableWord("the"))
+        XCTAssertTrue(PassageEchoCorpus.isUsableWord("дом"))
+        XCTAssertTrue(PassageEchoCorpus.isUsableWord("책을"), "two characters is a whole word in Hangul")
+        XCTAssertTrue(PassageEchoCorpus.isUsableWord("사람"))
+        XCTAssertFalse(PassageEchoCorpus.isUsableWord("42"))
+    }
+
+    /// The same defect end to end: a page of English filler must not answer another page of
+    /// English filler just because they share the words every English sentence has.
+    func testFillerDoesNotAnswerFiller() {
+        let english = (1...9).map { index in
+            passage("en-\(index)", book: "book-en", "It is on this page that nothing in particular is said, again number \(index).")
+        }
+        let corpus = PassageEchoCorpus(english)
+        XCTAssertTrue(
+            corpus.echoes(for: english[0]).isEmpty,
+            "sharing it, is and in is not a subject"
+        )
+    }
+
     /// The stemmer earns its place on exactly this: two inflections of one word have to meet.
     /// It is deliberately light — four characters must survive, so short words keep their shape.
     func testTheStemmerJoinsInflectionsWithoutFilingShortWordsAway() {

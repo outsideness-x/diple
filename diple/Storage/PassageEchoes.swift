@@ -207,7 +207,7 @@ public nonisolated struct PassageEchoCorpus: Sendable {
         ) { tag, range in
             let written = String(text[range])
                 .folding(options: [.diacriticInsensitive, .widthInsensitive, .caseInsensitive], locale: nil)
-            guard written.count >= 2, written.contains(where: { $0.isLetter }) else { return true }
+            guard isUsableWord(written) else { return true }
 
             // An empty lemma is the tagger saying "no idea", not "no word".
             let lemma = tag?.rawValue
@@ -228,6 +228,32 @@ public nonisolated struct PassageEchoCorpus: Sendable {
     /// The comparison keys of one passage.
     public static func terms(in text: String) -> Set<String> {
         Set(index(text).keys)
+    }
+
+    /// Whether a token can carry a subject at all.
+    ///
+    /// **Three letters in an alphabet, two in a syllabary, and this is not fussiness.** Shown a
+    /// library of a dozen passages, the rule joined two of them on `it · is · in`: in a corpus
+    /// that small those words really are rare, so the corpus-derived floor let them through, and
+    /// the reader was offered a connection made of function words. In a library of a thousand
+    /// they would weigh nothing — but an echo has to be right on the first day too, and no
+    /// two-letter Latin or Cyrillic word has ever been the subject of a passage. A Korean
+    /// syllable block is a different matter: `책을` is two characters and a whole word, so the
+    /// bar is set by what the script can say in the space, not by a single number.
+    static func isUsableWord(_ word: String) -> Bool {
+        guard word.contains(where: { $0.isLetter }) else { return false }
+        let minimum = word.unicodeScalars.contains(where: isSyllabic) ? 2 : 3
+        return word.count >= minimum
+    }
+
+    /// Hangul, kana and han — scripts that pack a word into one or two characters.
+    private static func isSyllabic(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x1100...0x11FF, 0x3130...0x318F, 0xAC00...0xD7AF: return true  // Hangul
+        case 0x3040...0x30FF: return true                                    // Kana
+        case 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF: return true  // Han
+        default: return false
+        }
     }
 
     /// A light Russian stemmer, applied only to a token that is entirely Cyrillic.
