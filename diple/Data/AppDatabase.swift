@@ -667,6 +667,14 @@ public nonisolated final class AppDatabase: Sendable {
         signalSyncIfNeeded()
     }
 
+    /// How many passages the library holds. A count rather than a fetch, for the callers that
+    /// only need to know whether something changed — see `PassageEchoService`.
+    public func highlightCount() throws -> Int {
+        try writer.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM highlight") ?? 0
+        }
+    }
+
     public func fetchHighlight(id: String) throws -> Highlight? {
         try writer.read { db in
             try Highlight.filter(Column("id") == id).fetchOne(db)

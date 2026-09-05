@@ -93,6 +93,10 @@ public struct DailyResurfacingCard: View {
                 .foregroundStyle(DipleColor.textTertiary)
                 .lineLimit(2)
 
+            if let echo = viewModel.echo {
+                echoBlock(echo)
+            }
+
             HStack(spacing: DipleSpace.m) {
                 if viewModel.canShowAnother {
                     Button {
@@ -114,6 +118,56 @@ public struct DailyResurfacingCard: View {
         // and out for no reason the reader can see.
         .padding(.vertical, DipleSpace.m)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A passage from another book that shares this one's uncommon words.
+    ///
+    /// It arrives under a hairline and in the interface face, not the editorial one: this is a
+    /// second passage, and setting it like the first would make the card an argument between
+    /// two quotes rather than one quote with a footnote. It is a `Button` so it wins the tap
+    /// from the card underneath it — the same way Another already does — and it opens through
+    /// the card's existing `onOpen`, so there is one way out of here rather than two.
+    private func echoBlock(_ echo: DailyResurfacingEcho) -> some View {
+        Button {
+            HapticManager.shared.selection()
+            onOpen(echo.item)
+        } label: {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                Rectangle()
+                    .fill(DipleColor.hairline)
+                    .frame(height: DipleStroke.hairline)
+                    .padding(.bottom, DipleSpace.xs)
+
+                HStack(spacing: DipleSpace.xs) {
+                    Text("ELSEWHERE")
+                        .dipleType(.nano, weight: .semibold)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                    Text(echo.sharedTerms.joined(separator: " · "))
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                        .lineLimit(1)
+                }
+
+                Text(echo.item.quote.text)
+                    .dipleType(.caption)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+
+                Text(attribution(for: echo.item))
+                    .dipleType(.nano, weight: .medium)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Elsewhere in your reading: \(echo.item.quote.text)")
+        .accessibilityHint("Opens that passage")
+        .transition(.opacity)
+        .animation(DipleMotion.gentle, value: echo.id)
     }
 
     private var swipeGesture: some Gesture {

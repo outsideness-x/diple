@@ -137,6 +137,7 @@ public struct QuoteCommentEditorView: View {
 
     @State private var comment: String
     @State private var tags: [String]
+    @State private var echoes: [PassageEcho] = []
 
     public init(
         quote: Highlight,
@@ -174,6 +175,14 @@ public struct QuoteCommentEditorView: View {
                         .padding(.vertical, DipleSpace.xs)
                 }
 
+                if !echoes.isEmpty {
+                    Section("Elsewhere in your reading") {
+                        ForEach(echoes) { echo in
+                            EchoRow(echo: echo)
+                        }
+                    }
+                }
+
                 if quote.comment != nil {
                     Section {
                         // Removing the thought leaves the filing alone: they are separate
@@ -200,5 +209,47 @@ public struct QuoteCommentEditorView: View {
         }
         .presentationDetents([.medium, .large])
         .interactiveDismissDisabled()
+        .task {
+            echoes = await PassageEchoService.shared.echoes(for: quote, limit: 3)
+        }
+    }
+}
+
+/// One passage that answers the one being edited.
+///
+/// Deliberately **not** a link. This sheet holds unsaved edits, and a row that navigated away
+/// from it would have to either discard them or invent a save-on-leave rule that exists nowhere
+/// else in the app. It is enough to recognise the passage here; Highlights is where you go to
+/// sit with it.
+private struct EchoRow: View {
+    let echo: PassageEcho
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.xs) {
+            Text(echo.passage.text)
+                .dipleType(.readingCaption)
+                .foregroundStyle(DipleColor.textSecondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: DipleSpace.xs) {
+                if let title = echo.passage.bookTitle, !title.isEmpty {
+                    Text(title)
+                        .dipleType(.nano, weight: .medium)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .lineLimit(1)
+                    Text("·")
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                }
+                // The words the two passages share. Printed, not implied: a connection the
+                // reader can check is one they can also disagree with.
+                Text(echo.sharedTerms.joined(separator: " · "))
+                    .dipleType(.nano)
+                    .foregroundStyle(DipleColor.textQuaternary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, DipleSpace.hair)
     }
 }
