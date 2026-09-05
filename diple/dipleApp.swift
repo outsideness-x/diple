@@ -11,6 +11,12 @@ import UserNotifications
 
 @main
 struct dipleApp: App {
+    #if targetEnvironment(macCatalyst)
+    /// Installed for one reason: `buildMenu(with:)` is a `UIResponder` method, and the app
+    /// delegate is the only object in the responder chain a SwiftUI app can reach. See
+    /// `DipleMenuBuilder`.
+    @UIApplicationDelegateAdaptor(DipleMenuBuilder.self) private var menuBuilder
+    #endif
     // A static var change (`DipleAccent.current`) invalidates nothing on its own — SwiftUI
     // only re-renders what it observes. Observing the manager here and tagging the root with
     // `.id(accent)` forces the whole tree to rebuild when the accent changes, which is what
@@ -180,6 +186,7 @@ struct dipleApp: App {
                 }
             }
         }
+        .dipleMacCommands()
     }
 
     @ViewBuilder

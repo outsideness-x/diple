@@ -3,10 +3,6 @@ import UIKit
 import UniformTypeIdentifiers
 
 public struct AppSettingsView: View {
-    private static let privacyPolicyURL = URL(
-        string: "https://diple-reader.vercel.app/privacy"
-    )
-
     @StateObject private var settingsManager = AppSettingsManager.shared
     @StateObject private var syncStatusStore = CloudSyncStatusStore.shared
     @Environment(\.dismiss) private var dismiss
@@ -429,47 +425,45 @@ public struct AppSettingsView: View {
                     dataSection
 
                     // PRIVACY SECTION
-                    if let privacyPolicyURL = Self.privacyPolicyURL {
-                        VStack(alignment: .leading, spacing: DipleSpace.l) {
-                            Text("PRIVACY")
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
-                                .padding(.horizontal, DipleSpace.xs)
+                    VStack(alignment: .leading, spacing: DipleSpace.l) {
+                        Text("PRIVACY")
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .padding(.horizontal, DipleSpace.xs)
 
-                            Link(destination: privacyPolicyURL) {
-                                HStack(spacing: DipleSpace.m) {
-                                    Image(systemName: "hand.raised.fill")
-                                        .dipleIcon(17, weight: .medium)
-                                        .foregroundStyle(DipleColor.accentInk)
-                                        .frame(width: 28)
+                        Link(destination: DipleLinks.privacy) {
+                            HStack(spacing: DipleSpace.m) {
+                                Image(systemName: "hand.raised.fill")
+                                    .dipleIcon(17, weight: .medium)
+                                    .foregroundStyle(DipleColor.accentInk)
+                                    .frame(width: 28)
 
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Privacy policy")
-                                            .dipleType(.body, weight: .medium)
-                                            .foregroundStyle(DipleColor.textPrimary)
-                                        Text("How diple handles your library and iCloud sync")
-                                            .dipleType(.caption)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                            .multilineTextAlignment(.leading)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                                    Spacer(minLength: DipleSpace.s)
-
-                                    Image(systemName: "arrow.up.right")
-                                        .dipleIcon(13, weight: .semibold)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Privacy policy")
+                                        .dipleType(.body, weight: .medium)
+                                        .foregroundStyle(DipleColor.textPrimary)
+                                    Text("How diple handles your library and iCloud sync")
+                                        .dipleType(.caption)
                                         .foregroundStyle(DipleColor.textTertiary)
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .padding(.horizontal, DipleSpace.l)
-                                .padding(.vertical, DipleSpace.m)
-                                .background(DipleColor.surfaceRaised)
-                                .contentShape(Rectangle())
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Spacer(minLength: DipleSpace.s)
+
+                                Image(systemName: "arrow.up.right")
+                                    .dipleIcon(13, weight: .semibold)
+                                    .foregroundStyle(DipleColor.textTertiary)
                             }
-                            .accessibilityHint("Opens the privacy policy in your browser")
+                            .padding(.horizontal, DipleSpace.l)
+                            .padding(.vertical, DipleSpace.m)
+                            .background(DipleColor.surfaceRaised)
+                            .contentShape(Rectangle())
                         }
-                        .cornerRadius(DipleRadius.m)
+                        .accessibilityHint("Opens the privacy policy in your browser")
                     }
+                    .cornerRadius(DipleRadius.m)
 
                     SettingsColophon()
                 }

@@ -5,6 +5,20 @@ import UniformTypeIdentifiers
 /// The desktop shell keeps the phone's reading and persistence stack, but gives it a
 /// Mac-shaped information architecture: persistent sources, a working collection and a
 /// contextual detail pane. The reader remains a focused full-window destination.
+///
+/// Three rules hold the desktop together, and every screen below is built to them:
+///
+/// 1. **One column header.** Whatever the source, the middle column opens with the same block:
+///    title, count, the field that narrows it, then the actions. The shelf used to be the only
+///    source with a command bar while Highlights and Notes printed their heading inside the
+///    scroll view, so switching sources moved the title, the count and the search field to
+///    three different places.
+/// 2. **Selection is visible where it was made.** Clicking a cover used to change only the far
+///    right of the window; the grid gave no sign which of forty covers the inspector was
+///    describing.
+/// 3. **Every shortcut is in the menu bar.** See `DipleMacCommands`. Shortcuts declared on
+///    buttons inside the window are invisible to a reader looking for them, and two of them
+///    collided with bindings UIKit had already taken.
 public struct MacRootView: View {
     private enum Source: String, CaseIterable, Identifiable {
         case library
@@ -41,6 +55,20 @@ public struct MacRootView: View {
             }
         }
 
+        /// The menu-bar key that selects this shelf, printed beside its row so the sidebar
+        /// teaches the shortcut instead of hiding it one menu away.
+        var shortcut: Character? {
+            switch self {
+            case .library: return "1"
+            case .unread: return "2"
+            case .reading: return "3"
+            case .articles: return "4"
+            case .highlights: return "5"
+            case .notes: return "6"
+            case .search: return "F"
+            }
+        }
+
         /// The sidebar's shelves are each a *pair* of the two filter axes, now that type and
         /// status are no longer alternatives to one another. `nil` means the shelf is not a
         /// library shelf at all.
@@ -53,6 +81,19 @@ public struct MacRootView: View {
             case .highlights, .notes, .search: return nil
             }
         }
+
+        static func forCommand(_ command: MacCommand) -> Source? {
+            switch command {
+            case .goLibrary: return .library
+            case .goUnread: return .unread
+            case .goReading: return .reading
+            case .goArticles: return .articles
+            case .goHighlights: return .highlights
+            case .goNotes: return .notes
+            case .goSearch: return .search
+            default: return nil
+            }
+        }
     }
 
     private enum Detail: Hashable {
@@ -61,6 +102,19 @@ public struct MacRootView: View {
         case quoteBook(BookQuoteSummary)
         case note(NoteItem)
         case search(GlobalSearchResult)
+
+        /// What the collection has to draw a ring around. Every model behind a detail carries a
+        /// `String` id, so one property answers for all four rather than each collection
+        /// unwrapping the enum itself.
+        var selectionID: String? {
+            switch self {
+            case .welcome: return nil
+            case .book(let book): return book.id
+            case .quoteBook(let summary): return summary.bookId
+            case .note(let item): return item.id
+            case .search(let result): return result.id
+            }
+        }
     }
 
     @StateObject private var library = LibraryViewModel()
@@ -76,60 +130,42 @@ public struct MacRootView: View {
     @State private var isImportingFile = false
     @State private var isImportingLink = false
     @State private var tagEditingBook: Book?
+    /// The shelf's own filter text. It lives here rather than inside the collection so that
+    /// switching to Unread and back does not silently keep a query the header has re-drawn
+    /// empty, and so ⌘F can put the caret in a field the shell knows about.
+    @State private var libraryQuery = ""
+    @State private var librarySort: LibrarySort = .recentlyOpened
+    @State private var highlightsQuery = ""
+    @Environment(\.scenePhase) private var scenePhase
+    /// A pending "put the caret in the search field of the column that is open". Plain state
+    /// rather than `@FocusState`, because the field itself is two views down inside
+    /// `DipleSearchField` and only the view that owns a `TextField` can own its focus.
+    @State private var searchFocusRequest: MacSearchTarget?
+
+    /// True while a book is open over the whole window. Navigation commands are ignored then:
+    /// moving the shelf underneath the reader changes what closing the book returns to without
+    /// the reader ever appearing to move.
+    private var isReading: Bool { readerBook != nil || secondReadBook != nil }
 
     public init() {}
 
     public var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
+                .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
         } content: {
             collection
-                .navigationSplitViewColumnWidth(min: 340, ideal: 620)
+                .navigationSplitViewColumnWidth(min: 380, ideal: 640)
         } detail: {
             inspector
-                .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 440)
+                .navigationSplitViewColumnWidth(min: 300, ideal: 360, max: 460)
         }
         .controlSize(.large)
         .background(DipleColor.canvas)
         .tint(DipleColor.accent)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .keyboardShortcut(",", modifiers: .command)
-
-                Menu {
-                    Button {
-                        isImportingLink = true
-                    } label: {
-                        Label("Save link", systemImage: "link")
-                    }
-                    .keyboardShortcut("l", modifiers: [.command, .shift])
-
-                    Button {
-                        isImportingFile = true
-                    } label: {
-                        Label("Import file", systemImage: "folder")
-                    }
-                    .keyboardShortcut("o", modifiers: .command)
-
-                    Divider()
-
-                    Button {
-                        createNewNote()
-                    } label: {
-                        Label("New note", systemImage: "square.and.pencil")
-                    }
-                    .keyboardShortcut("n", modifiers: .command)
-                } label: {
-                    Label("New", systemImage: "plus")
-                }
-            }
-        }
+        // No SwiftUI `toolbar` here at all. Catalyst renders a toolbar group unreliably beside
+        // a search field (see CLAUDE.md), and every action it used to hold now has two homes
+        // that are always drawn: the column header, and the menu bar.
         .fileImporter(
             isPresented: $isImportingFile,
             allowedContentTypes: [.epub, .pdf],
@@ -176,12 +212,71 @@ public struct MacRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
             source = .highlights
         }
+        .onReceive(NotificationCenter.default.publisher(for: .dipleMacCommand)) { note in
+            guard let command = MacCommand(note) else { return }
+            perform(command)
+        }
+        // A second window opened on the same library holds its own view models, and nothing
+        // tells one about a book imported in the other. Reloading when a window is brought
+        // forward is the cheap version of the sync that would otherwise need a shared store.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            reloadAll()
+        }
         .onAppear {
             if DailyResurfacingService.shared.consumeOpenRequest() {
                 source = .highlights
             }
         }
         .onAppear(perform: reloadAll)
+    }
+
+    // MARK: - Commands
+
+    private func perform(_ command: MacCommand) {
+        switch command {
+        case .newNote:
+            guard !isReading else { return }
+            createNewNote()
+
+        case .importFile:
+            guard !isReading else { return }
+            isImportingFile = true
+
+        case .importLink:
+            guard !isReading else { return }
+            isImportingLink = true
+
+        case .toggleSidebar:
+            withAnimation(DipleMotion.snappy) {
+                columnVisibility = columnVisibility == .all ? .doubleColumn : .all
+            }
+
+        case .toggleInspector, .refresh:
+            reloadAll()
+
+        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes:
+            guard !isReading, let destination = Source.forCommand(command) else { return }
+            source = destination
+
+        case .goSearch:
+            // ⌘F means "narrow what I am looking at" wherever the column has a field of its
+            // own, and "search everything" only where it has none. Jumping to the global index
+            // from a shelf the reader was already filtering would throw the filter away.
+            guard !isReading else { return }
+            switch source {
+            case .library, .unread, .reading, .articles: searchFocusRequest = .library
+            case .highlights: searchFocusRequest = .highlights
+            case .notes: searchFocusRequest = .notes
+            case .search, .none:
+                source = .search
+                searchFocusRequest = .search
+            }
+
+        case .closeReader, .findInBook, .nextPage, .previousPage, .toggleReaderChrome:
+            // Answered by the reader itself, which is presented above this view.
+            break
+        }
     }
 
     // MARK: - Sidebar
@@ -218,18 +313,48 @@ public struct MacRootView: View {
                     .dipleType(.headline, weight: .semibold)
                     .foregroundStyle(DipleColor.textPrimary)
                 Spacer()
-                Button {
+                MacIconButton(
+                    systemImage: "gearshape",
+                    help: "Settings (⌘,)",
+                    accessibilityLabel: "Settings"
+                ) {
                     NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
-                } label: {
-                    Image(systemName: "gearshape")
-                        .dipleIcon(12)
-                        .foregroundStyle(DipleColor.textTertiary)
                 }
-                .buttonStyle(.plain)
-                .help("Settings (⌘,)")
             }
             .padding(.horizontal, DipleSpace.m)
             .padding(.vertical, DipleSpace.l)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            // The one action a reader arrives wanting to perform on an empty library, kept
+            // where it can be reached from any shelf rather than only from the one that has an
+            // Import button in its header.
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(DipleColor.separator)
+                    .frame(height: DipleStroke.hairline)
+
+                Button {
+                    isImportingFile = true
+                } label: {
+                    HStack(spacing: DipleSpace.s) {
+                        Image(systemName: "plus")
+                            .dipleIcon(12, weight: .semibold)
+                        Text("Import publication")
+                            .dipleType(.footnote, weight: .medium)
+                        Spacer()
+                        Text("⌘O")
+                            .dipleType(.nano)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                    }
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .padding(.horizontal, DipleSpace.m)
+                    .padding(.vertical, DipleSpace.m)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.macHoverRow)
+                .padding(DipleSpace.s)
+            }
+            .background(DipleColor.surface)
         }
     }
 
@@ -249,6 +374,7 @@ public struct MacRootView: View {
             }
         }
         .foregroundStyle(source == item ? DipleColor.textPrimary : DipleColor.textSecondary)
+        .help(item.shortcut.map { "\(item.title) (⌘\($0))" } ?? item.title)
         .tag(item)
     }
 
@@ -261,10 +387,15 @@ public struct MacRootView: View {
             MacLibraryCollection(
                 title: source?.title ?? "Library",
                 books: library.books,
+                tagsByBook: library.tagsByBook,
                 type: source?.filters?.type ?? .all,
                 status: source?.filters?.status ?? .any,
                 continueReading: source == .library ? library.continueReadingBook : nil,
                 isImporting: library.isImporting,
+                selectedID: detail.selectionID,
+                query: $libraryQuery,
+                sort: $librarySort,
+                searchFocusRequest: $searchFocusRequest,
                 onSelect: { detail = .book($0) },
                 onOpen: { readerBook = $0 },
                 onOpenSecondRead: { secondReadBook = $0 },
@@ -274,7 +405,8 @@ public struct MacRootView: View {
                 onEditTags: { tagEditingBook = $0 },
                 onDelete: { library.confirmDelete($0) },
                 onImportFile: { isImportingFile = true },
-                onImportLink: { isImportingLink = true }
+                onImportLink: { isImportingLink = true },
+                onImportURL: { library.importBook(from: $0) }
             )
             .sheet(item: $tagEditingBook) { book in
                 // Tags set on the phone have to be readable and editable here too, and the
@@ -302,19 +434,27 @@ public struct MacRootView: View {
         case .highlights:
             MacHighlightsCollection(
                 model: highlights,
+                query: $highlightsQuery,
+                searchFocusRequest: $searchFocusRequest,
+                selectedID: detail.selectionID,
                 onSelect: { detail = .quoteBook($0) }
             )
 
         case .notes:
             MacNotesCollection(
                 model: notes,
+                searchFocusRequest: $searchFocusRequest,
+                selectedID: detail.selectionID,
                 onSelect: { detail = .note($0) },
-                onCreate: createNewNote
+                onCreate: createNewNote,
+                onDelete: { notes.delete($0); detail = .welcome }
             )
 
         case .search:
             MacSearchCollection(
                 model: search,
+                searchFocusRequest: $searchFocusRequest,
+                selectedID: detail.selectionID,
                 onSelect: { detail = .search($0) }
             )
         }
@@ -332,11 +472,14 @@ public struct MacRootView: View {
             let current = currentBook(matching: book) ?? book
             MacBookInspector(
                 book: current,
+                tags: library.tagsByBook[current.id] ?? [],
                 fragmentCount: highlights.summaries.first { $0.bookId == current.id }?.quoteCount ?? 0,
                 onRead: { readerBook = current },
                 onSecondRead: { secondReadBook = current },
-                onEdit: { library.bookToEdit = current }
+                onEdit: { library.bookToEdit = current },
+                onEditTags: { tagEditingBook = current }
             )
+            .id(current.id)
 
         case .quoteBook(let summary):
             MacQuotesInspector(summary: summary)
@@ -400,15 +543,378 @@ public struct MacRootView: View {
     }
 }
 
+// MARK: - Shared desktop chrome
+
+/// Which column's field ⌘F should put the caret in. One enum for the whole window, because
+/// only one column is on screen at a time and `FocusState` wants a single value type.
+enum MacSearchTarget: Hashable {
+    case library
+    case highlights
+    case notes
+    case search
+}
+
+/// The block every collection opens with.
+///
+/// Title, count, an optional line of context, the field that narrows the collection, then the
+/// actions — always in that order, always the same height, always pinned above the scroll. The
+/// four sources used to disagree about all five of those things.
+private struct MacColumnHeader<Actions: View>: View {
+    let title: String
+    var count: Int? = nil
+    var context: String? = nil
+    var query: Binding<String>? = nil
+    var prompt: String = ""
+    var searchIdentifier: String = "mac.column.search"
+    /// Cleared as soon as it has been honoured, so the same request cannot re-steal the caret
+    /// the next time this header is rebuilt.
+    var focusRequest: Binding<MacSearchTarget?>? = nil
+    var focusTarget: MacSearchTarget? = nil
+    @ViewBuilder var actions: () -> Actions
+
+    @FocusState private var isFieldFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
+                Text(title)
+                    // A bare screen title standing alone at the top of its column, sharing the
+                    // line with nothing but its own count. That is what `hero` is for.
+                    .dipleType(.hero)
+                    .foregroundStyle(DipleColor.textPrimary)
+
+                if let count {
+                    Text("\(count)")
+                        .dipleType(.micro)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                        .monospacedDigit()
+                }
+
+                Spacer(minLength: DipleSpace.m)
+
+                actions()
+            }
+
+            if let context {
+                Text(context)
+                    .dipleType(.micro)
+                    .foregroundStyle(DipleColor.textQuaternary)
+                    .monospacedDigit()
+            }
+
+            if let query {
+                searchField(query)
+            }
+        }
+        .padding(.horizontal, DipleSpace.xxl)
+        .padding(.top, DipleSpace.xl)
+        .padding(.bottom, DipleSpace.l)
+        .background(DipleColor.surface)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(height: DipleStroke.hairline)
+        }
+    }
+
+    private func searchField(_ query: Binding<String>) -> some View {
+        DipleSearchField(
+            text: query,
+            prompt: prompt,
+            identifier: searchIdentifier,
+            focus: $isFieldFocused
+        )
+        .onAppear(perform: honourPendingFocus)
+        .onChange(of: focusRequest?.wrappedValue) { _, _ in honourPendingFocus() }
+    }
+
+    private func honourPendingFocus() {
+        guard let focusRequest, let focusTarget else { return }
+        guard focusRequest.wrappedValue == focusTarget else { return }
+        isFieldFocused = true
+        focusRequest.wrappedValue = nil
+    }
+}
+
+/// The primary action of a column header: the one accent-filled control on the screen.
+private struct MacPrimaryButton: View {
+    let title: String
+    var systemImage: String = "plus"
+    var shortcutHint: String? = nil
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.textOnAccent)
+                .padding(.horizontal, DipleSpace.m)
+                .padding(.vertical, DipleSpace.s)
+                .background(
+                    DipleColor.accent.opacity(isHovering ? 0.86 : 1),
+                    in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DipleMotion.snappy) { isHovering = hovering }
+        }
+        .help(shortcutHint.map { "\(title) (\($0))" } ?? title)
+    }
+}
+
+/// A quiet header action — a verb in text, not a filled control.
+private struct MacSecondaryButton: View {
+    let title: String
+    var systemImage: String? = nil
+    var shortcutHint: String? = nil
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let systemImage {
+                    Label(title, systemImage: systemImage)
+                } else {
+                    Text(title)
+                }
+            }
+            .dipleType(.footnote)
+            .foregroundStyle(isHovering ? DipleColor.textPrimary : DipleColor.textSecondary)
+            .padding(.horizontal, DipleSpace.s)
+            .padding(.vertical, DipleSpace.s)
+            .background(
+                isHovering ? DipleColor.surfaceOverlay : Color.clear,
+                in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DipleMotion.snappy) { isHovering = hovering }
+        }
+        .help(shortcutHint.map { "\(title) (\($0))" } ?? title)
+    }
+}
+
+/// A glyph on its own, with the hit area and the hover wash a pointer expects.
+private struct MacIconButton: View {
+    let systemImage: String
+    let help: String
+    var accessibilityLabel: String? = nil
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .dipleIcon(12)
+                .foregroundStyle(isHovering ? DipleColor.textPrimary : DipleColor.textTertiary)
+                .frame(width: 26, height: 26)
+                .background(
+                    isHovering ? DipleColor.surfaceOverlay : Color.clear,
+                    in: RoundedRectangle(cornerRadius: DipleRadius.xs, style: .continuous)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DipleMotion.snappy) { isHovering = hovering }
+        }
+        .help(help)
+        .accessibilityLabel(accessibilityLabel ?? help)
+    }
+}
+
+/// What a desktop row looks like when the pointer is over it and when it is the selected one.
+///
+/// The pointer is the desktop's substitute for a finger that can be seen before it lands, and
+/// an interface that does not answer it feels like a picture of an app. Selection is the accent
+/// ring the design system already spends on a chosen state — never a flood of colour.
+private struct MacRowSurface: ViewModifier {
+    let isSelected: Bool
+    let isHovering: Bool
+    var radius: CGFloat = DipleRadius.m
+
+    func body(content: Content) -> some View {
+        content
+            .background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? DipleColor.accent : DipleColor.hairline,
+                        lineWidth: isSelected ? DipleStroke.selection : DipleStroke.hairline
+                    )
+            }
+    }
+
+    private var fill: Color {
+        if isSelected { return DipleColor.accentSoft }
+        return isHovering ? DipleColor.surfaceRaised : DipleColor.surface
+    }
+}
+
+private extension View {
+    func macRow(isSelected: Bool, isHovering: Bool, radius: CGFloat = DipleRadius.m) -> some View {
+        modifier(MacRowSurface(isSelected: isSelected, isHovering: isHovering, radius: radius))
+    }
+}
+
+/// Selection and hover for something that already draws its own card — a note. Only the ring
+/// and a lift; a second fill underneath a `craftSurface` would print two edges around one
+/// object.
+private struct MacSelectableCard<Content: View>: View {
+    let isSelected: Bool
+    var radius: CGFloat = DipleRadius.m
+    let action: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            content()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(
+                    isSelected ? DipleColor.accent : Color.clear,
+                    lineWidth: DipleStroke.selection
+                )
+        }
+        .shadow(
+            color: .black.opacity(isHovering ? 0.22 : 0),
+            radius: isHovering ? 12 : 0,
+            y: isHovering ? 5 : 0
+        )
+        .onHover { hovering in
+            withAnimation(DipleMotion.snappy) { isHovering = hovering }
+        }
+    }
+}
+
+/// A row that is a button: it tracks its own hover so the caller never has to hold that state.
+private struct MacSelectableRow<Content: View>: View {
+    let isSelected: Bool
+    var radius: CGFloat = DipleRadius.m
+    let action: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            content()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .macRow(isSelected: isSelected, isHovering: isHovering, radius: radius)
+        .onHover { hovering in
+            withAnimation(DipleMotion.snappy) { isHovering = hovering }
+        }
+    }
+}
+
+/// A plain hover wash for controls that are not rows in a collection — the sidebar footer.
+private struct MacHoverRowButtonStyle: ButtonStyle {
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                isHovering || configuration.isPressed
+                    ? DipleColor.surfaceOverlay
+                    : Color.clear,
+                in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous)
+            )
+            .onHover { hovering in
+                withAnimation(DipleMotion.snappy) { isHovering = hovering }
+            }
+    }
+}
+
+private extension ButtonStyle where Self == MacHoverRowButtonStyle {
+    static var macHoverRow: MacHoverRowButtonStyle { MacHoverRowButtonStyle() }
+}
+
+/// Accepts publications dropped on the window from the Finder.
+///
+/// A desktop app that can only be given a file through a picker is a phone app in a window;
+/// dragging a book onto a library is the gesture the platform has taught for thirty years.
+/// Anything that is not an EPUB or a PDF is refused at the drop rather than accepted and then
+/// failed, so the cursor says no before the file is let go.
+private struct MacPublicationDrop: ViewModifier {
+    let onImport: (URL) -> Void
+
+    @State private var isTargeted = false
+
+    private static let acceptedExtensions: Set<String> = ["epub", "pdf"]
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if isTargeted {
+                    RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
+                        .strokeBorder(DipleColor.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                        .background(
+                            DipleColor.accentSoft,
+                            in: RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
+                        )
+                        .overlay {
+                            VStack(spacing: DipleSpace.s) {
+                                Image(systemName: "arrow.down.doc")
+                                    .dipleIcon(26, weight: .light)
+                                Text("Drop to import")
+                                    .dipleType(.callout, weight: .semibold)
+                            }
+                            .foregroundStyle(DipleColor.accentInk)
+                        }
+                        .padding(DipleSpace.m)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .animation(DipleMotion.snappy, value: isTargeted)
+            .dropDestination(for: URL.self) { urls, _ in
+                let accepted = urls.filter {
+                    Self.acceptedExtensions.contains($0.pathExtension.lowercased())
+                }
+                accepted.forEach(onImport)
+                return !accepted.isEmpty
+            } isTargeted: { targeted in
+                isTargeted = targeted
+            }
+    }
+}
+
+private extension View {
+    func macPublicationDrop(onImport: @escaping (URL) -> Void) -> some View {
+        modifier(MacPublicationDrop(onImport: onImport))
+    }
+}
+
 // MARK: - Library
 
 private struct MacLibraryCollection: View {
     let title: String
     let books: [Book]
+    let tagsByBook: [String: [String]]
     let type: LibraryTypeFilter
     let status: LibraryStatusFilter
     let continueReading: Book?
     let isImporting: Bool
+    let selectedID: String?
+    @Binding var query: String
+    @Binding var sort: LibrarySort
+    @Binding var searchFocusRequest: MacSearchTarget?
     let onSelect: (Book) -> Void
     let onOpen: (Book) -> Void
     let onOpenSecondRead: (Book) -> Void
@@ -419,13 +925,11 @@ private struct MacLibraryCollection: View {
     let onDelete: (Book) -> Void
     let onImportFile: () -> Void
     let onImportLink: () -> Void
-
-    @State private var query = ""
-    @State private var sort: LibrarySort = .recentlyOpened
+    let onImportURL: (URL) -> Void
 
     private let columns = [
         GridItem(
-            .adaptive(minimum: 144, maximum: 184),
+            .adaptive(minimum: 148, maximum: 188),
             spacing: DipleSpace.xl,
             alignment: .top
         )
@@ -437,8 +941,11 @@ private struct MacLibraryCollection: View {
             .filter { book in
                 guard type.includes(book), status.includes(book) else { return false }
                 guard !needle.isEmpty else { return true }
-                return [book.title, book.author, book.sourceHost]
-                    .compactMap { $0 }
+                let tags = tagsByBook[book.id] ?? []
+                // Tags are searched here for the same reason they are on the phone: a shelf
+                // filed by hand is unreachable if the only things the field matches are the
+                // three fields the file happened to carry.
+                return ([book.title, book.author, book.sourceHost].compactMap { $0 } + tags)
                     .contains { $0.localizedStandardContains(needle) }
             }
             .sorted(by: sorter)
@@ -446,7 +953,32 @@ private struct MacLibraryCollection: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            commandBar
+            MacColumnHeader(
+                title: title,
+                count: visibleBooks.count,
+                query: $query,
+                prompt: "Title, author, source or tag",
+                searchIdentifier: "mac.library.search",
+                focusRequest: $searchFocusRequest,
+                focusTarget: .library
+            ) {
+                Menu {
+                    Picker("Sort", selection: $sort) {
+                        ForEach(LibrarySort.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                } label: {
+                    Label(sort.compactTitle, systemImage: "arrow.up.arrow.down")
+                        .dipleType(.footnote)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Sort the shelf")
+
+                MacSecondaryButton(title: "Save link", systemImage: "link", shortcutHint: "⇧⌘L", action: onImportLink)
+                MacPrimaryButton(title: "Import", shortcutHint: "⌘O", action: onImportFile)
+            }
 
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
@@ -456,8 +988,8 @@ private struct MacLibraryCollection: View {
                         icon: query.isEmpty ? "books.vertical" : "magnifyingglass",
                         title: query.isEmpty ? "Nothing here yet" : "No results",
                         message: query.isEmpty
-                            ? "Import an EPUB or PDF to start your library."
-                            : "Try a different title, author or source.",
+                            ? "Import an EPUB or PDF, or drag one onto this window."
+                            : "Try a different title, author, source or tag.",
                         actionTitle: query.isEmpty ? "Import file" : nil,
                         actionIcon: "plus",
                         action: query.isEmpty ? onImportFile : nil
@@ -471,58 +1003,41 @@ private struct MacLibraryCollection: View {
                                 }
                             }
 
-                            VStack(alignment: .leading, spacing: DipleSpace.l) {
-                                HStack(alignment: .firstTextBaseline) {
-                                    Text("\(visibleBooks.count) items")
-                                        .dipleType(.micro)
-                                        .foregroundStyle(DipleColor.textQuaternary)
-                                        .monospacedDigit()
-                                    Spacer()
-                                    Menu {
-                                        Picker("Sort", selection: $sort) {
-                                            ForEach(LibrarySort.allCases) { option in
-                                                Text(option.rawValue).tag(option)
-                                            }
-                                        }
-                                    } label: {
-                                        Label(sort.compactTitle, systemImage: "arrow.up.arrow.down")
-                                            .dipleType(.micro)
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.xxl) {
+                                ForEach(visibleBooks) { book in
+                                    MacBookTile(
+                                        book: book,
+                                        isSelected: selectedID == book.id
+                                    ) {
+                                        onSelect(book)
+                                    } onOpen: {
+                                        onOpen(book)
                                     }
-                                }
-
-                                LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.xxl) {
-                                    ForEach(visibleBooks) { book in
-                                        MacBookTile(book: book) {
-                                            onSelect(book)
-                                        } onOpen: {
-                                            onOpen(book)
+                                    .contextMenu {
+                                        Button("Open") { onOpen(book) }
+                                        if LibraryStatusFilter.finished.includes(book) {
+                                            Button("Second Read") { onOpenSecondRead(book) }
                                         }
-                                        .contextMenu {
-                                            Button("Open") { onOpen(book) }
-                                            if LibraryStatusFilter.finished.includes(book) {
-                                                Button("Second Read") { onOpenSecondRead(book) }
-                                            }
-                                            if book.progress < 0.995 {
-                                                Button("Mark as Finished") { onMarkAsFinished(book) }
-                                            }
-                                            Button("Tags…") { onEditTags(book) }
-                                            Button("Edit metadata") { onEdit(book) }
-                                            Divider()
-                                            // The desktop sidebar does not split by location
-                                            // yet, so this is the only place on the Mac where
-                                            // the queue can be sorted at all — and a source
-                                            // filed on the phone has to be reachable here.
-                                            ForEach(
-                                                BookLocation.allCases.filter { $0 != book.location },
-                                                id: \.self
-                                            ) { destination in
-                                                Button("Move to \(destination.title)") {
-                                                    onMove(book, destination)
-                                                }
-                                            }
-                                            Divider()
-                                            Button("Delete", role: .destructive) { onDelete(book) }
+                                        if book.progress < 0.995 {
+                                            Button("Mark as Finished") { onMarkAsFinished(book) }
                                         }
+                                        Button("Tags…") { onEditTags(book) }
+                                        Button("Edit metadata") { onEdit(book) }
+                                        Divider()
+                                        // The desktop sidebar does not split by location
+                                        // yet, so this is the only place on the Mac where
+                                        // the queue can be sorted at all — and a source
+                                        // filed on the phone has to be reachable here.
+                                        ForEach(
+                                            BookLocation.allCases.filter { $0 != book.location },
+                                            id: \.self
+                                        ) { destination in
+                                            Button("Move to \(destination.title)") {
+                                                onMove(book, destination)
+                                            }
+                                        }
+                                        Divider()
+                                        Button("Delete", role: .destructive) { onDelete(book) }
                                     }
                                 }
                             }
@@ -544,43 +1059,7 @@ private struct MacLibraryCollection: View {
                     .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
                 }
             }
-        }
-        .searchable(text: $query, placement: .toolbar, prompt: "Title, author or source")
-    }
-
-    private var commandBar: some View {
-        HStack(spacing: DipleSpace.m) {
-            Text(title)
-                .dipleType(.headline)
-                .foregroundStyle(DipleColor.textPrimary)
-
-            Spacer()
-
-            Button(action: onImportLink) {
-                Label("Save link", systemImage: "link")
-                    .dipleType(.footnote)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(DipleColor.textSecondary)
-
-            Button(action: onImportFile) {
-                Label("Import file", systemImage: "plus")
-                    .dipleType(.footnote, weight: .semibold)
-                    .foregroundStyle(DipleColor.textOnAccent)
-                    .padding(.horizontal, DipleSpace.m)
-                    .padding(.vertical, DipleSpace.s)
-                    .background(DipleColor.accent, in: RoundedRectangle(cornerRadius: DipleRadius.s))
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("o", modifiers: .command)
-        }
-        .padding(.horizontal, DipleSpace.xl)
-        .padding(.vertical, DipleSpace.m)
-        .background(DipleColor.surface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DipleColor.separator)
-                .frame(height: DipleStroke.hairline)
+            .macPublicationDrop(onImport: onImportURL)
         }
     }
 
@@ -604,6 +1083,7 @@ private struct MacLibraryCollection: View {
 
 private struct MacBookTile: View {
     let book: Book
+    let isSelected: Bool
     let onSelect: () -> Void
     let onOpen: () -> Void
 
@@ -618,7 +1098,7 @@ private struct MacBookTile: View {
                         title: book.title,
                         author: book.author
                     )
-                    .shadow(color: .black.opacity(0.24), radius: 12, y: 7)
+                    .shadow(color: .black.opacity(isHovering ? 0.34 : 0.24), radius: isHovering ? 16 : 12, y: isHovering ? 9 : 7)
 
                     if book.progress > 0.001 {
                         GeometryReader { proxy in
@@ -630,13 +1110,29 @@ private struct MacBookTile: View {
                                         .fill(DipleColor.accent)
                                         .frame(width: proxy.size.width * min(max(book.progress, 0), 1))
                                 }
-                                .frame(height: 3)
+                                .frame(height: DipleStroke.progressLine)
                             }
                         }
                         .clipShape(RoundedRectangle(cornerRadius: DipleRadius.s))
                     }
+
+                    // Appears only under the pointer, and only on a cover that can be opened
+                    // by double-click — the affordance the accessibility hint used to be the
+                    // only trace of.
+                    if isHovering {
+                        Button(action: onOpen) {
+                            Label("Read", systemImage: "book")
+                                .dipleType(.nano, weight: .semibold)
+                                .foregroundStyle(DipleColor.textOnAccent)
+                                .padding(.horizontal, DipleSpace.s)
+                                .padding(.vertical, DipleSpace.xs)
+                                .background(DipleColor.accent, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, DipleSpace.s)
+                        .transition(.opacity)
+                    }
                 }
-                .scaleEffect(isHovering ? 1.015 : 1)
 
                 Text(book.title)
                     .dipleType(.footnote, weight: .semibold)
@@ -649,6 +1145,19 @@ private struct MacBookTile: View {
                     .foregroundStyle(DipleColor.textQuaternary)
                     .lineLimit(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(DipleSpace.s)
+            .background(
+                selectionFill,
+                in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
+                    .strokeBorder(
+                        isSelected ? DipleColor.accent : Color.clear,
+                        lineWidth: DipleStroke.selection
+                    )
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -658,11 +1167,18 @@ private struct MacBookTile: View {
         .simultaneousGesture(TapGesture(count: 2).onEnded(onOpen))
         .accessibilityHint("Double-click to read")
     }
+
+    private var selectionFill: Color {
+        if isSelected { return DipleColor.accentSoft }
+        return isHovering ? DipleColor.surface : Color.clear
+    }
 }
 
 private struct MacContinueReadingCard: View {
     let book: Book
     let onOpen: () -> Void
+
+    @State private var isHovering = false
 
     var body: some View {
         Button(action: onOpen) {
@@ -702,11 +1218,19 @@ private struct MacContinueReadingCard: View {
                 Image(systemName: "arrow.right")
                     .dipleIcon(14)
                     .foregroundStyle(DipleColor.accentInk)
+                    .offset(x: isHovering ? 3 : 0)
             }
             .padding(DipleSpace.l)
-            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
+            .craftSurface(
+                isHovering ? DipleColor.surfaceOverlay : DipleColor.surfaceRaised,
+                radius: DipleRadius.l
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DipleMotion.snappy) { isHovering = hovering }
+        }
     }
 }
 
@@ -714,60 +1238,101 @@ private struct MacContinueReadingCard: View {
 
 private struct MacHighlightsCollection: View {
     @ObservedObject var model: HubViewModel
+    @Binding var query: String
+    @Binding var searchFocusRequest: MacSearchTarget?
+    let selectedID: String?
     let onSelect: (BookQuoteSummary) -> Void
 
+    private var visibleSummaries: [BookQuoteSummary] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return model.summaries }
+        return model.summaries.filter { summary in
+            [summary.title, summary.author]
+                .compactMap { $0 }
+                .contains { $0.localizedStandardContains(needle) }
+        }
+    }
+
     var body: some View {
-        ZStack {
-            DipleColor.canvas.ignoresSafeArea()
-            if model.summaries.isEmpty {
-                MacEmptyCollection(
-                    icon: "quote.opening",
-                    title: "No highlights yet",
-                    message: "Passages you mark while reading will be collected here."
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
-                        MacCollectionHeader(title: "Highlights", count: model.totalQuoteCount)
-                        // The desktop shell has no reader route of its own for a passage — the
-                        // reader opens as a full-window cover from a `Book`, not from a path —
-                        // so here the quote selects its group, which is the inspector's job.
-                        DailyResurfacingCard { onSelect($0.summary) }
-                        ForEach(model.summaries) { summary in
-                            Button { onSelect(summary) } label: {
-                                HStack(spacing: DipleSpace.m) {
-                                    BookCoverView(
-                                        coverPath: summary.book?.coverPath,
-                                        title: summary.title,
-                                        author: summary.author,
-                                        isCompact: true
-                                    )
-                                    .frame(width: 44, height: 66)
-                                    VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                                        Text(summary.title)
-                                            .dipleType(.body, weight: .semibold)
-                                            .foregroundStyle(DipleColor.textPrimary)
-                                            .lineLimit(2)
-                                        Text(summary.subtitle)
-                                            .dipleType(.caption)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                    }
-                                    Spacer()
-                                    Text("\(summary.quoteCount)")
-                                        .dipleType(.footnote, weight: .semibold)
-                                        .foregroundStyle(DipleColor.accentInk)
-                                        .monospacedDigit()
-                                    Image(systemName: "chevron.right")
-                                        .dipleIcon(11)
-                                        .foregroundStyle(DipleColor.textQuaternary)
-                                }
-                                .padding(DipleSpace.m)
-                                .craftSurface()
+        VStack(spacing: 0) {
+            MacColumnHeader(
+                title: "Highlights",
+                count: model.totalQuoteCount,
+                context: model.summaries.isEmpty
+                    ? nil
+                    : "\(model.summaries.count) \(model.summaries.count == 1 ? "book" : "books")",
+                query: model.summaries.isEmpty ? nil : $query,
+                prompt: "Book or author",
+                searchIdentifier: "mac.highlights.search",
+                focusRequest: $searchFocusRequest,
+                focusTarget: .highlights
+            ) {
+                EmptyView()
+            }
+
+            ZStack {
+                DipleColor.canvas.ignoresSafeArea()
+                if model.summaries.isEmpty {
+                    MacEmptyCollection(
+                        icon: "quote.opening",
+                        title: "No highlights yet",
+                        message: "Passages you mark while reading will be collected here."
+                    )
+                } else if visibleSummaries.isEmpty {
+                    MacEmptyCollection(
+                        icon: "text.magnifyingglass",
+                        title: "No matching books",
+                        message: "Try a different title or author."
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: DipleSpace.m) {
+                            // The desktop shell has no reader route of its own for a passage —
+                            // the reader opens as a full-window cover from a `Book`, not from a
+                            // path — so here the quote selects its group, which is the
+                            // inspector's job.
+                            if query.isEmpty {
+                                DailyResurfacingCard { onSelect($0.summary) }
                             }
-                            .buttonStyle(.plain)
+
+                            ForEach(visibleSummaries) { summary in
+                                MacSelectableRow(isSelected: selectedID == summary.bookId) {
+                                    onSelect(summary)
+                                } content: {
+                                    HStack(spacing: DipleSpace.m) {
+                                        BookCoverView(
+                                            coverPath: summary.book?.coverPath,
+                                            title: summary.title,
+                                            author: summary.author,
+                                            isCompact: true
+                                        )
+                                        .frame(width: 44, height: 66)
+                                        VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                                            Text(summary.title)
+                                                .dipleType(.body, weight: .semibold)
+                                                .foregroundStyle(DipleColor.textPrimary)
+                                                .lineLimit(2)
+                                            Text(summary.subtitle)
+                                                .dipleType(.caption)
+                                                .foregroundStyle(DipleColor.textTertiary)
+                                                .lineLimit(1)
+                                        }
+                                        Spacer(minLength: DipleSpace.s)
+                                        Text("\(summary.quoteCount)")
+                                            .dipleType(.footnote, weight: .semibold)
+                                            .foregroundStyle(DipleColor.accentInk)
+                                            .monospacedDigit()
+                                        Image(systemName: "chevron.right")
+                                            .dipleIcon(11)
+                                            .foregroundStyle(DipleColor.textQuaternary)
+                                    }
+                                    .padding(DipleSpace.m)
+                                }
+                            }
                         }
+                        .padding(DipleSpace.xxl)
+                        .padding(.bottom, DipleSpace.xxxl)
                     }
-                    .padding(DipleSpace.xxl)
                 }
             }
         }
@@ -778,82 +1343,95 @@ private struct MacHighlightsCollection: View {
 
 private struct MacNotesCollection: View {
     @ObservedObject var model: NotesViewModel
+    @Binding var searchFocusRequest: MacSearchTarget?
+    let selectedID: String?
     let onSelect: (NoteItem) -> Void
     let onCreate: () -> Void
+    let onDelete: (NoteItem) -> Void
 
     private let columns = [
-        GridItem(.adaptive(minimum: 190, maximum: 280), spacing: DipleSpace.m, alignment: .top)
+        GridItem(.adaptive(minimum: 200, maximum: 300), spacing: DipleSpace.m, alignment: .top)
     ]
 
     var body: some View {
-        ZStack {
-            DipleColor.canvas.ignoresSafeArea()
-            if model.items.isEmpty {
-                MacEmptyCollection(
-                    icon: "square.and.pencil",
-                    title: "Start with a thought",
-                    message: "Notes are quiet pages for ideas, summaries and connections.",
-                    actionTitle: "New note",
-                    actionIcon: "plus",
-                    action: onCreate
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                                MacCollectionHeader(title: "Notes", count: model.filteredItems.count)
-                                Text("\(model.totalWordCount.formatted()) words · \(model.linkedCount) linked to your library")
-                                    .dipleType(.micro)
-                                    .foregroundStyle(DipleColor.textQuaternary)
-                            }
-                            Spacer()
-                            Menu {
-                                ForEach(NoteSort.allCases) { sort in
-                                    Button {
-                                        model.sort = sort
-                                    } label: {
-                                        Label(sort.title, systemImage: sort.systemImage)
-                                    }
-                                }
-                            } label: {
-                                Label(model.sort.title, systemImage: "arrow.up.arrow.down")
-                            }
-                            .menuStyle(.borderlessButton)
-
-                            Button(action: onCreate) {
-                                Label("New note", systemImage: "plus")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(DipleColor.accent)
-                            .foregroundStyle(DipleColor.textOnAccent)
-                        }
-
-                        macNoteFilters
-
-                        if model.filteredItems.isEmpty {
-                            MacEmptyCollection(
-                                icon: model.query.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass",
-                                title: model.query.isEmpty ? "Nothing in this view" : "No matching notes",
-                                message: model.query.isEmpty ? "Choose another filter." : "Try a title, phrase, tag, author or book."
-                            )
-                            .frame(minHeight: 280)
-                        } else {
-                            LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
-                                ForEach(model.filteredItems) { item in
-                                    Button { onSelect(item) } label: {
-                                        NoteCardView(item: item)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
+        VStack(spacing: 0) {
+            MacColumnHeader(
+                title: "Notes",
+                count: model.filteredItems.count,
+                context: model.items.isEmpty
+                    ? nil
+                    : "\(model.totalWordCount.formatted()) words · \(model.linkedCount) linked to your library",
+                query: model.items.isEmpty ? nil : $model.query,
+                prompt: "Search notes, tags and books",
+                searchIdentifier: "mac.notes.search",
+                focusRequest: $searchFocusRequest,
+                focusTarget: .notes
+            ) {
+                Menu {
+                    ForEach(NoteSort.allCases) { sort in
+                        Button {
+                            model.sort = sort
+                        } label: {
+                            Label(sort.title, systemImage: sort.systemImage)
                         }
                     }
-                    .padding(DipleSpace.xxl)
+                } label: {
+                    Label(model.sort.title, systemImage: "arrow.up.arrow.down")
+                        .dipleType(.footnote)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Sort your notes")
+
+                MacPrimaryButton(title: "New note", shortcutHint: "⌘N", action: onCreate)
+            }
+
+            ZStack {
+                DipleColor.canvas.ignoresSafeArea()
+                if model.items.isEmpty {
+                    MacEmptyCollection(
+                        icon: "square.and.pencil",
+                        title: "Start with a thought",
+                        message: "Notes are quiet pages for ideas, summaries and connections.",
+                        actionTitle: "New note",
+                        actionIcon: "plus",
+                        action: onCreate
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
+                            macNoteFilters
+
+                            if model.filteredItems.isEmpty {
+                                MacEmptyCollection(
+                                    icon: model.query.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass",
+                                    title: model.query.isEmpty ? "Nothing in this view" : "No matching notes",
+                                    message: model.query.isEmpty ? "Choose another filter." : "Try a title, phrase, tag, author or book."
+                                )
+                                .frame(minHeight: 280)
+                            } else {
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
+                                    ForEach(model.filteredItems) { item in
+                                        MacSelectableCard(isSelected: selectedID == item.id) {
+                                            onSelect(item)
+                                        } content: {
+                                            NoteCardView(item: item)
+                                        }
+                                        .contextMenu {
+                                            Button("Open") { onSelect(item) }
+                                            Divider()
+                                            Button("Delete", role: .destructive) { onDelete(item) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(DipleSpace.xxl)
+                        .padding(.bottom, DipleSpace.xxxl)
+                    }
                 }
             }
         }
-        .searchable(text: $model.query, placement: .toolbar, prompt: "Search notes, tags and books")
     }
 
     private var macNoteFilters: some View {
@@ -903,54 +1481,72 @@ private struct MacNotesCollection: View {
 
 private struct MacSearchCollection: View {
     @ObservedObject var model: GlobalSearchViewModel
+    @Binding var searchFocusRequest: MacSearchTarget?
+    let selectedID: String?
     let onSelect: (GlobalSearchResult) -> Void
 
     var body: some View {
-        ZStack {
-            DipleColor.canvas.ignoresSafeArea()
-            if model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                MacEmptyCollection(
-                    icon: "magnifyingglass",
-                    title: "Search your reading",
-                    message: "Find books, article text, saved passages and your own notes."
-                )
-            } else if model.results.isEmpty {
-                MacEmptyCollection(
-                    icon: "text.magnifyingglass",
-                    title: "No matches",
-                    message: "Try fewer words or a different phrase."
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DipleSpace.xxl) {
-                        ForEach(GlobalSearchKind.allCases, id: \.self) { kind in
-                            let results = model.results.filter { $0.kind == kind }
-                            if !results.isEmpty {
-                                VStack(alignment: .leading, spacing: DipleSpace.s) {
-                                    HStack {
-                                        Text(kind.title.uppercased())
-                                            .dipleType(.nano)
-                                            .foregroundStyle(DipleColor.textTertiary)
-                                        Spacer()
-                                        Text("\(results.count)")
-                                            .dipleType(.nano)
-                                            .foregroundStyle(DipleColor.textQuaternary)
-                                    }
-                                    ForEach(results) { result in
-                                        Button { onSelect(result) } label: {
-                                            MacSearchResultRow(result: result)
+        VStack(spacing: 0) {
+            MacColumnHeader(
+                title: "Search",
+                count: model.results.isEmpty ? nil : model.results.count,
+                query: $model.query,
+                prompt: "Notes, highlights and library",
+                searchIdentifier: "mac.search.search",
+                focusRequest: $searchFocusRequest,
+                focusTarget: .search
+            ) {
+                EmptyView()
+            }
+
+            ZStack {
+                DipleColor.canvas.ignoresSafeArea()
+                if model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    MacEmptyCollection(
+                        icon: "magnifyingglass",
+                        title: "Search your reading",
+                        message: "Find books, article text, saved passages and your own notes."
+                    )
+                } else if model.results.isEmpty {
+                    MacEmptyCollection(
+                        icon: "text.magnifyingglass",
+                        title: "No matches",
+                        message: "Try fewer words or a different phrase."
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: DipleSpace.xxl) {
+                            ForEach(GlobalSearchKind.allCases, id: \.self) { kind in
+                                let results = model.results.filter { $0.kind == kind }
+                                if !results.isEmpty {
+                                    VStack(alignment: .leading, spacing: DipleSpace.s) {
+                                        HStack {
+                                            Text(kind.title.uppercased())
+                                                .dipleType(.nano)
+                                                .foregroundStyle(DipleColor.textTertiary)
+                                            Spacer()
+                                            Text("\(results.count)")
+                                                .dipleType(.nano)
+                                                .foregroundStyle(DipleColor.textQuaternary)
                                         }
-                                        .buttonStyle(.plain)
+                                        ForEach(results) { result in
+                                            MacSelectableRow(isSelected: selectedID == result.id) {
+                                                onSelect(result)
+                                            } content: {
+                                                MacSearchResultRow(result: result)
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
+                        .padding(DipleSpace.xxl)
+                        .padding(.bottom, DipleSpace.xxxl)
                     }
-                    .padding(DipleSpace.xxl)
                 }
             }
         }
-        .searchable(text: $model.query, placement: .toolbar, prompt: "Notes, highlights and library")
+        .onAppear { searchFocusRequest = .search }
         .onChange(of: model.query) { _, _ in model.search() }
     }
 }
@@ -992,7 +1588,6 @@ private struct MacSearchResultRow: View {
                 .foregroundStyle(DipleColor.textQuaternary)
         }
         .padding(DipleSpace.m)
-        .craftSurface()
     }
 }
 
@@ -1000,10 +1595,14 @@ private struct MacSearchResultRow: View {
 
 private struct MacBookInspector: View {
     let book: Book
+    let tags: [String]
     let fragmentCount: Int
     let onRead: () -> Void
     let onSecondRead: () -> Void
     let onEdit: () -> Void
+    let onEditTags: () -> Void
+
+    @State private var isReadHovering = false
 
     var body: some View {
         ScrollView {
@@ -1034,15 +1633,28 @@ private struct MacBookInspector: View {
                         Text(book.progress > 0.001 ? "Continue Reading" : "Start Reading")
                         Spacer()
                         Image(systemName: "arrow.right")
+                            .offset(x: isReadHovering ? 3 : 0)
                     }
                     .dipleType(.footnote, weight: .semibold)
                     .foregroundStyle(DipleColor.textOnAccent)
                     .padding(.horizontal, DipleSpace.l)
                     .padding(.vertical, DipleSpace.m)
-                    .background(DipleColor.accent, in: RoundedRectangle(cornerRadius: DipleRadius.s))
+                    .background(
+                        DipleColor.accent.opacity(isReadHovering ? 0.86 : 1),
+                        in: RoundedRectangle(cornerRadius: DipleRadius.s)
+                    )
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut(.return, modifiers: [])
+                .onHover { hovering in
+                    withAnimation(DipleMotion.snappy) { isReadHovering = hovering }
+                }
+                // **⌘-Return, not bare Return.** Unmodified, this bound the Return key for the
+                // whole window: every search field and the note editor's title lost it to the
+                // reader the moment a book was selected, because a `keyboardShortcut` is
+                // registered on the responder chain and not on the button it is written under.
+                .keyboardShortcut(.return, modifiers: .command)
+                .help(book.progress > 0.001 ? "Continue reading (⌘↩)" : "Start reading (⌘↩)")
 
                 if LibraryStatusFilter.finished.includes(book) {
                     Button(action: onSecondRead) {
@@ -1071,11 +1683,28 @@ private struct MacBookInspector: View {
                     if let source = book.sourceHost {
                         MacMetadataRow(label: "Source") { Text(source) }
                     }
+                    MacMetadataRow(label: "Tags") {
+                        if tags.isEmpty {
+                            Text("None")
+                                .foregroundStyle(DipleColor.textQuaternary)
+                        } else {
+                            FlowLayout(spacing: DipleSpace.xs) {
+                                ForEach(tags, id: \.self) { tag in
+                                    TagChipView(label: tag, kind: .text)
+                                }
+                            }
+                        }
+                    }
                 }
 
-                Button("Edit metadata", action: onEdit)
-                    .dipleType(.footnote)
-                    .foregroundStyle(DipleColor.textSecondary)
+                HStack(spacing: DipleSpace.l) {
+                    Button("Edit metadata", action: onEdit)
+                        .dipleType(.footnote)
+                        .foregroundStyle(DipleColor.textSecondary)
+                    Button("Tags…", action: onEditTags)
+                        .dipleType(.footnote)
+                        .foregroundStyle(DipleColor.textSecondary)
+                }
             }
             .padding(DipleSpace.xxl)
         }
@@ -1786,6 +2415,16 @@ private struct MacSearchInspector: View {
 private struct MacInspectorPlaceholder: View {
     let sourceTitle: String
 
+    /// A short legend, not the whole menu bar. These five are the ones that change how the
+    /// window is used rather than what it shows.
+    private static let shortcuts: [(key: String, label: String)] = [
+        ("⌘O", "Import a publication"),
+        ("⌘N", "New note"),
+        ("⌘F", "Search this column"),
+        ("⌘1…6", "Move between shelves"),
+        ("⌘↩", "Open the selected book")
+    ]
+
     var body: some View {
         VStack(spacing: DipleSpace.l) {
             DipleMark(size: 34)
@@ -1797,30 +2436,28 @@ private struct MacInspectorPlaceholder: View {
                 .dipleType(.callout)
                 .foregroundStyle(DipleColor.textQuaternary)
                 .multilineTextAlignment(.center)
+
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
+                ForEach(Self.shortcuts, id: \.key) { shortcut in
+                    HStack(spacing: DipleSpace.m) {
+                        Text(shortcut.key)
+                            .dipleType(.nano, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .monospaced()
+                            .frame(width: 44, alignment: .trailing)
+                        Text(shortcut.label)
+                            .dipleType(.micro)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(.top, DipleSpace.l)
+            .frame(maxWidth: 260)
         }
         .padding(DipleSpace.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DipleColor.surface)
-    }
-}
-
-private struct MacCollectionHeader: View {
-    let title: String
-    let count: Int
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
-            Text(title)
-                // A bare screen title — "Highlights", "Notes" — standing alone at the top of
-                // its collection, not sharing the block with a cover the way the Home lead's
-                // title does. That is exactly what `hero` is for.
-                .dipleType(.hero)
-                .foregroundStyle(DipleColor.textPrimary)
-            Text("\(count)")
-                .dipleType(.micro)
-                .foregroundStyle(DipleColor.textQuaternary)
-                .monospacedDigit()
-        }
     }
 }
 
