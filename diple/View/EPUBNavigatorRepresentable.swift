@@ -11,6 +11,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let targetLink: ReadiumShared.Link?
     public let targetLocator: Locator?
     public let highlights: [Highlight]
+    /// The one passage marked a moment ago, whose ink is still wet. See `InkHighlight`.
+    public let freshHighlightID: String?
     public let livingMarginAnnotations: [LivingMarginAnnotation]
     public let tableOfContents: [ReadiumShared.Link]
     public let preferences: EPUBPreferences
@@ -37,6 +39,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         targetLink: ReadiumShared.Link? = nil,
         targetLocator: Locator? = nil,
         highlights: [Highlight] = [],
+        freshHighlightID: String? = nil,
         livingMarginAnnotations: [LivingMarginAnnotation] = [],
         tableOfContents: [ReadiumShared.Link] = [],
         preferences: EPUBPreferences,
@@ -57,6 +60,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.targetLink = targetLink
         self.targetLocator = targetLocator
         self.highlights = highlights
+        self.freshHighlightID = freshHighlightID
         self.livingMarginAnnotations = livingMarginAnnotations
         self.tableOfContents = tableOfContents
         self.preferences = preferences
@@ -80,6 +84,10 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public func makeUIViewController(context: Context) -> UIViewController {
         var decorationTemplates = HTMLDecorationTemplate.defaultTemplates()
         decorationTemplates[.livingMargin] = .livingMarginMarker()
+        // The reader's own marks are drawn rather than switched on; see `InkHighlight`. Only
+        // the highlight style is replaced — underline keeps Readium's, since nothing in diple
+        // uses it and a second hand-written template would be a second thing to maintain.
+        decorationTemplates[.highlight] = InkHighlight.template(defaultTint: .systemYellow)
         let config = EPUBNavigatorViewController.Configuration(
             preferences: preferences,
             // In continuous scroll mode reading is vertical, so a horizontal swipe silently
@@ -104,6 +112,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             context.coordinator.navigator = navigator
             context.coordinator.lastPreferences = preferences
             context.coordinator.lastHighlights = highlights
+            context.coordinator.lastFreshHighlightID = freshHighlightID
             context.coordinator.lastLivingMarginAnnotations = livingMarginAnnotations
             context.coordinator.syncScrollTransition(for: navigator)
             #if !targetEnvironment(macCatalyst)
@@ -148,6 +157,10 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         if context.coordinator.lastHighlights != highlights {
             context.coordinator.lastHighlights = highlights
             applyDecorations(highlights: highlights, to: uiViewController)
+        } else if context.coordinator.lastFreshHighlightID != freshHighlightID {
+            // The ink dried. Nothing about the passage changed, but what is being drawn did.
+            context.coordinator.lastFreshHighlightID = freshHighlightID
+            applyDecorations(highlights: highlights, to: uiViewController)
         }
 
         if context.coordinator.lastLivingMarginAnnotations != livingMarginAnnotations {
@@ -168,7 +181,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             return Decoration(
                 id: h.id,
                 locator: locator,
-                style: .highlight(tint: uiColor)
+                style: .highlight(tint: uiColor),
+                // Freshness rides on the decoration rather than on the template, because the
+                // template is built once and the passage that was just marked changes with
+                // every mark. `userInfo` is the field Readium leaves to the app for exactly
+                // this. See `InkHighlight` for why it must stop being fresh.
+                userInfo: h.id == freshHighlightID ? [InkHighlight.freshKey: true] : [:]
             )
         }
         navigator.apply(decorations: decorations, in: "highlights")
@@ -187,6 +205,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public class Coordinator: NSObject, EPUBNavigatorDelegate, SelectableNavigatorDelegate, UIGestureRecognizerDelegate {
         var parent: EPUBNavigatorRepresentable
         weak var navigator: EPUBNavigatorViewController?
+        var lastFreshHighlightID: String? = nil
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
         var lastHighlights: [Highlight]? = nil

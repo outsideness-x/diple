@@ -153,6 +153,7 @@ public struct ReaderContainerView: View {
                         targetLink: viewModel.targetLink,
                         targetLocator: viewModel.targetLocator,
                         highlights: viewModel.highlights,
+                        freshHighlightID: viewModel.freshHighlightID,
                         livingMarginAnnotations: livingMarginAnnotationsForCurrentPlatform,
                         tableOfContents: viewModel.tableOfContents,
                         preferences: viewModel.epubPreferences,

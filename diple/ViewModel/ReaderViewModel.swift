@@ -159,6 +159,12 @@ public final class ReaderViewModel: ObservableObject {
     @Published public private(set) var highlightTags: [String: [String]] = [:]
     /// Every word used on a passage anywhere in the library, for the editor's menu.
     @Published public private(set) var highlightTagSuggestions: [String] = []
+    /// The passage marked a moment ago, while its ink is still being drawn across the words.
+    ///
+    /// It is state about *this instant*, not about the passage, which is why it lives here and
+    /// not on `Highlight`: nothing about a saved quote is different for having been new. See
+    /// `InkHighlight` for why the stroke has to stop being fresh rather than simply play out.
+    @Published public private(set) var freshHighlightID: String? = nil
     /// A transient projection of highlights carrying personal writing. Readium receives this
     /// list as semantic locator decorations; no marker position is persisted.
     @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
@@ -221,7 +227,8 @@ public final class ReaderViewModel: ObservableObject {
     /// `announceSavedNote` when the editor leaves.
     private var hasSavedNoteWhileEditing = false
 
-    private var persistTask: Task<Void, Never>? = nil
+    private var persistTask: Task<Void, Never>?
+    private var inkTask: Task<Void, Never>? = nil
     private var progressWriteTask: Task<Void, Never>? = nil
     private var toastTask: Task<Void, Never>? = nil
     private var trailLabelTask: Task<Void, Never>? = nil
@@ -1207,6 +1214,9 @@ public final class ReaderViewModel: ObservableObject {
         var saved: Highlight?
         do {
             try database.saveHighlight(highlight)
+            // Set before the reload, so the decoration is built fresh on the very first apply
+            // rather than appearing plainly and then being redrawn.
+            markInkWet(on: highlight.id)
             loadHighlights()
             HapticManager.shared.impact(.light)
             if announce {
@@ -1220,6 +1230,20 @@ public final class ReaderViewModel: ObservableObject {
 
         self.currentSelection = nil
         return saved
+    }
+
+    /// Holds the mark new for as long as the stroke takes to cross it, then lets it be an
+    /// ordinary highlight again. The timer is the app's, not the web view's: CSS cannot tell
+    /// the app when it has finished, and a decoration that stayed flagged would redraw itself
+    /// on the next reflow.
+    private func markInkWet(on id: String) {
+        freshHighlightID = id
+        inkTask?.cancel()
+        inkTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(InkHighlight.duration + 120))
+            guard !Task.isCancelled else { return }
+            self?.freshHighlightID = nil
+        }
     }
 
     /// Recolours a highlight already on the page, leaving whatever thought is attached to it
