@@ -187,6 +187,7 @@ public struct MacRootView: View {
             ImportLinkSheetView { _ in
                 reloadAll()
             }
+            .dipleMacSheet(minWidth: 520, minHeight: 400)
         }
         .fullScreenCover(item: $readerBook, onDismiss: reloadAll) { book in
             NavigationStack {
@@ -416,11 +417,13 @@ public struct MacRootView: View {
                 ) { tags in
                     library.setTags(tags, for: book)
                 }
+                .dipleMacSheet(minWidth: 520, minHeight: 560)
             }
             .sheet(item: $library.bookToEdit) { book in
                 EditBookMetadataView(book: book) { title, author, coverData in
                     library.updateMetadata(for: book.id, title: title, author: author, coverData: coverData)
                 }
+                .dipleMacSheet(minWidth: 520, minHeight: 560)
             }
             .alert("Delete book?", isPresented: $library.showDeleteConfirmation) {
                 Button("Delete", role: .destructive) { library.deleteConfirmedBook() }
@@ -1850,6 +1853,7 @@ private struct MacQuotesInspector: View {
                 onSave: model.saveComment,
                 onCancel: model.cancelCommentEditing
             )
+            .dipleMacSheet(minWidth: 520, minHeight: 560)
         }
     }
 }
@@ -2081,7 +2085,7 @@ private struct MacNoteInspector: View {
             BookTagPickerView(books: books, selectedBookId: selectedBookId) { bookId in
                 selectedBookId = bookId
             }
-            .frame(minWidth: 520, minHeight: 560)
+            .dipleMacSheet(minWidth: 520, minHeight: 560)
         }
         .sheet(isPresented: $isFormulaComposerPresented) {
             NoteFormulaComposer(initialLatex: formulaSeed, initialMode: formulaMode) { mode, latex in
@@ -2089,7 +2093,7 @@ private struct MacNoteInspector: View {
                 isBodyFocused = true
             }
             .id(formulaSessionID)
-            .frame(minWidth: 620, minHeight: 680)
+            .dipleMacSheet(minWidth: 620, minHeight: 680)
         }
         .alert("Delete note?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {

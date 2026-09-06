@@ -122,6 +122,7 @@ struct dipleApp: App {
             // sidebar) and none of them can hold this state themselves.
             .sheet(isPresented: $isShowingSettings) {
                 AppSettingsView()
+                    .dipleMacSheet(minWidth: 560, minHeight: 680)
             }
             .onReceive(NotificationCenter.default.publisher(for: .dipleOpenSettings)) { _ in
                 isShowingSettings = true

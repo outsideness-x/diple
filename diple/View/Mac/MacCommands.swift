@@ -236,6 +236,24 @@ enum DipleLinks {
     static let privacy = URL(string: "https://diple-reader.vercel.app/privacy")!
 }
 
+public extension View {
+    /// The size a sheet opens at on the desktop, and nothing at all anywhere else.
+    ///
+    /// Catalyst gives an unsized `sheet` a small form sheet — narrower than the phone screen the
+    /// content was laid out for, which is how a settings page with full-width rows ends up
+    /// reading as a column of clipped controls in the middle of a large window. Two of the note
+    /// inspector's sheets already carried a frame for exactly this reason; this is the same
+    /// answer, spelled once, for every other sheet the desktop can raise.
+    @ViewBuilder
+    func dipleMacSheet(minWidth: CGFloat, minHeight: CGFloat) -> some View {
+        #if targetEnvironment(macCatalyst)
+        frame(minWidth: minWidth, minHeight: minHeight)
+        #else
+        self
+        #endif
+    }
+}
+
 extension Scene {
     /// The desktop menu bar, and nothing at all anywhere else.
     func dipleMacCommands() -> some Scene {
