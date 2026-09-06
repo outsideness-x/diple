@@ -35,7 +35,23 @@ public struct DailyResurfacingCard: View {
                 HapticManager.shared.selection()
                 onOpen(item)
             }
-            .simultaneousGesture(swipeGesture, including: viewModel.canShowAnother ? .all : .subviews)
+            // Not a `DragGesture`. One attached here took every pan that started on the card,
+            // vertical ones included, and Home could not be scrolled by its largest block.
+            // See `HorizontalSwipe`.
+            .horizontalSwipe(
+                isEnabled: viewModel.canShowAnother,
+                onChanged: { travel in
+                    guard !isSwapping else { return }
+                    dragOffset = max(-72, min(72, travel * 0.42))
+                },
+                onEnded: { travel in
+                    guard !isSwapping, abs(travel) > 58 else {
+                        withAnimation(DipleMotion.snappy) { dragOffset = 0 }
+                        return
+                    }
+                    showAnother(moving: travel < 0 ? -1 : 1)
+                }
+            )
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(DipleColor.hairline)
@@ -168,24 +184,6 @@ public struct DailyResurfacingCard: View {
         .accessibilityHint("Opens that passage")
         .transition(.opacity)
         .animation(DipleMotion.gentle, value: echo.id)
-    }
-
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 14)
-            .onChanged { value in
-                guard viewModel.canShowAnother, !isSwapping,
-                      abs(value.translation.width) > abs(value.translation.height) * 1.15
-                else { return }
-                dragOffset = max(-72, min(72, value.translation.width * 0.42))
-            }
-            .onEnded { value in
-                let isHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.15
-                guard viewModel.canShowAnother, !isSwapping, isHorizontal, abs(value.translation.width) > 58 else {
-                    withAnimation(DipleMotion.snappy) { dragOffset = 0 }
-                    return
-                }
-                showAnother(moving: value.translation.width < 0 ? -1 : 1)
-            }
     }
 
     private var highlightTransition: AnyTransition {
