@@ -20,7 +20,7 @@ public struct LibraryRowView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// The thumbnail tracks the text beside it, so a row keeps its proportions under Dynamic
-    /// Type instead of leaving a stamp next to giant titles — as `HubBookRowView` already does.
+    /// Type instead of leaving a stamp next to giant titles — as the hub's book row already did.
     @ScaledMetric(relativeTo: .subheadline) private var coverWidth: CGFloat = 44
 
     public init(book: Book, tags: [String] = [], characters: Int? = nil) {

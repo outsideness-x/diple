@@ -8,7 +8,7 @@ import Foundation
 /// Here they are a pure transform over values: the view model owns the state and the database,
 /// this owns what the state *means*, and a test can ask what the counts should be without a
 /// simulator.
-public enum MarginaliaBoard {
+public nonisolated enum MarginaliaBoard {
 
     /// Everything one pass over the catalogue produces.
     public struct Snapshot: Equatable {

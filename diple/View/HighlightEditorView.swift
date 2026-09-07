@@ -15,6 +15,15 @@ public struct HighlightEditorView: View {
     public let tagSuggestions: [String]
     public let onSave: (String, String?, [String]) -> Void
     public let onDelete: (() -> Void)?
+    /// The book this passage came from, named only when the sheet was opened somewhere that is
+    /// not that book. Inside the reader it stays `nil`: the source is the page underneath, and
+    /// printing its title over it would be the app telling the reader where they are standing.
+    public let sourceTitle: String?
+    /// Opening the passage where it was written. `nil` when there is nowhere to go — the book
+    /// has been deleted, or the passage was imported for one that was never here.
+    public let onOpenInSource: (() -> Void)?
+    /// Growing a note out of this passage, for the moment a thought outruns the comment field.
+    public let onExpandIntoNote: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,6 +34,12 @@ public struct HighlightEditorView: View {
     @State private var didCopy = false
     @State private var isSaving = false
     @FocusState private var isCommentFocused: Bool
+    /// Opened from the reader, the sheet rests at medium so the page it came from is still
+    /// visible behind it. Opened from the board there is no page behind it and no reason to
+    /// keep one in view, while the comment field — the reason to have opened it at all — sits
+    /// below the fold of a medium detent once the source strip is above it. So the way in
+    /// decides the height, and `sourceTitle` is exactly the signal for which way that was.
+    @State private var detent: PresentationDetent
 
     public init(
         quote: String,
@@ -33,17 +48,24 @@ public struct HighlightEditorView: View {
         initialTags: [String] = [],
         tagSuggestions: [String] = [],
         isExisting: Bool,
+        sourceTitle: String? = nil,
         onSave: @escaping (String, String?, [String]) -> Void,
-        onDelete: (() -> Void)? = nil
+        onDelete: (() -> Void)? = nil,
+        onOpenInSource: (() -> Void)? = nil,
+        onExpandIntoNote: (() -> Void)? = nil
     ) {
         self.quote = quote
         self.isExisting = isExisting
         self.tagSuggestions = tagSuggestions
         self.onSave = onSave
         self.onDelete = onDelete
+        self.sourceTitle = sourceTitle
+        self.onOpenInSource = onOpenInSource
+        self.onExpandIntoNote = onExpandIntoNote
         _selectedColorHex = State(initialValue: initialColorHex)
         _comment = State(initialValue: initialComment ?? "")
         _tags = State(initialValue: initialTags)
+        _detent = State(initialValue: sourceTitle == nil ? .medium : .large)
     }
 
     public var body: some View {
@@ -54,9 +76,11 @@ public struct HighlightEditorView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DipleSpace.xxl) {
                         quoteCard
+                        sourceStrip
                         colorPicker
                         commentEditor
                         tagEditor
+                        expandIntoNote
                     }
                     .padding(.horizontal, DipleSpace.xl)
                     .padding(.top, DipleSpace.m)
@@ -86,7 +110,7 @@ public struct HighlightEditorView: View {
                 Text("The saved passage and its comment will be removed.")
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
         .presentationBackground(.regularMaterial)
         .interactiveDismissDisabled(isSaving)
@@ -126,6 +150,83 @@ public struct HighlightEditorView: View {
         .animation(DipleMotion.standard, value: isSaving)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Selected passage: \(quote)")
+    }
+
+    /// Which book this is, and the way back into it.
+    ///
+    /// It reads as one row rather than a labelled field because it is not something the reader
+    /// sets — it is where they already are. The whole row is the target when there is somewhere
+    /// to go, so the name of the book and the act of opening it are not two different places to
+    /// aim at in a sheet held with one thumb.
+    @ViewBuilder
+    private var sourceStrip: some View {
+        if let sourceTitle {
+            let row = HStack(spacing: DipleSpace.s) {
+                Image(systemName: "book.closed")
+                    .dipleIcon(11)
+                    .foregroundStyle(DipleColor.accentInk)
+
+                Text(sourceTitle)
+                    .dipleType(.caption, weight: .medium)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: DipleSpace.s)
+
+                if onOpenInSource != nil {
+                    Text("Open in the book")
+                        .dipleType(.micro, weight: .semibold)
+                        .foregroundStyle(DipleColor.accentInk)
+                    Image(systemName: "chevron.right")
+                        .dipleIcon(9, weight: .semibold)
+                        .foregroundStyle(DipleColor.accentInk)
+                }
+            }
+            .padding(.vertical, DipleSpace.s)
+            .contentShape(Rectangle())
+
+            if let onOpenInSource {
+                Button {
+                    HapticManager.shared.selection()
+                    onOpenInSource()
+                } label: { row }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open this passage in \(sourceTitle)")
+            } else {
+                row.accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// Last on the page, and that is the argument for it.
+    ///
+    /// A comment is a line in the margin; a note is a page of your own. The moment the reader
+    /// finds out which one they are writing is the moment the field runs out — after they have
+    /// read the passage, said their piece and filed it — so the offer sits exactly there rather
+    /// than competing with the comment field for the same thought.
+    @ViewBuilder
+    private var expandIntoNote: some View {
+        if let onExpandIntoNote {
+            Button {
+                HapticManager.shared.selection()
+                save(then: onExpandIntoNote)
+            } label: {
+                HStack(spacing: DipleSpace.s) {
+                    Image(systemName: "square.and.pencil")
+                        .dipleIcon(13, weight: .semibold)
+                    Text("Expand into a note")
+                        .dipleType(.footnote, weight: .semibold)
+                }
+                .foregroundStyle(DipleColor.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .overlay {
+                    RoundedRectangle(cornerRadius: DipleRadius.m)
+                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                }
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityHint("Starts a note with this passage quoted at the top")
+        }
     }
 
     private var colorPicker: some View {
@@ -291,13 +392,20 @@ public struct HighlightEditorView: View {
         DipleColor.Highlight.color(forHex: selectedColorHex)
     }
 
-    private func save() {
+    /// `then` runs once the edit is written and before the sheet goes away.
+    ///
+    /// Leaving for somewhere else has to save first, or a comment typed and then expanded into
+    /// a note is a comment the reader watched themselves write and never saw again. It is the
+    /// same body as the Save button because there is only one definition of what saving this
+    /// sheet means; a second one would drift from it at the first change to either.
+    private func save(then continuation: (() -> Void)? = nil) {
         guard !isSaving else { return }
         let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedComment = trimmed.isEmpty ? nil : trimmed
 
         guard !reduceMotion else {
             onSave(selectedColorHex, normalizedComment, tags)
+            continuation?()
             dismiss()
             return
         }
@@ -308,6 +416,7 @@ public struct HighlightEditorView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(380))
             onSave(selectedColorHex, normalizedComment, tags)
+            continuation?()
             dismiss()
         }
     }

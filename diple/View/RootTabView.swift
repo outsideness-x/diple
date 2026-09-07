@@ -75,6 +75,14 @@ public struct RootTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
             selection = .home
         }
+        // Home's passages row is a way into the board, not a screen of its own. The board is a
+        // tab root, so reaching it is a change of tab rather than a push — which is also why
+        // it travels as a notification: Home cannot reach the shell's selection directly, and
+        // threading a binding down through it would give one row a private channel into the
+        // tab bar that nothing else has.
+        .onReceive(NotificationCenter.default.publisher(for: .dipleShowSavedPassages)) { _ in
+            selection = .notes
+        }
         .onAppear {
             if DailyResurfacingService.shared.consumeOpenRequest() {
                 selection = .home
@@ -90,7 +98,7 @@ public struct RootTabView: View {
         ZStack {
             tabRoot(.home) { HomeView() }
             tabRoot(.library) { LibraryView() }
-            tabRoot(.notes) { NotesView() }
+            tabRoot(.notes) { MarginaliaView() }
             tabRoot(.search) { GlobalSearchView() }
         }
     }

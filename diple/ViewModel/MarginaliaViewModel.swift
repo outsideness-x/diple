@@ -246,11 +246,16 @@ public final class MarginaliaViewModel: ObservableObject {
     /// A passage's comment and tags travel together because the row collects them together:
     /// two calls would put two records in the CloudKit outbox and two rewrites of the same
     /// search document for one edit.
-    public func savePassage(_ passage: PassageItem, comment: String?, tags: [String]) {
+    public func savePassage(
+        _ passage: PassageItem,
+        colorHex: String,
+        comment: String?,
+        tags: [String]
+    ) {
         do {
             try AppDatabase.shared.updateHighlight(
                 id: passage.id,
-                colorHex: passage.highlight.colorHex,
+                colorHex: colorHex,
                 comment: comment,
                 tags: tags
             )

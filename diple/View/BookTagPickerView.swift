@@ -9,7 +9,7 @@ public struct BookTagPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var query: String = ""
 
-    /// See `HubBookRowView`: the thumbnail tracks the text size next to it.
+    /// See `LibraryRowView`: the thumbnail tracks the text size next to it.
     @ScaledMetric(relativeTo: .subheadline) private var thumbnailWidth: CGFloat = 36
 
     public init(books: [Book], selectedBookId: String?, onSelect: @escaping (String?) -> Void) {

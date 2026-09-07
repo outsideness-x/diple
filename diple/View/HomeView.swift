@@ -6,7 +6,6 @@ import ReadiumShared
 /// `NavigationLink` pushes content the stack's `path` cannot describe, which leaves
 /// programmatic and link-driven navigation disagreeing about what is on screen.
 public enum HomeRoute: Hashable {
-    case allHighlights
     /// A saved passage, opened where it was written rather than in a list of passages.
     /// The locator travels as its stored JSON because `Locator` is not `Hashable`, and a
     /// navigation value must be.
@@ -70,7 +69,17 @@ public struct HomeView: View {
                             section("HIGHLIGHTS") {
                                 DailyResurfacingCard { openResurfaced($0) }
 
-                                NavigationLink(value: HomeRoute.allHighlights) {
+                                // Not a push. Every saved passage now lives on the board with
+                                // every note, under one set of filters, and a second list of
+                                // them inside this tab would be the copy that arrangement
+                                // exists to remove. The row crosses to the board instead.
+                                Button {
+                                    HapticManager.shared.selection()
+                                    NotificationCenter.default.post(
+                                        name: .dipleShowSavedPassages,
+                                        object: nil
+                                    )
+                                } label: {
                                     HomeOpenCollectionRow(
                                         title: "All highlights",
                                         detail: "\(highlights.totalQuoteCount) saved passages",
@@ -139,8 +148,6 @@ public struct HomeView: View {
             }
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
-                case .allHighlights:
-                    HubView(path: $path)
                 case let .passage(book, locatorJSON):
                     passageDestination(book: book, locatorJSON: locatorJSON)
                 }

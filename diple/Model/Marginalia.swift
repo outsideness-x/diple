@@ -8,7 +8,7 @@ import Foundation
 /// tags, a date, and some words. So they are filtered, grouped and read as one catalogue, and
 /// the two remaining differences are printed rather than structural: whose words they are
 /// (`kind`) and, for a passage, the place in the book it can be opened at.
-public enum MarginaliaKind: String, Hashable, Sendable, CaseIterable {
+public nonisolated enum MarginaliaKind: String, Hashable, Sendable, CaseIterable {
     /// A note: words the reader wrote.
     case written
     /// A passage: words the reader saved, with or without a comment of their own on it.
@@ -18,7 +18,7 @@ public enum MarginaliaKind: String, Hashable, Sendable, CaseIterable {
 /// A saved passage with everything a row needs to draw it, resolved once at load time —
 /// the same trade `NoteItem` makes, and for the same reason: a card that fetched its own tags
 /// would put a query behind every row of a scroll.
-public struct PassageItem: Identifiable, Equatable, Hashable, Sendable {
+public nonisolated struct PassageItem: Identifiable, Equatable, Hashable, Sendable {
     public let highlight: Highlight
     public let tags: [String]
     /// `nil` once the book has been deleted, or when the passage was imported from Kindle or
@@ -40,6 +40,22 @@ public struct PassageItem: Identifiable, Equatable, Hashable, Sendable {
         return (trimmed?.isEmpty ?? true) ? nil : trimmed
     }
 
+    /// The Markdown a note expanded out of this passage is born holding.
+    ///
+    /// A portable blockquote, not a stored relation: it survives the folder export, CloudKit
+    /// and any other Markdown client, which is the same trade `[[Wiki link]]` already makes.
+    /// Consecutive `>` lines are folded into one quotation by the parser, so the attribution
+    /// sits inside the quotation rather than under it as a stray paragraph.
+    public var noteSeed: String {
+        var lines = highlight.text
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { "> " + $0.trimmingCharacters(in: .whitespaces) }
+        if let attribution = book?.title ?? highlight.bookTitle {
+            lines.append("> — \(attribution)")
+        }
+        return lines.joined(separator: "\n") + "\n\n"
+    }
+
     /// What the passage is called when it has to be named rather than quoted — the A–Z sort,
     /// and the accessibility label of its row. The opening words, cut at a word boundary.
     public var displayTitle: String {
@@ -50,7 +66,7 @@ public struct PassageItem: Identifiable, Equatable, Hashable, Sendable {
 }
 
 /// One entry in the catalogue: a note, or a passage.
-public enum MarginaliaEntry: Identifiable, Equatable, Hashable {
+public nonisolated enum MarginaliaEntry: Identifiable, Equatable, Hashable {
     case note(NoteItem)
     case passage(PassageItem)
 
@@ -193,7 +209,7 @@ public enum MarginaliaEntry: Identifiable, Equatable, Hashable {
 
 /// Whose words the board is showing. The one axis that cannot be a filter chip: it decides
 /// what the other chips are even offered over.
-public enum MarginaliaScope: String, CaseIterable, Identifiable, Sendable {
+public nonisolated enum MarginaliaScope: String, CaseIterable, Identifiable, Sendable {
     case all
     case written
     case saved
@@ -236,7 +252,7 @@ public enum MarginaliaScope: String, CaseIterable, Identifiable, Sendable {
 /// The handful of narrowings that are not a name. They stay in front of the source and tag
 /// chips because they answer "what have I been doing", which is asked far more often than any
 /// one tag.
-public enum MarginaliaLens: String, CaseIterable, Identifiable, Sendable {
+public nonisolated enum MarginaliaLens: String, CaseIterable, Identifiable, Sendable {
     case recent
     case fromLibrary
     case unsorted
@@ -285,7 +301,7 @@ public enum MarginaliaLens: String, CaseIterable, Identifiable, Sendable {
 /// The reader is never told this rule, and does not have to be: every offered chip carries the
 /// number of entries standing under that name inside the current narrowing, so the count under
 /// the thumb has already answered the question the rule would have raised.
-public struct MarginaliaFacets: Equatable, Hashable, Sendable {
+public nonisolated struct MarginaliaFacets: Equatable, Hashable, Sendable {
     public var bookIds: Set<String> = []
     public var tags: Set<String> = []
 
@@ -323,8 +339,8 @@ public struct MarginaliaFacets: Equatable, Hashable, Sendable {
 
 /// One chip in the filter row: a name, how many entries it would leave, and whether it is
 /// already part of the narrowing.
-public struct MarginaliaFacetOption: Identifiable, Equatable, Hashable {
-    public enum Kind: Hashable {
+public nonisolated struct MarginaliaFacetOption: Identifiable, Equatable, Hashable {
+    public nonisolated enum Kind: Hashable {
         case source(String)
         case tag(String)
     }
@@ -353,7 +369,7 @@ public struct MarginaliaFacetOption: Identifiable, Equatable, Hashable {
 /// Deliberately three, for the reason already recorded for the notes board: this is a thinking
 /// space, not a spreadsheet, and the orders that matter are "where I left off", "how it
 /// happened" and "find it by name".
-public enum MarginaliaSort: String, CaseIterable, Identifiable, Sendable {
+public nonisolated enum MarginaliaSort: String, CaseIterable, Identifiable, Sendable {
     case recent
     case created
     case title
@@ -383,7 +399,7 @@ public enum MarginaliaSort: String, CaseIterable, Identifiable, Sendable {
 /// several sections, and a list where the same row is present three times is a list you cannot
 /// count. What "browse by tag" actually wants is one tag at a time with everything under it,
 /// and that is a place — `TagOverviewView` — not a sort order.
-public enum MarginaliaGrouping: String, CaseIterable, Identifiable, Sendable {
+public nonisolated enum MarginaliaGrouping: String, CaseIterable, Identifiable, Sendable {
     case none
     case source
     case month
@@ -408,7 +424,7 @@ public enum MarginaliaGrouping: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// A run of entries under one heading.
-public struct MarginaliaGroup: Identifiable, Equatable {
+public nonisolated struct MarginaliaGroup: Identifiable, Equatable {
     public let id: String
     public let title: String
     /// The book behind a source group, when it is still in the library — the heading draws its
@@ -433,7 +449,7 @@ public struct MarginaliaGroup: Identifiable, Equatable {
 /// scroll past. They keep working when the reader ignores the suggestion menu and simply types
 /// `#obj` — the token narrows by prefix on its own — which is what stops the operator from
 /// being a trick you have to know.
-public struct MarginaliaQuery: Equatable, Sendable {
+public nonisolated struct MarginaliaQuery: Equatable, Sendable {
     public let text: String
     public let tagPrefixes: [String]
     public let sourcePrefixes: [String]
@@ -444,7 +460,7 @@ public struct MarginaliaQuery: Equatable, Sendable {
 
     /// A token the caret is still inside, if the raw string ends in one. This is what the
     /// suggestion menu completes; a token followed by a space is finished and is not offered.
-    public enum Token: Equatable, Sendable {
+    public nonisolated enum Token: Equatable, Sendable {
         case tag(String)
         case source(String)
     }

@@ -6,17 +6,30 @@ public enum NoteRoute: Hashable {
     case existing(NoteItem)
     case new
     case newFromSource(Book)
+    /// A note grown out of a saved passage: the quotation is already in the body, and the
+    /// thought goes underneath it.
+    case newFromPassage(PassageItem)
 
     public var item: NoteItem? {
         switch self {
         case .existing(let item): return item
-        case .new, .newFromSource: return nil
+        case .new, .newFromSource, .newFromPassage: return nil
         }
     }
 
     public var initialBookId: String? {
-        if case .newFromSource(let book) = self { return book.id }
-        return nil
+        switch self {
+        case .newFromSource(let book): return book.id
+        case .newFromPassage(let passage): return passage.highlight.bookId
+        case .existing, .new: return nil
+        }
+    }
+
+    /// What a new note already has written in it. Empty for every route but one — a note is
+    /// otherwise a blank page on purpose.
+    public var initialBody: String {
+        if case .newFromPassage(let passage) = self { return passage.noteSeed }
+        return ""
     }
 
     /// The tags a note is born with.
@@ -26,9 +39,26 @@ public enum NoteRoute: Hashable {
     /// normal tag, drawn as a normal chip in the properties row and removable with one tap:
     /// the app files the thought where it was had, and the writer keeps the last word on it.
     /// See `TagName.forSource(titled:)` for what the word is.
+    /// A passage carries its own words across as well as its source's.
+    ///
+    /// This is the one place the three vocabularies touch, and it is one-directional and asked
+    /// for: a passage filed as `#objection` that the reader chooses to expand is being expanded
+    /// *because* it is an objection, and a note that arrived without the word would have thrown
+    /// away the reason it was written. Nothing travels the other way, no menu on one side is
+    /// widened by the other, and every inherited chip comes off in a tap.
     public var initialTags: [String] {
-        guard case .newFromSource(let book) = self else { return [] }
-        return [TagName.forSource(titled: book.title)].compactMap { $0 }
+        switch self {
+        case .newFromSource(let book):
+            return [TagName.forSource(titled: book.title)].compactMap { $0 }
+        case .newFromPassage(let passage):
+            let source = passage.book?.title ?? passage.highlight.bookTitle
+            let sourceTag = source.flatMap { TagName.forSource(titled: $0) }
+            var tags = passage.tags
+            if let sourceTag, !tags.contains(sourceTag) { tags.append(sourceTag) }
+            return tags
+        case .existing, .new:
+            return []
+        }
     }
 }
 
@@ -40,6 +70,7 @@ extension NoteRoute: Identifiable {
         case .existing(let item): return "existing:\(item.id)"
         case .new: return "new"
         case .newFromSource(let book): return "source:\(book.id)"
+        case .newFromPassage(let passage): return "passage:\(passage.id)"
         }
     }
 }
@@ -113,13 +144,13 @@ public struct NoteDetailView: View {
         let item = route.item
         _isEditing = State(initialValue: item == nil)
         _title = State(initialValue: item?.note.title ?? "")
-        _body_ = State(initialValue: item?.note.body ?? "")
+        _body_ = State(initialValue: item?.note.body ?? route.initialBody)
         _tags = State(initialValue: item?.tags ?? route.initialTags)
         _selectedBookId = State(initialValue: item?.note.bookId ?? route.initialBookId)
         _draftID = State(initialValue: item?.id ?? UUID().uuidString)
         _lastSavedSnapshot = State(initialValue: Self.snapshot(
             title: item?.note.title ?? "",
-            body: item?.note.body ?? "",
+            body: item?.note.body ?? route.initialBody,
             tags: item?.tags ?? route.initialTags,
             bookID: item?.note.bookId
         ))
