@@ -27,7 +27,7 @@ public struct DipleTabBar: View {
     /// already had — and the door only decides the scope it opens at. Two doors are worth their
     /// width because the tab bar was naming the smaller pile and hiding the bigger one: a
     /// library with seventeen saved passages and two notes called its room "Notes".
-    private var places: [RootTabView.Tab] { [.home, .library, .notes, .highlights] }
+    private var places: [RootTabView.Tab] { [.home, .library, .highlights, .notes] }
 
     public init(selection: Binding<RootTabView.Tab>, isCollapsed: Bool) {
         self._selection = selection

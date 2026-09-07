@@ -13,16 +13,16 @@ public struct RootTabView: View {
     public enum Tab: Hashable, CaseIterable {
         case home
         case library
-        case notes
         case highlights
+        case notes
         case search
 
         var title: String {
             switch self {
             case .home: return "Home"
             case .library: return "Library"
-            case .notes: return "Notes"
             case .highlights: return "Highlights"
+            case .notes: return "Notes"
             case .search: return "Search"
             }
         }
@@ -35,8 +35,8 @@ public struct RootTabView: View {
             switch self {
             case .home: return "house"
             case .library: return "books.vertical"
-            case .notes: return "note.text"
             case .highlights: return "quote.opening"
+            case .notes: return "note.text"
             case .search: return "magnifyingglass"
             }
         }
@@ -45,8 +45,8 @@ public struct RootTabView: View {
             switch self {
             case .home: return "house.fill"
             case .library: return "books.vertical.fill"
-            case .notes: return "note.text"
             case .highlights: return "quote.opening"
+            case .notes: return "note.text"
             case .search: return "magnifyingglass"
             }
         }
@@ -96,8 +96,8 @@ public struct RootTabView: View {
         ZStack {
             tabRoot(.home) { HomeView() }
             tabRoot(.library) { LibraryView() }
-            tabRoot(.notes) { MarginaliaView(door: .notes) }
             tabRoot(.highlights) { MarginaliaView(door: .highlights) }
+            tabRoot(.notes) { MarginaliaView(door: .notes) }
             tabRoot(.search) { GlobalSearchView() }
         }
     }
