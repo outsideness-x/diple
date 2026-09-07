@@ -123,6 +123,7 @@ public final class MarginaliaViewModel: ObservableObject {
         if selection.isEmpty && isSelecting && entries.isEmpty { isSelecting = false }
         let liveTags = Set(entries.flatMap(\.tags))
         let liveSources = Set(entries.compactMap(\.bookId))
+        facets.colors.formIntersection(Set(entries.compactMap { $0.passageItem?.highlight.colorHex }))
         facets.tags.formIntersection(liveTags)
         facets.bookIds.formIntersection(liveSources)
     }
@@ -165,6 +166,7 @@ public final class MarginaliaViewModel: ObservableObject {
     public var facetOptions: [MarginaliaFacetOption] { snapshot.facetOptions }
     public var sourceOptions: [MarginaliaFacetOption] { snapshot.sourceOptions }
     public var tagOptions: [MarginaliaFacetOption] { snapshot.tagOptions }
+    public var colorOptions: [MarginaliaFacetOption] { snapshot.colorOptions }
     public var lensOptions: [MarginaliaBoard.LensOption] { snapshot.lensOptions }
 
     public func count(for scope: MarginaliaScope) -> Int {
@@ -214,6 +216,7 @@ public final class MarginaliaViewModel: ObservableObject {
         switch option.kind {
         case .source(let bookId): facets.toggleSource(bookId)
         case .tag(let tag): facets.toggleTag(tag)
+        case .color(let hex): facets.toggleColor(hex)
         }
     }
 
@@ -283,6 +286,9 @@ public final class MarginaliaViewModel: ObservableObject {
             .map { booksById[$0]?.title ?? "Untitled" }
             .sorted())
         parts.append(contentsOf: facets.tags.sorted().map { "#\($0)" })
+        if !facets.colors.isEmpty {
+            parts.append(facets.colors.count == 1 ? "one colour" : "\(facets.colors.count) colours")
+        }
         parts.append(contentsOf: lenses.map(\.title).sorted())
         let query = MarginaliaQuery.parse(rawQuery)
         if !query.text.isEmpty { parts.append("“\(query.text)”") }

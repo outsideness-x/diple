@@ -204,6 +204,100 @@ final class MarginaliaTests: XCTestCase {
         XCTAssertTrue(shot.facetOptions.first?.isSelected == true)
     }
 
+    // MARK: - Mark colour
+
+    private func coloured(_ id: String, _ hex: String, book: Book, tags: [String] = []) -> MarginaliaEntry {
+        .passage(
+            PassageItem(
+                highlight: Highlight(
+                    id: id, bookId: book.id, locator: "{}", text: "text",
+                    colorHex: hex, createdAt: Date(timeIntervalSince1970: 1_000_000),
+                    bookTitle: book.title
+                ),
+                tags: tags,
+                book: book
+            )
+        )
+    }
+
+    /// A note carries no mark, so asking about colour excludes every note. Quietly keeping them
+    /// in the result would make the number on the swatch a lie.
+    func testAskingAboutColourExcludesNotes() {
+        let entries = [
+            coloured("y", "#FFD60A", book: sapiens),
+            note("n", tags: ["physics"])
+        ]
+        let shot = snapshot(entries, .init(facets: MarginaliaFacets(colors: ["#FFD60A"])))
+        XCTAssertEqual(shot.results.map(\.id), ["passage:y"])
+        XCTAssertEqual(shot.writtenCount, 0)
+    }
+
+    /// Two colours is "either mark": a passage carries exactly one, so intersecting could only
+    /// ever return nothing.
+    func testColoursAreUnioned() {
+        let entries = [
+            coloured("y", "#FFD60A", book: sapiens),
+            coloured("p", "#FF375F", book: sapiens),
+            coloured("g", "#30D158", book: dune)
+        ]
+        let shot = snapshot(entries, .init(facets: MarginaliaFacets(colors: ["#FFD60A", "#FF375F"])))
+        XCTAssertEqual(Set(shot.results.map(\.id)), ["passage:y", "passage:p"])
+    }
+
+    /// One colour in play is not a choice, and a row of one swatch filters nothing.
+    func testASingleColourIsNotOffered() {
+        let entries = [
+            coloured("a", "#FFD60A", book: sapiens),
+            coloured("b", "#FFD60A", book: dune)
+        ]
+        XCTAssertTrue(snapshot(entries).colorOptions.isEmpty)
+
+        let mixed = entries + [coloured("c", "#30D158", book: dune)]
+        XCTAssertEqual(snapshot(mixed).colorOptions.count, 2)
+    }
+
+    /// Tallied with the colour filter lifted, like a source: the number says what that mark
+    /// would bring, because adding one widens the result.
+    func testAColourSwatchCountsWhatThatMarkBrings() {
+        let entries = [
+            coloured("y1", "#FFD60A", book: sapiens),
+            coloured("y2", "#FFD60A", book: sapiens),
+            coloured("g", "#30D158", book: sapiens)
+        ]
+        let shot = snapshot(entries, .init(facets: MarginaliaFacets(colors: ["#30D158"])))
+        let yellow = shot.colorOptions.first { $0.kind == .color("#FFD60A") }
+        XCTAssertEqual(yellow?.count, 2)
+        XCTAssertEqual(shot.results.count, 1)
+    }
+
+    /// Colour narrows alongside the other axes rather than replacing them.
+    func testColourIntersectsWithTagsAndSources() {
+        let entries = [
+            coloured("a", "#FFD60A", book: sapiens, tags: ["objection"]),
+            coloured("b", "#FFD60A", book: dune, tags: ["objection"]),
+            coloured("c", "#30D158", book: sapiens, tags: ["objection"])
+        ]
+        let shot = snapshot(entries, .init(
+            facets: MarginaliaFacets(bookIds: ["sapiens"], tags: ["objection"], colors: ["#FFD60A"])
+        ))
+        XCTAssertEqual(shot.results.map(\.id), ["passage:a"])
+    }
+
+    /// The swatches stay together as a run. They are aimed at rather than read, and one that
+    /// migrated into the middle of the words would have to be found again every time.
+    func testTheSwatchesStayTogetherInTheRow() {
+        let entries = [
+            coloured("a", "#FFD60A", book: sapiens, tags: ["objection"]),
+            coloured("b", "#30D158", book: dune, tags: ["essay"])
+        ]
+        let kinds = snapshot(entries).facetOptions.map(\.kind)
+        let colorPositions = kinds.indices.filter {
+            if case .color = kinds[$0] { return true }
+            return false
+        }
+        XCTAssertEqual(colorPositions, Array(colorPositions.first!...colorPositions.last!))
+    }
+
     // MARK: - Lenses
 
     /// Unsorted asks a different question of each kind: a note with no tag and no source has

@@ -311,17 +311,31 @@ public nonisolated enum MarginaliaLens: String, CaseIterable, Identifiable, Send
 public nonisolated struct MarginaliaFacets: Equatable, Hashable, Sendable {
     public var bookIds: Set<String> = []
     public var tags: Set<String> = []
+    /// Mark colours, as stored hex. OR-ed for the reason sources are: a passage carries exactly
+    /// one, so intersecting two could only ever return nothing.
+    public var colors: Set<String> = []
 
-    public init(bookIds: Set<String> = [], tags: Set<String> = []) {
+    public init(bookIds: Set<String> = [], tags: Set<String> = [], colors: Set<String> = []) {
         self.bookIds = bookIds
         self.tags = tags
+        self.colors = colors
     }
 
-    public var isEmpty: Bool { bookIds.isEmpty && tags.isEmpty }
-    public var count: Int { bookIds.count + tags.count }
+    public var isEmpty: Bool { bookIds.isEmpty && tags.isEmpty && colors.isEmpty }
+    public var count: Int { bookIds.count + tags.count + colors.count }
 
     public func matches(_ entry: MarginaliaEntry) -> Bool {
-        matchesSources(entry) && matchesTags(entry)
+        matchesSources(entry) && matchesTags(entry) && matchesColors(entry)
+    }
+
+    /// A note carries no mark and therefore no colour, so asking about colour excludes every
+    /// note. That is the honest answer rather than an oversight: "which of these did I mark in
+    /// green" is a question only a passage can be asked, and quietly keeping the notes in would
+    /// make the number on the chip a lie.
+    public func matchesColors(_ entry: MarginaliaEntry) -> Bool {
+        guard !colors.isEmpty else { return true }
+        guard case .passage(let passage) = entry else { return false }
+        return colors.contains(passage.highlight.colorHex)
     }
 
     public func matchesSources(_ entry: MarginaliaEntry) -> Bool {
@@ -342,6 +356,10 @@ public nonisolated struct MarginaliaFacets: Equatable, Hashable, Sendable {
     public mutating func toggleSource(_ bookId: String) {
         if bookIds.contains(bookId) { bookIds.remove(bookId) } else { bookIds.insert(bookId) }
     }
+
+    public mutating func toggleColor(_ hex: String) {
+        if colors.contains(hex) { colors.remove(hex) } else { colors.insert(hex) }
+    }
 }
 
 /// One chip in the filter row: a name, how many entries it would leave, and whether it is
@@ -350,6 +368,7 @@ public nonisolated struct MarginaliaFacetOption: Identifiable, Equatable, Hashab
     public nonisolated enum Kind: Hashable {
         case source(String)
         case tag(String)
+        case color(String)
     }
 
     public let kind: Kind

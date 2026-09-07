@@ -75,6 +75,8 @@ public struct MarginaliaChip: View {
         case lens(String)
         case source
         case tag
+        /// A mark colour, carried as its stored hex. The chip is the swatch itself.
+        case color(String)
     }
 
     let label: String
@@ -95,8 +97,16 @@ public struct MarginaliaChip: View {
         switch kind {
         case .lens(let systemImage): return systemImage
         case .source: return "book.closed"
-        case .tag: return nil
+        case .tag, .color: return nil
         }
+    }
+
+    /// What a colour is called, resolved here rather than in `MarginaliaBoard`: naming one means
+    /// reading the palette, and the transform is deliberately reachable without the theme. An
+    /// imported or retired colour has no name to give and answers with itself.
+    private var colorName: String {
+        guard case .color(let hex) = kind else { return label }
+        return DipleColor.Highlight.selectable.first { $0.hex == hex }?.name ?? hex
     }
 
     /// A source chip prints a name, not a catalogue entry.
@@ -106,6 +116,11 @@ public struct MarginaliaChip: View {
     /// note is born with. Here it is cut rather than folded at the colon: two books whose names
     /// agree up to the colon are two different chips with two different counts, and folding
     /// would print them identically with nothing to tell them apart.
+    private var isColor: Bool {
+        if case .color = kind { return true }
+        return false
+    }
+
     private var text: String {
         if case .tag = kind { return "#\(label)" }
         return MarginaliaEntry.shortened(label, limit: 24)
@@ -136,9 +151,18 @@ public struct MarginaliaChip: View {
                         .dipleIcon(9)
                 }
 
-                Text(text)
-                    .dipleType(.micro)
-                    .lineLimit(1)
+                if case .color(let hex) = kind {
+                    // The swatch is the label. A colour has a name, but the reader chose it as
+                    // a colour and recognises it as one; printing "Yellow" beside a yellow dot
+                    // is the word for the thing next to the thing.
+                    Circle()
+                        .fill(Color(hex: hex))
+                        .frame(width: 11, height: 11)
+                } else {
+                    Text(text)
+                        .dipleType(.micro)
+                        .lineLimit(1)
+                }
 
                 if isSelected {
                     Image(systemName: "xmark")
@@ -156,7 +180,9 @@ public struct MarginaliaChip: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            isSelected ? "\(text), selected. Remove" : "\(text), \(count)"
+            isSelected
+                ? "\(isColor ? colorName : text), selected. Remove"
+                : "\(isColor ? colorName : text), \(count)"
         )
     }
 }
@@ -207,6 +233,17 @@ public struct MarginaliaFilterSheet: View {
                         if !tags.isEmpty {
                             section("TAGS", count: tags.count) {
                                 ForEach(tags) { option in
+                                    optionRow(option)
+                                }
+                            }
+                        }
+
+                        // Not searchable by name, and so not run through `matching`: a colour
+                        // is picked by looking at it, and typing "yellow" to find yellow is the
+                        // long way round a row of four dots.
+                        if !model.colorOptions.isEmpty {
+                            section("MARK", count: model.colorOptions.count) {
+                                ForEach(model.colorOptions) { option in
                                     optionRow(option)
                                 }
                             }
@@ -281,6 +318,12 @@ public struct MarginaliaFilterSheet: View {
                     .dipleIcon(15, weight: .regular)
                     .foregroundStyle(option.isSelected ? DipleColor.accentInk : DipleColor.textQuaternary)
 
+                if case .color(let hex) = option.kind {
+                    Circle()
+                        .fill(Color(hex: hex))
+                        .frame(width: 13, height: 13)
+                }
+
                 Text(label(for: option))
                     .dipleType(.body)
                     .foregroundStyle(DipleColor.textPrimary)
@@ -300,7 +343,11 @@ public struct MarginaliaFilterSheet: View {
     }
 
     private func label(for option: MarginaliaFacetOption) -> String {
-        if case .tag = option.kind { return "#\(option.label)" }
-        return option.label
+        switch option.kind {
+        case .tag: return "#\(option.label)"
+        case .color(let hex):
+            return DipleColor.Highlight.selectable.first { $0.hex == hex }?.name ?? "Marked"
+        case .source: return option.label
+        }
     }
 }

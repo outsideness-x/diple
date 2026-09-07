@@ -20,6 +20,9 @@ public nonisolated enum MarginaliaBoard {
         /// filter sheet, where nothing is capped and everything is searchable.
         public var sourceOptions: [MarginaliaFacetOption] = []
         public var tagOptions: [MarginaliaFacetOption] = []
+        /// The mark colours actually in use under the current narrowing. Never offered when
+        /// only one is in play: a filter with one option filters nothing.
+        public var colorOptions: [MarginaliaFacetOption] = []
         public var lensOptions: [LensOption] = []
         public var writtenCount = 0
         public var savedCount = 0
@@ -99,8 +102,15 @@ public nonisolated enum MarginaliaBoard {
         // Sources are OR-ed, so a candidate is tallied with the source filter lifted: the
         // number on the chip is what that source would bring.
         var sourceCounts: [String: Int] = [:]
-        for entry in inScope where facets.matchesTags(entry) {
+        for entry in inScope where facets.matchesTags(entry) && facets.matchesColors(entry) {
             if let bookId = entry.bookId { sourceCounts[bookId, default: 0] += 1 }
+        }
+        // Colours the same way, with the colour filter lifted.
+        var colorCounts: [String: Int] = [:]
+        for entry in inScope where facets.matchesTags(entry) && facets.matchesSources(entry) {
+            if case .passage(let passage) = entry {
+                colorCounts[passage.highlight.colorHex, default: 0] += 1
+            }
         }
 
         let booksById = Dictionary(books.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -120,6 +130,23 @@ public nonisolated enum MarginaliaBoard {
                 )
             }
             .sorted(by: byCountThenName)
+
+        // One colour in play is not a choice, so the row is not drawn at all. Sorted by count
+        // like every other facet, and labelled with the stored hex: naming a colour means
+        // reading the palette, and this transform is deliberately reachable without the theme —
+        // the chip resolves the name where `DipleColor` actually lives.
+        snapshot.colorOptions = colorCounts.count > 1
+            ? colorCounts
+                .map { hex, count in
+                    MarginaliaFacetOption(
+                        kind: .color(hex),
+                        label: hex,
+                        count: count,
+                        isSelected: facets.colors.contains(hex)
+                    )
+                }
+                .sorted(by: byCountThenName)
+            : []
 
         snapshot.sourceOptions = sourceCounts
             .map { bookId, count in
@@ -154,7 +181,14 @@ public nonisolated enum MarginaliaBoard {
         let offered = (snapshot.sourceOptions + snapshot.tagOptions)
             .filter { !$0.isSelected && $0.count > 0 }
             .sorted(by: byCountThenName)
-        snapshot.facetOptions = chosenSources + chosenTags + offered
+        // Colours stay together as a run wherever they stand, chosen or not. They are the one
+        // facet aimed at rather than read, and a swatch that migrates into the middle of the
+        // words is one you have to find again every time.
+        snapshot.facetOptions = snapshot.colorOptions.filter(\.isSelected)
+            + chosenSources
+            + chosenTags
+            + snapshot.colorOptions.filter { !$0.isSelected }
+            + offered
 
         snapshot.lensOptions = MarginaliaLens.allCases.compactMap { lens in
             let others = controls.lenses.subtracting([lens])

@@ -518,6 +518,7 @@ public struct MarginaliaView: View {
         switch option.kind {
         case .source: return .source
         case .tag: return .tag
+        case .color(let hex): return .color(hex)
         }
     }
 
