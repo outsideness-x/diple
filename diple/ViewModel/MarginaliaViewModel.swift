@@ -374,6 +374,55 @@ public final class MarginaliaViewModel: ObservableObject {
         return collect()
     }
 
+    // MARK: - Filing what was never filed
+
+    /// What the filing pass will walk, in the order the board is showing it.
+    ///
+    /// Taken from `results` rather than from the whole catalogue, so narrowing the board first
+    /// narrows the pass: "sort out the unsorted in Sapiens" is a real intention, and a ritual
+    /// that ignored the filter would be one the reader has to fight.
+    public var unsortedQueue: [MarginaliaEntry] {
+        results.filter(\.isUnsorted)
+    }
+
+    /// The words on offer while filing, most used first.
+    ///
+    /// Alphabetical is the right order for an index and the wrong one for a pass over an inbox:
+    /// filing is repetitive, the same handful of words does almost all of it, and putting them
+    /// where the thumb already is saves the pass its whole cost. The vocabularies stay separate
+    /// — see `HighlightTag` — so this answers per kind.
+    public func vocabulary(for kind: MarginaliaKind) -> [String] {
+        var counts: [String: Int] = [:]
+        for entry in entries where entry.kind == kind {
+            for tag in entry.tags { counts[tag, default: 0] += 1 }
+        }
+        let vocabulary = kind == .written ? noteTagVocabulary : passageTagVocabulary
+        return vocabulary.sorted { lhs, rhs in
+            let left = counts[lhs] ?? 0
+            let right = counts[rhs] ?? 0
+            if left != right { return left > right }
+            return lhs.localizedStandardCompare(rhs) == .orderedAscending
+        }
+    }
+
+    /// Writes one row's tags **without reloading the board**.
+    ///
+    /// The filing pass walks a snapshot taken when it opened, so it does not need the reload —
+    /// and a full re-read of the catalogue on every chip tapped is what would make filing
+    /// twenty passages feel like work. The board catches up once, when the pass is over.
+    public func file(_ entry: MarginaliaEntry, tags: [String]) {
+        do {
+            switch entry {
+            case .note(let item):
+                try AppDatabase.shared.setTags(tags, forNoteID: item.id)
+            case .passage(let item):
+                try AppDatabase.shared.setTags(tags, forHighlightId: item.id)
+            }
+        } catch {
+            present(error, doing: "file this")
+        }
+    }
+
     /// Files every chosen row under one more word.
     ///
     /// Additive, never a replacement: the reader is saying "these are also that", and a bulk

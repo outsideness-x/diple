@@ -47,6 +47,7 @@ public struct MarginaliaView: View {
     @State private var tagDraft = ""
     @State private var isAddingTagToSelection = false
     @State private var isConfirmingBulkDelete = false
+    @State private var isFilingPassPresented = false
     /// Where to go once the passage sheet has finished closing. A push raised from inside a
     /// sheet is presented into a hierarchy that is still tearing that sheet down and is lost —
     /// the same trap the reader's contents sheet already documents.
@@ -111,6 +112,9 @@ public struct MarginaliaView: View {
             }
             .sheet(item: $editingPassage, onDismiss: consumePendingPush) { passage in
                 passageEditor(for: passage)
+            }
+            .sheet(isPresented: $isFilingPassPresented) {
+                MarginaliaFilingView(model: model)
             }
             .sheet(isPresented: $isFilterSheetPresented) {
                 MarginaliaFilterSheet(model: model)
@@ -527,6 +531,10 @@ public struct MarginaliaView: View {
     @ViewBuilder
     private var content: some View {
         LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
+            if model.lenses.contains(.unsorted), model.results.count > 1, !model.isSelecting {
+                filingInvitation
+            }
+
             ForEach(model.groups) { group in
                 if model.grouping != .none {
                     groupHeader(group)
@@ -535,6 +543,46 @@ public struct MarginaliaView: View {
             }
         }
         .padding(.horizontal, DipleSpace.xl)
+    }
+
+    /// The way into the filing pass, and it appears only where it makes sense: standing in
+    /// Unsorted with more than one row in front of you. A resident control for a ritual nobody
+    /// performs most days is the same trade the masthead already refuses.
+    private var filingInvitation: some View {
+        Button {
+            HapticManager.shared.selection()
+            isFilingPassPresented = true
+        } label: {
+            HStack(spacing: DipleSpace.m) {
+                Image(systemName: "tray.and.arrow.down")
+                    .dipleIcon(15, weight: .medium)
+                    .foregroundStyle(DipleColor.accentInk)
+
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    Text("Sort these out")
+                        .dipleType(.body, weight: .semibold)
+                        .foregroundStyle(DipleColor.textPrimary)
+                    Text("One at a time, with the words you use.")
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: DipleSpace.s)
+
+                Text("\(model.results.count)")
+                    .dipleType(.footnote, weight: .semibold)
+                    .monospacedDigit()
+                    .foregroundStyle(DipleColor.textTertiary)
+
+                Image(systemName: "chevron.right")
+                    .dipleIcon(11, weight: .semibold)
+                    .foregroundStyle(DipleColor.textQuaternary)
+            }
+            .padding(DipleSpace.m)
+            .craftSurface(DipleColor.surface)
+        }
+        .buttonStyle(.bookCard)
     }
 
     private func groupHeader(_ group: MarginaliaGroup) -> some View {
