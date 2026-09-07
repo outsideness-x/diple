@@ -119,6 +119,8 @@ public final class MarginaliaViewModel: ObservableObject {
     /// leave the board filtered to nothing by a chip that is no longer drawn anywhere — an
     /// empty screen with no visible cause and no way back except relaunching.
     private func pruneNarrowing() {
+        selection.formIntersection(Set(entries.map(\.id)))
+        if selection.isEmpty && isSelecting && entries.isEmpty { isSelecting = false }
         let liveTags = Set(entries.flatMap(\.tags))
         let liveSources = Set(entries.compactMap(\.bookId))
         facets.tags.formIntersection(liveTags)
@@ -285,6 +287,133 @@ public final class MarginaliaViewModel: ObservableObject {
         let query = MarginaliaQuery.parse(rawQuery)
         if !query.text.isEmpty { parts.append("“\(query.text)”") }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    // MARK: - The workbench
+
+    /// The rows the reader has picked out, by id rather than by value: a row can be rewritten
+    /// underneath the selection by an edit or a sync, and holding the value would keep the one
+    /// that no longer exists.
+    ///
+    /// A chosen row that the narrowing then hides stays chosen but stops counting: every action
+    /// reads `selectedEntries`, which is the intersection with what is on screen, and the
+    /// number in the bar comes from the same place. So the count visibly falls when the board
+    /// narrows and comes back when it widens, and what the bar says is always what the button
+    /// will do — rather than an action quietly reaching rows the reader cannot see.
+    @Published public private(set) var selection: Set<String> = []
+    @Published public private(set) var isSelecting = false
+
+    /// The chosen rows **in the order the board is showing them**, not in the order they were
+    /// tapped. A compilation is a document, and its order has to be one the reader can see and
+    /// change — that is what the sort control is for. Tap order is invisible and unrepeatable.
+    public var selectedEntries: [MarginaliaEntry] {
+        results.filter { selection.contains($0.id) }
+    }
+
+    public func beginSelecting(with entry: MarginaliaEntry? = nil) {
+        isSelecting = true
+        if let entry { selection = [entry.id] }
+    }
+
+    public func endSelecting() {
+        isSelecting = false
+        selection = []
+    }
+
+    public func toggleSelection(_ entry: MarginaliaEntry) {
+        if selection.contains(entry.id) {
+            selection.remove(entry.id)
+        } else {
+            selection.insert(entry.id)
+        }
+    }
+
+    public func isSelected(_ entry: MarginaliaEntry) -> Bool {
+        selection.contains(entry.id)
+    }
+
+    /// Everything currently on the board, which is not the same as everything there is — the
+    /// narrowing is part of what the reader chose, and a Select all that reached past it would
+    /// gather rows they cannot see.
+    public func selectAllVisible() {
+        let visible = Set(results.map(\.id))
+        selection = selection.isSuperset(of: visible) ? [] : visible
+    }
+
+    /// The chosen rows as one note. Returns it so the caller can open what it just made — a
+    /// document that appears somewhere in a list is a document you have to go and find.
+    public func collect() -> NoteItem? {
+        let entries = selectedEntries
+        guard !entries.isEmpty else { return nil }
+
+        let compilation = MarginaliaBoard.compile(entries, narrowedBy: facets, books: books)
+        let note = Note(
+            title: compilation.title,
+            body: compilation.body,
+            bookId: compilation.bookId
+        )
+        guard save(note, tags: compilation.tags) else { return nil }
+        endSelecting()
+        return self.entries.compactMap(\.noteItem).first { $0.id == note.id }
+    }
+
+    /// Everything the board is currently showing, gathered into one note.
+    ///
+    /// The desktop's way in, and it needs no selection model at all: narrowing to `#objection`
+    /// and pressing Collect is the same act as ticking twelve boxes, with the filter doing the
+    /// choosing. The phone keeps the boxes because a chip is not always the shape of what you
+    /// want — three passages out of nine share no word — and both end in the same call.
+    public func collectAllVisible() -> NoteItem? {
+        selection = Set(results.map(\.id))
+        return collect()
+    }
+
+    /// Files every chosen row under one more word.
+    ///
+    /// Additive, never a replacement: the reader is saying "these are also that", and a bulk
+    /// operation that silently dropped whatever each row already carried would be the most
+    /// expensive undo in the app.
+    public func tagSelection(_ rawTag: String) {
+        guard let tag = TagName.normalized(rawTag) else { return }
+        let entries = selectedEntries
+        guard !entries.isEmpty else { return }
+        do {
+            for entry in entries where !entry.tags.contains(tag) {
+                let tags = entry.tags + [tag]
+                switch entry {
+                case .note(let item):
+                    try AppDatabase.shared.setTags(tags, forNoteID: item.id)
+                case .passage(let item):
+                    try AppDatabase.shared.setTags(tags, forHighlightId: item.id)
+                }
+            }
+            load()
+        } catch {
+            present(error, doing: "file these")
+        }
+    }
+
+    public func deleteSelection() {
+        let entries = selectedEntries
+        guard !entries.isEmpty else { return }
+        do {
+            for entry in entries {
+                switch entry {
+                case .note(let item): try AppDatabase.shared.deleteNote(id: item.id)
+                case .passage(let item): try AppDatabase.shared.deleteHighlight(id: item.id)
+                }
+            }
+            endSelecting()
+            load()
+        } catch {
+            present(error, doing: "delete these")
+        }
+    }
+
+    /// The chosen rows as text, for the clipboard. The same bytes `collect` would write, so
+    /// what is pasted into another app and what is kept in diple are one document.
+    public var selectedText: String {
+        MarginaliaBoard.compile(selectedEntries, narrowedBy: facets, books: books).body
     }
 
     // MARK: - Writing

@@ -1,5 +1,9 @@
 import SwiftUI
-import ReadiumShared
+// Scoped on purpose. A plain `import ReadiumShared` brings its own `Content` into the file, and
+// `ViewModifier.body(content: Content)` then resolves against that instead of the associated
+// type — every `ViewModifier` here stops conforming, with an error pointing at the modifier
+// rather than at the import.
+import struct ReadiumShared.Locator
 
 /// Where the board can go that is not a note.
 public enum MarginaliaRoute: Hashable {
@@ -40,6 +44,9 @@ public struct MarginaliaView: View {
     @State private var isFilterSheetPresented = false
     @State private var editingPassage: PassageItem?
     @State private var renameDraft = ""
+    @State private var tagDraft = ""
+    @State private var isAddingTagToSelection = false
+    @State private var isConfirmingBulkDelete = false
     /// Where to go once the passage sheet has finished closing. A push raised from inside a
     /// sheet is presented into a hierarchy that is still tearing that sheet down and is lost —
     /// the same trap the reader's contents sheet already documents.
@@ -154,6 +161,21 @@ public struct MarginaliaView: View {
             } message: { merge in
                 Text("#\(merge.to) is already in use on \(merge.existing) \(merge.existing == 1 ? "item" : "items"). Merging cannot be undone.")
             }
+            .alert("Add a tag", isPresented: $isAddingTagToSelection) {
+                TextField("Tag", text: $tagDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Add") { model.tagSelection(tagDraft) }
+                Button("Cancel", role: .cancel) { tagDraft = "" }
+            } message: {
+                Text("The word is added to each chosen row. Nothing already there is replaced.")
+            }
+            .alert("Delete \(model.selectedEntries.count) items?", isPresented: $isConfirmingBulkDelete) {
+                Button("Delete", role: .destructive) { model.deleteSelection() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Notes are removed permanently. Passages and their comments are removed too.")
+            }
             .refreshesOnTabActivation { model.load() }
             .onReceive(NotificationCenter.default.publisher(for: .dipleShowSavedPassages)) { _ in
                 showSavedPassages()
@@ -186,10 +208,58 @@ public struct MarginaliaView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .tracksTabBarCollapse()
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if model.isSelecting {
+                selectionBar
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .modifier(HidesTabBarWhileSelecting(isSelecting: model.isSelecting))
     }
 
     private var masthead: some View {
         DipleMasthead(title: "Notes", strapline: strapline) {
+            if model.isSelecting {
+                selectionMastheadActions
+            } else {
+                browsingMastheadActions
+            }
+        }
+        .padding(.horizontal, DipleSpace.xl)
+    }
+
+    @ViewBuilder
+    private var selectionMastheadActions: some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.snappy) { model.selectAllVisible() }
+        } label: {
+            Text(isEverythingSelected ? "None" : "All")
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.textSecondary)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(isEverythingSelected ? "Deselect all" : "Select all")
+
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) { model.endSelecting() }
+        } label: {
+            Text("Done")
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.accentInk)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.readerControl)
+    }
+
+    private var isEverythingSelected: Bool {
+        !model.results.isEmpty && model.selectedEntries.count == model.results.count
+    }
+
+    @ViewBuilder
+    private var browsingMastheadActions: some View {
             Menu {
                 Picker("Sort", selection: $model.sort) {
                     ForEach(MarginaliaSort.allCases) { option in
@@ -245,13 +315,15 @@ public struct MarginaliaView: View {
             .buttonStyle(.readerControl)
             .accessibilityLabel("New note")
             .accessibilityIdentifier("notes.new")
-        }
-        .padding(.horizontal, DipleSpace.xl)
     }
 
     /// What the board holds in total, not what it is currently showing — the filtered count
     /// belongs on the scope segments, where pressing one is what changes it.
     private var strapline: String? {
+        if model.isSelecting {
+            let count = model.selectedEntries.count
+            return count == 0 ? "Choose what to collect" : "\(count) selected"
+        }
         var parts: [String] = []
         let written = model.totalWritten
         let saved = model.totalSaved
@@ -511,33 +583,76 @@ public struct MarginaliaView: View {
 
     @ViewBuilder
     private func row(for entry: MarginaliaEntry) -> some View {
+        if model.isSelecting {
+            selectableRow(entry)
+        } else {
+            switch entry {
+            case .note(let item):
+                NavigationLink(value: NoteRoute.existing(item)) {
+                    NoteCardView(item: item, style: layout == .cards ? .card : .row)
+                }
+                .buttonStyle(.bookCard)
+                .matchedTransitionSource(id: item.id, in: cardNamespace)
+                .contextMenu { noteMenu(item) }
+
+            case .passage(let item):
+                // A passage opens its own editor rather than the book. On this board the reader
+                // is going over what they have made — commenting, tagging, filing — and the
+                // comment is the thing they came for; the way back into the page is one row
+                // inside the sheet. Home's resurfacing card keeps the opposite rule for the
+                // opposite reason.
+                Button {
+                    HapticManager.shared.selection()
+                    editingPassage = item
+                } label: {
+                    PassageRowView(passage: item, style: layout == .cards ? .card : .row)
+                }
+                .buttonStyle(.bookCard)
+                .contextMenu { passageMenu(item) }
+            }
+        }
+    }
+
+    /// The same entry, with a mark in front of it.
+    ///
+    /// The mark sits in a fixed leading column that every row gets, chosen or not, so the left
+    /// edge of the catalogue stays flush while choosing. A check that only appears on the
+    /// chosen rows makes the column shuffle sideways under the thumb on every tap.
+    private func selectableRow(_ entry: MarginaliaEntry) -> some View {
+        let isSelected = model.isSelected(entry)
+        return Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.snappy) { model.toggleSelection(entry) }
+        } label: {
+            HStack(alignment: .top, spacing: DipleSpace.m) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .dipleIcon(18, weight: .regular)
+                    .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textQuaternary)
+                    .frame(width: 22)
+                    .padding(.top, layout == .cards ? DipleSpace.l : DipleSpace.xl)
+
+                entryContent(entry)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
+    @ViewBuilder
+    private func entryContent(_ entry: MarginaliaEntry) -> some View {
         switch entry {
         case .note(let item):
-            NavigationLink(value: NoteRoute.existing(item)) {
-                NoteCardView(item: item, style: layout == .cards ? .card : .row)
-            }
-            .buttonStyle(.bookCard)
-            .matchedTransitionSource(id: item.id, in: cardNamespace)
-            .contextMenu { noteMenu(item) }
-
+            NoteCardView(item: item, style: layout == .cards ? .card : .row)
         case .passage(let item):
-            // A passage opens its own editor rather than the book. On this board the reader is
-            // going over what they have made — commenting, tagging, filing — and the comment is
-            // the thing they came for; the way back into the page is one row inside the sheet.
-            // Home's resurfacing card keeps the opposite rule for the opposite reason.
-            Button {
-                HapticManager.shared.selection()
-                editingPassage = item
-            } label: {
-                PassageRowView(passage: item, style: layout == .cards ? .card : .row)
-            }
-            .buttonStyle(.bookCard)
-            .contextMenu { passageMenu(item) }
+            PassageRowView(passage: item, style: layout == .cards ? .card : .row)
         }
     }
 
     @ViewBuilder
     private func noteMenu(_ item: NoteItem) -> some View {
+        selectButton(.note(item))
+
         Button {
             UIPasteboard.general.string = item.note.body
         } label: {
@@ -553,6 +668,8 @@ public struct MarginaliaView: View {
 
     @ViewBuilder
     private func passageMenu(_ item: PassageItem) -> some View {
+        selectButton(.passage(item))
+
         if let book = item.book, item.highlight.parsedLocator != nil {
             Button {
                 path.append(MarginaliaRoute.passage(book: book, locatorJSON: item.highlight.locator))
@@ -578,6 +695,90 @@ public struct MarginaliaView: View {
         } label: {
             Label("Delete", systemImage: "trash")
         }
+    }
+
+    /// The way in to choosing. A long press is where iOS has put "act on several of these"
+    /// for a decade, and it costs the board no resident control — the masthead is already four
+    /// glyphs wide, and a fifth spent on a mode nobody is in most of the time is the trade this
+    /// app keeps refusing.
+    private func selectButton(_ entry: MarginaliaEntry) -> some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) { model.beginSelecting(with: entry) }
+        } label: {
+            Label("Select", systemImage: "checkmark.circle")
+        }
+    }
+
+    // MARK: - The workbench
+
+    /// What can be done to the rows that were chosen.
+    ///
+    /// It takes the tab bar's place rather than floating above it. Choosing is a mode with one
+    /// way out — Done, in the masthead — and leaving navigation live underneath it would offer
+    /// three ways to abandon a selection without saying that is what they do.
+    private var selectionBar: some View {
+        let chosen = model.selectedEntries.count
+
+        return HStack(spacing: DipleSpace.s) {
+            Button(action: collect) {
+                HStack(spacing: DipleSpace.s) {
+                    Image(systemName: "square.and.pencil")
+                        .dipleIcon(14, weight: .semibold)
+                    Text("Collect into a note")
+                        .dipleType(.footnote, weight: .semibold)
+                }
+                .foregroundStyle(DipleColor.textOnAccent)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .background(DipleColor.accent, in: Capsule())
+            }
+            .buttonStyle(.readerControl)
+
+            selectionAction("number", label: "Add a tag to all") {
+                tagDraft = ""
+                isAddingTagToSelection = true
+            }
+
+            selectionAction("doc.on.doc", label: "Copy all") {
+                UIPasteboard.general.string = model.selectedText
+                HapticManager.shared.impact(.light)
+            }
+
+            selectionAction("trash", label: "Delete all", isDestructive: true) {
+                isConfirmingBulkDelete = true
+            }
+        }
+        .disabled(chosen == 0)
+        .opacity(chosen == 0 ? 0.5 : 1)
+        .animation(DipleMotion.standard, value: chosen == 0)
+        .padding(.horizontal, DipleSpace.xl)
+        .padding(.vertical, DipleSpace.m)
+        .background(.ultraThinMaterial)
+    }
+
+    private func selectionAction(
+        _ systemImage: String,
+        label: String,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .dipleIcon(15, weight: .semibold)
+                .foregroundStyle(isDestructive ? DipleColor.destructive : DipleColor.textSecondary)
+                .frame(width: 46, height: 46)
+                .background(DipleColor.surfaceOverlay, in: Circle())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(label)
+    }
+
+    /// The gathered note is opened, not merely written. A document that appears somewhere in a
+    /// list is a document you have to go and find.
+    private func collect() {
+        guard let item = model.collect() else { return }
+        HapticManager.shared.impact(.light)
+        path.append(NoteRoute.existing(item))
     }
 
     // MARK: - Destinations
@@ -745,4 +946,20 @@ public extension Notification.Name {
     /// Home asking the board to show the passages. Cross-tab, because the destination is a tab
     /// root rather than a screen Home can push.
     static let dipleShowSavedPassages = Notification.Name("diple.showSavedPassages")
+}
+
+
+/// Choosing takes the tab bar's seat, so the bar has to go while it lasts. It is a preference,
+/// which means it leaves with the mode rather than having to be put back by hand — the same
+/// mechanism the note editor uses for the formatting bar.
+private struct HidesTabBarWhileSelecting: ViewModifier {
+    let isSelecting: Bool
+
+    func body(content: Content) -> some View {
+        if isSelecting {
+            content.hidesDipleTabBar()
+        } else {
+            content
+        }
+    }
 }

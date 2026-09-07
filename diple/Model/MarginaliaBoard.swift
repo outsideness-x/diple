@@ -173,6 +173,99 @@ public nonisolated enum MarginaliaBoard {
         return snapshot
     }
 
+    // MARK: - Collecting
+
+    /// What a handful of chosen rows becomes when they are gathered into one note.
+    public struct Compilation: Equatable {
+        public let title: String?
+        public let body: String
+        public let tags: [String]
+        /// The source, when every chosen row came from the same one.
+        public let bookId: String?
+    }
+
+    /// Gathers the chosen rows into one document.
+    ///
+    /// A passage's words travel and a note's do not. A passage has no page of its own — the
+    /// only place its text exists is the row — so it is quoted in full; a note already is a
+    /// page, and copying it here would fork it, so it goes in as a `[[Wiki link]]` that keeps
+    /// pointing at the one copy. That is the same trade the link already makes everywhere else
+    /// in this app.
+    ///
+    /// Headings appear only when the selection actually spans sources. Under one source the
+    /// note carries the link to it and a heading would be the title printed twice; across
+    /// several, the heading is what stops the quotations running together into one voice. For
+    /// the same reason a quotation drops its `— Title` attribution when a heading above it has
+    /// already said where it came from.
+    public static func compile(
+        _ entries: [MarginaliaEntry],
+        narrowedBy facets: MarginaliaFacets,
+        books: [Book],
+        on date: Date = Date()
+    ) -> Compilation {
+        let booksById = Dictionary(books.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let sourceIDs = Set(entries.map { $0.bookId ?? noSourceKey })
+        let sharedBookID = sourceIDs.count == 1 ? entries.first?.bookId : nil
+        let needsHeadings = sourceIDs.count > 1
+
+        var lines: [String] = []
+        var lastSource: String?
+
+        for entry in entries {
+            let source = entry.bookId ?? noSourceKey
+            if needsHeadings, source != lastSource {
+                let name = source == noSourceKey
+                    ? "Without a source"
+                    : (booksById[source]?.title ?? entry.bookTitle ?? "Untitled")
+                if !lines.isEmpty { lines.append("") }
+                lines.append("## \(name)")
+                lines.append("")
+                lastSource = source
+            }
+
+            switch entry {
+            case .passage(let passage):
+                lines.append(contentsOf: passage.quotation(attributed: !needsHeadings && sharedBookID == nil))
+                if let comment = passage.comment {
+                    lines.append("")
+                    lines.append(comment)
+                }
+            case .note(let note):
+                lines.append("[[\(note.displayTitle)]]")
+            }
+            lines.append("")
+        }
+
+        return Compilation(
+            // The words the selection was made under. A compilation gathered while the board
+            // was narrowed to `#objection` is about objections, and arriving without the word
+            // would make the reader file by hand what they had just filed by pressing a chip.
+            title: compiledTitle(facets: facets, books: booksById, sharedBookID: sharedBookID, on: date),
+            body: lines.joined(separator: "\n").trimmingCharacters(in: .newlines) + "\n",
+            tags: facets.tags.sorted(),
+            bookId: sharedBookID
+        )
+    }
+
+    /// What the gathered note is called. The narrowing names it when there was one, because
+    /// that is what the reader was looking at when they chose; otherwise the date, which at
+    /// least says when. Never "Untitled" — a document the reader asked to have made should not
+    /// arrive without a name.
+    private static func compiledTitle(
+        facets: MarginaliaFacets,
+        books: [String: Book],
+        sharedBookID: String?,
+        on date: Date
+    ) -> String {
+        if !facets.tags.isEmpty {
+            return facets.tags.sorted().map { "#\($0)" }.joined(separator: " ")
+        }
+        if let sharedBookID, let book = books[sharedBookID] {
+            return "From \(book.title)"
+        }
+        return "Collected \(date.formatted(date: .abbreviated, time: .omitted))"
+    }
+
     private static func byCountThenName(
         _ lhs: MarginaliaFacetOption,
         _ rhs: MarginaliaFacetOption

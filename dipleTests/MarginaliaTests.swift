@@ -306,6 +306,100 @@ final class MarginaliaTests: XCTestCase {
         XCTAssertEqual(shot.groups.last?.entries.map(\.displayTitle), ["Mu", "Zeta"])
     }
 
+    // MARK: - Collecting into one note
+
+    private func compile(
+        _ entries: [MarginaliaEntry],
+        facets: MarginaliaFacets = MarginaliaFacets()
+    ) -> MarginaliaBoard.Compilation {
+        MarginaliaBoard.compile(
+            entries,
+            narrowedBy: facets,
+            books: [sapiens, dune],
+            on: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+    }
+
+    /// A passage has no page of its own, so its words travel. A note already is a page, so a
+    /// link travels instead — copying it here would fork the one copy.
+    func testAPassageIsQuotedAndANoteIsLinked() {
+        let entries = [
+            passage("p", text: "Money is a system of mutual trust.", book: sapiens),
+            note("n", title: "On imagined orders", book: sapiens)
+        ]
+        let body = compile(entries).body
+
+        XCTAssertTrue(body.contains("> Money is a system of mutual trust."))
+        XCTAssertTrue(body.contains("[[On imagined orders]]"))
+        XCTAssertFalse(body.contains("a thought"), "the note's own text stays on its own page")
+    }
+
+    /// One source needs no heading — the note carries the link to it, and a heading would be
+    /// the title printed twice — so the quotation keeps no attribution either.
+    func testUnderOneSourceThereAreNoHeadingsAndTheSourceIsLinked() {
+        let entries = [
+            passage("p1", text: "First.", book: sapiens),
+            passage("p2", text: "Second.", book: sapiens)
+        ]
+        let compilation = compile(entries)
+
+        XCTAssertFalse(compilation.body.contains("##"))
+        XCTAssertFalse(compilation.body.contains("— Sapiens"))
+        XCTAssertEqual(compilation.bookId, "sapiens")
+        XCTAssertEqual(compilation.title, "From Sapiens")
+    }
+
+    /// Across sources the heading is what stops the quotations running together into one voice,
+    /// and it is also what makes the per-quotation attribution redundant.
+    func testAcrossSourcesEachRunGetsOneHeadingAndTheQuotationsDropTheirAttribution() {
+        let entries = [
+            passage("p1", text: "First.", book: sapiens),
+            passage("p2", text: "Second.", book: sapiens),
+            passage("p3", text: "Third.", book: dune)
+        ]
+        let body = compile(entries).body
+
+        XCTAssertEqual(body.components(separatedBy: "## Sapiens").count - 1, 1)
+        XCTAssertEqual(body.components(separatedBy: "## Dune").count - 1, 1)
+        XCTAssertFalse(body.contains("— Sapiens"))
+        XCTAssertNil(compile(entries).bookId, "no single source to link")
+    }
+
+    func testAFreeNoteCollectsUnderItsOwnHeadingWhenMixedWithSources() {
+        let entries = [passage("p", book: sapiens), note("free")]
+        XCTAssertTrue(compile(entries).body.contains("## Without a source"))
+    }
+
+    /// The reader's own line on a passage is the part they will actually reuse; leaving it
+    /// behind would make the compilation a worse copy of the board it came from.
+    func testACommentTravelsUnderItsQuotation() {
+        let entries = [
+            passage("p", text: "The Agricultural Revolution was a fraud.", book: sapiens, comment: "Too neat.")
+        ]
+        let body = compile(entries).body
+        let quoteLine = body.range(of: "> The Agricultural")
+        let commentLine = body.range(of: "Too neat.")
+        XCTAssertNotNil(quoteLine)
+        XCTAssertNotNil(commentLine)
+        XCTAssertTrue(quoteLine!.upperBound < commentLine!.lowerBound)
+    }
+
+    /// Gathered while the board was narrowed to a word, the note is about that word. Arriving
+    /// without it would make the reader file by hand what they had just filed with a chip.
+    func testTheNarrowingNamesAndTagsTheGatheredNote() {
+        let entries = [passage("p", book: sapiens), passage("q", book: dune)]
+        let compilation = compile(entries, facets: MarginaliaFacets(tags: ["objection", "essay"]))
+
+        XCTAssertEqual(compilation.tags, ["essay", "objection"])
+        XCTAssertEqual(compilation.title, "#essay #objection")
+    }
+
+    /// Never "Untitled": a document the reader asked to have made should not arrive nameless.
+    func testAnUnnarrowedCollectionIsNamedByItsDate() {
+        let compilation = compile([passage("p", book: sapiens), passage("q", book: dune)])
+        XCTAssertEqual(compilation.title, "Collected 15 Jan 2027")
+    }
+
     func testNotesWithNoSourceCollectUnderTheirOwnHeading() {
         let entries = [note("free"), passage("p", book: dune)]
         let shot = snapshot(entries, .init(grouping: .source))

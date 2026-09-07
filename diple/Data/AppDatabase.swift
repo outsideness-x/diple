@@ -904,6 +904,28 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Replaces one note's tag set and nothing else.
+    ///
+    /// The twin of `setTags(_:forHighlightId:)`, and it exists for the same reason: filing is
+    /// not writing. `saveNote` rewrites the row and stamps it with the note's own
+    /// `updatedAt`, so bulk-filing twenty notes from the board would send all twenty to the top
+    /// of "Last touched" as though they had just been rewritten — and, worse, stamp the sync
+    /// clock with a date that is not now. Here the clock moves and the note does not, exactly
+    /// as it does for a tag rename.
+    public func setTags(_ tags: [String], forNoteID id: String, changedAt: Date = Date()) throws {
+        try writer.write { db in
+            guard let note = try Note.filter(Column("id") == id).fetchOne(db) else { return }
+            _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)
+            let normalized = Set(tags.compactMap(NoteTag.normalized))
+            for tag in normalized {
+                try NoteTag(noteId: id, tag: tag).insert(db)
+            }
+            try indexNote(note, tags: normalized.sorted(), in: db)
+            try markLocalSave(.note, id: id, at: changedAt, in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
     public func fetchAllTags() throws -> [String] {
         try writer.read { db in
             try String.fetchAll(db, sql: "SELECT DISTINCT tag FROM noteTag ORDER BY tag")

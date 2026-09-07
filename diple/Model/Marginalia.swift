@@ -47,13 +47,20 @@ public nonisolated struct PassageItem: Identifiable, Equatable, Hashable, Sendab
     /// Consecutive `>` lines are folded into one quotation by the parser, so the attribution
     /// sits inside the quotation rather than under it as a stray paragraph.
     public var noteSeed: String {
+        quotation(attributed: true).joined(separator: "\n") + "\n\n"
+    }
+
+    /// The passage as Markdown blockquote lines. `attributed` adds the source's name as the
+    /// quotation's last line — wanted when the quotation stands alone, noise when a heading
+    /// above it has already said where it came from.
+    public func quotation(attributed: Bool) -> [String] {
         var lines = highlight.text
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { "> " + $0.trimmingCharacters(in: .whitespaces) }
-        if let attribution = book?.title ?? highlight.bookTitle {
+        if attributed, let attribution = book?.title ?? highlight.bookTitle {
             lines.append("> — \(attribution)")
         }
-        return lines.joined(separator: "\n") + "\n\n"
+        return lines
     }
 
     /// What the passage is called when it has to be named rather than quoted — the A–Z sort,

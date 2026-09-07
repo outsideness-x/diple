@@ -473,7 +473,11 @@ public struct MacRootView: View {
                     }
                 },
                 onCreate: createNewNote,
-                onOpenPassage: { openPassage($0) }
+                onOpenPassage: { openPassage($0) },
+                onCollected: { note in
+                    marginalia.scope = .written
+                    detail = .note(note)
+                }
             )
 
         case .search:
@@ -1399,6 +1403,7 @@ private struct MacMarginaliaCollection: View {
     let onSelect: (MarginaliaEntry) -> Void
     let onCreate: () -> Void
     let onOpenPassage: (PassageItem) -> Void
+    let onCollected: (NoteItem) -> Void
 
     @State private var renameDraft = ""
     @State private var isFilterSheetPresented = false
@@ -1439,6 +1444,20 @@ private struct MacMarginaliaCollection: View {
                 focusTarget: focusTarget
             ) {
                 arrangeMenu
+
+                // No selection model on the desktop, and none needed: narrowing the board to a
+                // word and pressing this is the same act as ticking every box the phone would
+                // have shown, with the filter doing the choosing. It appears only when there is
+                // more than one row, because collecting one row is copying it.
+                if model.results.count > 1 {
+                    MacSecondaryButton(
+                        title: "Collect \(model.results.count)",
+                        systemImage: "square.and.pencil"
+                    ) {
+                        if let note = model.collectAllVisible() { onCollected(note) }
+                    }
+                }
+
                 MacPrimaryButton(title: "New note", shortcutHint: "⌘N", action: onCreate)
             }
 
