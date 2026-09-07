@@ -140,6 +140,9 @@ struct dipleApp: App {
             // the icon already matches.
             .onChange(of: scenePhase, initial: true) { _, phase in
                 guard phase == .active else { return }
+                #if targetEnvironment(macCatalyst)
+                DipleWindowCapture.runIfRequested()
+                #endif
                 AppIconManager.apply(settingsManager.settings.accent)
                 if !isUITestFixture {
                     sharedLinkCoordinator.processPending()
@@ -204,3 +207,4 @@ struct dipleApp: App {
         }
     }
 }
+

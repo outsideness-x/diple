@@ -1,6 +1,11 @@
 #if targetEnvironment(macCatalyst)
 import SwiftUI
 import UniformTypeIdentifiers
+// Scoped on purpose. A plain `import ReadiumShared` brings its own `Content` into this file,
+// and `ViewModifier.body(content: Content)` then resolves against that instead of the
+// associated type — every `ViewModifier` in the file stops conforming, with an error that
+// points at the modifier rather than at the import.
+import struct ReadiumShared.Locator
 
 /// The desktop shell keeps the phone's reading and persistence stack, but gives it a
 /// Mac-shaped information architecture: persistent sources, a working collection and a
@@ -99,33 +104,45 @@ public struct MacRootView: View {
     private enum Detail: Hashable {
         case welcome
         case book(Book)
-        case quoteBook(BookQuoteSummary)
+        case passage(PassageItem)
         case note(NoteItem)
         case search(GlobalSearchResult)
 
-        /// What the collection has to draw a ring around. Every model behind a detail carries a
-        /// `String` id, so one property answers for all four rather than each collection
+        /// What the collection has to draw a ring around. Every model behind a detail carries
+        /// a `String` id, so one property answers for all four rather than each collection
         /// unwrapping the enum itself.
+        ///
+        /// A note and a passage answer with the **namespaced** id `MarginaliaEntry` uses, not
+        /// the bare row id: the two tables are separate UUID spaces, and on one board a
+        /// collision would ring the wrong card.
         var selectionID: String? {
             switch self {
             case .welcome: return nil
             case .book(let book): return book.id
-            case .quoteBook(let summary): return summary.bookId
-            case .note(let item): return item.id
+            case .passage(let item): return "passage:\(item.id)"
+            case .note(let item): return "note:\(item.id)"
             case .search(let result): return result.id
             }
         }
     }
 
     @StateObject private var library = LibraryViewModel()
-    @StateObject private var highlights = HubViewModel()
-    @StateObject private var notes = NotesViewModel()
+    /// One model for notes and passages, the same one the phone's board uses. The desktop had
+    /// its own pair — `HubViewModel` for a list of books and `NotesViewModel` for a grid of
+    /// cards — which is the two-screen arrangement the phone stopped having; keeping it here
+    /// would have meant a tag written on a passage staying unreachable on this platform alone.
+    @StateObject private var marginalia = MarginaliaViewModel()
     @StateObject private var search = GlobalSearchViewModel()
 
-    @State private var source: Source? = .library
+    /// The shelf the window opens at. `DipleWindowCapture` can name a different one, so a
+    /// screenshot of the board does not depend on a command arriving and two columns agreeing
+    /// about it before the shutter opens; it is `nil` in every build that is not being
+    /// photographed.
+    @State private var source: Source? = DipleWindowCapture.requestedSource
+        .flatMap(Source.init(rawValue:)) ?? .library
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var readerBook: Book?
+    @State private var readerRequest: MacReaderRequest?
     @State private var secondReadBook: Book?
     @State private var isImportingFile = false
     @State private var isImportingLink = false
@@ -135,7 +152,6 @@ public struct MacRootView: View {
     /// empty, and so ⌘F can put the caret in a field the shell knows about.
     @State private var libraryQuery = ""
     @State private var librarySort: LibrarySort = .recentlyOpened
-    @State private var highlightsQuery = ""
     @Environment(\.scenePhase) private var scenePhase
     /// A pending "put the caret in the search field of the column that is open". Plain state
     /// rather than `@FocusState`, because the field itself is two views down inside
@@ -145,7 +161,7 @@ public struct MacRootView: View {
     /// True while a book is open over the whole window. Navigation commands are ignored then:
     /// moving the shelf underneath the reader changes what closing the book returns to without
     /// the reader ever appearing to move.
-    private var isReading: Bool { readerBook != nil || secondReadBook != nil }
+    private var isReading: Bool { readerRequest != nil || secondReadBook != nil }
 
     public init() {}
 
@@ -189,9 +205,13 @@ public struct MacRootView: View {
             }
             .dipleMacSheet(minWidth: 520, minHeight: 400)
         }
-        .fullScreenCover(item: $readerBook, onDismiss: reloadAll) { book in
+        .fullScreenCover(item: $readerRequest, onDismiss: reloadAll) { request in
             NavigationStack {
-                ReaderContainerView(book: book, onReadingUpdated: reloadAll)
+                ReaderContainerView(
+                    book: request.book,
+                    startingLocator: request.startingLocator,
+                    onReadingUpdated: reloadAll
+                )
             }
         }
         .fullScreenCover(item: $secondReadBook, onDismiss: reloadAll) { book in
@@ -206,8 +226,12 @@ public struct MacRootView: View {
         }
         .onChange(of: source) { _, newSource in
             guard let newSource else { return }
-            if newSource == .highlights { highlights.load() }
-            if newSource == .notes { notes.load() }
+            // The shelf sets the scope it opens at and nothing else. Grouping and order are the
+            // reader's, and re-clicking a sidebar row is not a request to undo them.
+            if newSource == .highlights || newSource == .notes {
+                marginalia.load()
+                marginalia.scope = newSource == .highlights ? .saved : .written
+            }
             if newSource == .search { search.reloadContext() }
             if newSource == .notes, case .note = detail { return }
             detail = .welcome
@@ -291,8 +315,8 @@ public struct MacRootView: View {
             }
 
             Section {
-                sourceRow(.highlights, badge: highlights.totalQuoteCount)
-                sourceRow(.notes, badge: notes.items.count)
+                sourceRow(.highlights, badge: marginalia.totalSaved)
+                sourceRow(.notes, badge: marginalia.totalWritten)
             } header: {
                 Text("Workspace")
             }
@@ -396,7 +420,7 @@ public struct MacRootView: View {
                 sort: $librarySort,
                 searchFocusRequest: $searchFocusRequest,
                 onSelect: { detail = .book($0) },
-                onOpen: { readerBook = $0 },
+                onOpen: { readerRequest = MacReaderRequest(book: $0) },
                 onOpenSecondRead: { secondReadBook = $0 },
                 onEdit: { library.bookToEdit = $0 },
                 onMarkAsFinished: { library.markAsFinished($0) },
@@ -432,23 +456,24 @@ public struct MacRootView: View {
                 Text("The file and your reading position are removed. Saved passages stay in Highlights.")
             }
 
-        case .highlights:
-            MacHighlightsCollection(
-                model: highlights,
-                query: $highlightsQuery,
+        case .highlights, .notes:
+            // One collection behind both shelves. They are two doors into the same room, and
+            // which door was used only decides the scope it opens at — the scope bar inside
+            // the column can walk between them without going back to the sidebar.
+            MacMarginaliaCollection(
+                title: source?.title ?? "Notes",
+                model: marginalia,
                 searchFocusRequest: $searchFocusRequest,
+                focusTarget: source == .highlights ? .highlights : .notes,
                 selectedID: detail.selectionID,
-                onSelect: { detail = .quoteBook($0) }
-            )
-
-        case .notes:
-            MacNotesCollection(
-                model: notes,
-                searchFocusRequest: $searchFocusRequest,
-                selectedID: detail.selectionID,
-                onSelect: { detail = .note($0) },
+                onSelect: { entry in
+                    switch entry {
+                    case .note(let item): detail = .note(item)
+                    case .passage(let item): detail = .passage(item)
+                    }
+                },
                 onCreate: createNewNote,
-                onDelete: { notes.delete($0); detail = .welcome }
+                onOpenPassage: { openPassage($0) }
             )
 
         case .search:
@@ -474,29 +499,51 @@ public struct MacRootView: View {
             MacBookInspector(
                 book: current,
                 tags: library.tagsByBook[current.id] ?? [],
-                fragmentCount: highlights.summaries.first { $0.bookId == current.id }?.quoteCount ?? 0,
-                onRead: { readerBook = current },
+                fragmentCount: marginalia.entries.filter {
+                    $0.kind == .saved && $0.bookId == current.id
+                }.count,
+                onRead: { readerRequest = MacReaderRequest(book: current) },
                 onSecondRead: { secondReadBook = current },
                 onEdit: { library.bookToEdit = current },
                 onEditTags: { tagEditingBook = current }
             )
             .id(current.id)
 
-        case .quoteBook(let summary):
-            MacQuotesInspector(summary: summary)
-                .id(summary.bookId)
+        case .passage(let item):
+            let currentPassage = currentPassage(matching: item) ?? item
+            MacPassageInspector(
+                passage: currentPassage,
+                tagSuggestions: marginalia.passageTagVocabulary,
+                onSave: { colorHex, comment, tags in
+                    marginalia.savePassage(
+                        currentPassage,
+                        colorHex: colorHex,
+                        comment: comment,
+                        tags: tags
+                    )
+                },
+                onOpenInSource: destination(of: currentPassage) == nil
+                    ? nil
+                    : { openPassage(currentPassage) },
+                onExpandIntoNote: { expandIntoNote(currentPassage) },
+                onDelete: {
+                    marginalia.delete(.passage(currentPassage))
+                    detail = .welcome
+                }
+            )
+            .id(currentPassage.id)
 
         case .note(let item):
             let currentItem = currentNote(matching: item) ?? item
             MacNoteInspector(
                 item: currentItem,
-                books: notes.books,
-                suggestedTags: notes.allTags,
-                allNotes: notes.items,
+                books: marginalia.books,
+                suggestedTags: marginalia.noteTagVocabulary,
+                allNotes: marginalia.entries.compactMap(\.noteItem),
                 onOpenNote: { detail = .note($0) },
-                onSave: { note, tags in notes.save(note, tags: tags) },
+                onSave: { note, tags in marginalia.save(note, tags: tags) },
                 onDelete: {
-                    notes.delete(currentItem)
+                    marginalia.delete(.note(currentItem))
                     detail = .welcome
                 }
             )
@@ -506,8 +553,8 @@ public struct MacRootView: View {
             MacSearchInspector(
                 result: result,
                 book: search.book(for: result),
-                note: notes.items.first { $0.id == result.entityID },
-                onRead: { book in readerBook = book },
+                note: marginalia.entries.compactMap(\.noteItem).first { $0.id == result.entityID },
+                onRead: { book in readerRequest = MacReaderRequest(book: book) },
                 onOpenNote: { note in
                     source = .notes
                     detail = .note(note)
@@ -518,10 +565,36 @@ public struct MacRootView: View {
 
     private func createNewNote() {
         let note = Note(body: "")
-        guard notes.save(note, tags: []) else { return }
-        guard let item = notes.items.first(where: { $0.id == note.id }) else { return }
+        guard marginalia.save(note, tags: []) else { return }
+        guard let item = noteItem(id: note.id) else { return }
         source = .notes
         detail = .note(item)
+    }
+
+    /// A note grown out of a passage. The seed is `NoteRoute.newFromPassage`'s, not a second
+    /// definition of it: the quotation, the source link and the inherited tags have to be the
+    /// same on both platforms or the same button would produce two different notes.
+    private func expandIntoNote(_ passage: PassageItem) {
+        let route = NoteRoute.newFromPassage(passage)
+        let note = Note(body: route.initialBody, bookId: route.initialBookId)
+        guard marginalia.save(note, tags: route.initialTags) else { return }
+        guard let item = noteItem(id: note.id) else { return }
+        source = .notes
+        marginalia.scope = .written
+        detail = .note(item)
+    }
+
+    /// Where a passage would open, or `nil` when there is nowhere to go — the book has been
+    /// deleted, or the passage was imported for one that was never here. Pure, because the
+    /// inspector asks it whether to draw the control at all.
+    private func destination(of passage: PassageItem) -> Book? {
+        guard passage.highlight.parsedLocator != nil else { return nil }
+        return passage.book ?? library.books.first { $0.id == passage.highlight.bookId }
+    }
+
+    private func openPassage(_ passage: PassageItem) {
+        guard let book = destination(of: passage) else { return }
+        readerRequest = MacReaderRequest(book: book, locatorJSON: passage.highlight.locator)
     }
 
     private func count(type: LibraryTypeFilter = .all, status: LibraryStatusFilter = .any) -> Int {
@@ -533,18 +606,43 @@ public struct MacRootView: View {
     }
 
     private func currentNote(matching item: NoteItem) -> NoteItem? {
-        notes.items.first { $0.id == item.id }
+        noteItem(id: item.id)
+    }
+
+    private func currentPassage(matching item: PassageItem) -> PassageItem? {
+        marginalia.entries.compactMap(\.passageItem).first { $0.id == item.id }
+    }
+
+    private func noteItem(id: String) -> NoteItem? {
+        marginalia.entries.compactMap(\.noteItem).first { $0.id == id }
     }
 
     private func reloadAll() {
         library.loadBooks()
-        highlights.load()
-        notes.load()
+        marginalia.load()
         search.reloadContext()
     }
 }
 
 // MARK: - Shared desktop chrome
+
+/// A book to open over the whole window, and optionally the passage to open it at.
+///
+/// `fullScreenCover(item:)` keys on one identifiable value, so the locator has to travel beside
+/// the book rather than in state of its own — two pieces of state would let the cover come up
+/// before the locator had been set and open the book at its saved place instead.
+struct MacReaderRequest: Identifiable {
+    let book: Book
+    var locatorJSON: String? = nil
+
+    /// Distinct per request rather than the book's id: opening the same book at two different
+    /// passages in one session must be two presentations, not a no-op.
+    let id = UUID()
+
+    var startingLocator: Locator? {
+        locatorJSON.flatMap { Locator.from(jsonString: $0) }
+    }
+}
 
 /// Which column's field ⌘F should put the caret in. One enum for the whole window, because
 /// only one column is on screen at a time and `FocusState` wants a single value type.
@@ -1284,165 +1382,74 @@ private struct MacContinueReadingCard: View {
     }
 }
 
-// MARK: - Highlights
+// MARK: - The board
 
-private struct MacHighlightsCollection: View {
-    @ObservedObject var model: HubViewModel
-    @Binding var query: String
+/// Notes and saved passages in one column, under the controls they now share.
+///
+/// It stands behind both the Highlights and the Notes shelf: two doors into the same room,
+/// where the door only decides the scope it opens at. Everything the phone's board does is here
+/// because it is the same view model and the same `MarginaliaBoard` transform — what is
+/// desktop-shaped is only the chrome around it.
+private struct MacMarginaliaCollection: View {
+    let title: String
+    @ObservedObject var model: MarginaliaViewModel
     @Binding var searchFocusRequest: MacSearchTarget?
+    let focusTarget: MacSearchTarget
     let selectedID: String?
-    let onSelect: (BookQuoteSummary) -> Void
-
-    private var visibleSummaries: [BookQuoteSummary] {
-        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !needle.isEmpty else { return model.summaries }
-        return model.summaries.filter { summary in
-            [summary.title, summary.author]
-                .compactMap { $0 }
-                .contains { $0.localizedStandardContains(needle) }
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            MacColumnHeader(
-                title: "Highlights",
-                count: model.totalQuoteCount,
-                context: model.summaries.isEmpty
-                    ? nil
-                    : "\(model.summaries.count) \(model.summaries.count == 1 ? "book" : "books")",
-                query: model.summaries.isEmpty ? nil : $query,
-                prompt: "Book or author",
-                searchIdentifier: "mac.highlights.search",
-                focusRequest: $searchFocusRequest,
-                focusTarget: .highlights
-            ) {
-                EmptyView()
-            }
-
-            ZStack {
-                DipleColor.canvas.ignoresSafeArea()
-                if model.summaries.isEmpty {
-                    MacEmptyCollection(
-                        icon: "quote.opening",
-                        title: "No highlights yet",
-                        message: "Passages you mark while reading will be collected here."
-                    )
-                } else if visibleSummaries.isEmpty {
-                    MacEmptyCollection(
-                        icon: "text.magnifyingglass",
-                        title: "No matching books",
-                        message: "Try a different title or author."
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: DipleSpace.m) {
-                            // The desktop shell has no reader route of its own for a passage —
-                            // the reader opens as a full-window cover from a `Book`, not from a
-                            // path — so here the quote selects its group, which is the
-                            // inspector's job.
-                            if query.isEmpty {
-                                DailyResurfacingCard { onSelect($0.summary) }
-                            }
-
-                            ForEach(visibleSummaries) { summary in
-                                MacSelectableRow(isSelected: selectedID == summary.bookId) {
-                                    onSelect(summary)
-                                } content: {
-                                    HStack(spacing: DipleSpace.m) {
-                                        BookCoverView(
-                                            coverPath: summary.book?.coverPath,
-                                            title: summary.title,
-                                            author: summary.author,
-                                            isCompact: true
-                                        )
-                                        .frame(width: 44, height: 66)
-                                        VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                                            Text(summary.title)
-                                                .dipleType(.body, weight: .semibold)
-                                                .foregroundStyle(DipleColor.textPrimary)
-                                                .lineLimit(2)
-                                            Text(summary.subtitle)
-                                                .dipleType(.caption)
-                                                .foregroundStyle(DipleColor.textTertiary)
-                                                .lineLimit(1)
-                                        }
-                                        Spacer(minLength: DipleSpace.s)
-                                        Text("\(summary.quoteCount)")
-                                            .dipleType(.footnote, weight: .semibold)
-                                            .foregroundStyle(DipleColor.accentInk)
-                                            .monospacedDigit()
-                                        Image(systemName: "chevron.right")
-                                            .dipleIcon(11)
-                                            .foregroundStyle(DipleColor.textQuaternary)
-                                    }
-                                    .padding(DipleSpace.m)
-                                }
-                            }
-                        }
-                        .padding(DipleSpace.xxl)
-                        .padding(.bottom, DipleSpace.xxxl)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Notes
-
-private struct MacNotesCollection: View {
-    @ObservedObject var model: NotesViewModel
-    @Binding var searchFocusRequest: MacSearchTarget?
-    let selectedID: String?
-    let onSelect: (NoteItem) -> Void
+    let onSelect: (MarginaliaEntry) -> Void
     let onCreate: () -> Void
-    let onDelete: (NoteItem) -> Void
+    let onOpenPassage: (PassageItem) -> Void
 
+    @State private var renameDraft = ""
+    @State private var isFilterSheetPresented = false
+
+    /// How many names the wrapped row prints before the rest go to the sheet. The desktop has
+    /// the width to wrap rather than scroll, and that is exactly why it needs a cap: an
+    /// unbounded wrap does not run off the edge, it pushes the catalogue off the bottom — with
+    /// a real library the controls stood eight lines tall before the first card.
+    private let visibleFacets = 8
+
+    /// Two columns at the width the window opens at, one when the inspector takes the room.
+    /// A quote card set in Literata below 260 pt is a column of broken lines.
     private let columns = [
-        GridItem(.adaptive(minimum: 200, maximum: 300), spacing: DipleSpace.m, alignment: .top)
+        GridItem(.adaptive(minimum: 260), spacing: DipleSpace.m, alignment: .top)
     ]
 
+    private var contextLine: String? {
+        var parts: [String] = []
+        if model.totalWritten > 0 {
+            parts.append(model.totalWritten == 1 ? "1 note" : "\(model.totalWritten) notes")
+        }
+        if model.totalSaved > 0 {
+            parts.append(model.totalSaved == 1 ? "1 passage" : "\(model.totalSaved) passages")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             MacColumnHeader(
-                title: "Notes",
-                count: model.filteredItems.count,
-                context: model.items.isEmpty
-                    ? nil
-                    : "\(model.totalWordCount.formatted()) words · \(model.linkedCount) linked to your library",
-                query: model.items.isEmpty ? nil : $model.query,
-                prompt: "Search notes, tags and books",
-                searchIdentifier: "mac.notes.search",
+                title: title,
+                count: model.count(for: model.scope),
+                context: contextLine,
+                query: model.entries.isEmpty ? nil : $model.rawQuery,
+                prompt: "Search everything · #tag · @source",
+                searchIdentifier: "mac.marginalia.search",
                 focusRequest: $searchFocusRequest,
-                focusTarget: .notes
+                focusTarget: focusTarget
             ) {
-                Menu {
-                    ForEach(NoteSort.allCases) { sort in
-                        Button {
-                            model.sort = sort
-                        } label: {
-                            Label(sort.title, systemImage: sort.systemImage)
-                        }
-                    }
-                } label: {
-                    Label(model.sort.title, systemImage: "arrow.up.arrow.down")
-                        .dipleType(.footnote)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Sort your notes")
-
+                arrangeMenu
                 MacPrimaryButton(title: "New note", shortcutHint: "⌘N", action: onCreate)
             }
 
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
-                if model.items.isEmpty {
+
+                if model.entries.isEmpty {
                     MacEmptyCollection(
                         icon: "square.and.pencil",
                         title: "Start with a thought",
-                        message: "Notes are quiet pages for ideas, summaries and connections.",
+                        message: "Everything you write, and every passage you keep while reading, collects here — by source and by tag.",
                         actionTitle: "New note",
                         actionIcon: "plus",
                         action: onCreate
@@ -1450,27 +1457,18 @@ private struct MacNotesCollection: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
-                            macNoteFilters
+                            controls
 
-                            if model.filteredItems.isEmpty {
-                                MacEmptyCollection(
-                                    icon: model.query.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass",
-                                    title: model.query.isEmpty ? "Nothing in this view" : "No matching notes",
-                                    message: model.query.isEmpty ? "Choose another filter." : "Try a title, phrase, tag, author or book."
-                                )
-                                .frame(minHeight: 280)
+                            if model.results.isEmpty {
+                                noResults
                             } else {
-                                LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
-                                    ForEach(model.filteredItems) { item in
-                                        MacSelectableCard(isSelected: selectedID == item.id) {
-                                            onSelect(item)
-                                        } content: {
-                                            NoteCardView(item: item)
-                                        }
-                                        .contextMenu {
-                                            Button("Open") { onSelect(item) }
-                                            Divider()
-                                            Button("Delete", role: .destructive) { onDelete(item) }
+                                ForEach(model.groups) { group in
+                                    if model.grouping != .none {
+                                        groupHeader(group)
+                                    }
+                                    LazyVGrid(columns: columns, alignment: .leading, spacing: DipleSpace.m) {
+                                        ForEach(group.entries) { entry in
+                                            card(for: entry)
                                         }
                                     }
                                 }
@@ -1482,48 +1480,248 @@ private struct MacNotesCollection: View {
                 }
             }
         }
+        .sheet(isPresented: $isFilterSheetPresented) {
+            MarginaliaFilterSheet(model: model)
+                .dipleMacSheet(minWidth: 520, minHeight: 620)
+        }
+        .alert(
+            model.entryToDelete?.kind == .saved ? "Delete passage?" : "Delete note?",
+            isPresented: $model.showDeleteConfirmation
+        ) {
+            Button("Delete", role: .destructive) { model.deleteConfirmedEntry() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                model.entryToDelete?.kind == .saved
+                    ? "This passage and its comment will be removed."
+                    : "This note will be removed permanently."
+            )
+        }
+        .alert(
+            "Rename tag",
+            isPresented: Binding(
+                get: { model.tagToRename != nil },
+                set: { if !$0 { model.tagToRename = nil } }
+            ),
+            presenting: model.tagToRename
+        ) { tag in
+            TextField("Tag", text: $renameDraft)
+            Button("Rename") { model.rename(tag, to: renameDraft) }
+            Button("Cancel", role: .cancel) { renameDraft = "" }
+        } message: { tag in
+            Text("#\(tag) will be renamed on every note and passage that carries it.")
+        }
+        .alert(
+            "Merge tags?",
+            isPresented: Binding(
+                get: { model.pendingMerge != nil },
+                set: { if !$0 { model.pendingMerge = nil } }
+            ),
+            presenting: model.pendingMerge
+        ) { _ in
+            Button("Merge", role: .destructive) { model.confirmPendingMerge() }
+            Button("Cancel", role: .cancel) {}
+        } message: { merge in
+            Text("#\(merge.to) is already in use on \(merge.existing) \(merge.existing == 1 ? "item" : "items"). Merging cannot be undone.")
+        }
     }
 
-    private var macNoteFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: DipleSpace.s) {
-                ForEach(model.availableFilters, id: \.self) { filter in
-                    Button {
-                        model.filter = filter
-                    } label: {
-                        macFilterChip(for: filter)
+    private var arrangeMenu: some View {
+        Menu {
+            Picker("Sort", selection: $model.sort) {
+                ForEach(MarginaliaSort.allCases) { option in
+                    Label(option.title, systemImage: option.systemImage).tag(option)
+                }
+            }
+            Picker("Group", selection: $model.grouping) {
+                ForEach(MarginaliaGrouping.allCases) { option in
+                    Label(option.title, systemImage: option.systemImage).tag(option)
+                }
+            }
+        } label: {
+            Label(model.sort.title, systemImage: "arrow.up.arrow.down")
+                .dipleType(.footnote)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Sort and group the board")
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            if let token = MarginaliaQuery.activeToken(in: model.rawQuery) {
+                tokenSuggestions(for: token)
+            }
+
+            MarginaliaScopeBar(
+                scope: $model.scope,
+                counts: { model.count(for: $0) },
+                isAvailable: { _ in model.totalWritten > 0 && model.totalSaved > 0 }
+            )
+
+            chipRow
+        }
+    }
+
+    @ViewBuilder
+    private func tokenSuggestions(for token: MarginaliaQuery.Token) -> some View {
+        let suggestions = Array(model.suggestions(for: token).prefix(8))
+        if !suggestions.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DipleSpace.s) {
+                    ForEach(suggestions) { option in
+                        MarginaliaChip(
+                            label: option.label,
+                            kind: chipKind(for: option),
+                            count: option.count,
+                            isSelected: false
+                        ) {
+                            model.rawQuery = MarginaliaQuery.removingActiveToken(from: model.rawQuery)
+                            model.toggle(option)
+                        }
                     }
-                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// The desktop wraps the chips instead of scrolling them sideways. It has the width, and a
+    /// horizontal scroller inside a resizable column is a row whose end nobody finds.
+    private var chipRow: some View {
+        FlowLayout(spacing: DipleSpace.s) {
+            ForEach(model.lensOptions) { option in
+                MarginaliaChip(
+                    label: option.lens.title,
+                    kind: .lens(option.lens.systemImage),
+                    count: option.count,
+                    isSelected: option.isSelected
+                ) {
+                    model.toggle(option.lens)
+                }
+            }
+
+            ForEach(model.facetOptions.prefix(visibleFacets)) { option in
+                MarginaliaChip(
+                    label: option.label,
+                    kind: chipKind(for: option),
+                    count: option.count,
+                    isSelected: option.isSelected
+                ) {
+                    model.toggle(option)
+                }
+                .contextMenu { facetMenu(option) }
+            }
+
+            if model.facetOptions.count > visibleFacets || model.facets.count > 0 {
+                MarginaliaChip(
+                    label: "All filters",
+                    kind: .lens("line.3.horizontal.decrease"),
+                    count: model.facetOptions.count,
+                    isSelected: false
+                ) {
+                    isFilterSheetPresented = true
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func macFilterChip(for filter: NoteFilter) -> some View {
-        let selected = model.filter == filter
-        switch filter {
-        case .all:
-            macSmartChip("All", icon: "tray.full", selected: selected)
-        case .recent:
-            macSmartChip("This week", icon: "clock", selected: selected)
-        case .linked:
-            macSmartChip("From library", icon: "book.closed", selected: selected)
-        case .untagged:
-            macSmartChip("Unsorted", icon: "tray", selected: selected)
-        case .tag(let tag):
-            TagChipView(label: tag, kind: .text, isSelected: selected)
-        case .book:
-            TagChipView(label: model.title(for: filter), kind: .book, isSelected: selected)
+    private func facetMenu(_ option: MarginaliaFacetOption) -> some View {
+        Button {
+            model.lenses = []
+            model.facets = MarginaliaFacets()
+            model.toggle(option)
+        } label: {
+            Label("Show only this", systemImage: "line.3.horizontal.decrease")
+        }
+
+        if case .tag(let tag) = option.kind {
+            Button {
+                renameDraft = tag
+                model.beginRename(tag)
+            } label: {
+                Label("Rename tag…", systemImage: "pencil")
+            }
         }
     }
 
-    private func macSmartChip(_ title: String, icon: String, selected: Bool) -> some View {
-        Label(title, systemImage: icon)
-            .dipleType(.micro)
-            .foregroundStyle(selected ? DipleColor.accentInk : DipleColor.textTertiary)
-            .diplePadding(.chip)
-            .dipleSelected(selected, in: Capsule())
+    private func chipKind(for option: MarginaliaFacetOption) -> MarginaliaChip.Kind {
+        switch option.kind {
+        case .source: return .source
+        case .tag: return .tag
+        }
+    }
+
+    private func groupHeader(_ group: MarginaliaGroup) -> some View {
+        HStack(spacing: DipleSpace.s) {
+            if let book = group.book {
+                BookCoverView(
+                    coverPath: book.coverPath,
+                    title: book.title,
+                    author: book.author,
+                    isCompact: true
+                )
+                .frame(width: 20, height: 30)
+            }
+
+            Text(group.title.localizedUppercase)
+                .dipleType(.nano)
+                .foregroundStyle(DipleColor.accentInk)
+                .lineLimit(1)
+
+            Spacer(minLength: DipleSpace.s)
+
+            Text("\(group.entries.count)")
+                .dipleType(.nano)
+                .monospacedDigit()
+                .foregroundStyle(DipleColor.textQuaternary)
+        }
+        .padding(.top, DipleSpace.s)
+    }
+
+    @ViewBuilder
+    private func card(for entry: MarginaliaEntry) -> some View {
+        MacSelectableCard(isSelected: selectedID == entry.id) {
+            onSelect(entry)
+        } content: {
+            switch entry {
+            case .note(let item): NoteCardView(item: item)
+            case .passage(let item): PassageRowView(passage: item, style: .card)
+            }
+        }
+        .contextMenu { entryMenu(entry) }
+    }
+
+    @ViewBuilder
+    private func entryMenu(_ entry: MarginaliaEntry) -> some View {
+        Button("Open") { onSelect(entry) }
+
+        if case .passage(let item) = entry {
+            Button("Open in the book") { onOpenPassage(item) }
+        }
+
+        Button("Copy text") {
+            switch entry {
+            case .note(let item): UIPasteboard.general.string = item.note.body
+            case .passage(let item): UIPasteboard.general.string = item.highlight.text
+            }
+        }
+
+        Divider()
+
+        Button("Delete", role: .destructive) { model.confirmDelete(entry) }
+    }
+
+    private var noResults: some View {
+        MacEmptyCollection(
+            icon: model.rawQuery.isEmpty ? "line.3.horizontal.decrease.circle" : "text.magnifyingglass",
+            title: model.rawQuery.isEmpty ? "Nothing in this view" : "No matches",
+            message: model.narrowingSummary ?? "Choose another filter.",
+            actionTitle: model.isNarrowed ? "Clear the filters" : nil,
+            actionIcon: model.isNarrowed ? "xmark" : nil,
+            action: model.isNarrowed ? { model.clearNarrowing() } : nil
+        )
+        .frame(minHeight: 280)
     }
 }
 
@@ -1767,94 +1965,282 @@ private struct MacBookInspector: View {
 
 }
 
-private struct MacQuotesInspector: View {
-    let summary: BookQuoteSummary
-    @StateObject private var model: BookQuotesViewModel
+/// One saved passage, as the desktop's detail pane.
+///
+/// The phone raises `HighlightEditorView` as a sheet; a Catalyst window has a third column
+/// standing empty, and putting the same fields in a sheet over it would be the phone's shape
+/// worn on a desk. What is *not* re-decided here is any of the rules: the colours, the
+/// optionality of a comment, the tag vocabulary and the order the fields stand in are the
+/// sheet's, so the same passage edited on either platform is the same object.
+private struct MacPassageInspector: View {
+    let passage: PassageItem
+    let tagSuggestions: [String]
+    let onSave: (String, String?, [String]) -> Void
+    /// `nil` when there is nowhere to go — the book is gone, or the passage was imported.
+    let onOpenInSource: (() -> Void)?
+    let onExpandIntoNote: () -> Void
+    let onDelete: () -> Void
 
-    init(summary: BookQuoteSummary) {
-        self.summary = summary
-        _model = StateObject(wrappedValue: BookQuotesViewModel(bookId: summary.bookId))
+    @State private var colorHex: String
+    @State private var comment: String
+    @State private var tags: [String]
+    @State private var lastSavedComment: String
+    @State private var lastSavedTags: [String]
+    @State private var lastSavedColorHex: String
+    @State private var saveTask: Task<Void, Never>?
+    @State private var isShowingDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var didCopy = false
+
+    init(
+        passage: PassageItem,
+        tagSuggestions: [String],
+        onSave: @escaping (String, String?, [String]) -> Void,
+        onOpenInSource: (() -> Void)?,
+        onExpandIntoNote: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.passage = passage
+        self.tagSuggestions = tagSuggestions
+        self.onSave = onSave
+        self.onOpenInSource = onOpenInSource
+        self.onExpandIntoNote = onExpandIntoNote
+        self.onDelete = onDelete
+
+        let comment = passage.comment ?? ""
+        _colorHex = State(initialValue: passage.highlight.colorHex)
+        _comment = State(initialValue: comment)
+        _tags = State(initialValue: passage.tags)
+        _lastSavedComment = State(initialValue: comment)
+        _lastSavedTags = State(initialValue: passage.tags)
+        _lastSavedColorHex = State(initialValue: passage.highlight.colorHex)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        comment != lastSavedComment || tags != lastSavedTags || colorHex != lastSavedColorHex
+    }
+
+    private var sourceTitle: String? {
+        passage.book?.title ?? passage.highlight.bookTitle
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
-                VStack(alignment: .leading, spacing: DipleSpace.s) {
-                    Text(summary.title)
-                        .dipleType(.readingTitle)
-                        .foregroundStyle(DipleColor.textPrimary)
-                    if summary.isRemovedFromLibrary {
-                        Text("Not in your library")
-                            .dipleType(.caption)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                    }
-                    Text("\(model.quotes.count) saved passages")
-                        .dipleType(.caption)
-                        .foregroundStyle(DipleColor.textTertiary)
-                }
+        ZStack {
+            DipleColor.canvas.ignoresSafeArea()
 
-                ForEach(model.quotes) { quote in
-                    VStack(alignment: .leading, spacing: DipleSpace.m) {
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(DipleColor.Highlight.color(forHex: quote.colorHex))
-                            .frame(width: 26, height: 3)
-                        Text(quote.text)
-                            .dipleType(.readingBody)
-                            .foregroundStyle(DipleColor.textPrimary)
-                            .textSelection(.enabled)
-                        if let comment = quote.comment, !comment.isEmpty {
-                            HStack(alignment: .top, spacing: DipleSpace.s) {
-                                Image(systemName: "bubble.left")
-                                    .dipleIcon(10, weight: .medium)
-                                    .foregroundStyle(DipleColor.accentInk)
-                                Text(comment)
-                                    .dipleType(.caption)
-                                    .foregroundStyle(DipleColor.textSecondary)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        Text(quote.createdAt.formatted(date: .abbreviated, time: .omitted))
-                            .dipleType(.nano)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                    }
-                    .padding(DipleSpace.l)
-                    .craftSurface()
-                    .contextMenu {
-                        Button {
-                            model.beginEditingComment(quote)
-                        } label: {
-                            Label(quote.comment == nil ? "Add comment" : "Edit comment", systemImage: "bubble.left")
-                        }
-
-                        Button(role: .destructive) {
-                            model.confirmDelete(quote)
-                        } label: {
-                            Label("Delete passage", systemImage: "trash")
-                        }
-                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: DipleSpace.xxl) {
+                    quote
+                    source
+                    colors
+                    commentField
+                    tagField
+                    actions
                 }
+                .padding(DipleSpace.xxl)
+                .padding(.bottom, DipleSpace.xxxl)
             }
-            .padding(DipleSpace.xxl)
         }
-        .background(DipleColor.surface)
-        .alert("Delete passage?", isPresented: $model.showDeleteConfirmation) {
+        .onChange(of: comment) { _, _ in scheduleSave() }
+        .onChange(of: tags) { _, _ in scheduleSave() }
+        .onChange(of: colorHex) { _, _ in scheduleSave() }
+        .onDisappear {
+            saveTask?.cancel()
+            if !isDeleting { saveNow() }
+        }
+        .alert("Delete passage?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
-                model.deleteConfirmedQuote()
+                isDeleting = true
+                saveTask?.cancel()
+                onDelete()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This passage will be removed.")
+            Text("This passage and its comment will be removed.")
         }
-        .sheet(item: $model.quoteForComment) { quote in
-            QuoteCommentEditorView(
-                quote: quote,
-                tags: model.tags(for: quote),
-                suggestions: model.tagSuggestions,
-                onSave: model.saveComment,
-                onCancel: model.cancelCommentEditing
-            )
-            .dipleMacSheet(minWidth: 520, minHeight: 560)
+    }
+
+    private var quote: some View {
+        HStack(alignment: .top, spacing: DipleSpace.m) {
+            Capsule()
+                .fill(Color(hex: colorHex))
+                .frame(width: 4)
+                .animation(DipleMotion.snappy, value: colorHex)
+
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
+                Text("SAVED PASSAGE")
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+
+                Text(passage.highlight.text)
+                    .dipleType(.editorialQuote)
+                    .readingLineSpacing(for: passage.highlight.text)
+                    .foregroundStyle(DipleColor.textPrimary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(DipleSpace.l)
+        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.l)
+    }
+
+    @ViewBuilder
+    private var source: some View {
+        if let sourceTitle {
+            HStack(spacing: DipleSpace.s) {
+                Image(systemName: "book.closed")
+                    .dipleIcon(11)
+                    .foregroundStyle(DipleColor.accentInk)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sourceTitle)
+                        .dipleType(.caption, weight: .medium)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .lineLimit(2)
+                    Text(passage.highlight.createdAt.formatted(date: .abbreviated, time: .omitted))
+                        .dipleType(.nano)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                }
+
+                Spacer(minLength: DipleSpace.s)
+
+                if let onOpenInSource {
+                    MacSecondaryButton(
+                        title: "Open in the book",
+                        systemImage: "book",
+                        action: onOpenInSource
+                    )
+                }
+            }
+        }
+    }
+
+    private var colors: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            Text("COLOR")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+
+            HStack(spacing: DipleSpace.m) {
+                ForEach(DipleColor.Highlight.selectable, id: \.hex) { item in
+                    Button {
+                        withAnimation(DipleMotion.snappy) { colorHex = item.hex }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(DipleColor.Highlight.color(forHex: item.hex))
+                                .frame(width: 26, height: 26)
+                            if colorHex == item.hex {
+                                Circle()
+                                    .stroke(DipleColor.textPrimary, lineWidth: 2)
+                                    .frame(width: 34, height: 34)
+                            }
+                        }
+                        .frame(width: 38, height: 38)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(item.name)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var commentField: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("COMMENT")
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+                Spacer()
+                Text("OPTIONAL")
+                    .dipleType(.nano)
+                    .foregroundStyle(DipleColor.textQuaternary)
+            }
+
+            TextField("Add context or your own thought…", text: $comment, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(4...12)
+                .dipleType(.body)
+                .foregroundStyle(DipleColor.textPrimary)
+                .padding(DipleSpace.m)
+                .frame(minHeight: 96, alignment: .topLeading)
+                .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                .overlay {
+                    RoundedRectangle(cornerRadius: DipleRadius.m)
+                        .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                }
+        }
+    }
+
+    private var tagField: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            Text("TAGS")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+
+            TagField(tags: $tags, suggestions: tagSuggestions, emptyPrompt: "File this passage")
+        }
+    }
+
+    private var actions: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.m) {
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(height: DipleStroke.hairline)
+
+            HStack(spacing: DipleSpace.s) {
+                MacSecondaryButton(
+                    title: "Expand into a note",
+                    systemImage: "square.and.pencil"
+                ) {
+                    saveNow()
+                    onExpandIntoNote()
+                }
+
+                MacSecondaryButton(
+                    title: didCopy ? "Copied" : "Copy",
+                    systemImage: didCopy ? "checkmark" : "doc.on.doc"
+                ) {
+                    UIPasteboard.general.string = passage.highlight.text
+                    withAnimation(DipleMotion.snappy) { didCopy = true }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(1_200))
+                        withAnimation(DipleMotion.snappy) { didCopy = false }
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                MacIconButton(systemImage: "trash", help: "Delete passage") {
+                    isShowingDeleteConfirmation = true
+                }
+            }
+        }
+    }
+
+    /// The same rhythm as the desktop's note inspector: a debounce while typing, and a
+    /// guaranteed write on the way out. A detail pane has no Save button because there is
+    /// nothing to dismiss — the edit is finished when the reader looks somewhere else.
+    private func scheduleSave() {
+        saveTask?.cancel()
+        guard !isDeleting, hasUnsavedChanges else { return }
+        saveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(650))
+            guard !Task.isCancelled else { return }
+            saveNow()
+        }
+    }
+
+    private func saveNow() {
+        guard hasUnsavedChanges else { return }
+        let trimmed = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        onSave(colorHex, trimmed.isEmpty ? nil : trimmed, tags)
+        lastSavedComment = comment
+        lastSavedTags = tags
+        lastSavedColorHex = colorHex
     }
 }
 

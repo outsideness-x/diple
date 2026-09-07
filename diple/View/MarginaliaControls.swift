@@ -99,9 +99,16 @@ public struct MarginaliaChip: View {
         }
     }
 
+    /// A source chip prints a name, not a catalogue entry.
+    ///
+    /// Shelves write `Sapiens: A Brief History of Humankind`, and a capsule carrying all of it
+    /// is a paragraph — the same complaint `TagName.forSource` already answers for the tag a
+    /// note is born with. Here it is cut rather than folded at the colon: two books whose names
+    /// agree up to the colon are two different chips with two different counts, and folding
+    /// would print them identically with nothing to tell them apart.
     private var text: String {
         if case .tag = kind { return "#\(label)" }
-        return label
+        return MarginaliaEntry.shortened(label, limit: 24)
     }
 
     /// A source is tinted even when it is not chosen — that tint is what tells a shelf from a
