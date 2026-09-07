@@ -145,6 +145,13 @@ public struct SourceOverviewView: View {
                     books: [viewModel.book],
                     suggestedTags: Array(Set(viewModel.notes.flatMap(\.tags))).sorted(),
                     allNotes: viewModel.notes,
+                    passages: viewModel.highlights.map {
+                        PassageItem(
+                            highlight: $0,
+                            tags: viewModel.highlightTags[$0.id] ?? [],
+                            book: viewModel.book
+                        )
+                    },
                     onSave: { note, tags in
                         do {
                             try AppDatabase.shared.saveNote(note, tags: tags)

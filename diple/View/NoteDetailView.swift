@@ -88,12 +88,19 @@ public struct NoteDetailView: View {
     public let books: [Book]
     public let suggestedTags: [String]
     public let allNotes: [NoteItem]
+    /// The saved passages this page can draw a connection to. Empty where the host has none
+    /// loaded — the block simply does not appear, which is the honest answer: it is a
+    /// difference in what is at hand, not a second rule about what counts as related.
+    public let passages: [PassageItem]
     public let onSave: (Note, [String]) -> Bool
     public let onDelete: (NoteItem) -> Void
     /// Following a `[[Wiki link]]` in the reading view. The push belongs to whichever stack
     /// this page was opened in, so the route goes back out to its owner rather than being
     /// invented here.
     public let onOpenNote: ((NoteItem) -> Void)?
+    /// Opening one of those passages. Same arrangement as `onOpenNote`: what happens next
+    /// belongs to the screen this page was opened in, not to this page.
+    public let onOpenPassage: ((PassageItem) -> Void)?
 
     /// The notes a wiki-link can point at. `allNotes` and `route` never change while this
     /// screen is on screen, so this is settled once in `init` — computing it inside `body`
@@ -128,17 +135,21 @@ public struct NoteDetailView: View {
         books: [Book],
         suggestedTags: [String],
         allNotes: [NoteItem] = [],
+        passages: [PassageItem] = [],
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping (NoteItem) -> Void = { _ in },
-        onOpenNote: ((NoteItem) -> Void)? = nil
+        onOpenNote: ((NoteItem) -> Void)? = nil,
+        onOpenPassage: ((PassageItem) -> Void)? = nil
     ) {
         self.route = route
         self.books = books
         self.suggestedTags = suggestedTags
         self.allNotes = allNotes
+        self.passages = passages
         self.onSave = onSave
         self.onDelete = onDelete
         self.onOpenNote = onOpenNote
+        self.onOpenPassage = onOpenPassage
         self.linkableNotes = Array(allNotes.filter { $0.id != route.item?.id }.prefix(30))
 
         let item = route.item
@@ -487,7 +498,9 @@ public struct NoteDetailView: View {
             .filter { $0.id != route.item?.id }
         let related = relatedNotes(excluding: Set((backlinks + outgoing).map(\.id)))
 
-        if !backlinks.isEmpty || !outgoing.isEmpty || !related.isEmpty {
+        let saved = relatedPassages()
+
+        if !backlinks.isEmpty || !outgoing.isEmpty || !related.isEmpty || !saved.isEmpty {
             Rectangle()
                 .fill(DipleColor.separator)
                 .frame(height: DipleStroke.hairline)
@@ -512,6 +525,75 @@ public struct NoteDetailView: View {
                 if !related.isEmpty {
                     connectionGroup("Related by context", icon: "sparkles", notes: related)
                 }
+                if !saved.isEmpty {
+                    passageGroup(saved)
+                }
+            }
+        }
+    }
+
+    /// The passages this note is standing next to.
+    ///
+    /// The block used to look only at notes, so a note about Sapiens could not see a single
+    /// thing the reader had marked in Sapiens — the most obvious connection in the app, and the
+    /// one the reader is most likely to want while writing. Same test as `relatedNotes`: the
+    /// same source, or a word in common. The vocabularies stay separate; what is compared here
+    /// is the words themselves, which is what the reader sees on both chips.
+    private func relatedPassages() -> [PassageItem] {
+        passages.filter { passage in
+            let sharesBook = selectedBookId != nil && passage.highlight.bookId == selectedBookId
+            let sharesTag = !Set(tags).isDisjoint(with: passage.tags)
+            return sharesBook || sharesTag
+        }
+    }
+
+    private func passageGroup(_ passages: [PassageItem]) -> some View {
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
+            Label("Marked in the text", systemImage: "quote.opening")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+
+            ForEach(passages.prefix(4)) { passage in
+                Button {
+                    onOpenPassage?(passage)
+                } label: {
+                    HStack(spacing: DipleSpace.m) {
+                        // The mark's own colour, as a rule down the side rather than under it:
+                        // in a stack of connection cards there is no entry to close, so the
+                        // stain goes where a margin would put it.
+                        Capsule()
+                            .fill(Color(hex: passage.highlight.colorHex))
+                            .frame(width: 3)
+
+                        VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                            Text(passage.highlight.text)
+                                .dipleType(.editorialQuote)
+                                .foregroundStyle(DipleColor.textPrimary)
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            if let comment = passage.comment {
+                                Text(comment)
+                                    .dipleType(.caption)
+                                    .foregroundStyle(DipleColor.textTertiary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer(minLength: 0)
+
+                        if onOpenPassage != nil {
+                            Image(systemName: "chevron.right")
+                                .dipleIcon(10, weight: .semibold)
+                                .foregroundStyle(DipleColor.textQuaternary)
+                        }
+                    }
+                    .padding(DipleSpace.m)
+                    .craftSurface(DipleColor.surface)
+                }
+                .buttonStyle(.plain)
+                .disabled(onOpenPassage == nil)
             }
         }
     }

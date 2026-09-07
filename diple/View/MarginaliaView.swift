@@ -589,9 +589,11 @@ public struct MarginaliaView: View {
             books: model.books,
             suggestedTags: model.noteTagVocabulary,
             allNotes: model.entries.compactMap(\.noteItem),
+            passages: model.entries.compactMap(\.passageItem),
             onSave: { note, tags in model.save(note, tags: tags) },
             onDelete: { model.delete(.note($0)) },
-            onOpenNote: { path.append(NoteRoute.existing($0)) }
+            onOpenNote: { path.append(NoteRoute.existing($0)) },
+            onOpenPassage: { editingPassage = $0 }
         )
 
         // A new note has no row on the board to expand out of, so it gets the standard push.
