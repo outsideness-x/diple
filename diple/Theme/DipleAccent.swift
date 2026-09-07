@@ -76,10 +76,10 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     /// primary. The next redesign renames them again.
     public var alternateIconName: String? {
         switch self {
-        case .lilac: return "AppIconLilacColophon"
-        case .mint: return "AppIconMintColophon"
-        case .clay: return "AppIconClayColophon"
-        case .periwinkle: return "AppIconPeriwinkleColophon"
+        case .lilac: return "AppIconLilacDiple"
+        case .mint: return "AppIconMintDiple"
+        case .clay: return "AppIconClayDiple"
+        case .periwinkle: return "AppIconPeriwinkleDiple"
         case .brass: return nil
         }
     }

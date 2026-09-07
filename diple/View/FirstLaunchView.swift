@@ -20,8 +20,9 @@ enum FirstLaunchStorage {
 ///
 /// This is intentionally a short piece of identity rather than onboarding: there are no
 /// permissions to ask for and no controls to teach before someone has a book. The animation
-/// turns the app icon's two ingredients — its serif `d` and reading line — into pages, marks
-/// and connected thoughts, then waits at the finished mark. A tap skips while the story is
+/// turns the wordmark's serif `d` and the reading line into pages, marks and connected
+/// thoughts, then waits at the finished mark. The `d` comes from the wordmark rather than from
+/// the app icon, which since the redesign draws the diple itself and holds no letter. A tap skips while the story is
 /// moving and begins once it has arrived, so the visible instruction always matches what the
 /// screen will actually do.
 public struct FirstLaunchGate<Content: View>: View {
