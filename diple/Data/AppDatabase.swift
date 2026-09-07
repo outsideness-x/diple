@@ -910,6 +910,100 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Renames one word wherever the board can show it — on notes and on passages — and
+    /// merges it into an existing word when that is what the new name already is.
+    ///
+    /// There was no way to do this at all before, and a tag is the one piece of a note that
+    /// nothing else can repair: the text can be edited, the source can be relinked, but
+    /// `phisics` typed once was `phisics` forever, sitting in the suggestion menu offering
+    /// itself to the next note. `TagName.normalized` folds case and stray `#`, and nothing else.
+    ///
+    /// **Book tags are deliberately untouched.** They are a different vocabulary over a
+    /// different thing — where a text sits on the shelf, not what a thought is about — and the
+    /// screen this is reached from does not show them. Renaming across all three would quietly
+    /// merge two meanings that the schema keeps apart on purpose; see `HighlightTag`.
+    ///
+    /// The sync clock is bumped and `note.updatedAt` is not. They are separate columns —
+    /// `syncMetadata.modifiedAt` is what `shouldAcceptRemote` compares — so the rename pushes
+    /// and wins on the other device without the board reordering itself as though every note
+    /// carrying the word had just been rewritten. Fixing a typo is not editing a note.
+    ///
+    /// Returns how many notes and passages were rewritten.
+    @discardableResult
+    public func renameTag(_ oldName: String, to newName: String) throws -> Int {
+        guard let old = TagName.normalized(oldName),
+              let new = TagName.normalized(newName),
+              old != new else { return 0 }
+
+        let touched = try writer.write { db -> Int in
+            let noteIDs = Set(try String.fetchAll(
+                db,
+                sql: "SELECT noteId FROM noteTag WHERE tag = ?",
+                arguments: [old]
+            ))
+            let highlightIDs = Set(try String.fetchAll(
+                db,
+                sql: "SELECT highlightId FROM highlightTag WHERE tag = ?",
+                arguments: [old]
+            ))
+            guard !noteIDs.isEmpty || !highlightIDs.isEmpty else { return 0 }
+
+            // Insert-then-delete rather than UPDATE: an item already carrying the new word
+            // would collide on the primary key and abort the whole rename. `OR IGNORE` is what
+            // makes renaming onto an existing word a merge instead of an error.
+            try db.execute(
+                sql: "INSERT OR IGNORE INTO noteTag(noteId, tag) SELECT noteId, ? FROM noteTag WHERE tag = ?",
+                arguments: [new, old]
+            )
+            try db.execute(sql: "DELETE FROM noteTag WHERE tag = ?", arguments: [old])
+            try db.execute(
+                sql: "INSERT OR IGNORE INTO highlightTag(highlightId, tag) SELECT highlightId, ? FROM highlightTag WHERE tag = ?",
+                arguments: [new, old]
+            )
+            try db.execute(sql: "DELETE FROM highlightTag WHERE tag = ?", arguments: [old])
+
+            let changedAt = Date()
+            for id in noteIDs {
+                guard let note = try Note.filter(Column("id") == id).fetchOne(db) else { continue }
+                let tags = try String.fetchAll(
+                    db,
+                    sql: "SELECT tag FROM noteTag WHERE noteId = ? ORDER BY tag",
+                    arguments: [id]
+                )
+                try indexNote(note, tags: tags, in: db)
+                try markLocalSave(.note, id: id, at: changedAt, in: db)
+            }
+            for id in highlightIDs {
+                guard let highlight = try Highlight.filter(Column("id") == id).fetchOne(db) else { continue }
+                let book = try Book.filter(Column("id") == highlight.bookId).fetchOne(db)
+                try indexHighlight(highlight, book: book, in: db)
+                try markLocalSave(.highlight, id: id, at: changedAt, in: db)
+            }
+            return noteIDs.count + highlightIDs.count
+        }
+
+        if touched > 0 { signalSyncIfNeeded() }
+        return touched
+    }
+
+    /// How many notes and passages already carry a word. What the merge warning counts.
+    public func tagUsage(_ name: String) throws -> Int {
+        guard let tag = TagName.normalized(name) else { return 0 }
+        return try writer.read { db in
+            let notes = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM noteTag WHERE tag = ?",
+                arguments: [tag]
+            ) ?? 0
+            let passages = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM highlightTag WHERE tag = ?",
+                arguments: [tag]
+            ) ?? 0
+            return notes + passages
+        }
+    }
+
     public func deleteNote(id: String) throws {
         try writer.write { db in
             _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)

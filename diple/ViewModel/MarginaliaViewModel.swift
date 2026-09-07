@@ -39,6 +39,21 @@ public final class MarginaliaViewModel: ObservableObject {
     @Published public var showErrorAlert: Bool = false
     @Published public var entryToDelete: MarginaliaEntry? = nil
     @Published public var showDeleteConfirmation: Bool = false
+    /// The tag the rename prompt is open for, or `nil`.
+    @Published public var tagToRename: String? = nil
+    /// A rename that turned out to be a merge, waiting to be confirmed.
+    @Published public var pendingMerge: PendingMerge? = nil
+
+    /// Renaming onto a word that already exists is a merge, and a merge cannot be undone:
+    /// renaming back afterwards returns one word, not the two sets that went into it. So it is
+    /// asked about, and the question carries the number that makes it a real question.
+    public struct PendingMerge: Identifiable, Equatable {
+        public let from: String
+        public let to: String
+        public let existing: Int
+
+        public var id: String { "\(from)>\(to)" }
+    }
 
     private var syncObserver: AnyCancellable?
     /// Bumped on every load, so the derived snapshot below knows the rows underneath it moved
@@ -202,6 +217,51 @@ public final class MarginaliaViewModel: ObservableObject {
 
     public func toggle(_ lens: MarginaliaLens) {
         if lenses.contains(lens) { lenses.remove(lens) } else { lenses.insert(lens) }
+    }
+
+    // MARK: - Renaming a tag
+
+    public func beginRename(_ tag: String) {
+        tagToRename = tag
+    }
+
+    /// Applies a rename, or asks first when it would merge.
+    public func rename(_ tag: String, to newName: String) {
+        guard let target = TagName.normalized(newName), target != tag else { return }
+        do {
+            let existing = try AppDatabase.shared.tagUsage(target)
+            if existing > 0 {
+                pendingMerge = PendingMerge(from: tag, to: target, existing: existing)
+                return
+            }
+            try AppDatabase.shared.renameTag(tag, to: target)
+            followRename(from: tag, to: target)
+        } catch {
+            present(error, doing: "rename this tag")
+        }
+    }
+
+    public func confirmPendingMerge() {
+        guard let merge = pendingMerge else { return }
+        pendingMerge = nil
+        do {
+            try AppDatabase.shared.renameTag(merge.from, to: merge.to)
+            followRename(from: merge.from, to: merge.to)
+        } catch {
+            present(error, doing: "merge these tags")
+        }
+    }
+
+    /// A board narrowed by the word being renamed follows it rather than losing it.
+    ///
+    /// `pruneNarrowing` would otherwise drop the chip on the next load — the old word no longer
+    /// exists — and the reader would watch their filter disappear as a side effect of fixing a
+    /// typo in its name.
+    private func followRename(from oldTag: String, to newTag: String) {
+        if facets.tags.remove(oldTag) != nil {
+            facets.tags.insert(newTag)
+        }
+        load()
     }
 
     public func clearNarrowing() {

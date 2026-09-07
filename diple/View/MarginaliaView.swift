@@ -39,6 +39,7 @@ public struct MarginaliaView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var isFilterSheetPresented = false
     @State private var editingPassage: PassageItem?
+    @State private var renameDraft = ""
     /// Where to go once the passage sheet has finished closing. A push raised from inside a
     /// sheet is presented into a hierarchy that is still tearing that sheet down and is lost —
     /// the same trap the reader's contents sheet already documents.
@@ -119,6 +120,39 @@ public struct MarginaliaView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(deleteMessage)
+            }
+            // Both prompts hang off the board rather than off the filter sheet, so a rename
+            // started from a chip and the merge confirmed after it are presented into the same
+            // hierarchy — an alert raised from inside a sheet that is itself closing is an
+            // alert nobody sees.
+            .alert(
+                "Rename tag",
+                isPresented: Binding(
+                    get: { model.tagToRename != nil },
+                    set: { if !$0 { model.tagToRename = nil } }
+                ),
+                presenting: model.tagToRename
+            ) { tag in
+                TextField("Tag", text: $renameDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Rename") { model.rename(tag, to: renameDraft) }
+                Button("Cancel", role: .cancel) { renameDraft = "" }
+            } message: { tag in
+                Text("#\(tag) will be renamed on every note and passage that carries it.")
+            }
+            .alert(
+                "Merge tags?",
+                isPresented: Binding(
+                    get: { model.pendingMerge != nil },
+                    set: { if !$0 { model.pendingMerge = nil } }
+                ),
+                presenting: model.pendingMerge
+            ) { _ in
+                Button("Merge", role: .destructive) { model.confirmPendingMerge() }
+                Button("Cancel", role: .cancel) {}
+            } message: { merge in
+                Text("#\(merge.to) is already in use on \(merge.existing) \(merge.existing == 1 ? "item" : "items"). Merging cannot be undone.")
             }
             .refreshesOnTabActivation { model.load() }
             .onReceive(NotificationCenter.default.publisher(for: .dipleShowSavedPassages)) { _ in
@@ -340,6 +374,7 @@ public struct MarginaliaView: View {
                         ) {
                             model.toggle(option)
                         }
+                        .contextMenu { facetMenu(option) }
                     }
                 }
             }
@@ -377,6 +412,34 @@ public struct MarginaliaView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("All sources and tags")
+    }
+
+    /// What a chip can do besides narrow.
+    ///
+    /// Renaming lives here rather than on a screen of its own. A page for one tag would be the
+    /// board again with one chip pressed — the same rows, the same order, one less control —
+    /// and the only thing it could offer that the chip cannot is this menu.
+    @ViewBuilder
+    private func facetMenu(_ option: MarginaliaFacetOption) -> some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) {
+                model.lenses = []
+                model.facets = MarginaliaFacets()
+                model.toggle(option)
+            }
+        } label: {
+            Label("Show only this", systemImage: "line.3.horizontal.decrease")
+        }
+
+        if case .tag(let tag) = option.kind {
+            Button {
+                renameDraft = tag
+                model.beginRename(tag)
+            } label: {
+                Label("Rename tag…", systemImage: "pencil")
+            }
+        }
     }
 
     private func chipKind(for option: MarginaliaFacetOption) -> MarginaliaChip.Kind {
