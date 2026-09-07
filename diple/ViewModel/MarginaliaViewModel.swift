@@ -61,7 +61,10 @@ public final class MarginaliaViewModel: ObservableObject {
     private var dataVersion = 0
     private var cached: (signature: Signature, snapshot: MarginaliaBoard.Snapshot)?
 
-    public init() {
+    /// `scope` is the door that opened this board — see `MarginaliaDoor`. Set before the first
+    /// load rather than after it, so the room does not render its other half for one frame.
+    public init(scope: MarginaliaScope = .all) {
+        self.scope = scope
         load()
         syncObserver = Publishers.Merge(
             NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange),

@@ -14,6 +14,7 @@ public struct RootTabView: View {
         case home
         case library
         case notes
+        case highlights
         case search
 
         var title: String {
@@ -21,6 +22,7 @@ public struct RootTabView: View {
             case .home: return "Home"
             case .library: return "Library"
             case .notes: return "Notes"
+            case .highlights: return "Highlights"
             case .search: return "Search"
             }
         }
@@ -34,6 +36,7 @@ public struct RootTabView: View {
             case .home: return "house"
             case .library: return "books.vertical"
             case .notes: return "note.text"
+            case .highlights: return "quote.opening"
             case .search: return "magnifyingglass"
             }
         }
@@ -43,6 +46,7 @@ public struct RootTabView: View {
             case .home: return "house.fill"
             case .library: return "books.vertical.fill"
             case .notes: return "note.text"
+            case .highlights: return "quote.opening"
             case .search: return "magnifyingglass"
             }
         }
@@ -72,20 +76,14 @@ public struct RootTabView: View {
         .onChange(of: selection) { _, _ in
             tabBarState.reset()
         }
+        // The daily notification and the widget both land on the day's passage, which now
+        // stands at the top of its own room rather than on the front page.
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
-            selection = .home
-        }
-        // Home's passages row is a way into the board, not a screen of its own. The board is a
-        // tab root, so reaching it is a change of tab rather than a push — which is also why
-        // it travels as a notification: Home cannot reach the shell's selection directly, and
-        // threading a binding down through it would give one row a private channel into the
-        // tab bar that nothing else has.
-        .onReceive(NotificationCenter.default.publisher(for: .dipleShowSavedPassages)) { _ in
-            selection = .notes
+            selection = .highlights
         }
         .onAppear {
             if DailyResurfacingService.shared.consumeOpenRequest() {
-                selection = .home
+                selection = .highlights
             }
         }
     }
@@ -98,7 +96,8 @@ public struct RootTabView: View {
         ZStack {
             tabRoot(.home) { HomeView() }
             tabRoot(.library) { LibraryView() }
-            tabRoot(.notes) { MarginaliaView() }
+            tabRoot(.notes) { MarginaliaView(door: .notes) }
+            tabRoot(.highlights) { MarginaliaView(door: .highlights) }
             tabRoot(.search) { GlobalSearchView() }
         }
     }

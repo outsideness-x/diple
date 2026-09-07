@@ -5,6 +5,37 @@ import SwiftUI
 // rather than at the import.
 import struct ReadiumShared.Locator
 
+/// Which door was used to reach the board.
+///
+/// One room, two entrances — the arrangement the desktop's sidebar already had. The door
+/// decides the scope it opens at and two small things that follow from it; everything else,
+/// including the scope bar that walks between them, is the same board.
+public enum MarginaliaDoor {
+    case notes
+    case highlights
+
+    var title: String {
+        switch self {
+        case .notes: return "Notes"
+        case .highlights: return "Highlights"
+        }
+    }
+
+    var scope: MarginaliaScope {
+        switch self {
+        case .notes: return .written
+        case .highlights: return .saved
+        }
+    }
+
+    /// The day's passage stands at the top of the room the passages are in, and nowhere else.
+    var showsDailyPassage: Bool { self == .highlights }
+
+    /// A note is written from the notes room. Nothing writes a passage but reading one, so a
+    /// `+` here would be a control for the wrong room.
+    var offersNewNote: Bool { self == .notes }
+}
+
 /// Where the board can go that is not a note.
 public enum MarginaliaRoute: Hashable {
     /// A saved passage, opened where it was written rather than in a list of passages. The
@@ -25,7 +56,8 @@ public enum MarginaliaRoute: Hashable {
 /// So the collections keep their tables and share their controls. What changed is one screen,
 /// not one schema.
 public struct MarginaliaView: View {
-    @StateObject private var model = MarginaliaViewModel()
+    private let door: MarginaliaDoor
+    @StateObject private var model: MarginaliaViewModel
 
     /// Rows by default, and the key is the board's old one so a reader who already chose the
     /// card grid keeps it. `AppStorage` takes its default only when the key is absent.
@@ -78,7 +110,10 @@ public struct MarginaliaView: View {
     /// an ordinary library never needs the sheet, few enough that the row stays a row.
     private let visibleFacets = 14
 
-    public init() {}
+    public init(door: MarginaliaDoor = .notes) {
+        self.door = door
+        _model = StateObject(wrappedValue: MarginaliaViewModel(scope: door.scope))
+    }
 
     public var body: some View {
         NavigationStack(path: $path) {
@@ -91,7 +126,7 @@ public struct MarginaliaView: View {
                 workspace
             }
             // Set but hidden: it is what a pushed screen labels its own back button with.
-            .navigationTitle("Notes")
+            .navigationTitle(door.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: NoteRoute.self) { route in
@@ -181,9 +216,6 @@ public struct MarginaliaView: View {
                 Text("Notes are removed permanently. Passages and their comments are removed too.")
             }
             .refreshesOnTabActivation { model.load() }
-            .onReceive(NotificationCenter.default.publisher(for: .dipleShowSavedPassages)) { _ in
-                showSavedPassages()
-            }
         }
     }
 
@@ -193,6 +225,8 @@ public struct MarginaliaView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.l, pinnedViews: [.sectionHeaders]) {
                 masthead
+
+                dailyPassage
 
                 if model.entries.isEmpty {
                     emptyState
@@ -221,8 +255,35 @@ public struct MarginaliaView: View {
         .modifier(HidesTabBarWhileSelecting(isSelecting: model.isSelecting))
     }
 
+    /// The day's passage, at the head of the room it belongs to.
+    ///
+    /// It used to open the front page, where it was the largest thing on a screen about what to
+    /// read next, and where it made Home a third place saved passages lived. Here it is the
+    /// first thing in the room that holds them — which is also where the daily notification and
+    /// the widget now land.
+    @ViewBuilder
+    private var dailyPassage: some View {
+        if door.showsDailyPassage, !model.isNarrowed, !model.isSelecting {
+            DailyResurfacingCard { item in openDaily(item) }
+                .padding(.horizontal, DipleSpace.xl)
+        }
+    }
+
+    /// Into the book, at the passage — the point of resurfacing is to return to an idea in its
+    /// place. A passage whose book is gone has nowhere to open and gets its own editor instead,
+    /// which is the nearest thing left to standing in front of it.
+    private func openDaily(_ item: DailyResurfacingItem) {
+        if let book = item.summary.book, item.quote.parsedLocator != nil {
+            path.append(MarginaliaRoute.passage(book: book, locatorJSON: item.quote.locator))
+        } else if let passage = model.entries
+            .compactMap(\.passageItem)
+            .first(where: { $0.id == item.quote.id }) {
+            editingPassage = passage
+        }
+    }
+
     private var masthead: some View {
-        DipleMasthead(title: "Notes", strapline: strapline) {
+        DipleMasthead(title: door.title, strapline: strapline) {
             if model.isSelecting {
                 selectionMastheadActions
             } else {
@@ -310,15 +371,17 @@ public struct MarginaliaView: View {
                     ? "Close search" : "Search everything you have made"
             )
 
-            Button {
-                HapticManager.shared.selection()
-                path.append(NoteRoute.new)
-            } label: {
-                MastheadGlyph(systemImage: "plus")
+            if door.offersNewNote {
+                Button {
+                    HapticManager.shared.selection()
+                    path.append(NoteRoute.new)
+                } label: {
+                    MastheadGlyph(systemImage: "plus")
+                }
+                .buttonStyle(.readerControl)
+                .accessibilityLabel("New note")
+                .accessibilityIdentifier("notes.new")
             }
-            .buttonStyle(.readerControl)
-            .accessibilityLabel("New note")
-            .accessibilityIdentifier("notes.new")
     }
 
     /// What the board holds in total, not what it is currently showing — the filtered count
@@ -904,16 +967,6 @@ public struct MarginaliaView: View {
         }
     }
 
-    /// Home's "All highlights" row lands here rather than pushing a list of its own: there is
-    /// one place for this now, and a second door into a copy of it would be the arrangement
-    /// this screen exists to end.
-    private func showSavedPassages() {
-        path = NavigationPath()
-        model.clearNarrowing()
-        model.scope = .saved
-        model.grouping = .source
-    }
-
     // MARK: - Deletion
 
     private var deleteTitle: String {
@@ -969,17 +1022,32 @@ public struct MarginaliaView: View {
                 .foregroundStyle(DipleColor.accentInk)
 
             VStack(spacing: DipleSpace.s) {
-                Text("Write the first note")
+                Text(door == .notes ? "Write the first note" : "Nothing marked yet")
                     .dipleType(.editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
 
-                Text("Everything you write, and every passage you keep while reading, collects here — by source and by tag.")
-                    .dipleType(.callout)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DipleSpace.xxxl)
+                Text(
+                    door == .notes
+                        ? "Everything you write, and every passage you keep while reading, collects here — by source and by tag."
+                        : "Mark a passage while reading and it collects here, by source, by tag and by the colour you marked it with."
+                )
+                .dipleType(.callout)
+                .foregroundStyle(DipleColor.textTertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DipleSpace.xxxl)
             }
 
+            if door.offersNewNote {
+                newNoteButton
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .containerRelativeFrame(.vertical, alignment: .center) { length, _ in
+            max(length - DipleSpace.scrollBottom, 420)
+        }
+    }
+
+    private var newNoteButton: some View {
             NavigationLink(value: NoteRoute.new) {
                 HStack(spacing: DipleSpace.s) {
                     Image(systemName: "plus")
@@ -994,18 +1062,7 @@ public struct MarginaliaView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("notes.new")
             .padding(.top, DipleSpace.s)
-        }
-        .frame(maxWidth: .infinity)
-        .containerRelativeFrame(.vertical, alignment: .center) { length, _ in
-            max(length - DipleSpace.scrollBottom, 420)
-        }
     }
-}
-
-public extension Notification.Name {
-    /// Home asking the board to show the passages. Cross-tab, because the destination is a tab
-    /// root rather than a screen Home can push.
-    static let dipleShowSavedPassages = Notification.Name("diple.showSavedPassages")
 }
 
 

@@ -2,16 +2,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 import ReadiumShared
 
-/// Home's own screens, as values rather than inline destination views. A view-based
-/// `NavigationLink` pushes content the stack's `path` cannot describe, which leaves
-/// programmatic and link-driven navigation disagreeing about what is on screen.
-public enum HomeRoute: Hashable {
-    /// A saved passage, opened where it was written rather than in a list of passages.
-    /// The locator travels as its stored JSON because `Locator` is not `Hashable`, and a
-    /// navigation value must be.
-    case passage(book: Book, locatorJSON: String)
-}
-
 /// The useful front door to diple: resume something, capture something, or return to an idea.
 ///
 /// Library/Highlights/Notes used to be four equally weighted databases. Home turns the same
@@ -19,7 +9,6 @@ public enum HomeRoute: Hashable {
 /// model: the existing view models remain the source of truth for every section and route.
 public struct HomeView: View {
     @StateObject private var library = LibraryViewModel()
-    @StateObject private var highlights = HubViewModel()
     @StateObject private var notes = NotesViewModel()
 
     @State private var isImportingFile = false
@@ -37,6 +26,25 @@ public struct HomeView: View {
 
     private var recentNotes: [NoteItem] {
         Array(notes.items.sorted { $0.note.updatedAt > $1.note.updatedAt }.prefix(3))
+    }
+
+    /// What has just arrived and not been dealt with: the Inbox shelf, newest first.
+    ///
+    /// The lead is excluded. It is the book the reader is in the middle of, it is already the
+    /// largest thing on the page, and a front page that prints the same source twice reads as a
+    /// mistake rather than as emphasis.
+    ///
+    /// Six, because the section is a *sign* that something arrived, not the shelf itself — the
+    /// shelf is one tab away and knows how to sort, filter and search. A front page that grew
+    /// with the inbox would eventually be the inbox.
+    private var inbox: [Book] {
+        let leadID = library.continueReadingBook?.id
+        return Array(
+            library.books
+                .filter { $0.location == .inbox && $0.id != leadID }
+                .sorted { $0.addedAt > $1.addedAt }
+                .prefix(6)
+        )
     }
 
     private var dayTitle: String {
@@ -65,33 +73,20 @@ public struct HomeView: View {
                             .matchedTransitionSource(id: book.id, in: readingNamespace)
                         }
 
-                        if highlights.totalQuoteCount > 0 {
-                            section("HIGHLIGHTS") {
-                                DailyResurfacingCard { openResurfaced($0) }
-
-                                // Not a push. Every saved passage now lives on the board with
-                                // every note, under one set of filters, and a second list of
-                                // them inside this tab would be the copy that arrangement
-                                // exists to remove. The row crosses to the board instead.
-                                Button {
-                                    HapticManager.shared.selection()
-                                    NotificationCenter.default.post(
-                                        name: .dipleShowSavedPassages,
-                                        object: nil
-                                    )
-                                } label: {
-                                    HomeOpenCollectionRow(
-                                        title: "All highlights",
-                                        detail: "\(highlights.totalQuoteCount) saved passages",
-                                        systemImage: "quote.opening"
-                                    )
-                                    // Home is where a reader lands after closing a book, so
-                                    // this is the count most likely to have moved while they
-                                    // were away. Rolling it says what changed in the time they
-                                    // were reading.
-                                    .animation(DipleMotion.standard, value: highlights.totalQuoteCount)
+                        if !inbox.isEmpty {
+                            section("INBOX") {
+                                VStack(spacing: 0) {
+                                    ForEach(inbox) { book in
+                                        NavigationLink(value: book) {
+                                            LibraryRowView(
+                                                book: book,
+                                                tags: library.tagsByBook[book.id] ?? [],
+                                                characters: library.charactersByBook[book.id]
+                                            )
+                                        }
+                                        .buttonStyle(.bookCard)
+                                    }
                                 }
-                                .buttonStyle(.bookCard)
                             }
                         }
 
@@ -108,7 +103,7 @@ public struct HomeView: View {
                             }
                         }
 
-                        if library.books.isEmpty && notes.items.isEmpty && highlights.totalQuoteCount == 0 {
+                        if library.books.isEmpty && notes.items.isEmpty {
                             firstStep
                         } else {
                             foot
@@ -142,15 +137,6 @@ public struct HomeView: View {
                     onDelete: { notes.delete($0) },
                     onOpenNote: { path.append(NoteRoute.existing($0)) }
                 )
-            }
-            .navigationDestination(for: BookQuoteSummary.self) { summary in
-                BookQuotesView(summary: summary)
-            }
-            .navigationDestination(for: HomeRoute.self) { route in
-                switch route {
-                case let .passage(book, locatorJSON):
-                    passageDestination(book: book, locatorJSON: locatorJSON)
-                }
             }
             .fileImporter(
                 isPresented: $isImportingFile,
@@ -276,8 +262,6 @@ public struct HomeView: View {
         var parts: [String] = []
         let sources = library.books.count
         if sources > 0 { parts.append(sources == 1 ? "1 source" : "\(sources) sources") }
-        let passages = highlights.totalQuoteCount
-        if passages > 0 { parts.append(passages == 1 ? "1 passage" : "\(passages) passages") }
         let written = notes.items.count
         if written > 0 { parts.append(written == 1 ? "1 note" : "\(written) notes") }
         return parts.joined(separator: " · ")
@@ -320,36 +304,7 @@ public struct HomeView: View {
 
     private func reload() {
         library.loadBooks()
-        highlights.load()
         notes.load()
-    }
-
-    /// Where a resurfaced quote goes when it is tapped.
-    ///
-    /// Into the book, at the passage — the point of resurfacing is to return to an idea in its
-    /// place, and a list of quotes is not its place. A quote whose book has been deleted still
-    /// exists (see the highlights section of CLAUDE.md) and has nowhere to open, so it falls
-    /// back to the group it belongs to.
-    ///
-    /// The two branches append **concrete** types rather than one erased value. `NavigationPath`
-    /// keys its destinations on the dynamic type of what was appended, so an `AnyHashable`
-    /// wrapping a `BookQuoteSummary` is looked up as `AnyHashable` — matching nothing, and
-    /// SwiftUI renders its yellow "no destination" placeholder instead of the screen.
-    private func openResurfaced(_ item: DailyResurfacingItem) {
-        if let book = item.summary.book, item.quote.parsedLocator != nil {
-            path.append(HomeRoute.passage(book: book, locatorJSON: item.quote.locator))
-        } else {
-            path.append(item.summary)
-        }
-    }
-
-    @ViewBuilder
-    private func passageDestination(book: Book, locatorJSON: String) -> some View {
-        ReaderContainerView(
-            book: book,
-            startingLocator: Locator.from(jsonString: locatorJSON),
-            onReadingUpdated: reload
-        )
     }
 
     @ViewBuilder
@@ -400,47 +355,6 @@ private struct HomeRecentNoteRow: View {
                 .dipleIcon(10, weight: .semibold)
                 .foregroundStyle(DipleColor.textQuaternary)
                 .padding(.top, DipleSpace.s)
-        }
-        .padding(.vertical, DipleSpace.m)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DipleColor.hairline)
-                .frame(height: DipleStroke.hairline)
-        }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct HomeOpenCollectionRow: View {
-    let title: String
-    let detail: String
-    let systemImage: String
-
-    var body: some View {
-        HStack(spacing: DipleSpace.m) {
-            Image(systemName: systemImage)
-                .dipleIcon(14, weight: .semibold)
-                .foregroundStyle(DipleColor.textTertiary)
-                .frame(width: 32, height: 32)
-                .background(DipleColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DipleRadius.s))
-
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text(title)
-                    .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.textPrimary)
-                Text(detail)
-                    .dipleType(.caption)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .dipleIcon(10, weight: .semibold)
-                .foregroundStyle(DipleColor.textQuaternary)
         }
         .padding(.vertical, DipleSpace.m)
         .overlay(alignment: .bottom) {

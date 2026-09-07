@@ -31,50 +31,6 @@ public struct BookQuoteSummary: Identifiable, Equatable, Hashable {
 }
 
 @MainActor
-public final class HubViewModel: ObservableObject {
-    @Published public private(set) var summaries: [BookQuoteSummary] = []
-    @Published public var errorMessage: String? = nil
-    @Published public var showErrorAlert: Bool = false
-    private var syncObserver: AnyCancellable?
-
-    public var totalQuoteCount: Int {
-        summaries.reduce(0) { $0 + $1.quoteCount }
-    }
-
-    public init() {
-        load()
-        syncObserver = Publishers.Merge(
-            NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange),
-            NotificationCenter.default.publisher(for: .dipleDataDidRestore)
-        )
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.load() }
-    }
-
-    public func load() {
-        do {
-            let groups = try AppDatabase.shared.fetchHighlightGroups()
-            let booksById = Dictionary(
-                uniqueKeysWithValues: try AppDatabase.shared.fetchAllBooks().map { ($0.id, $0) }
-            )
-            summaries = groups.map { group in
-                let book = booksById[group.bookId]
-                return BookQuoteSummary(
-                    bookId: group.bookId,
-                    title: book?.title ?? group.bookTitle ?? "Untitled",
-                    author: book?.author ?? group.bookAuthor,
-                    book: book,
-                    quoteCount: group.quoteCount
-                )
-            }
-        } catch {
-            errorMessage = "Failed to load quotes: \(error.localizedDescription)"
-            showErrorAlert = true
-        }
-    }
-}
-
-@MainActor
 public final class BookQuotesViewModel: ObservableObject {
     @Published public private(set) var quotes: [Highlight] = []
     /// This book's tags by highlight id, loaded once per refresh so the list can draw a chip

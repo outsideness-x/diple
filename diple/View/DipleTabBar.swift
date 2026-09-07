@@ -21,8 +21,13 @@ public struct DipleTabBar: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var indicator
 
-    /// The three places. Search is deliberately not among them.
-    private var places: [RootTabView.Tab] { [.home, .library, .notes] }
+    /// The four places. Search is deliberately not among them.
+    ///
+    /// Notes and Marks are two doors into one board — the arrangement the desktop's two shelves
+    /// already had — and the door only decides the scope it opens at. Two doors are worth their
+    /// width because the tab bar was naming the smaller pile and hiding the bigger one: a
+    /// library with seventeen saved passages and two notes called its room "Notes".
+    private var places: [RootTabView.Tab] { [.home, .library, .notes, .highlights] }
 
     public init(selection: Binding<RootTabView.Tab>, isCollapsed: Bool) {
         self._selection = selection
@@ -39,11 +44,27 @@ public struct DipleTabBar: View {
 
     // MARK: - The pill
 
+    /// Four places with their names, or four places without them — never one broken word
+    /// beside three whole ones.
+    ///
+    /// The fourth place put the row over the edge on the narrowest phone still shipping, where
+    /// "Highlights" set as "Highlight / s". Shortening the word was the obvious fix and the
+    /// wrong one: this app has one name for one thing, and a tab that said something else would
+    /// be a second name for the collection every other screen calls Highlights. So the row
+    /// gives up its labels — all of them together — rather than the language. Same mechanism
+    /// the desktop's column header uses when its actions stop fitting.
     private var pill: some View {
+        ViewThatFits(in: .horizontal) {
+            pillBody(showsLabels: true)
+            pillBody(showsLabels: false)
+        }
+    }
+
+    private func pillBody(showsLabels: Bool) -> some View {
         HStack(spacing: DipleSpace.hair) {
             ForEach(places, id: \.self) { tab in
                 if !isCollapsed || tab == selection {
-                    placeButton(tab)
+                    placeButton(tab, showsLabel: showsLabels)
                         .transition(.opacity.combined(with: .scale(scale: 0.7)))
                 }
             }
@@ -52,7 +73,7 @@ public struct DipleTabBar: View {
         .background { glass(Capsule(style: .continuous)) }
     }
 
-    private func placeButton(_ tab: RootTabView.Tab) -> some View {
+    private func placeButton(_ tab: RootTabView.Tab, showsLabel: Bool) -> some View {
         let isSelected = selection == tab
         return Button {
             select(tab)
@@ -63,15 +84,19 @@ public struct DipleTabBar: View {
                 // The label goes with the collapse. An icon alone is legible for the place you
                 // are already standing in — which is the only one left when collapsed — but not
                 // for the two you might go to.
-                if !isCollapsed {
+                if !isCollapsed && showsLabel {
                     Text(tab.title)
                         .dipleType(.tag, weight: .semibold)
+                        // Honest about its own width, which is what lets `ViewThatFits` above
+                        // compare the two rows at all: a `Text` free to wrap always "fits".
+                        .lineLimit(1)
+                        .fixedSize()
                 }
             }
             .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
             .frame(minWidth: 44)
             .frame(height: 44)
-            .padding(.horizontal, isCollapsed ? 0 : DipleSpace.m)
+            .padding(.horizontal, isCollapsed || !showsLabel ? 0 : DipleSpace.m)
             .background {
                 if isSelected && !isCollapsed {
                     Capsule(style: .continuous)
