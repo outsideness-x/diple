@@ -228,7 +228,7 @@ the Console with the type from the table above.
 > `tagsCount`; only a tagged one creates `tags`. Adding both by hand in the Console with the
 > types above works too.
 >
-> Nothing else added since v1.0 touches the schema: the fore-edge, the ink stroke, the widget,
+> Nothing else added since v1.0 touches the schema: the contents list, the ink stroke, the widget,
 > the Markdown export, the passage echoes and the Kindle/Readwise import are all local, and
 > imported passages are ordinary `DipleHighlight` rows.
 

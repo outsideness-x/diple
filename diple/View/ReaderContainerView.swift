@@ -570,6 +570,7 @@ public struct ReaderContainerView: View {
                 tableOfContents: viewModel.tableOfContents,
                 positions: viewModel.positions,
                 progress: viewModel.currentProgress,
+                currentLocator: viewModel.currentLocator,
                 highlights: viewModel.highlights,
                 notes: viewModel.notes.forThisBook,
                 bookmarks: viewModel.bookmarks,

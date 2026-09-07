@@ -6,11 +6,15 @@ import ReadiumShared
 /// question — "what is in this book, mine included".
 public struct BookOutlineSheetView: View {
     public let tableOfContents: [ReadiumShared.Link]
-    /// The publication's position list, which is what lets Contents be drawn as the book's own
-    /// edge rather than as a list of equal rows. Empty is survivable — see `BookForeEdge`.
+    /// The publication's position list, which is what lets Contents say where each chapter
+    /// begins. Empty is survivable — see `BookContents`.
     public let positions: [ReadiumShared.Locator]
-    /// Where reading is, in the same `totalProgression` the edge and every locator use.
+    /// Where reading is, in the same `totalProgression` every locator uses.
     public let progress: Double
+    /// Where reading is as the reader itself knows it. The resource on screen is a fact where
+    /// progression against unmeasured chapters is an estimate, so Contents marks the current
+    /// chapter from this first — see `BookContents.current(at:resource:)`.
+    public let currentLocator: ReadiumShared.Locator?
     public let highlights: [Highlight]
     public let notes: [NoteItem]
     public let bookmarks: [Bookmark]
@@ -42,6 +46,7 @@ public struct BookOutlineSheetView: View {
         tableOfContents: [ReadiumShared.Link],
         positions: [ReadiumShared.Locator] = [],
         progress: Double = 0,
+        currentLocator: ReadiumShared.Locator? = nil,
         highlights: [Highlight],
         notes: [NoteItem] = [],
         bookmarks: [Bookmark] = [],
@@ -57,6 +62,7 @@ public struct BookOutlineSheetView: View {
         self.tableOfContents = tableOfContents
         self.positions = positions
         self.progress = progress
+        self.currentLocator = currentLocator
         self.highlights = highlights
         self.notes = notes
         self.bookmarks = bookmarks
@@ -221,16 +227,13 @@ public struct BookOutlineSheetView: View {
         }
     }
 
-    /// `Quotes 3`, and plain `Quotes` when there are none.
-    /// Contents, drawn as the book's own edge rather than as a list.
+    /// Contents: the book's chapters, as a column of names.
     ///
-    /// The list it replaces answered "what is in this book" and was silent on the question a
-    /// reader mid-book actually has — how much of this chapter is left — because thirty pages
-    /// and three pages are the same row. Two costs are accepted for that. A book of two hundred
-    /// chapters is aimed at with the lens rather than scrolled, which is a different skill; and
-    /// a chapter cannot be found by scanning names down a column, only by its place. In exchange
-    /// the whole book is on screen at once, at its true proportions, with the reading position
-    /// and every saved passage on the same axis.
+    /// A reader looking for a chapter reads down a list — so the list is a list, and its names
+    /// are set as the book's own hierarchy rather than as sixty identical rows. What it adds to
+    /// a plain table of contents is the reader's own place: the current chapter carries the
+    /// accent, the only progress bar on the screen, and the scroll position when the sheet
+    /// opens.
     private var contentsSection: some View {
         Group {
             if tableOfContents.isEmpty {
@@ -245,46 +248,32 @@ public struct BookOutlineSheetView: View {
                     Spacer()
                 }
             } else {
-                let chapters = ForeEdgeBuilder.chapters(
+                let contents = BookContents.make(
                     tableOfContents: tableOfContents,
                     positions: positions
                 )
-                let edge = BookForeEdge.make(chapters)
 
-                VStack(spacing: 0) {
-                    BookForeEdgeView(
-                        edge: edge,
-                        chapters: chapters,
-                        marks: marks,
-                        progress: progress,
-                        onSelect: { link in
-                            onSelectLink(link)
-                            dismiss()
-                        }
-                    )
-
-                    if !edge.isMeasured {
-                        // Said out loud, because an edge whose thicknesses mean nothing must
-                        // not be read as one whose thicknesses mean something.
-                        Text("Equal stretches — this book doesn\u{2019}t say where its chapters begin.")
-                            .dipleType(.caption)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, DipleSpace.xl)
-                            .padding(.bottom, DipleSpace.m)
+                BookContentsView(
+                    contents: contents,
+                    currentID: contents.current(at: progress, resource: currentLocator?.href)?.id,
+                    progress: progress,
+                    marks: marks,
+                    onSelect: { link in
+                        onSelectLink(link)
+                        dismiss()
                     }
-                }
+                )
             }
         }
     }
 
-    /// Saved passages as ticks on the edge. A passage whose locator carries no place in the
-    /// whole book is left off rather than put at zero: a mark in the wrong place is worse than
-    /// a mark missing, and the reader has no way to tell the difference.
-    private var marks: [ForeEdgeMark] {
+    /// Saved passages, against the chapters they fall in. A passage whose locator carries no
+    /// place in the whole book is left off rather than counted at zero: a mark in the wrong
+    /// chapter is worse than a mark missing, and the reader has no way to tell the difference.
+    private var marks: [ContentsMark] {
         highlights.compactMap { highlight in
             guard let progression = highlight.parsedLocator?.locations.totalProgression else { return nil }
-            return ForeEdgeMark(
+            return ContentsMark(
                 id: highlight.id,
                 progress: progression,
                 colorHex: highlight.colorHex
@@ -292,6 +281,7 @@ public struct BookOutlineSheetView: View {
         }
     }
 
+    /// `Quotes 3`, and plain `Quotes` when there are none.
     private func label(_ name: String, _ count: Int) -> String {
         count > 0 ? "\(name) \(count)" : name
     }
