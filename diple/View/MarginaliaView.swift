@@ -740,10 +740,21 @@ public struct MarginaliaView: View {
                 isAddingTagToSelection = true
             }
 
-            selectionAction("doc.on.doc", label: "Copy all") {
-                UIPasteboard.general.string = model.selectedText
-                HapticManager.shared.impact(.light)
+            // Share rather than a bare Copy. The system sheet carries Copy inside it, and
+            // adds the destinations a compilation is actually for — a vault, a draft, a
+            // colleague — for the same one control the bar can afford.
+            ShareLink(
+                item: model.selectedDocument,
+                preview: SharePreview(model.selectedDocument.name)
+            ) {
+                Image(systemName: "square.and.arrow.up")
+                    .dipleIcon(15, weight: .semibold)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .frame(width: 46, height: 46)
+                    .background(DipleColor.surfaceOverlay, in: Circle())
             }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Share all")
 
             selectionAction("trash", label: "Delete all", isDestructive: true) {
                 isConfirmingBulkDelete = true

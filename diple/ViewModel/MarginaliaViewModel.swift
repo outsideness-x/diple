@@ -416,10 +416,20 @@ public final class MarginaliaViewModel: ObservableObject {
         }
     }
 
-    /// The chosen rows as text, for the clipboard. The same bytes `collect` would write, so
-    /// what is pasted into another app and what is kept in diple are one document.
-    public var selectedText: String {
-        MarginaliaBoard.compile(selectedEntries, narrowedBy: facets, books: books).body
+    /// The chosen rows on their way out of the app — the same bytes the Markdown folder export
+    /// writes, from the same serialiser, so a compilation shared to a friend and one exported to
+    /// a vault are not two different documents.
+    public var selectedDocument: MarginaliaDocument {
+        let compilation = MarginaliaBoard.compile(selectedEntries, narrowedBy: facets, books: books)
+        let title = compilation.title ?? "Collected"
+        return MarginaliaDocument(
+            name: title,
+            text: NoteMarkdownExport.document(
+                title: title,
+                body: compilation.body,
+                tags: compilation.tags
+            )
+        )
     }
 
     // MARK: - Writing
