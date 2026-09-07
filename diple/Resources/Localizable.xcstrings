@@ -7,10 +7,19 @@
     " " : {
 
     },
+    "Estimated — this book doesn’t say where its chapters begin." : {
+
+    },
+    "READING" : {
+
+    },
     "·" : {
 
     },
     "“%@”" : {
+
+    },
+    "«Пиранези» · 책을 읽는 · %@" : {
 
     },
     "#%@" : {
@@ -22,12 +31,32 @@
     "%@ · 책을 읽는 사람" : {
 
     },
+    "%@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$@"
+          }
+        }
+      }
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@, %3$@"
           }
         }
       }
@@ -109,7 +138,13 @@
     "1 fragment" : {
       "comment" : "Second Read item count, singular"
     },
+    "8" : {
+
+    },
     "A" : {
+
+    },
+    "A note written here is filed under this book and tagged with its name, and it waits for you in Notes with everything else you have written." : {
 
     },
     "A place for what stays with you." : {
@@ -127,19 +162,19 @@
     "Add a tag" : {
 
     },
-    "Add Bookmark" : {
+    "Add bookmark" : {
 
     },
-    "Add Comment" : {
-
-    },
-    "Add comment to quote" : {
+    "Add comment to passage" : {
 
     },
     "Add context or your own thought…" : {
 
     },
     "Add tags or a source" : {
+
+    },
+    "Add to your library" : {
 
     },
     "Adding to your library" : {
@@ -151,7 +186,7 @@
     "Adjust to move through the book" : {
 
     },
-    "Allow notifications for diple in iOS Settings to receive your daily quote." : {
+    "Allow notifications for diple in iOS Settings to receive your daily passage." : {
 
     },
     "Another" : {
@@ -161,9 +196,6 @@
 
     },
     "APPEARANCE" : {
-
-    },
-    "Are you sure you want to delete '%@'? This will remove the book file and metadata. Its quotes will remain in Quotes, where you can delete them manually." : {
 
     },
     "Author" : {
@@ -184,9 +216,6 @@
     "Bookmark this page" : {
 
     },
-    "Bookmarks (%lld)" : {
-
-    },
     "Bring your work back" : {
 
     },
@@ -194,6 +223,9 @@
 
     },
     "Cancel" : {
+
+    },
+    "Cards" : {
 
     },
     "Change source" : {
@@ -205,7 +237,7 @@
     "Chapter %@" : {
       "comment" : "VoiceOver label for a Second Read chapter heading"
     },
-    "Chapter Transition Vibration" : {
+    "Chapter transition vibration" : {
 
     },
     "Check Again" : {
@@ -220,6 +252,12 @@
     "Choose a Diple JSON backup and review it before restoring" : {
 
     },
+    "Choose a folder to write your highlights and notes into as Markdown" : {
+
+    },
+    "Choose a Kindle or Readwise export and review it before importing" : {
+
+    },
     "Choose another filter or create a note here." : {
 
     },
@@ -229,7 +267,7 @@
     "Clear search" : {
 
     },
-    "Clear Search and Filters" : {
+    "Clear search and filters" : {
 
     },
     "Close" : {
@@ -240,6 +278,9 @@
     },
     "Close note" : {
       "comment" : "Closes the currently revealed Living Margins note"
+    },
+    "Close search" : {
+
     },
     "COLOR" : {
 
@@ -262,13 +303,10 @@
     "Contents" : {
 
     },
-    "Contents, bookmarks and quotes" : {
+    "Contents, highlights, notes and bookmarks" : {
 
     },
     "Continue" : {
-
-    },
-    "CONTINUE THINKING" : {
 
     },
     "Copied" : {
@@ -283,10 +321,7 @@
     "Copy passage" : {
 
     },
-    "Copy Plain Text" : {
-
-    },
-    "Copy Quote" : {
+    "Copy plain text" : {
 
     },
     "Copy text" : {
@@ -298,7 +333,7 @@
     "d" : {
 
     },
-    "Daily Quote" : {
+    "Daily passage" : {
 
     },
     "Daily reflection template" : {
@@ -307,31 +342,34 @@
     "DAILY RESURFACING" : {
 
     },
-    "Data File Error" : {
+    "Data file error" : {
 
     },
-    "Default Continuous Scroll" : {
+    "Default continuous scroll" : {
 
     },
     "Delete" : {
 
     },
-    "Delete Book?" : {
+    "Delete book?" : {
 
     },
     "Delete highlight" : {
 
     },
-    "Delete Highlight?" : {
+    "Delete note" : {
 
     },
-    "Delete Note?" : {
+    "Delete note?" : {
 
     },
-    "Delete Quote" : {
+    "Delete passage" : {
 
     },
-    "Delete Quote?" : {
+    "Delete passage?" : {
+
+    },
+    "Delete this note?" : {
 
     },
     "designed and created by chemical pink." : {
@@ -343,7 +381,7 @@
     "Details" : {
 
     },
-    "diple could not read the file that holds your books, quotes and notes. Nothing has been deleted — the file is still on this device exactly as it was." : {
+    "diple could not read the file that holds your books, highlights and notes. Nothing has been deleted — the file is still on this device exactly as it was." : {
 
     },
     "diple will open with an empty library next time. The unreadable file stays on this device." : {
@@ -376,25 +414,37 @@
     "Edit" : {
 
     },
-    "Edit Comment" : {
-
-    },
     "Edit Highlight" : {
 
     },
-    "Edit Metadata" : {
+    "Edit metadata" : {
 
     },
     "Edit note" : {
       "comment" : "Accessibility hint for opening the existing highlight note editor"
     },
-    "Edit quote comment" : {
+    "Edit passage" : {
+
+    },
+    "Edit the comment on this passage" : {
 
     },
     "Editing" : {
 
     },
-    "Enable Haptics" : {
+    "EDITORIAL — LITERATA" : {
+
+    },
+    "ELSEWHERE" : {
+
+    },
+    "Elsewhere in your reading" : {
+
+    },
+    "Elsewhere in your reading: %@" : {
+
+    },
+    "Enable haptics" : {
 
     },
     "Enter author name" : {
@@ -439,7 +489,13 @@
     "ƒx" : {
 
     },
-    "Haptic Intensity" : {
+    "Go back to where you were reading" : {
+
+    },
+    "Go forward to where you jumped from" : {
+
+    },
+    "Haptic intensity" : {
 
     },
     "HAPTICS & VIBRATION" : {
@@ -478,19 +534,19 @@
     "ICLOUD" : {
 
     },
-    "iCloud Sync" : {
+    "iCloud sync" : {
 
     },
-    "Import a Book" : {
+    "Import a book" : {
 
     },
-    "Import a File" : {
+    "Import a file" : {
 
     },
     "Import an EPUB or a PDF, or paste the link to an article and read it here without the page around it." : {
 
     },
-    "Importing book..." : {
+    "Import highlights" : {
 
     },
     "In progress" : {
@@ -520,16 +576,19 @@
     "Keep reading" : {
 
     },
-    "Keep Screen Awake" : {
+    "Keep screen awake" : {
 
     },
     "Last checked" : {
 
     },
-    "Library filters" : {
+    "Layout" : {
 
     },
-    "Library is Empty" : {
+    "Library" : {
+
+    },
+    "Library is empty" : {
 
     },
     "Link a source" : {
@@ -538,16 +597,16 @@
     "Link another note" : {
 
     },
-    "Loading book..." : {
+    "List" : {
+
+    },
+    "Loading book…" : {
 
     },
     "Loading original context" : {
       "comment" : "VoiceOver label for inline context loading"
     },
     "Local changes are queued safely until iCloud confirms them." : {
-
-    },
-    "Location" : {
 
     },
     "Mark as done" : {
@@ -557,6 +616,9 @@
 
     },
     "Mark as not done" : {
+
+    },
+    "Markdown written" : {
 
     },
     "Move to %@" : {
@@ -577,19 +639,25 @@
     "Next note" : {
       "comment" : "Moves to the next Living Margins note"
     },
-    "No Bookmarks Saved" : {
+    "No bookmarks saved" : {
 
     },
     "No matching notes" : {
 
     },
-    "No Quotes Saved" : {
+    "No notes yet" : {
 
     },
-    "No Quotes Yet" : {
+    "No passages saved" : {
 
     },
-    "No Table of Contents" : {
+    "No passages yet" : {
+
+    },
+    "No table of contents" : {
+
+    },
+    "Not in your library" : {
 
     },
     "Note attached" : {
@@ -604,7 +672,7 @@
     "Nothing captured yet" : {
 
     },
-    "Nothing Found" : {
+    "Nothing found" : {
 
     },
     "Nothing in this view" : {
@@ -613,7 +681,7 @@
     "Nothing marked here yet." : {
       "comment" : "Second Read empty-state title"
     },
-    "Notifications Are Off" : {
+    "Notifications are off" : {
 
     },
     "OK" : {
@@ -637,6 +705,9 @@
     "Opens at your last reading position" : {
 
     },
+    "Opens that passage" : {
+
+    },
     "Opens the privacy policy in your browser" : {
 
     },
@@ -655,10 +726,13 @@
     "Part of a larger thought" : {
 
     },
+    "Passage" : {
+
+    },
     "Paste from clipboard" : {
 
     },
-    "Paste the address of an article. diple keeps the text, the images and the headings — and leaves the banners behind." : {
+    "Paste the address of an article or a PDF. diple keeps the text, the images and the headings — and leaves the banners behind." : {
 
     },
     "Personal note: %@" : {
@@ -667,7 +741,7 @@
     "Photos" : {
 
     },
-    "Preparing Search…" : {
+    "Preparing search…" : {
 
     },
     "Previous note" : {
@@ -676,13 +750,13 @@
     "PRIVACY" : {
 
     },
+    "Privacy policy" : {
+
+    },
     "Privacy Policy" : {
 
     },
     "Quote" : {
-
-    },
-    "Quotes (%lld)" : {
 
     },
     "Reader" : {
@@ -703,25 +777,22 @@
     "Reading settings" : {
 
     },
-    "Reminder Time" : {
+    "Reminder time" : {
 
     },
     "Remove book %@" : {
 
     },
-    "Remove Comment" : {
+    "Remove comment" : {
 
     },
     "Remove tag %@" : {
 
     },
-    "Removed from library" : {
-
-    },
     "Reopening the app is worth trying first. If it keeps failing, you can start a new empty library; the unreadable file is kept beside it, so a future version may still be able to recover it." : {
 
     },
-    "Restore Backup" : {
+    "Restore backup" : {
 
     },
     "RESTORED" : {
@@ -733,6 +804,9 @@
     "Result Unavailable" : {
 
     },
+    "Retire the label" : {
+
+    },
     "Retry" : {
 
     },
@@ -742,16 +816,13 @@
     "Return to one saved passage each day" : {
 
     },
-    "Return to text" : {
-
-    },
     "Run a check to confirm this device can reach your private iCloud database." : {
 
     },
     "Save" : {
 
     },
-    "Save a Link" : {
+    "Save a link" : {
 
     },
     "Save an article or import a book. Your place, highlights and notes stay together from the first page." : {
@@ -781,10 +852,13 @@
     "Search" : {
 
     },
-    "Search Error" : {
+    "Search error" : {
 
     },
     "Search every note" : {
+
+    },
+    "Search everything" : {
 
     },
     "Search Everything" : {
@@ -799,6 +873,9 @@
     "Search scope" : {
 
     },
+    "Search the library" : {
+
+    },
     "Second Read" : {
       "comment" : "Feature title"
     },
@@ -808,7 +885,7 @@
     "Section" : {
 
     },
-    "Select text in the book to save quotes with your favorite colors." : {
+    "Select a passage while you read and mark it in a colour." : {
 
     },
     "SELECTED PASSAGE" : {
@@ -826,43 +903,40 @@
     "Show another highlight" : {
 
     },
-    "Show as cards" : {
-
-    },
-    "Show as list" : {
-
-    },
     "Show Context" : {
       "comment" : "Expands original prose around a highlighted passage"
     },
     "Show note" : {
       "comment" : "VoiceOver action hint for a Living Margins marker"
     },
-    "Sort Library" : {
+    "Sort" : {
 
     },
-    "Sort notes" : {
+    "Sort and lay out the board" : {
+
+    },
+    "Sort Library" : {
 
     },
     "Source" : {
 
     },
-    "Source Error" : {
+    "Source error" : {
 
     },
-    "Source Overview" : {
+    "Source overview" : {
 
     },
     "Source unavailable" : {
       "comment" : "Shown when a Second Read fragment's book file is missing"
     },
+    "Start a new library" : {
+
+    },
     "Start a New Library" : {
 
     },
     "Start a new library?" : {
-
-    },
-    "Start New Library" : {
 
     },
     "Start reading" : {
@@ -889,7 +963,7 @@
     "Switch to list" : {
 
     },
-    "Sync your library, quotes and notes across your devices" : {
+    "Sync your library, highlights and notes across your devices" : {
 
     },
     "Tag" : {
@@ -898,10 +972,10 @@
     "Tag a Book" : {
 
     },
-    "Tag filters" : {
+    "Tags" : {
 
     },
-    "Tags" : {
+    "TAGS" : {
 
     },
     "Tags…" : {
@@ -922,7 +996,13 @@
     "The backup was merged without deleting anything already on this device." : {
 
     },
+    "The file and your reading position are removed. Saved passages stay in Highlights." : {
+
+    },
     "The file could not be moved: %@" : {
+
+    },
+    "The Inland Sea of Japan." : {
 
     },
     "The page remembers where the reader paused, and the words continue in their own quiet measure." : {
@@ -932,6 +1012,12 @@
 
     },
     "The saved passage and its comment will be removed." : {
+
+    },
+    "THIS IMPORT" : {
+
+    },
+    "This note and its tags will be removed everywhere, not only from this book." : {
 
     },
     "This note and its tags will be removed." : {
@@ -946,7 +1032,7 @@
     "This page is bookmarked" : {
 
     },
-    "This quote will be removed." : {
+    "This passage will be removed." : {
 
     },
     "THIS RESTORE" : {
@@ -970,6 +1056,9 @@
     "Try fewer words or a different spelling." : {
 
     },
+    "Type" : {
+
+    },
     "Type LaTeX or choose a building block" : {
 
     },
@@ -987,6 +1076,12 @@
     },
     "What stayed with you." : {
       "comment" : "Short Second Read editorial subtitle"
+    },
+    "Write a note" : {
+
+    },
+    "Write a note in this book" : {
+
     },
     "Write the first note" : {
 
@@ -1012,7 +1107,7 @@
     "Your Second Read could not be loaded." : {
       "comment" : "Non-technical Second Read database error"
     },
-    "Your thoughts about this quote" : {
+    "Your thoughts about this passage" : {
 
     }
   },
