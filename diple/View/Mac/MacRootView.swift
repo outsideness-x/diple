@@ -131,15 +131,24 @@ public struct MacRootView: View {
     /// its own pair — `HubViewModel` for a list of books and `NotesViewModel` for a grid of
     /// cards — which is the two-screen arrangement the phone stopped having; keeping it here
     /// would have meant a tag written on a passage staying unreachable on this platform alone.
-    @StateObject private var marginalia = MarginaliaViewModel()
+    @StateObject private var marginalia = MarginaliaViewModel(scope: MacRootView.openingScope)
     @StateObject private var search = GlobalSearchViewModel()
 
     /// The shelf the window opens at. `DipleWindowCapture` can name a different one, so a
     /// screenshot of the board does not depend on a command arriving and two columns agreeing
     /// about it before the shutter opens; it is `nil` in every build that is not being
     /// photographed.
-    @State private var source: Source? = DipleWindowCapture.requestedSource
+    @State private var source: Source? = MacRootView.openingSource
+
+    private static let openingSource: Source = DipleWindowCapture.requestedSource
         .flatMap(Source.init(rawValue:)) ?? .library
+
+    /// What the board holds on the very first frame. `onChange(of: source)` moves it after
+    /// that, but it does not run for the value the window opened at — and a shelf that spent
+    /// its first render showing the other one's rows is the mixing this arrangement removes.
+    private static var openingScope: MarginaliaScope {
+        openingSource == .highlights ? .saved : .written
+    }
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var readerRequest: MacReaderRequest?
@@ -226,8 +235,8 @@ public struct MacRootView: View {
         }
         .onChange(of: source) { _, newSource in
             guard let newSource else { return }
-            // The shelf sets the scope it opens at and nothing else. Grouping and order are the
-            // reader's, and re-clicking a sidebar row is not a request to undo them.
+            // The shelf sets what stands in the column and nothing else. Grouping and order
+            // are the reader's, and re-clicking a sidebar row is not a request to undo them.
             if newSource == .highlights || newSource == .notes {
                 marginalia.load()
                 marginalia.scope = newSource == .highlights ? .saved : .written
@@ -457,9 +466,9 @@ public struct MacRootView: View {
             }
 
         case .highlights, .notes:
-            // One collection behind both shelves. They are two doors into the same room, and
-            // which door was used only decides the scope it opens at — the scope bar inside
-            // the column can walk between them without going back to the sidebar.
+            // One collection behind both shelves, and the shelf decides what stands in it.
+            // Not a starting point: the column has no scope bar to walk out of Highlights
+            // with, because leaving Highlights is what the sidebar is for.
             MacMarginaliaCollection(
                 title: source?.title ?? "Notes",
                 model: marginalia,
@@ -475,7 +484,9 @@ public struct MacRootView: View {
                 onCreate: createNewNote,
                 onOpenPassage: { openPassage($0) },
                 onCollected: { note in
-                    marginalia.scope = .written
+                    // The gathered note is a note, so it is shown where notes are. Moving the
+                    // shelf moves the scope with it.
+                    source = .notes
                     detail = .note(note)
                 }
             )
@@ -584,7 +595,6 @@ public struct MacRootView: View {
         guard marginalia.save(note, tags: route.initialTags) else { return }
         guard let item = noteItem(id: note.id) else { return }
         source = .notes
-        marginalia.scope = .written
         detail = .note(item)
     }
 
@@ -1390,8 +1400,8 @@ private struct MacContinueReadingCard: View {
 
 /// Notes and saved passages in one column, under the controls they now share.
 ///
-/// It stands behind both the Highlights and the Notes shelf: two doors into the same room,
-/// where the door only decides the scope it opens at. Everything the phone's board does is here
+/// It stands behind both the Highlights and the Notes shelf, showing one kind at a time: the
+/// shelf says which, for as long as it is the shelf. Everything the phone's board does is here
 /// because it is the same view model and the same `MarginaliaBoard` transform — what is
 /// desktop-shaped is only the chrome around it.
 private struct MacMarginaliaCollection: View {
@@ -1420,15 +1430,15 @@ private struct MacMarginaliaCollection: View {
         GridItem(.adaptive(minimum: 260), spacing: DipleSpace.m, alignment: .top)
     ]
 
+    /// What this shelf holds, in its own kind only. The header printed both counts on both
+    /// shelves while the scope bar could walk between them; over a column of passages, "4
+    /// notes · 12 passages" names a collection the shelf does not show.
     private var contextLine: String? {
-        var parts: [String] = []
-        if model.totalWritten > 0 {
-            parts.append(model.totalWritten == 1 ? "1 note" : "\(model.totalWritten) notes")
-        }
-        if model.totalSaved > 0 {
-            parts.append(model.totalSaved == 1 ? "1 passage" : "\(model.totalSaved) passages")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        let total = model.totalInScope
+        guard total > 0 else { return nil }
+        return model.scope == .written
+            ? (total == 1 ? "1 note" : "\(total) notes")
+            : (total == 1 ? "1 passage" : "\(total) passages")
     }
 
     var body: some View {
@@ -1437,7 +1447,7 @@ private struct MacMarginaliaCollection: View {
                 title: title,
                 count: model.count(for: model.scope),
                 context: contextLine,
-                query: model.entries.isEmpty ? nil : $model.rawQuery,
+                query: model.totalInScope == 0 ? nil : $model.rawQuery,
                 prompt: "Search everything · #tag · @source",
                 searchIdentifier: "mac.marginalia.search",
                 focusRequest: $searchFocusRequest,
@@ -1464,15 +1474,27 @@ private struct MacMarginaliaCollection: View {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
-                if model.entries.isEmpty {
-                    MacEmptyCollection(
-                        icon: "square.and.pencil",
-                        title: "Start with a thought",
-                        message: "Everything you write, and every passage you keep while reading, collects here — by source and by tag.",
-                        actionTitle: "New note",
-                        actionIcon: "plus",
-                        action: onCreate
-                    )
+                if model.totalInScope == 0 {
+                    // The shelf's own emptiness, in the shelf's own words. Asked of the whole
+                    // catalogue it answered for the other shelf: a library of marked passages
+                    // and no notes drew a filter row over an empty Notes column, and a library
+                    // of notes and no passages did the same in Highlights.
+                    if model.scope == .saved {
+                        MacEmptyCollection(
+                            icon: "quote.opening",
+                            title: "Nothing marked yet",
+                            message: "Mark a passage while reading and it collects here, by source, by tag and by the colour you marked it with.",
+                        )
+                    } else {
+                        MacEmptyCollection(
+                            icon: "square.and.pencil",
+                            title: "Start with a thought",
+                            message: "Everything you write collects here, by source and by tag. Passages you keep while reading are in Highlights.",
+                            actionTitle: "New note",
+                            actionIcon: "plus",
+                            action: onCreate
+                        )
+                    }
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
@@ -1571,12 +1593,6 @@ private struct MacMarginaliaCollection: View {
             if let token = MarginaliaQuery.activeToken(in: model.rawQuery) {
                 tokenSuggestions(for: token)
             }
-
-            MarginaliaScopeBar(
-                scope: $model.scope,
-                counts: { model.count(for: $0) },
-                isAvailable: { _ in model.totalWritten > 0 && model.totalSaved > 0 }
-            )
 
             chipRow
         }

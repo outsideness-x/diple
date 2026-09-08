@@ -5,11 +5,18 @@ import SwiftUI
 // rather than at the import.
 import struct ReadiumShared.Locator
 
-/// Which door was used to reach the board.
+/// Which room of the board this is.
 ///
-/// One room, two entrances — the arrangement the desktop's sidebar already had. The door
-/// decides the scope it opens at and two small things that follow from it; everything else,
-/// including the scope bar that walks between them, is the same board.
+/// Two rooms over one catalogue — the arrangement the desktop's sidebar already had. The room
+/// decides *what it holds* and two small things that follow from that; every control below it
+/// is the same board.
+///
+/// What the room no longer decides is a starting point the reader can walk away from. There
+/// used to be a scope bar under the masthead — All / Written / Saved — so Highlights opened on
+/// passages and was one tap from a page of notes, with the masthead announcing both counts in
+/// both rooms. Two doors into a room you can leave by the same door are one room with a
+/// confusing name: a reader who marked something in a book and came to Highlights was shown
+/// their notes. Highlights holds passages, Notes holds notes, and neither shows the other's.
 public enum MarginaliaDoor {
     case notes
     case highlights
@@ -21,6 +28,7 @@ public enum MarginaliaDoor {
         }
     }
 
+    /// What this room holds — fixed for as long as it is open, not a first position.
     var scope: MarginaliaScope {
         switch self {
         case .notes: return .written
@@ -53,7 +61,9 @@ public enum MarginaliaRoute: Hashable {
 /// two places to look, which is a question about this app's storage layout rather than about
 /// their own thinking.
 ///
-/// So the collections keep their tables and share their controls. What changed is one screen,
+/// So the collections keep their tables and share their controls — the filter row, the search
+/// field, the order, the grouping and the filing pass are written once and stand in both rooms.
+/// What they no longer share is a page: each room shows one kind. What changed is one screen,
 /// not one schema.
 public struct MarginaliaView: View {
     private let door: MarginaliaDoor
@@ -228,7 +238,7 @@ public struct MarginaliaView: View {
 
                 dailyPassage
 
-                if model.entries.isEmpty {
+                if model.totalInScope == 0 {
                     emptyState
                 } else {
                     Section {
@@ -384,19 +394,23 @@ public struct MarginaliaView: View {
             }
     }
 
-    /// What the board holds in total, not what it is currently showing — the filtered count
-    /// belongs on the scope segments, where pressing one is what changes it.
+    /// What this room holds in total, not what it is currently showing — the narrowed count
+    /// belongs on the chips, where pressing one is what changes it.
+    ///
+    /// Its own kind and nothing else. Both counts were printed in both rooms while the scope
+    /// bar could walk between them; over a page of passages, "4 notes · 12 passages" now names
+    /// a collection this room does not contain.
     private var strapline: String? {
         if model.isSelecting {
             let count = model.selectedEntries.count
             return count == 0 ? "Choose what to collect" : "\(count) selected"
         }
-        var parts: [String] = []
-        let written = model.totalWritten
-        let saved = model.totalSaved
-        if written > 0 { parts.append(written == 1 ? "1 note" : "\(written) notes") }
-        if saved > 0 { parts.append(saved == 1 ? "1 passage" : "\(saved) passages") }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        let total = model.totalInScope
+        guard total > 0 else { return nil }
+        switch door {
+        case .notes: return total == 1 ? "1 note" : "\(total) notes"
+        case .highlights: return total == 1 ? "1 passage" : "\(total) passages"
+        }
     }
 
     private var layoutBinding: Binding<MarginaliaLayout> {
@@ -417,15 +431,6 @@ public struct MarginaliaView: View {
             if isSearchFieldShown || !model.rawQuery.isEmpty {
                 searchField
             }
-
-            MarginaliaScopeBar(
-                scope: $model.scope,
-                counts: { model.count(for: $0) },
-                // The bar appears only when the board actually holds both kinds. With notes
-                // and no passages, three segments would offer two rooms that show the same
-                // rows and one that is empty.
-                isAvailable: { _ in model.totalWritten > 0 && model.totalSaved > 0 }
-            )
 
             chipRow
         }
@@ -1017,7 +1022,10 @@ public struct MarginaliaView: View {
 
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
-            Image(systemName: "note.text")
+            // The room's own glyph, the one the tab bar already stands for. A page with
+            // writing on it over an empty passages room was the last place the two collections
+            // were still being drawn as one.
+            Image(systemName: door == .notes ? "note.text" : "quote.opening")
                 .dipleIcon(30, weight: .thin)
                 .foregroundStyle(DipleColor.accentInk)
 
@@ -1028,7 +1036,7 @@ public struct MarginaliaView: View {
 
                 Text(
                     door == .notes
-                        ? "Everything you write, and every passage you keep while reading, collects here — by source and by tag."
+                        ? "Everything you write collects here, by source and by tag. Passages you keep while reading are in Highlights."
                         : "Mark a passage while reading and it collects here, by source, by tag and by the colour you marked it with."
                 )
                 .dipleType(.callout)

@@ -1,73 +1,9 @@
 import SwiftUI
 
-/// Whose words the board is showing, with the count each segment would produce.
-///
-/// The number is not decoration and not a vanity metric: it is the promise the segment makes,
-/// taken with every other narrowing already applied, so pressing `Saved 12` shows twelve rows.
-/// A scope with nothing in it at all is not drawn — an app holding only notes should not spend
-/// a third of its control band offering a room that does not exist yet.
-public struct MarginaliaScopeBar: View {
-    @Binding var scope: MarginaliaScope
-    let counts: (MarginaliaScope) -> Int
-    let isAvailable: (MarginaliaScope) -> Bool
-
-    public init(
-        scope: Binding<MarginaliaScope>,
-        counts: @escaping (MarginaliaScope) -> Int,
-        isAvailable: @escaping (MarginaliaScope) -> Bool
-    ) {
-        _scope = scope
-        self.counts = counts
-        self.isAvailable = isAvailable
-    }
-
-    private var scopes: [MarginaliaScope] {
-        MarginaliaScope.allCases.filter { isAvailable($0) || $0 == scope }
-    }
-
-    public var body: some View {
-        // One room is not a choice.
-        if scopes.count > 1 {
-            HStack(spacing: DipleSpace.xs) {
-                ForEach(scopes) { option in
-                    Button {
-                        HapticManager.shared.selection()
-                        withAnimation(DipleMotion.snappy) { scope = option }
-                    } label: {
-                        segment(option)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(option.title), \(counts(option))")
-                    .accessibilityAddTraits(scope == option ? [.isSelected] : [])
-                }
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    private func segment(_ option: MarginaliaScope) -> some View {
-        let isSelected = scope == option
-        return HStack(spacing: DipleSpace.xs) {
-            Text(option.title)
-                .dipleType(.footnote, weight: .semibold)
-            Text("\(counts(option))")
-                .dipleType(.footnote, weight: .regular)
-                .monospacedDigit()
-                .contentTransition(.numericText())
-                .foregroundStyle(isSelected ? DipleColor.accentInk.opacity(0.7) : DipleColor.textQuaternary)
-        }
-        .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textTertiary)
-        .padding(.horizontal, DipleSpace.m)
-        .padding(.vertical, DipleSpace.s)
-        .dipleSelected(isSelected, in: Capsule())
-        .animation(DipleMotion.standard, value: counts(option))
-    }
-}
-
 /// One name in the filter row.
 ///
 /// Chosen, it carries a cross and no number: the count of a chip you have already pressed is
-/// the count of the board, and that is printed on the scope segment two rows up. Unchosen, it
+/// the count of the board, and that is printed in the masthead. Unchosen, it
 /// carries the number and no cross. One glyph or one number, never both — a capsule this small
 /// has room for the label and one more thing.
 public struct MarginaliaChip: View {

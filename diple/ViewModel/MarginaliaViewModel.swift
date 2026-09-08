@@ -182,6 +182,20 @@ public final class MarginaliaViewModel: ObservableObject {
 
     public var totalWritten: Int { entries.filter { $0.kind == .written }.count }
     public var totalSaved: Int { entries.filter { $0.kind == .saved }.count }
+
+    /// How many rows this room holds at all, before any narrowing.
+    ///
+    /// The catalogue is shared and the room is a fixed slice of it, so "is there anything
+    /// here" can no longer be asked of `entries`: a library with four notes and no passages
+    /// would answer yes in the passages room and print a control band over nothing.
+    public var totalInScope: Int {
+        switch scope {
+        case .all: return entries.count
+        case .written: return totalWritten
+        case .saved: return totalSaved
+        }
+    }
+
     public var isNarrowed: Bool { !facets.isEmpty || !lenses.isEmpty || !rawQuery.isEmpty }
 
     // MARK: - Suggestions
