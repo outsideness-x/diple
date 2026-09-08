@@ -28,22 +28,26 @@ public struct HomeView: View {
         Array(notes.items.sorted { $0.note.updatedAt > $1.note.updatedAt }.prefix(3))
     }
 
-    /// What has just arrived and not been dealt with: the Inbox shelf, newest first.
+    /// What the reader has had open lately, most recent first.
     ///
-    /// The lead is excluded. It is the book the reader is in the middle of, it is already the
-    /// largest thing on the page, and a front page that prints the same source twice reads as a
-    /// mistake rather than as emphasis.
+    /// This band used to be the Inbox — what had arrived and not been dealt with. Arrival is a
+    /// fact about the *library*, and the library already prints it: the shelf has an Inbox with
+    /// a count on it. What the front page cannot get anywhere else is the short list of things
+    /// actually in hand, which is what a reader with four books going comes here to reach.
+    /// Never opened means never listed: an import sitting untouched is on the shelf, not here.
     ///
-    /// Six, because the section is a *sign* that something arrived, not the shelf itself — the
-    /// shelf is one tab away and knows how to sort, filter and search. A front page that grew
-    /// with the inbox would eventually be the inbox.
-    private var inbox: [Book] {
+    /// **Five, and never a sixth.** The section is a way back to what is in hand, not a second
+    /// library; a front page that grew with the reading would eventually be the library. The
+    /// lead is excluded, so it is five *besides* it — it is by definition the most recently
+    /// opened source, and a front page that prints the same one twice reads as a mistake rather
+    /// than as emphasis.
+    private var recentlyOpened: [Book] {
         let leadID = library.continueReadingBook?.id
         return Array(
             library.books
-                .filter { $0.location == .inbox && $0.id != leadID }
-                .sorted { $0.addedAt > $1.addedAt }
-                .prefix(6)
+                .filter { $0.lastOpenedAt != nil && $0.id != leadID }
+                .sorted { ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast) }
+                .prefix(5)
         )
     }
 
@@ -73,10 +77,10 @@ public struct HomeView: View {
                             .matchedTransitionSource(id: book.id, in: readingNamespace)
                         }
 
-                        if !inbox.isEmpty {
-                            section("INBOX") {
+                        if !recentlyOpened.isEmpty {
+                            section("RECENTLY OPENED") {
                                 VStack(spacing: 0) {
-                                    ForEach(inbox) { book in
+                                    ForEach(recentlyOpened) { book in
                                         NavigationLink(value: book) {
                                             LibraryRowView(
                                                 book: book,
