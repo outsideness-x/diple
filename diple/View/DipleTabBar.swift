@@ -4,6 +4,9 @@ import Combine
 /// The app's own tab bar: a floating pill of places, with search kept beside it rather than
 /// inside it, and both collapsing out of the way while the reader is scrolling.
 ///
+/// Glyphs only, at every width and on every device. There is no label, no branch that can
+/// produce one, and nothing left to measure a label against.
+///
 /// The system bar this replaces spanned the full width and sat on top of the content rather
 /// than over it: on the library shelf the "Library" label landed on a book cover, and on the
 /// notes board it landed on note text. It also gave four equal seats to three places and one
@@ -29,6 +32,31 @@ public struct DipleTabBar: View {
     /// library with seventeen saved passages and two notes called its room "Notes".
     private var places: [RootTabView.Tab] { [.home, .library, .highlights, .notes] }
 
+    /// One seat: a glyph and its tap target, square.
+    ///
+    /// Above the 44 pt minimum on purpose. With the labels gone the pill is four glyphs and
+    /// nothing else, and 44 pt around an 18 pt glyph read as a row that had lost something
+    /// rather than one that had been simplified.
+    ///
+    /// It grows with the reader's text size and then stops. Four seats and a search circle have
+    /// to stand on a 375 pt phone at every setting, and five capped seats plus the gutters come
+    /// to 322 of them; unclamped, one seat alone is past 60 pt by the first accessibility size.
+    /// Capping the seat is the honest end of that — the alternative is a seat that stops
+    /// growing under a glyph that does not, which is a clipped icon rather than a small one.
+    @ScaledMetric(relativeTo: .body) private var scaledSeat: CGFloat = 50
+    private var seat: CGFloat { min(scaledSeat, 58) }
+
+    /// The seat plus the hair of air after it. The row carries its own gaps rather than taking
+    /// them from `HStack(spacing:)`, because a seat collapsed to nothing has to take its gap
+    /// with it — three stray hairlines are enough to make the collapsed pill visibly wider than
+    /// the one icon standing in it.
+    private var seatStride: CGFloat { seat + DipleSpace.hair }
+
+    /// In fixed proportion to the seat, so the two can never disagree about how much room the
+    /// glyph has. Set straight on the font rather than through `dipleIcon`, which scales what
+    /// it is handed — and this number has already been scaled by the seat it came from.
+    private var glyph: CGFloat { seat * 0.4 }
+
     public init(selection: Binding<RootTabView.Tab>, isCollapsed: Bool) {
         self._selection = selection
         self.isCollapsed = isCollapsed
@@ -44,67 +72,63 @@ public struct DipleTabBar: View {
 
     // MARK: - The pill
 
-    /// Four places with their names, or four places without them — never one broken word
-    /// beside three whole ones.
+    /// Four glyphs, and never a word.
     ///
-    /// The fourth place put the row over the edge on the narrowest phone still shipping, where
-    /// "Highlights" set as "Highlight / s". Shortening the word was the obvious fix and the
-    /// wrong one: this app has one name for one thing, and a tab that said something else would
-    /// be a second name for the collection every other screen calls Highlights. So the row
-    /// gives up its labels — all of them together — rather than the language. Same mechanism
-    /// the desktop's column header uses when its actions stop fitting.
+    /// The row used to carry labels and give all four up together through `ViewThatFits` when a
+    /// fourth place stopped fitting on the narrowest phone still shipping. It is icons at every
+    /// width now, and there is no branch left that could put a word back. A house, a shelf, a
+    /// quotation mark and a page are already the plainest names those places have; the labels
+    /// were a second, longer name printed under each one, and they cost the bar a second height
+    /// that had to be got rid of at exactly the moment it was also being collapsed.
     private var pill: some View {
-        ViewThatFits(in: .horizontal) {
-            pillBody(showsLabels: true)
-            pillBody(showsLabels: false)
-        }
-    }
-
-    private func pillBody(showsLabels: Bool) -> some View {
-        HStack(spacing: DipleSpace.hair) {
+        HStack(spacing: 0) {
             ForEach(places, id: \.self) { tab in
-                if !isCollapsed || tab == selection {
-                    placeButton(tab, showsLabel: showsLabels)
-                        .transition(.opacity.combined(with: .scale(scale: 0.7)))
-                }
+                placeButton(tab)
+                    // Collapsing is a width, not an insertion. Taking the other three buttons
+                    // out of the row made the pill jump between two sizes rather than travel
+                    // between them: a transition inside `ViewThatFits` is not interpolated at
+                    // all — it re-measures and swaps whole subtrees — so the spring had nothing
+                    // to carry. A seat that narrows to nothing is a number, and a number is
+                    // what a spring can walk along.
+                    .frame(width: isShown(tab) ? seatStride : 0)
+                    .opacity(isShown(tab) ? 1 : 0)
+                    .clipped()
+                    // A zero-width frame does not stop the label overflowing it, and an
+                    // overflowing button is still tappable: without this, the three collapsed
+                    // seats went on catching thumbs aimed at the content behind them.
+                    .allowsHitTesting(isShown(tab))
+                    .accessibilityHidden(!isShown(tab))
             }
         }
         .padding(DipleSpace.xs)
         .background { glass(Capsule(style: .continuous)) }
     }
 
-    private func placeButton(_ tab: RootTabView.Tab, showsLabel: Bool) -> some View {
+    /// Collapsed, only the place the reader is already standing in keeps its seat.
+    private func isShown(_ tab: RootTabView.Tab) -> Bool {
+        !isCollapsed || tab == selection
+    }
+
+    private func placeButton(_ tab: RootTabView.Tab) -> some View {
         let isSelected = selection == tab
         return Button {
             select(tab)
         } label: {
-            VStack(spacing: DipleSpace.hair) {
-                Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
-                    .dipleIcon(18, weight: .medium)
-                // The label goes with the collapse. An icon alone is legible for the place you
-                // are already standing in — which is the only one left when collapsed — but not
-                // for the two you might go to.
-                if !isCollapsed && showsLabel {
-                    Text(tab.title)
-                        .dipleType(.tag, weight: .semibold)
-                        // Honest about its own width, which is what lets `ViewThatFits` above
-                        // compare the two rows at all: a `Text` free to wrap always "fits".
-                        .lineLimit(1)
-                        .fixedSize()
+            Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
+                .font(.system(size: glyph, weight: .medium))
+                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
+                .frame(width: seat, height: seat)
+                .background {
+                    // Drawn while collapsed too. Dropping it there was one more discrete change
+                    // landing in the same frame as the collapse, and the mark of where you are
+                    // is the whole point of a bar reduced to a single icon.
+                    if isSelected {
+                        Capsule(style: .continuous)
+                            .fill(DipleColor.accentSoft)
+                            .matchedGeometryEffect(id: "selected", in: indicator)
+                    }
                 }
-            }
-            .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
-            .frame(minWidth: 44)
-            .frame(height: 44)
-            .padding(.horizontal, isCollapsed || !showsLabel ? 0 : DipleSpace.m)
-            .background {
-                if isSelected && !isCollapsed {
-                    Capsule(style: .continuous)
-                        .fill(DipleColor.accentSoft)
-                        .matchedGeometryEffect(id: "selected", in: indicator)
-                }
-            }
-            .contentShape(Capsule(style: .continuous))
+                .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.dipleTabItem)
         .accessibilityLabel(tab.title)
@@ -119,15 +143,18 @@ public struct DipleTabBar: View {
             select(.search)
         } label: {
             Image(systemName: RootTabView.Tab.search.symbol)
-                .dipleIcon(18, weight: .medium)
+                .font(.system(size: glyph, weight: .medium))
                 .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
-                .frame(width: 52, height: 52)
+                // The pill's own height: seat plus its padding on both sides. The circle
+                // stands beside the capsule, and two round things of nearly the same size
+                // read as a mistake in one of them.
+                .frame(width: seat + DipleSpace.xs * 2, height: seat + DipleSpace.xs * 2)
                 .background { glass(Circle()) }
                 .overlay {
                     if isSelected {
                         Circle().fill(DipleColor.accentSoft)
                         Image(systemName: RootTabView.Tab.search.symbol)
-                            .dipleIcon(18, weight: .medium)
+                            .font(.system(size: glyph, weight: .medium))
                             .foregroundStyle(DipleColor.accentInk)
                     }
                 }
@@ -343,9 +370,13 @@ public final class DipleTabBarState: ObservableObject {
         setCollapsed(false)
     }
 
+    /// `gentle` rather than `standard`. This is something crossing the screen — three seats
+    /// leaving and the pill closing over them — not a control taking a new value, and the
+    /// tighter spring made an animation that was already being cut short by `ViewThatFits`
+    /// read as no animation at all.
     private func setCollapsed(_ collapsed: Bool) {
         guard collapsed != isCollapsed else { return }
-        withAnimation(DipleMotion.standard) { isCollapsed = collapsed }
+        withAnimation(DipleMotion.gentle) { isCollapsed = collapsed }
     }
 }
 
