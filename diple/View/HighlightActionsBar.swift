@@ -55,6 +55,10 @@ public struct HighlightActionsBar: View {
     /// `Translation` framework ships no Catalyst slice at all. The glyph is then not drawn,
     /// rather than drawn dead.
     public let onTranslate: (() -> Void)?
+    /// `nil` unless the passage is a term rather than prose — the caller has already applied
+    /// that rule (`DictionaryLookup.term`). Where it is non-nil it takes the lookup slot; see
+    /// `lookupSlot` for why there is only one.
+    public let onDefine: (() -> Void)?
     public let onAddNote: () -> Void
     public let onCopy: () -> Void
     /// `nil` while nothing has been saved — in `pending`, and on PDF before a colour is
@@ -74,6 +78,7 @@ public struct HighlightActionsBar: View {
         canTranslate: Bool = false,
         onPickColor: @escaping (String) -> Void,
         onTranslate: (() -> Void)? = nil,
+        onDefine: (() -> Void)? = nil,
         onAddNote: @escaping () -> Void,
         onCopy: @escaping () -> Void,
         onDelete: (() -> Void)? = nil
@@ -83,6 +88,7 @@ public struct HighlightActionsBar: View {
         self.canTranslate = canTranslate
         self.onPickColor = onPickColor
         self.onTranslate = onTranslate
+        self.onDefine = onDefine
         self.onAddNote = onAddNote
         self.onCopy = onCopy
         self.onDelete = onDelete
@@ -118,17 +124,7 @@ public struct HighlightActionsBar: View {
 
             separator
 
-            if let onTranslate {
-                // `globe`, not `translate`: the two read the same at 15 pt, and `globe` has
-                // been in SF Symbols since the beginning, so the glyph never becomes the thing
-                // that pins the deployment target.
-                action(
-                    systemImage: "globe",
-                    label: "Translate passage",
-                    isEnabled: canTranslate,
-                    action: onTranslate
-                )
-            }
+            lookupSlot
 
             // Dimmed rather than hidden in `pending`. A control that disappears and comes back
             // moves the three beside it, so the row would reflow under the finger at the exact
@@ -182,6 +178,67 @@ public struct HighlightActionsBar: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Highlight actions")
+    }
+
+    /// The lookup slot: one control, and which of the two answers it offers is decided by the
+    /// passage rather than by a setting.
+    ///
+    /// There is room for exactly one. The bar's budget is eight controls across a 375 pt
+    /// screen — the same budget that makes the palette four colours and not five, recorded on
+    /// `DipleColor.Highlight.selectable` — and `committed` already spends all eight. A ninth
+    /// does not fit on the narrowest phone the app runs on, so a dictionary *beside* the
+    /// translator was never available. A dictionary *instead of* it, when the passage is a
+    /// word, is.
+    ///
+    /// The rule is what each answer is good for. A dictionary knows words, and a reader who
+    /// selected one is asking what it means; a translator takes anything, and a reader who
+    /// selected a sentence is asking what it says. So the slot offers the dictionary for a
+    /// term and the translator for prose — a rule about the shape of the passage, so the same
+    /// passage always goes to the same place (`DictionaryLookup.term` records what happens to
+    /// a control that asks the system whether *this word* is in a dictionary). On Mac Catalyst
+    /// prose gets nothing, as it does today, and a term now gets a lookup the Mac has never had
+    /// at all: the translator has no slice there and the dictionary does.
+    ///
+    /// Holding the slot offers both, where both exist. A single foreign word is the passage the
+    /// rule can be wrong about — the reader wanted it in their own language, not defined in its
+    /// own — and keeping the other answer one press away costs no width at all, where making it
+    /// unreachable would cost the reader the word.
+    @ViewBuilder
+    private var lookupSlot: some View {
+        if let onDefine {
+            let define = action(
+                systemImage: "character.book.closed",
+                label: "Look up",
+                action: onDefine
+            )
+
+            if let onTranslate {
+                define.contextMenu {
+                    Button {
+                        onDefine()
+                    } label: {
+                        Label("Look Up", systemImage: "character.book.closed")
+                    }
+                    Button {
+                        onTranslate()
+                    } label: {
+                        Label("Translate", systemImage: "globe")
+                    }
+                }
+            } else {
+                define
+            }
+        } else if let onTranslate {
+            // `globe`, not `translate`: the two read the same at 15 pt, and `globe` has been in
+            // SF Symbols since the beginning, so the glyph never becomes the thing that pins
+            // the deployment target.
+            action(
+                systemImage: "globe",
+                label: "Translate passage",
+                isEnabled: canTranslate,
+                action: onTranslate
+            )
+        }
     }
 
     /// A hairline with no padding of its own. The 44 pt frames on either side already leave a
