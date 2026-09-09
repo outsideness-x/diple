@@ -1086,18 +1086,3 @@ public struct MarginaliaView: View {
     }
 }
 
-
-/// Choosing takes the tab bar's seat, so the bar has to go while it lasts. It is a preference,
-/// which means it leaves with the mode rather than having to be put back by hand — the same
-/// mechanism the note editor uses for the formatting bar.
-private struct HidesTabBarWhileSelecting: ViewModifier {
-    let isSelecting: Bool
-
-    func body(content: Content) -> some View {
-        if isSelecting {
-            content.hidesDipleTabBar()
-        } else {
-            content
-        }
-    }
-}

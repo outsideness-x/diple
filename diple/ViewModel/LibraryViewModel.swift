@@ -246,6 +246,128 @@ public final class LibraryViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Choosing several
+
+    /// The chosen sources, by id.
+    ///
+    /// Ids rather than values, for the reason the board already records: a `Book` can be
+    /// rewritten underneath the choice by an edit, an import or a sync, and holding the value
+    /// would keep the one that no longer exists.
+    ///
+    /// A chosen source that the shelf's narrowing then hides **stays chosen and stops
+    /// counting**. Every action here is handed the intersection with what is on screen — the
+    /// view computes it, because the narrowing lives there with the location, the chips and the
+    /// search — so the number on the bar always equals what the button will do, rather than an
+    /// action quietly reaching books the reader cannot see.
+    @Published public private(set) var selection: Set<String> = []
+    @Published public private(set) var isSelecting = false
+
+    public func beginSelecting(with book: Book? = nil) {
+        isSelecting = true
+        if let book { selection = [book.id] }
+    }
+
+    public func endSelecting() {
+        isSelecting = false
+        selection = []
+    }
+
+    public func toggleSelection(_ book: Book) {
+        if selection.contains(book.id) {
+            selection.remove(book.id)
+        } else {
+            selection.insert(book.id)
+        }
+    }
+
+    public func isSelected(_ book: Book) -> Bool {
+        selection.contains(book.id)
+    }
+
+    /// Everything on the shelf as it currently stands, which is not everything there is: the
+    /// narrowing is part of what the reader chose, and a Select all that reached past it would
+    /// gather books they cannot see.
+    public func select(_ books: [Book]) {
+        selection = Set(books.map(\.id))
+    }
+
+    public func clearSelection() {
+        selection = []
+    }
+
+    /// Filing a stack of books in one pass.
+    ///
+    /// One reload at the end rather than one per book — `loadBooks` re-reads the library, its
+    /// tags and its lengths, and doing that twenty times for one gesture is how a shelf built
+    /// for triage becomes slower than the errands it replaces. The same reason the writes go
+    /// through in a loop and only then the shelf is told.
+    public func move(_ books: [Book], to location: BookLocation) {
+        let moving = books.filter { $0.location != location }
+        guard !moving.isEmpty else { return }
+
+        do {
+            for book in moving {
+                try AppDatabase.shared.updateBookLocation(id: book.id, location: location)
+            }
+            loadBooks()
+            HapticManager.shared.notification(.success)
+        } catch {
+            self.errorMessage = "Failed to move these sources: \(error.localizedDescription)"
+            self.showErrorAlert = true
+            loadBooks()
+        }
+    }
+
+    /// Adds a word to every chosen source, and **adds**: the reader is saying "these are also
+    /// this", and an operation that quietly dropped what each book already carried would be the
+    /// most expensive undo in the app. The board's bulk tag is written the same way.
+    public func addTag(_ tag: String, to books: [Book]) {
+        guard let name = TagName.normalized(tag), !books.isEmpty else { return }
+
+        do {
+            for book in books {
+                let existing = tagsByBook[book.id] ?? []
+                guard !existing.contains(where: { TagName.normalized($0) == name }) else { continue }
+                try AppDatabase.shared.setTags(existing + [name], forBookId: book.id)
+            }
+            loadBooks()
+            HapticManager.shared.notification(.success)
+        } catch {
+            self.errorMessage = "Failed to tag these sources: \(error.localizedDescription)"
+            self.showErrorAlert = true
+            loadBooks()
+        }
+    }
+
+    /// Deletes a stack, in the order the single delete already established: the row goes first
+    /// and the folder after, so a failure to clean up leaves an unreachable folder that can be
+    /// retried rather than a visible book whose file has gone.
+    public func delete(_ books: [Book]) {
+        guard !books.isEmpty else { return }
+
+        var cleanupFailed = false
+        do {
+            for book in books {
+                try AppDatabase.shared.deleteBook(id: book.id)
+                do {
+                    try BookStorageService.shared.deleteBookFolder(id: book.id)
+                } catch {
+                    cleanupFailed = true
+                }
+            }
+        } catch {
+            self.errorMessage = "Failed to delete these sources: \(error.localizedDescription)"
+            self.showErrorAlert = true
+        }
+
+        loadBooks()
+
+        if cleanupFailed {
+            self.errorMessage = "The books were removed, but some of their files could not be cleaned up."
+            self.showErrorAlert = true
+        }
+    }
+
     public func move(_ book: Book, to location: BookLocation) {
         guard book.location != location else { return }
 

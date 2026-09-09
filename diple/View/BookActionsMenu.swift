@@ -13,6 +13,12 @@ import SwiftUI
 /// They are a shortcut into this menu's contents, never a competing list.
 public struct BookActionsMenu: ViewModifier {
     public let book: Book
+    /// Enters the shelf's choosing mode with this source already chosen. A long press is where
+    /// iOS has put "act on several of these" for a decade, and it costs the shelf no resident
+    /// control — the masthead is already carrying the layout switch, the search and the import
+    /// menu. The board's own selection is entered by exactly this gesture from exactly this
+    /// place in its menu.
+    public let onSelect: () -> Void
     public let onShowOverview: () -> Void
     public let onOpenSecondRead: () -> Void
     public let onMarkAsFinished: () -> Void
@@ -23,6 +29,12 @@ public struct BookActionsMenu: ViewModifier {
 
     public func body(content: Content) -> some View {
         content.contextMenu {
+            Button {
+                onSelect()
+            } label: {
+                Label("Select", systemImage: "checkmark.circle")
+            }
+
             Button {
                 onShowOverview()
             } label: {
@@ -83,6 +95,7 @@ public extension View {
     /// Attaches the library's long-press menu to a source, however that source is drawn.
     func bookActionsMenu(
         for book: Book,
+        onSelect: @escaping () -> Void,
         onShowOverview: @escaping () -> Void,
         onOpenSecondRead: @escaping () -> Void,
         onMarkAsFinished: @escaping () -> Void,
@@ -93,6 +106,7 @@ public extension View {
     ) -> some View {
         modifier(BookActionsMenu(
             book: book,
+            onSelect: onSelect,
             onShowOverview: onShowOverview,
             onOpenSecondRead: onOpenSecondRead,
             onMarkAsFinished: onMarkAsFinished,

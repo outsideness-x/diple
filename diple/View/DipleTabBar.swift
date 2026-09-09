@@ -491,3 +491,23 @@ public extension View {
         modifier(TabBarCollapseTracker())
     }
 }
+
+
+/// Choosing takes the tab bar's seat, so the bar has to go while it lasts. It is a preference,
+/// which means it leaves with the mode rather than having to be put back by hand — the same
+/// mechanism the note editor uses for the formatting bar.
+///
+/// Shared by the board and the shelf. Both hold the same mode, entered the same way and left by
+/// the same Done, and a second copy of eight lines is how two identical modes start behaving
+/// differently.
+struct HidesTabBarWhileSelecting: ViewModifier {
+    let isSelecting: Bool
+
+    func body(content: Content) -> some View {
+        if isSelecting {
+            content.hidesDipleTabBar()
+        } else {
+            content
+        }
+    }
+}

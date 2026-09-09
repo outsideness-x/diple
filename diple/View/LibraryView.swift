@@ -56,6 +56,9 @@ public struct LibraryView: View {
     @State private var status: LibraryStatusFilter = .any
     @State private var selectedTags: Set<String> = []
     @State private var tagEditingBook: Book?
+    @State private var tagDraft = ""
+    @State private var isAddingTagToSelection = false
+    @State private var isConfirmingBulkDelete = false
     @State private var sort: LibrarySort = .recentlyOpened
     /// Rows push through this rather than through a `NavigationLink`. Inside a `List` a link
     /// draws a system disclosure chevron and reserves the gutter for it, which left the rows
@@ -96,6 +99,19 @@ public struct LibraryView: View {
             tags: selectedTags,
             sort: sort
         )
+    }
+
+    /// The chosen sources **that are also on the shelf as it currently stands**.
+    ///
+    /// Narrowing the shelf does not un-choose anything, but it does take it out of reach: every
+    /// action reads this, and so does the count on the bar, so what the bar says is always what
+    /// the button will do. The board's selection is written to the same rule.
+    private var selectedBooks: [Book] {
+        visibleBooks.filter { viewModel.isSelected($0) }
+    }
+
+    private var isEverythingSelected: Bool {
+        !visibleBooks.isEmpty && selectedBooks.count == visibleBooks.count
     }
 
     private var isDefaultBrowse: Bool {
@@ -237,6 +253,35 @@ public struct LibraryView: View {
                     viewModel.setTags(tags, for: book)
                 }
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if viewModel.isSelecting {
+                    selectionBar
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .modifier(HidesTabBarWhileSelecting(isSelecting: viewModel.isSelecting))
+            .alert("Add a tag", isPresented: $isAddingTagToSelection) {
+                TextField("Tag", text: $tagDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Add") {
+                    viewModel.addTag(tagDraft, to: selectedBooks)
+                    viewModel.endSelecting()
+                    tagDraft = ""
+                }
+                Button("Cancel", role: .cancel) { tagDraft = "" }
+            } message: {
+                Text("The word is added to each chosen source. Nothing already there is replaced.")
+            }
+            .alert("Delete \(selectedBooks.count) sources?", isPresented: $isConfirmingBulkDelete) {
+                Button("Delete", role: .destructive) {
+                    viewModel.delete(selectedBooks)
+                    viewModel.endSelecting()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The files and your reading positions are removed. Saved passages stay in Highlights.")
+            }
             .onAppear(perform: selectInitialLocationIfNeeded)
             // The shelf has to re-read the library every time the reader comes back to it: a
             // book imported from Home, or finished in the reader, changes what belongs here.
@@ -270,24 +315,7 @@ public struct LibraryView: View {
                     } else {
                         LazyVGrid(columns: columns, spacing: DipleSpace.xxl) {
                             ForEach(visibleBooks) { book in
-                                let route = BookRoute(book: book, placement: .grid)
-                                Button {
-                                    path.append(route)
-                                } label: {
-                                    BookItemView(book: book)
-                                        .bookActionsMenu(
-                                            for: book,
-                                            onShowOverview: { overviewBook = book },
-                                            onOpenSecondRead: { path.append(SecondReadRoute(book: book)) },
-                                            onMarkAsFinished: { viewModel.markAsFinished(book) },
-                                            onMove: { viewModel.move(book, to: $0) },
-                                            onEditTags: { tagEditingBook = book },
-                                            onEdit: { viewModel.bookToEdit = book },
-                                            onDelete: { viewModel.confirmDelete(book) }
-                                        )
-                                }
-                                .buttonStyle(.bookCard)
-                                .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+                                gridTile(book)
                             }
                         }
                     }
@@ -328,33 +356,7 @@ public struct LibraryView: View {
             .listRowSeparator(.hidden)
 
             ForEach(visibleBooks) { book in
-                let route = BookRoute(book: book, placement: .list)
-                Button {
-                    path.append(route)
-                } label: {
-                    LibraryRowView(
-                        book: book,
-                        tags: viewModel.tagsByBook[book.id] ?? [],
-                        characters: viewModel.charactersByBook[book.id]
-                    )
-                    // The same menu the grid carries, on the same gesture. A row that answered
-                    // a long press with three of the seven actions was the layout switch
-                    // quietly taking Source Overview, Mark as Finished and Edit Metadata away;
-                    // the swipes below stay the thumb-sized shortcut into this list, not a
-                    // second, shorter version of it.
-                    .bookActionsMenu(
-                        for: book,
-                        onShowOverview: { overviewBook = book },
-                        onOpenSecondRead: { path.append(SecondReadRoute(book: book)) },
-                        onMarkAsFinished: { viewModel.markAsFinished(book) },
-                        onMove: { viewModel.move(book, to: $0) },
-                        onEditTags: { tagEditingBook = book },
-                        onEdit: { viewModel.bookToEdit = book },
-                        onDelete: { viewModel.confirmDelete(book) }
-                    )
-                }
-                .buttonStyle(.bookCard)
-                .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+                listRow(book)
                 // No vertical inset: the rows carry their own vertical padding and meet along
                 // their rules, the way entries in a catalogue do. Spacing between cards would
                 // reintroduce exactly the gaps the cards were removed to close.
@@ -366,39 +368,231 @@ public struct LibraryView: View {
                 ))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    ForEach(BookLocation.allCases.filter { $0 != book.location }, id: \.self) { destination in
-                        Button {
-                            viewModel.move(book, to: destination)
-                        } label: {
-                            Label(destination.title, systemImage: destination.systemImage)
-                        }
-                        .tint(destination == .archive ? DipleColor.textTertiary : DipleColor.accent)
-                    }
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    // Routed through the confirmation the grid already uses. A full swipe that
-                    // deleted a book and its file outright would be the one destructive action
-                    // in the app without a second thought attached to it.
-                    Button(role: .destructive) {
-                        viewModel.confirmDelete(book)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-
-                    Button {
-                        tagEditingBook = book
-                    } label: {
-                        Label("Tags", systemImage: "number")
-                    }
-                    .tint(DipleColor.surfaceOverlay)
-                }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .contentMargins(.bottom, DipleSpace.scrollBottom, for: .scrollContent)
         .tracksTabBarCollapse()
+    }
+
+    // MARK: - A source, chosen or opened
+
+    /// The mark sits in a fixed leading column that every row gets, chosen or not, so the left
+    /// edge of the shelf stays flush while choosing. A check that appears only on the chosen
+    /// rows makes the column shuffle sideways under the thumb on every tap — written down once
+    /// already on the board, and true here for the same reason.
+    @ViewBuilder
+    private func listRow(_ book: Book) -> some View {
+        if viewModel.isSelecting {
+            let isSelected = viewModel.isSelected(book)
+            Button {
+                HapticManager.shared.selection()
+                withAnimation(DipleMotion.snappy) { viewModel.toggleSelection(book) }
+            } label: {
+                HStack(alignment: .top, spacing: DipleSpace.m) {
+                    selectionMark(isSelected)
+                        .padding(.top, DipleSpace.xl)
+
+                    LibraryRowView(
+                        book: book,
+                        tags: viewModel.tagsByBook[book.id] ?? [],
+                        characters: viewModel.charactersByBook[book.id]
+                    )
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        } else {
+            let route = BookRoute(book: book, placement: .list)
+            Button {
+                path.append(route)
+            } label: {
+                LibraryRowView(
+                    book: book,
+                    tags: viewModel.tagsByBook[book.id] ?? [],
+                    characters: viewModel.charactersByBook[book.id]
+                )
+                // The same menu the grid carries, on the same gesture. A row that answered
+                // a long press with three of the seven actions was the layout switch
+                // quietly taking Source Overview, Mark as Finished and Edit Metadata away;
+                // the swipes below stay the thumb-sized shortcut into this list, not a
+                // second, shorter version of it.
+                .bookActionsMenu(
+                    for: book,
+                    onSelect: { beginSelecting(with: book) },
+                    onShowOverview: { overviewBook = book },
+                    onOpenSecondRead: { path.append(SecondReadRoute(book: book)) },
+                    onMarkAsFinished: { viewModel.markAsFinished(book) },
+                    onMove: { viewModel.move(book, to: $0) },
+                    onEditTags: { tagEditingBook = book },
+                    onEdit: { viewModel.bookToEdit = book },
+                    onDelete: { viewModel.confirmDelete(book) }
+                )
+            }
+            .buttonStyle(.bookCard)
+            .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+            // The swipes belong to the browsing row and not to the chosen one: while choosing,
+            // the bar below already carries move, tag and delete for the whole stack, and a
+            // thumb shortcut that reached one book in the middle of that would be a second
+            // answer to a question the reader has already asked differently.
+            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                ForEach(BookLocation.allCases.filter { $0 != book.location }, id: \.self) { destination in
+                    Button {
+                        viewModel.move(book, to: destination)
+                    } label: {
+                        Label(destination.title, systemImage: destination.systemImage)
+                    }
+                    .tint(destination == .archive ? DipleColor.textTertiary : DipleColor.accent)
+                }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                // Routed through the confirmation the grid already uses. A full swipe that
+                // deleted a book and its file outright would be the one destructive action
+                // in the app without a second thought attached to it.
+                Button(role: .destructive) {
+                    viewModel.confirmDelete(book)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+
+                Button {
+                    tagEditingBook = book
+                } label: {
+                    Label("Tags", systemImage: "number")
+                }
+                .tint(DipleColor.surfaceOverlay)
+            }
+        }
+    }
+
+    /// On the shelf the mark cannot take a column of its own — a cover is the whole tile — so it
+    /// sits on the corner of the cover, over a disc that keeps it legible against artwork of any
+    /// colour. The unchosen tile still draws its ring, for the same reason the row keeps its
+    /// column: nothing may move when it is tapped.
+    @ViewBuilder
+    private func gridTile(_ book: Book) -> some View {
+        if viewModel.isSelecting {
+            let isSelected = viewModel.isSelected(book)
+            Button {
+                HapticManager.shared.selection()
+                withAnimation(DipleMotion.snappy) { viewModel.toggleSelection(book) }
+            } label: {
+                BookItemView(book: book)
+                    .overlay(alignment: .topTrailing) {
+                        selectionMark(isSelected)
+                            .padding(DipleSpace.s)
+                    }
+                    .opacity(isSelected ? 1 : 0.72)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        } else {
+            let route = BookRoute(book: book, placement: .grid)
+            Button {
+                path.append(route)
+            } label: {
+                BookItemView(book: book)
+                    .bookActionsMenu(
+                        for: book,
+                        onSelect: { beginSelecting(with: book) },
+                        onShowOverview: { overviewBook = book },
+                        onOpenSecondRead: { path.append(SecondReadRoute(book: book)) },
+                        onMarkAsFinished: { viewModel.markAsFinished(book) },
+                        onMove: { viewModel.move(book, to: $0) },
+                        onEditTags: { tagEditingBook = book },
+                        onEdit: { viewModel.bookToEdit = book },
+                        onDelete: { viewModel.confirmDelete(book) }
+                    )
+            }
+            .buttonStyle(.bookCard)
+            .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
+        }
+    }
+
+    private func selectionMark(_ isSelected: Bool) -> some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .dipleIcon(18, weight: .regular)
+            .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textQuaternary)
+            .frame(width: 22)
+    }
+
+    private func beginSelecting(with book: Book) {
+        HapticManager.shared.selection()
+        withAnimation(DipleMotion.standard) { viewModel.beginSelecting(with: book) }
+    }
+
+    // MARK: - The workbench
+
+    /// What can be done to the sources that were chosen.
+    ///
+    /// It takes the tab bar's place rather than floating above it — choosing is a mode with one
+    /// way out, and leaving navigation live underneath it would offer three ways to abandon a
+    /// selection without saying that is what they do. The board's bar is built the same way,
+    /// because it is the same mode.
+    ///
+    /// Move comes first and is the filled action: the shelf is a queue, and a stack of books is
+    /// chosen in order to be *put somewhere*. Tag and delete are the two the board also carries.
+    private var selectionBar: some View {
+        let chosen = selectedBooks.count
+
+        return HStack(spacing: DipleSpace.s) {
+            Menu {
+                ForEach(BookLocation.allCases, id: \.self) { destination in
+                    Button {
+                        viewModel.move(selectedBooks, to: destination)
+                        viewModel.endSelecting()
+                    } label: {
+                        Label("Move to \(destination.title)", systemImage: destination.systemImage)
+                    }
+                }
+            } label: {
+                HStack(spacing: DipleSpace.s) {
+                    Image(systemName: "tray.full")
+                        .dipleIcon(14, weight: .semibold)
+                    Text(chosen == 0 ? "Move" : "Move \(chosen)")
+                        .dipleType(.footnote, weight: .semibold)
+                }
+                .foregroundStyle(DipleColor.textOnAccent)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .background(DipleColor.accent, in: Capsule())
+            }
+            .buttonStyle(.readerControl)
+
+            selectionAction("number", label: "Add a tag to all") {
+                tagDraft = ""
+                isAddingTagToSelection = true
+            }
+
+            selectionAction("trash", label: "Delete all", isDestructive: true) {
+                isConfirmingBulkDelete = true
+            }
+        }
+        .disabled(chosen == 0)
+        .opacity(chosen == 0 ? 0.5 : 1)
+        .animation(DipleMotion.standard, value: chosen == 0)
+        .padding(.horizontal, DipleSpace.xl)
+        .padding(.vertical, DipleSpace.m)
+        .background(.ultraThinMaterial)
+    }
+
+    private func selectionAction(
+        _ systemImage: String,
+        label: String,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .dipleIcon(15, weight: .semibold)
+                .foregroundStyle(isDestructive ? DipleColor.destructive : DipleColor.textSecondary)
+                .frame(width: 46, height: 46)
+                .background(DipleColor.surfaceOverlay, in: Circle())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(label)
     }
 
     /// The shelf no longer opens with the book you were reading.
@@ -420,32 +614,87 @@ public struct LibraryView: View {
     /// the browser rather than a `toolbar`: a masthead is the top of the page, not furniture
     /// bolted over it.
     private var masthead: some View {
-        DipleMasthead(title: "Library", strapline: strapline) {
-            Menu {
-                Button {
-                    isLinkImporterPresented = true
-                } label: {
-                    Label("Save a link", systemImage: "link")
-                }
-
-                Button {
-                    isFileImporterPresented = true
-                } label: {
-                    Label("Import a file", systemImage: "folder")
-                }
-            } label: {
-                MastheadGlyph(systemImage: "plus")
-            }
-            .buttonStyle(.readerControl)
-            .accessibilityLabel("Add to your library")
-            .simultaneousGesture(TapGesture().onEnded {
-                HapticManager.shared.selection()
-            })
-
-            MastheadButton(systemImage: "gearshape", label: "Settings") {
-                NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
+        DipleMasthead(
+            title: "Library",
+            strapline: viewModel.isSelecting ? selectionStrapline : strapline
+        ) {
+            if viewModel.isSelecting {
+                selectionMastheadActions
+            } else {
+                browsingMastheadActions
             }
         }
+    }
+
+    @ViewBuilder
+    private var browsingMastheadActions: some View {
+        Menu {
+            Button {
+                isLinkImporterPresented = true
+            } label: {
+                Label("Save a link", systemImage: "link")
+            }
+
+            Button {
+                isFileImporterPresented = true
+            } label: {
+                Label("Import a file", systemImage: "folder")
+            }
+        } label: {
+            MastheadGlyph(systemImage: "plus")
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel("Add to your library")
+        .simultaneousGesture(TapGesture().onEnded {
+            HapticManager.shared.selection()
+        })
+
+        MastheadButton(systemImage: "gearshape", label: "Settings") {
+            NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
+        }
+    }
+
+    /// The one way out of choosing, and the one shortcut into choosing everything. Both are
+    /// words rather than glyphs: `All` and `Done` are what every list on this platform calls
+    /// them, and a mode with an invented icon for its exit is a mode readers leave by force
+    /// quitting.
+    @ViewBuilder
+    private var selectionMastheadActions: some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.snappy) {
+                if isEverythingSelected {
+                    viewModel.clearSelection()
+                } else {
+                    viewModel.select(visibleBooks)
+                }
+            }
+        } label: {
+            Text(isEverythingSelected ? "None" : "All")
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.textSecondary)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel(isEverythingSelected ? "Deselect all" : "Select all")
+
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) { viewModel.endSelecting() }
+        } label: {
+            Text("Done")
+                .dipleType(.footnote, weight: .semibold)
+                .foregroundStyle(DipleColor.accentInk)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .buttonStyle(.readerControl)
+    }
+
+    /// While choosing, the count under the name is the count of what is chosen — the library
+    /// total is not the question being asked.
+    private var selectionStrapline: String {
+        let chosen = selectedBooks.count
+        return chosen == 1 ? "1 chosen" : "\(chosen) chosen"
     }
 
     /// What the whole library holds, not what the current shelf shows — the count under the
