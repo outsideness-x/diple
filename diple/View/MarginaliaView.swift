@@ -85,6 +85,8 @@ public struct MarginaliaView: View {
     @FocusState private var isSearchFocused: Bool
     @State private var isFilterSheetPresented = false
     @State private var editingPassage: PassageItem?
+    /// The passage being made into a card, if any.
+    @State private var cardPassage: PassageItem?
     @State private var renameDraft = ""
     @State private var tagDraft = ""
     @State private var isAddingTagToSelection = false
@@ -154,6 +156,9 @@ public struct MarginaliaView: View {
             }
             .navigationDestination(for: Book.self) { book in
                 ReaderContainerView(book: book, onReadingUpdated: { model.load() })
+            }
+            .sheet(item: $cardPassage) { passage in
+                PassageCardSheet(passage: passage)
             }
             .sheet(item: $editingPassage, onDismiss: consumePendingPush) { passage in
                 passageEditor(for: passage)
@@ -805,6 +810,14 @@ public struct MarginaliaView: View {
             UIPasteboard.general.string = item.highlight.text
         } label: {
             Label("Copy passage", systemImage: "doc.on.doc")
+        }
+
+        // Beside Copy rather than instead of it: text is what goes into a document, a picture
+        // is what goes into a conversation, and the passage is the same passage either way.
+        Button {
+            cardPassage = item
+        } label: {
+            Label("Share as a card", systemImage: "text.below.photo")
         }
 
         Button(role: .destructive) {
