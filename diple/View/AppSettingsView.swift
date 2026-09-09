@@ -422,6 +422,8 @@ public struct AppSettingsView: View {
                         .cornerRadius(DipleRadius.m)
                     }
 
+                    readingSection
+
                     dataSection
 
                     // PRIVACY SECTION
@@ -502,6 +504,58 @@ public struct AppSettingsView: View {
     /// past what the type checker will solve in one expression. It is also the honest shape —
     /// this section is one subject, and reading it beside the toggles above obscured both.
     @ViewBuilder
+    /// The way to the log, and the only one.
+    ///
+    /// Settings rather than a tab or a row on Home, and not for want of anywhere better: the
+    /// front page was deliberately cut back to reading and the next move, the shelf is for
+    /// choosing, and a ledger is looked at a few times a year. A rare, reflective screen costs
+    /// nothing here and would cost a permanent row of a page anywhere else. That it sits above
+    /// `YOUR DATA` is the argument for the placement — it is a record of the reader, kept beside
+    /// the export that would carry it away.
+    private var readingSection: some View {
+        VStack(alignment: .leading, spacing: DipleSpace.l) {
+            Text("YOUR READING")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+                .padding(.horizontal, DipleSpace.xs)
+
+            NavigationLink {
+                ReadingLogView()
+            } label: {
+                HStack(spacing: DipleSpace.m) {
+                    Image(systemName: "calendar.day.timeline.left")
+                        .dipleIcon(17, weight: .medium)
+                        .foregroundStyle(DipleColor.accentInk)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reading log")
+                            .dipleType(.body, weight: .medium)
+                            .foregroundStyle(DipleColor.textPrimary)
+                        Text("Every sitting since the log began, and when in the day you read")
+                            .dipleType(.caption)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Spacer(minLength: DipleSpace.s)
+
+                    Image(systemName: "chevron.right")
+                        .dipleIcon(13, weight: .semibold)
+                        .foregroundStyle(DipleColor.textTertiary)
+                }
+                .padding(.horizontal, DipleSpace.l)
+                .padding(.vertical, DipleSpace.m)
+                .background(DipleColor.surfaceRaised)
+                .cornerRadius(DipleRadius.m)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     private var dataSection: some View {
         // DATA OWNERSHIP SECTION
         VStack(alignment: .leading, spacing: DipleSpace.l) {

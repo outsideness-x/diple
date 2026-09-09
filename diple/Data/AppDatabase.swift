@@ -402,7 +402,52 @@ public nonisolated final class AppDatabase: Sendable {
             try db.create(index: "highlightTag_on_tag", on: "highlightTag", columns: ["tag"])
         }
 
+        // The reading log. Additive, local, and derived from nothing that already exists: the
+        // app has measured pace since the speed sampler was written, and thrown away the
+        // sitting it measured. No backfill is possible and none is faked — the log begins the
+        // day it begins.
+        migrator.registerMigration("v19_createReadingSessionTable") { db in
+            try db.create(table: "readingSession") { t in
+                t.column("id", .text).primaryKey()
+                t.column("bookId", .text).notNull()
+                t.column("startedAt", .datetime).notNull()
+                t.column("endedAt", .datetime).notNull()
+                t.column("characters", .double).notNull()
+                t.column("seconds", .double).notNull()
+            }
+            // The ledger is read newest first and grouped by day, and a book's own sittings are
+            // read on its overview.
+            try db.create(index: "readingSession_on_endedAt", on: "readingSession", columns: ["endedAt"])
+            try db.create(index: "readingSession_on_bookId", on: "readingSession", columns: ["bookId"])
+        }
+
         return migrator
+    }
+
+    // MARK: - The reading log
+
+    /// Records one measured sitting.
+    ///
+    /// No sync outbox entry: the log is local by decision, not by omission — see
+    /// `ReadingSession`. Nothing else in the app is derived from these rows, so a failure to
+    /// write one costs the ledger a line and costs reading nothing, which is why the caller is
+    /// free to ignore it.
+    public func recordReadingSession(_ session: ReadingSession) throws {
+        try writer.write { db in
+            try session.insert(db)
+        }
+    }
+
+    /// The whole log, newest sitting first. Read once by the screen that prints it and grouped
+    /// in memory: a reader with a year of sittings has a few hundred rows of six columns, and
+    /// the alternative is a query per month plus a query per day.
+    public func fetchReadingSessions(limit: Int = 5000) throws -> [ReadingSession] {
+        try writer.read { db in
+            try ReadingSession
+                .order(Column("endedAt").desc)
+                .limit(limit)
+                .fetchAll(db)
+        }
     }
 
     // MARK: - Database Access

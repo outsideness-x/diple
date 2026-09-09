@@ -279,6 +279,11 @@ public final class ReaderViewModel: ObservableObject {
     /// instead of over whichever two pages happened to close a window.
     private var sessionCharacters: Double = 0
     private var sessionSeconds: Double = 0
+    /// When the first measured passage of this sitting was read. Set by the first accepted
+    /// sample and cleared with it, so the log's `startedAt` is the beginning of reading rather
+    /// than the moment the book was opened — a book opened and left standing for an hour before
+    /// a page was turned did not have an hour of reading in it.
+    private var sessionStartedAt: Date? = nil
     /// The reading position is written on a timer as the page scrolls, so a failing write
     /// fails repeatedly. The reader is told once and then left to read.
     private var hasReportedProgressFailure = false
@@ -775,8 +780,32 @@ public final class ReaderViewModel: ObservableObject {
         guard sessionCharacters > 0, sessionSeconds > 0 else { return }
         let characters = sessionCharacters
         let seconds = sessionSeconds
+        let startedAt = sessionStartedAt ?? Date().addingTimeInterval(-seconds)
         sessionCharacters = 0
         sessionSeconds = 0
+        sessionStartedAt = nil
+
+        // The same measurement, written down twice for two different purposes: once into the
+        // reader's own pace, which is a running average and forgets, and once into the log,
+        // which is a record and does not. Sharing the flush point is what keeps them from ever
+        // disagreeing about what a sitting was.
+        //
+        // A failed write costs the ledger a line and costs reading nothing, so it is logged and
+        // dropped rather than surfaced: nothing in the app is derived from these rows.
+        do {
+            try database.recordReadingSession(
+                ReadingSession(
+                    bookId: book.id,
+                    startedAt: startedAt,
+                    endedAt: Date(),
+                    characters: characters,
+                    seconds: seconds
+                )
+            )
+        } catch {
+            ReaderLog.navigator.error("Could not record the reading session: \(error.localizedDescription, privacy: .public)")
+        }
+
         AppSettingsManager.shared.settings.readingSpeed.record(
             characters: characters,
             seconds: seconds,
