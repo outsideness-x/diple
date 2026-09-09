@@ -29,6 +29,10 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let onLivingMarginActivated: (String) -> Void
     public let onLivingMarginsEdgeSwipe: () -> Void
     public let onCenterTap: () -> Void
+    /// Handed a tapped note: its address in the publication, its markup and the marker that led
+    /// to it. Returns whether the app took it. `false` puts the tap back on Readium's own path,
+    /// which is to follow the link — see `ReaderViewModel.openFootnote`.
+    public let onFootnote: (String, String, String?) -> Bool
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
     public let onOpenFailed: (String) -> Void
@@ -51,6 +55,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         onLivingMarginActivated: @escaping (String) -> Void = { _ in },
         onLivingMarginsEdgeSwipe: @escaping () -> Void = {},
         onCenterTap: @escaping () -> Void,
+        onFootnote: @escaping (String, String, String?) -> Bool = { _, _, _ in false },
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
         onOpenFailed: @escaping (String) -> Void = { _ in }
@@ -72,6 +77,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.onLivingMarginActivated = onLivingMarginActivated
         self.onLivingMarginsEdgeSwipe = onLivingMarginsEdgeSwipe
         self.onCenterTap = onCenterTap
+        self.onFootnote = onFootnote
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
         self.onOpenFailed = onOpenFailed
@@ -432,7 +438,14 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             return true
         }
 
+        /// A note arrives here with its own text already read out of the publication, so the
+        /// page can print it where it was asked for instead of travelling to where it is kept.
+        /// Only when nothing printable comes out of the markup does the tap keep its old
+        /// meaning — and then the trail records the jump, exactly as before.
         public func navigator(_ navigator: Navigator, shouldNavigateToNoteAt link: ReadiumShared.Link, content: String, referrer: String?) -> Bool {
+            if parent.onFootnote(link.href, content, referrer) {
+                return false
+            }
             if let current = (navigator as? VisualNavigator)?.currentLocation {
                 parent.onLinkJump(current)
             }

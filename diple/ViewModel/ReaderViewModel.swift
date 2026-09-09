@@ -169,6 +169,10 @@ public final class ReaderViewModel: ObservableObject {
     /// list as semantic locator decorations; no marker position is persisted.
     @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
     @Published public private(set) var activeLivingMarginID: String? = nil
+    /// The publisher's note open at the foot of the page, if the reader tapped a marker. It is
+    /// read out of the publication on the tap and kept nowhere else: a footnote is part of the
+    /// book, not something the app stores about it.
+    @Published public private(set) var activeFootnote: Footnote? = nil
     @Published public var bookmarks: [Bookmark] = []
     /// The notes workspace, as the reader sees it.
     @Published public private(set) var notes = ReaderNotes()
@@ -402,6 +406,43 @@ public final class ReaderViewModel: ObservableObject {
 
     public func closeLivingMargin() {
         activeLivingMarginID = nil
+    }
+
+    /// Opens a tapped note at the foot of the page, and reports whether it could.
+    ///
+    /// **`false` matters as much as `true`.** It hands the tap back to Readium, which follows
+    /// the link exactly as it always did and leaves the reader in the back matter with the way
+    /// back recorded in the trail. That is the honest answer for a note whose markup yields
+    /// nothing printable: a marker that swallows the tap and shows an empty card is worse than
+    /// the jump this feature exists to avoid.
+    ///
+    /// Anything else already open over the page stands down first. All three — the actions bar,
+    /// an open margin, this card — speak for the same passage of text, and two of them at once
+    /// is two answers to one tap.
+    public func openFootnote(id: String, content: String, referrer: String?) -> Bool {
+        guard let footnote = FootnoteParser.footnote(id: id, content: content, referrer: referrer) else {
+            return false
+        }
+
+        currentSelection = nil
+        activeHighlight = nil
+        activeHighlightRect = nil
+        activeLivingMarginID = nil
+        // The reader's own bars go with them, and this is not tidiness — it is a correction.
+        // A tap that lands *near* a marker rather than on it activates the link in WebKit while
+        // Readium's own pointer pipeline, which ignores interactive elements, still reports an
+        // ordinary tap: the note opens **and** the chrome is toggled by one touch. Measured on
+        // the simulator. The note arrives second, because reading its resource is asynchronous
+        // and the pointer event is not, so putting the bars down here reliably lands last. It
+        // is also simply right: the card and the bottom bar want the same edge of the page.
+        isOverlayVisible = false
+        activeFootnote = footnote
+        HapticManager.shared.impact(.light)
+        return true
+    }
+
+    public func closeFootnote() {
+        activeFootnote = nil
     }
 
     public func highlightForActiveLivingMargin() -> Highlight? {

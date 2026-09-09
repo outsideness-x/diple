@@ -465,45 +465,25 @@ private enum SecondReadTextRole: Equatable {
 /// Mirrors the reader's durable font, scale and leading choices without copying pagination-only
 /// settings. Original prose uses the selected reading face; personal notes stay in the app's
 /// system face so the distinction survives Increase Contrast without relying on tint alone.
+///
+/// The three lines of it that are not about Second Read — resolve the face, scale the size,
+/// space the lines — live in `ReaderProse`, which the footnote card at the foot of the page
+/// applies to the same publication's words.
 private struct SecondReadTextModifier: ViewModifier {
     let role: SecondReadTextRole
     let settings: ReaderSettings
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func body(content: Self.Content) -> some View {
         let style: DipleTextStyle = switch role {
         case .passage: .readingQuote
         case .context, .note: .readingBody
         }
-        let scaledSize = UIFontMetrics(forTextStyle: style.metrics.uiTextStyle).scaledValue(
-            for: style.size * settings.fontSizeScale,
-            compatibleWith: UITraitCollection(
-                preferredContentSizeCategory: dynamicTypeSize.uiContentSizeCategory
-            )
+
+        return content.readerProse(
+            style,
+            settings: settings,
+            face: role == .note ? .app : .reading
         )
-        let lineSpacing = max(3, 6 + CGFloat(settings.lineHeightAdjustment * 10))
-
-        return content
-            .font(font(size: scaledSize))
-            .lineSpacing(lineSpacing)
-    }
-
-    private func font(size: CGFloat) -> Font {
-        if role == .note {
-            return .system(size: size, weight: .regular, design: .default)
-        }
-        switch settings.font {
-        case .serif:
-            return .system(size: size, weight: .regular, design: .serif)
-        case .sanFrancisco:
-            return .system(size: size, weight: .regular, design: .default)
-        case .atkinson, .openDyslexic:
-            guard let family = settings.font.registeredFamilyName else {
-                return .system(size: size, weight: .regular, design: .default)
-            }
-            return .custom(family, size: size)
-        }
     }
 }
 

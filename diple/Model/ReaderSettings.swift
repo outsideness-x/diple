@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import ReadiumNavigator
 
 /// New York and San Francisco are real system faces now, not the CSS generics `serif`/
@@ -98,6 +99,31 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
                 ("OpenDyslexic-Italic", false, true),
                 ("OpenDyslexic-BoldItalic", true, true),
             ]
+        }
+    }
+
+    /// The same choice, resolved natively rather than through ReadiumCSS.
+    ///
+    /// The page itself is set by `fontFamily` above, inside the web view. Every other surface
+    /// that prints the publication's own words — Second Read's excerpts, a footnote raised at
+    /// the foot of the page — is SwiftUI and has to answer the reader's choice here instead.
+    /// One switch, so the two cannot disagree about what "Serif" means; see `ReaderProse`,
+    /// which is what applies it along with the scale and leading.
+    ///
+    /// The two bundled faces are asked for by their registered family name and fall back to the
+    /// system face if registration ever failed — a paragraph in the wrong face is a blemish, a
+    /// paragraph in no face at all is a blank screen.
+    public func proseFont(size: CGFloat) -> Font {
+        switch self {
+        case .serif:
+            return .system(size: size, weight: .regular, design: .serif)
+        case .sanFrancisco:
+            return .system(size: size, weight: .regular, design: .default)
+        case .atkinson, .openDyslexic:
+            guard let family = registeredFamilyName else {
+                return .system(size: size, weight: .regular, design: .default)
+            }
+            return .custom(family, size: size)
         }
     }
 }

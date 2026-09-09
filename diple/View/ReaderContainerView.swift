@@ -189,6 +189,11 @@ public struct ReaderContainerView: View {
                             viewModel.toggleOverlay()
                             ReaderIdleTimerKeeper.shared.poke()
                         },
+                        onFootnote: { id, content, referrer in
+                            let opened = viewModel.openFootnote(id: id, content: content, referrer: referrer)
+                            ReaderIdleTimerKeeper.shared.poke()
+                            return opened
+                        },
                         onLinkJump: { originLocator in
                             viewModel.pushBackLocation(originLocator)
                         },
@@ -479,6 +484,9 @@ public struct ReaderContainerView: View {
         .overlay {
             livingMarginLayer
         }
+        .overlay {
+            footnoteLayer
+        }
         .animation(DipleMotion.gentle, value: viewModel.toast)
         .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
         // Here rather than on the offer itself. `.animation(value:)` attached to a view that
@@ -493,6 +501,7 @@ public struct ReaderContainerView: View {
         .animation(DipleMotion.gentle, value: viewModel.activeHighlight?.id)
         .animation(DipleMotion.gentle, value: viewModel.finishedColophon != nil)
         .animation(livingMarginAnimation, value: viewModel.activeLivingMarginID != nil)
+        .animation(DipleMotion.gentle, value: viewModel.activeFootnote?.id)
         .task {
             await viewModel.openBook()
         }
@@ -541,7 +550,15 @@ public struct ReaderContainerView: View {
             viewModel.loadNotes()
         }
         .macReaderKeyboard(
-            onClose: { dismiss() },
+            // The innermost thing closes first, which is what Escape has always meant. A note
+            // raised over the page is inside the book, so it goes before the book does.
+            onClose: {
+                if viewModel.activeFootnote != nil {
+                    viewModel.closeFootnote()
+                } else {
+                    dismiss()
+                }
+            },
             onFind: { viewModel.isSearchPresented = true }
         )
         .toolbar(.hidden, for: .navigationBar)
@@ -756,6 +773,44 @@ public struct ReaderContainerView: View {
         #endif
     }
 
+    /// The note at the foot of the page, and the page-wide tap that closes it.
+    ///
+    /// The clear layer has to consume the tap for the same reason the selection layer's does:
+    /// left to fall through, closing the note would also turn the page or raise the reader's
+    /// bars, so closing would never be the only thing that happened.
+    ///
+    /// Half the page is the ceiling. A note longer than that scrolls inside the card rather
+    /// than growing over the sentence it belongs to — the marker is still up there, and a card
+    /// that covers it stops being a footnote and becomes a screen.
+    @ViewBuilder
+    private var footnoteLayer: some View {
+        if viewModel.finishedColophon == nil, let footnote = viewModel.activeFootnote {
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { viewModel.closeFootnote() }
+                        .ignoresSafeArea()
+
+                    FootnoteCardView(
+                        footnote: footnote,
+                        chrome: chrome,
+                        settings: viewModel.settings,
+                        maximumHeight: geo.size.height * 0.5,
+                        onClose: { viewModel.closeFootnote() }
+                    )
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
+            }
+            .transition(footnoteTransition)
+            .zIndex(9)
+        }
+    }
+
+    private var footnoteTransition: AnyTransition {
+        reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity)
+    }
+
     /// Where you are, while the bars are away.
     ///
     /// Tapping the centre hides both bars, which is the right state for reading and also the
@@ -781,6 +836,7 @@ public struct ReaderContainerView: View {
         if viewModel.publication != nil,
            viewModel.finishedColophon == nil,
            !viewModel.isOverlayVisible,
+           viewModel.activeFootnote == nil,
            highlightActionsSubject == nil {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
@@ -820,6 +876,7 @@ public struct ReaderContainerView: View {
               viewModel.finishedColophon == nil,
               !viewModel.isOverlayVisible,
               highlightActionsSubject == nil,
+              viewModel.activeFootnote == nil,
               viewModel.activeLivingMargin == nil
         else { return nil }
 
