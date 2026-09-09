@@ -173,6 +173,9 @@ public final class ReaderViewModel: ObservableObject {
     /// read out of the publication on the tap and kept nowhere else: a footnote is part of the
     /// book, not something the app stores about it.
     @Published public private(set) var activeFootnote: Footnote? = nil
+    /// The illustration opened off the page, if the reader tapped one. Like the note above it,
+    /// this is part of the publication and is read on the tap rather than kept.
+    @Published public private(set) var activeFigure: ReaderFigure? = nil
     @Published public var bookmarks: [Bookmark] = []
     /// The notes workspace, as the reader sees it.
     @Published public private(set) var notes = ReaderNotes()
@@ -443,6 +446,70 @@ public final class ReaderViewModel: ObservableObject {
 
     public func closeFootnote() {
         activeFootnote = nil
+    }
+
+    /// Opens the illustration the reader tapped, at the size the file actually holds.
+    ///
+    /// The page loaded it through Readium's own URL scheme, which is served inside the process
+    /// and cannot be fetched from anywhere else, so the bytes are read from the publication —
+    /// the same door every other resource in the app comes through. The link is found by
+    /// matching the tail of the tapped address against the manifest, longest match first: the
+    /// scheme, the host and the route in front of it belong to the server, and the part behind
+    /// them is the href the manifest already knows.
+    ///
+    /// **A figure that cannot be read hands the tap back.** The script has already taken it
+    /// away from the page, so doing nothing would make the illustration a control that answers
+    /// nothing; toggling the chrome is what the same tap would have done had the script never
+    /// run.
+    public func openFigure(source: String, alt: String) {
+        guard let publication else { return }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            guard let link = Self.figureLink(for: source, in: publication),
+                  let resource = publication.get(link.url()),
+                  let data = try? await resource.read().get(),
+                  let image = UIImage(data: data)
+            else {
+                self.toggleOverlay()
+                return
+            }
+
+            let caption = alt.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.currentSelection = nil
+            self.activeHighlight = nil
+            self.activeHighlightRect = nil
+            self.activeFootnote = nil
+            self.activeFigure = ReaderFigure(
+                id: link.url().string,
+                image: image,
+                caption: caption.isEmpty ? nil : caption
+            )
+            HapticManager.shared.impact(.light)
+        }
+    }
+
+    public func closeFigure() {
+        activeFigure = nil
+    }
+
+    private static func figureLink(
+        for source: String,
+        in publication: Publication
+    ) -> ReadiumShared.Link? {
+        guard let path = URL(string: source)?.path.removingPercentEncoding, !path.isEmpty else {
+            return nil
+        }
+
+        return (publication.resources + publication.readingOrder)
+            .filter { link in
+                let href = link.url().string.removingPercentEncoding ?? link.url().string
+                return !href.isEmpty && path.hasSuffix(href)
+            }
+            // Two resources can share a filename in different folders; the longer href is the
+            // one that matched more of the address, and therefore the one that was tapped.
+            .max { $0.url().string.count < $1.url().string.count }
     }
 
     public func highlightForActiveLivingMargin() -> Highlight? {

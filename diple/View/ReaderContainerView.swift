@@ -194,6 +194,10 @@ public struct ReaderContainerView: View {
                             ReaderIdleTimerKeeper.shared.poke()
                             return opened
                         },
+                        onFigure: { source, alt in
+                            viewModel.openFigure(source: source, alt: alt)
+                            ReaderIdleTimerKeeper.shared.poke()
+                        },
                         onLinkJump: { originLocator in
                             viewModel.pushBackLocation(originLocator)
                         },
@@ -487,6 +491,9 @@ public struct ReaderContainerView: View {
         .overlay {
             footnoteLayer
         }
+        .overlay {
+            figureLayer
+        }
         .animation(DipleMotion.gentle, value: viewModel.toast)
         .animation(DipleMotion.gentle, value: viewModel.isOverlayVisible)
         // Here rather than on the offer itself. `.animation(value:)` attached to a view that
@@ -502,6 +509,7 @@ public struct ReaderContainerView: View {
         .animation(DipleMotion.gentle, value: viewModel.finishedColophon != nil)
         .animation(livingMarginAnimation, value: viewModel.activeLivingMarginID != nil)
         .animation(DipleMotion.gentle, value: viewModel.activeFootnote?.id)
+        .animation(DipleMotion.gentle, value: viewModel.activeFigure?.id)
         .task {
             await viewModel.openBook()
         }
@@ -553,7 +561,9 @@ public struct ReaderContainerView: View {
             // The innermost thing closes first, which is what Escape has always meant. A note
             // raised over the page is inside the book, so it goes before the book does.
             onClose: {
-                if viewModel.activeFootnote != nil {
+                if viewModel.activeFigure != nil {
+                    viewModel.closeFigure()
+                } else if viewModel.activeFootnote != nil {
                     viewModel.closeFootnote()
                 } else {
                     dismiss()
@@ -771,6 +781,25 @@ public struct ReaderContainerView: View {
             .zIndex(10)
         }
         #endif
+    }
+
+    /// The figure, over everything.
+    ///
+    /// It covers the page rather than sitting on it: this is the one thing in the reader that
+    /// asks for the whole screen, because the reason to open an illustration is that the column
+    /// was too narrow for it. The transition is a fade — a figure that flies in from an edge
+    /// would be moving in a direction it did not come from.
+    @ViewBuilder
+    private var figureLayer: some View {
+        if let figure = viewModel.activeFigure {
+            ReaderFigureView(
+                figure: figure,
+                chrome: chrome,
+                onClose: { viewModel.closeFigure() }
+            )
+            .transition(.opacity)
+            .zIndex(11)
+        }
     }
 
     /// The note at the foot of the page, and the page-wide tap that closes it.

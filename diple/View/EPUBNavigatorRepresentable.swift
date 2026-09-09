@@ -33,6 +33,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     /// to it. Returns whether the app took it. `false` puts the tap back on Readium's own path,
     /// which is to follow the link — see `ReaderViewModel.openFootnote`.
     public let onFootnote: (String, String, String?) -> Bool
+    /// Handed a tapped illustration: the address the page loaded it from and its `alt` text.
+    /// The tap has already been taken away from the page by then — see `ReaderFigureScript`.
+    public let onFigure: (String, String) -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
     public let onOpenFailed: (String) -> Void
@@ -56,6 +59,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         onLivingMarginsEdgeSwipe: @escaping () -> Void = {},
         onCenterTap: @escaping () -> Void,
         onFootnote: @escaping (String, String, String?) -> Bool = { _, _, _ in false },
+        onFigure: @escaping (String, String) -> Void = { _, _ in },
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
         onOpenFailed: @escaping (String) -> Void = { _ in }
@@ -78,6 +82,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.onLivingMarginsEdgeSwipe = onLivingMarginsEdgeSwipe
         self.onCenterTap = onCenterTap
         self.onFootnote = onFootnote
+        self.onFigure = onFigure
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
         self.onOpenFailed = onOpenFailed
@@ -411,6 +416,31 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             DispatchQueue.main.async { [weak self] in
                 self?.pullTransition?.refreshAttachments()
             }
+
+            // Every spread builds its own content controller, so this is per spread rather than
+            // per book. The handler goes in behind a proxy that holds this coordinator weakly:
+            // the controller belongs to the web view, the web view to the navigator and the
+            // navigator to this coordinator, so registering `self` directly would close the ring
+            // and the reader would never be released.
+            userContentController.removeScriptMessageHandler(forName: ReaderFigureScript.messageName)
+            userContentController.add(
+                FigureMessageProxy(coordinator: self),
+                name: ReaderFigureScript.messageName
+            )
+            userContentController.addUserScript(
+                WKUserScript(
+                    source: ReaderFigureScript.source,
+                    // At document start, so the capture-phase listener is in place before the
+                    // page's own content — and before Readium's `DOMContentLoaded` handlers —
+                    // can take a tap.
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: false
+                )
+            )
+        }
+
+        func figureTapped(source: String, alt: String) {
+            parent.onFigure(source, alt)
         }
 
         /// - Important: The parameter type must be `Navigator`, not `VisualNavigator`.
@@ -633,5 +663,27 @@ private extension String {
             .replacingOccurrences(of: "\"", with: "&quot;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+    }
+}
+
+/// Stands between a spread's content controller and the coordinator, holding the latter weakly.
+/// See `setupUserScripts` for the ring this breaks.
+private final class FigureMessageProxy: NSObject, WKScriptMessageHandler {
+    private weak var coordinator: EPUBNavigatorRepresentable.Coordinator?
+
+    init(coordinator: EPUBNavigatorRepresentable.Coordinator) {
+        self.coordinator = coordinator
+    }
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard let body = message.body as? [String: Any],
+              let source = body["src"] as? String,
+              !source.isEmpty
+        else { return }
+
+        coordinator?.figureTapped(source: source, alt: body["alt"] as? String ?? "")
     }
 }
