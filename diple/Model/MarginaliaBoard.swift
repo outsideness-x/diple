@@ -160,9 +160,16 @@ public nonisolated enum MarginaliaBoard {
 
         let booksById = Dictionary(books.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var sourceNames: [String: String] = [:]
+        // Carried alongside the title so the filter sheet can be searched by author. A book
+        // still in the library is the only one that has one; a source known only from the
+        // highlight it was saved with has a title and nothing else.
+        var sourceAuthors: [String: String] = [:]
         for entry in entries {
             guard let bookId = entry.bookId, sourceNames[bookId] == nil else { continue }
             sourceNames[bookId] = booksById[bookId]?.title ?? entry.bookTitle ?? "Untitled"
+            if let author = booksById[bookId]?.author, !author.isEmpty {
+                sourceAuthors[bookId] = author
+            }
         }
 
         snapshot.tagOptions = tagCounts
@@ -198,6 +205,7 @@ public nonisolated enum MarginaliaBoard {
                 MarginaliaFacetOption(
                     kind: .source(bookId),
                     label: sourceNames[bookId] ?? "Untitled",
+                    detail: sourceAuthors[bookId],
                     count: count,
                     isSelected: facets.bookIds.contains(bookId)
                 )
@@ -219,6 +227,7 @@ public nonisolated enum MarginaliaBoard {
                 ?? MarginaliaFacetOption(
                     kind: .source(bookId),
                     label: sourceNames[bookId] ?? "Untitled",
+                    detail: sourceAuthors[bookId],
                     count: 0,
                     isSelected: true
                 )

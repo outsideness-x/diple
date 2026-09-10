@@ -170,9 +170,9 @@ public struct MarginaliaView: View {
                 MarginaliaFilingView(model: model)
             }
             .sheet(isPresented: $isFilterSheetPresented) {
+                // The detents are the sheet's own: how tall it should open is a fact about how
+                // many names it is holding, and only it knows that.
                 MarginaliaFilterSheet(model: model)
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
             }
             .alert("Error", isPresented: $model.showErrorAlert) {
                 Button("OK", role: .cancel) {}
@@ -590,6 +590,17 @@ public struct MarginaliaView: View {
 
     private static let chipRowStart = "marginalia.chips.start"
 
+    /// The door to everything the row could not print.
+    ///
+    /// The number on it is **what is behind the door**, not how many filters are on. It used to
+    /// be the latter, which on a library of thirty names was a second copy of something the row
+    /// already says twice — every chosen chip carries a cross, and Clear stands next to this —
+    /// and on a library of three hundred left the reader with no way to know that the eight
+    /// shelves in front of them were eight of two hundred and ninety. A row that is a fraction
+    /// has to say so; how big the fraction is, is the one fact the row itself cannot show.
+    ///
+    /// The ring still says filters are in force. That is a state, and it is what `dipleSelected`
+    /// is for; the count beside it is a size.
     private var filterSheetChip: some View {
         Button {
             HapticManager.shared.selection()
@@ -598,19 +609,32 @@ public struct MarginaliaView: View {
             HStack(spacing: DipleSpace.xs) {
                 Image(systemName: "line.3.horizontal.decrease")
                     .dipleIcon(11, weight: .semibold)
-                if model.facets.count > 0 {
-                    Text("\(model.facets.count)")
-                        .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(model.facets.isEmpty ? DipleColor.textTertiary : DipleColor.accentInk)
+
+                if hiddenFacetCount > 0 {
+                    Text("+\(hiddenFacetCount)")
+                        .dipleType(.micro, weight: .regular)
                         .monospacedDigit()
+                        .foregroundStyle(DipleColor.textQuaternary)
                 }
             }
-            .foregroundStyle(model.facets.isEmpty ? DipleColor.textTertiary : DipleColor.accentInk)
             .diplePadding(.chip)
             .frame(minHeight: 28)
             .dipleSelected(!model.facets.isEmpty, in: Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("All sources and tags")
+        .accessibilityLabel(
+            hiddenFacetCount > 0
+                ? "All sources and tags, \(hiddenFacetCount) more not shown"
+                : "All sources and tags"
+        )
+    }
+
+    /// How many names the row is not printing. The runs are capped per kind and the marks are
+    /// never capped, so the two cancel and this is exactly what the sheet holds beyond the row.
+    private var hiddenFacetCount: Int {
+        let shown = facetRuns.reduce(0) { $0 + $1.options.count }
+        return max(0, model.facetOptions.count - shown)
     }
 
     /// One way out of every narrowing at once.

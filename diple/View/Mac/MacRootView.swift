@@ -1675,18 +1675,28 @@ private struct MacMarginaliaCollection: View {
         }
     }
 
+    /// The count is what the wrap did **not** print, the same as on the phone: a row that is a
+    /// fraction of the vocabulary has to say how big the fraction is, and that is the one fact
+    /// it cannot show by showing chips.
     @ViewBuilder
     private var allFiltersChip: some View {
-        if model.facetOptions.count > visibleFacets || model.facets.count > 0 {
+        let hidden = hiddenFacetCount
+        if hidden > 0 || model.facets.count > 0 {
             MarginaliaChip(
                 label: "All filters",
                 kind: .lens("line.3.horizontal.decrease"),
-                count: model.facetOptions.count,
+                count: hidden,
                 isSelected: false
             ) {
                 isFilterSheetPresented = true
             }
         }
+    }
+
+    private var hiddenFacetCount: Int {
+        let shown = MarginaliaBoard.runs(of: model.facetOptions, limit: visibleFacets)
+            .reduce(0) { $0 + $1.options.count }
+        return max(0, model.facetOptions.count - shown)
     }
 
     @ViewBuilder

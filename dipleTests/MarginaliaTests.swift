@@ -323,6 +323,73 @@ final class MarginaliaTests: XCTestCase {
         XCTAssertTrue(ranks.contains(0) && ranks.contains(1) && ranks.contains(2))
     }
 
+    /// A run is capped on its own, so a library long in shelves still prints its words. One cap
+    /// over the whole row left the phone showing nine books and no tags at all.
+    func testEachRunIsCappedOnItsOwn() {
+        var entries: [MarginaliaEntry] = []
+        for index in 0..<20 {
+            let book = Book(
+                id: "book-\(index)",
+                title: "Book \(index)",
+                author: "Author \(index)",
+                filePath: "Books/\(index)/b.epub"
+            )
+            entries.append(coloured("p\(index)", "#FFD60A", book: book, tags: ["tag-\(index)"]))
+        }
+
+        let runs = MarginaliaBoard.runs(of: snapshot(entries).facetOptions, limit: 8)
+
+        XCTAssertEqual(runs.map(\.kind), [.sources, .tags], "one swatch in play is not a choice")
+        XCTAssertEqual(runs.first { $0.kind == .sources }?.options.count, 8)
+        XCTAssertEqual(runs.first { $0.kind == .tags }?.options.count, 8)
+    }
+
+    /// The swatches are never capped. A shelf or a word dropped from the row can still be found
+    /// by name in the sheet; a colour has no name to look one up by.
+    func testTheSwatchRunIsNeverCapped() {
+        let entries = [
+            coloured("a", "#FFD60A", book: sapiens),
+            coloured("b", "#30D158", book: sapiens),
+            coloured("c", "#DF9BE1", book: dune),
+            coloured("d", "#FF375F", book: dune)
+        ]
+
+        let runs = MarginaliaBoard.runs(of: snapshot(entries).facetOptions, limit: 1)
+        XCTAssertEqual(runs.first { $0.kind == .marks }?.options.count, 4)
+        XCTAssertEqual(runs.first { $0.kind == .sources }?.options.count, 1)
+    }
+
+    // MARK: - Finding a source
+
+    /// A source carries its author so the filter sheet can be searched by one. A reader with
+    /// three hundred books looks for Harari at least as often as for Sapiens.
+    func testASourceAnswersToItsAuthorAsWellAsItsTitle() {
+        let shot = snapshot([note("a", book: sapiens), note("b", book: dune)])
+        let option = shot.sourceOptions.first { $0.kind == .source("sapiens") }
+
+        XCTAssertEqual(option?.detail, "Harari")
+        XCTAssertEqual(option?.searchableNames, ["Sapiens", "Harari"])
+    }
+
+    /// A source known only from the highlight it was saved with has a title and nothing else,
+    /// and must not invent one.
+    func testASourceWithNoBookInTheLibraryCarriesNoAuthor() {
+        let orphan = PassageItem(
+            highlight: Highlight(
+                id: "orphan", bookId: "gone", locator: "{}", text: "text",
+                colorHex: "#FFD60A", createdAt: Date(timeIntervalSince1970: 1_000_000),
+                bookTitle: "A Book No Longer Here"
+            ),
+            tags: [],
+            book: nil
+        )
+        let shot = MarginaliaBoard.snapshot(entries: [.passage(orphan)], books: [], controls: .init())
+        let option = shot.sourceOptions.first { $0.kind == .source("gone") }
+
+        XCTAssertEqual(option?.label, "A Book No Longer Here")
+        XCTAssertNil(option?.detail)
+    }
+
     /// Chosen first, but only inside its own run: a pressed word does not jump the shelves.
     ///
     /// Both marks have to survive the narrowing for this to test anything — a single colour

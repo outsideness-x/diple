@@ -374,6 +374,13 @@ public nonisolated struct MarginaliaFacetOption: Identifiable, Equatable, Hashab
     public let kind: Kind
     /// What the chip prints — a book's title, or a tag without its `#`.
     public let label: String
+    /// The second thing this name is known by, when it has one: a source carries its author.
+    ///
+    /// It exists for the filter sheet, which on a large library is a finder rather than a list.
+    /// A reader with three hundred books looks for *Harari* at least as often as for *Sapiens*,
+    /// and a search that only matches the title answers "no such source" to a name they are
+    /// certain of. The chip in the row never prints it — a capsule has room for one name.
+    public let detail: String?
     /// How many entries stand under this name inside the current narrowing. For a tag, which
     /// is AND-ed, that is exactly what would remain if it were added; for a source, which is
     /// OR-ed, it is what that source contributes.
@@ -382,9 +389,15 @@ public nonisolated struct MarginaliaFacetOption: Identifiable, Equatable, Hashab
 
     public var id: Kind { kind }
 
-    public init(kind: Kind, label: String, count: Int, isSelected: Bool) {
+    /// Everything this option answers to, for a search field to match against.
+    public var searchableNames: [String] {
+        [label, detail].compactMap { $0 }
+    }
+
+    public init(kind: Kind, label: String, detail: String? = nil, count: Int, isSelected: Bool) {
         self.kind = kind
         self.label = label
+        self.detail = detail
         self.count = count
         self.isSelected = isSelected
     }
