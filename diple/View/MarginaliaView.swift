@@ -118,9 +118,12 @@ public struct MarginaliaView: View {
     /// two columns of shredded text.
     private let columns = [GridItem(.adaptive(minimum: 240), spacing: DipleSpace.m)]
 
-    /// How many names the row prints before the rest are left to the filter sheet. Enough that
-    /// an ordinary library never needs the sheet, few enough that the row stays a row.
-    private let visibleFacets = 14
+    /// How many names the row prints *per run* before the rest are left to the filter sheet.
+    /// Enough that an ordinary library never needs the sheet, few enough that the row stays a
+    /// row. It is counted per run rather than over the whole row for the reason the runs exist
+    /// at all: one cap across a list that begins with shelves means a library with nine books
+    /// prints no words, and the word is what most readers came to press.
+    private let visibleFacets = 8
 
     public init(door: MarginaliaDoor = .notes) {
         self.door = door
@@ -493,6 +496,18 @@ public struct MarginaliaView: View {
         }
     }
 
+    /// The filter row, read in runs rather than as one list.
+    ///
+    /// It used to be a single ranking by count: a swatch, a shelf, two words, another shelf,
+    /// six more words, in whatever order the numbers happened to fall that minute. Three kinds
+    /// of thing at three shapes in no order is a heap, and the way you use a heap is to read
+    /// all of it — which is the one thing a control band across the top of a catalogue must
+    /// not ask for.
+    ///
+    /// So the row has a grammar now: the door to everything, then the lenses, then marks, then
+    /// shelves, then words, each run in its own stretch with a hairline between. The order
+    /// never changes, so after a day of use the reader is not reading the row at all — they
+    /// know the words are on the right and scroll straight there.
     private var chipRow: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
@@ -503,32 +518,48 @@ public struct MarginaliaView: View {
                         filterSheetChip
                     }
 
-                    ForEach(model.lensOptions) { option in
-                        MarginaliaChip(
-                            label: option.lens.title,
-                            kind: .lens(option.lens.systemImage),
-                            count: option.count,
-                            isSelected: option.isSelected
-                        ) {
-                            model.toggle(option.lens)
+                    if model.isNarrowed {
+                        clearChip
+                    }
+
+                    if !model.lensOptions.isEmpty {
+                        runDivider
+
+                        ForEach(model.lensOptions) { option in
+                            MarginaliaChip(
+                                label: option.lens.title,
+                                kind: .lens(option.lens.systemImage),
+                                count: option.count,
+                                isSelected: option.isSelected
+                            ) {
+                                model.toggle(option.lens)
+                            }
                         }
                     }
 
-                    ForEach(model.facetOptions.prefix(visibleFacets)) { option in
-                        MarginaliaChip(
-                            label: option.label,
-                            kind: chipKind(for: option),
-                            count: option.count,
-                            isSelected: option.isSelected
-                        ) {
-                            model.toggle(option)
+                    ForEach(facetRuns) { run in
+                        runDivider
+
+                        ForEach(run.options) { option in
+                            MarginaliaChip(
+                                label: option.label,
+                                kind: chipKind(for: option),
+                                count: option.count,
+                                isSelected: option.isSelected
+                            ) {
+                                model.toggle(option)
+                            }
+                            .contextMenu { facetMenu(option) }
                         }
-                        .contextMenu { facetMenu(option) }
                     }
                 }
+                // The runs animate as one row. Without it a chip pressed at the far right of
+                // the words jumps to the head of its own run while everything after it slides
+                // a capsule's width sideways, all in the same frame.
+                .animation(DipleMotion.snappy, value: model.facetOptions)
             }
             .contentMargins(.horizontal, 0, for: .scrollContent)
-            // A chosen chip sorts to the front of the row, which is no use if the row is still
+            // A chosen chip sorts to the front of its run, which is no use if the row is still
             // scrolled to where the reader pressed it. The row returns to its start whenever
             // the narrowing changes, so what is now in force is always the first thing on it.
             .onChange(of: model.facets) { _, _ in
@@ -537,6 +568,24 @@ public struct MarginaliaView: View {
                 }
             }
         }
+    }
+
+    /// The runs the row prints, capped. The split lives on `MarginaliaBoard` because the
+    /// desktop needs the identical one — it wraps each run onto its own line instead of ruling
+    /// between them, but it is the same three runs and the same per-run cap.
+    private var facetRuns: [MarginaliaBoard.FacetRun] {
+        MarginaliaBoard.runs(of: model.facetOptions, limit: visibleFacets)
+    }
+
+    /// What separates two runs. A hairline, at the height of the capsules beside it and not of
+    /// the band: a rule as tall as the row would be a wall, and the runs are neighbours in one
+    /// sentence rather than two paragraphs.
+    private var runDivider: some View {
+        Rectangle()
+            .fill(DipleColor.hairline)
+            .frame(width: DipleStroke.hairline, height: 18)
+            .padding(.horizontal, DipleSpace.xs)
+            .accessibilityHidden(true)
     }
 
     private static let chipRowStart = "marginalia.chips.start"
@@ -548,7 +597,7 @@ public struct MarginaliaView: View {
         } label: {
             HStack(spacing: DipleSpace.xs) {
                 Image(systemName: "line.3.horizontal.decrease")
-                    .dipleIcon(10, weight: .semibold)
+                    .dipleIcon(11, weight: .semibold)
                 if model.facets.count > 0 {
                     Text("\(model.facets.count)")
                         .dipleType(.micro, weight: .semibold)
@@ -557,10 +606,35 @@ public struct MarginaliaView: View {
             }
             .foregroundStyle(model.facets.isEmpty ? DipleColor.textTertiary : DipleColor.accentInk)
             .diplePadding(.chip)
+            .frame(minHeight: 28)
             .dipleSelected(!model.facets.isEmpty, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("All sources and tags")
+    }
+
+    /// One way out of every narrowing at once.
+    ///
+    /// Each chosen chip already carries its own cross, and with one filter in force that is the
+    /// shorter path — so this appears beside the door to the sheet rather than in place of the
+    /// crosses. With a colour, a shelf and two words in force, and a search string besides,
+    /// undoing them one at a time is four taps and a scroll to find the fourth; the reader who
+    /// wants their catalogue back wants all of it back.
+    private var clearChip: some View {
+        Button {
+            HapticManager.shared.selection()
+            withAnimation(DipleMotion.standard) { model.clearNarrowing() }
+        } label: {
+            Text("Clear")
+                .dipleType(.micro, weight: .semibold)
+                .foregroundStyle(DipleColor.textTertiary)
+                .diplePadding(.chip)
+                .frame(minHeight: 28)
+                .background(DipleColor.surfaceOverlay, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Clear every filter")
+        .transition(.opacity.combined(with: .scale(scale: 0.9)))
     }
 
     /// What a chip can do besides narrow.

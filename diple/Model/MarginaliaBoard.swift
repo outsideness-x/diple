@@ -30,6 +30,51 @@ public nonisolated enum MarginaliaBoard {
         public var totalCount: Int { writtenCount + savedCount }
     }
 
+    /// One stretch of the filter row: every chip in it is the same kind of thing.
+    ///
+    /// The row is read in runs rather than as one list sorted by size — see the note where
+    /// `facetOptions` is assembled. Both the phone, which scrolls the row sideways with a rule
+    /// between the runs, and the desktop, which wraps each run onto its own line, ask for the
+    /// same split, and both have to cap **per run**: one cap over the whole row means a library
+    /// with nine books prints no words at all, and the word is what most readers came to press.
+    public struct FacetRun: Equatable, Identifiable {
+        public enum Kind: String, Hashable {
+            case marks
+            case sources
+            case tags
+        }
+
+        public let kind: Kind
+        public let options: [MarginaliaFacetOption]
+
+        public var id: Kind { kind }
+    }
+
+    /// Splits the assembled chips back into their runs and caps each one.
+    ///
+    /// Marks are never capped: there are four of them, they are aimed at rather than read, and
+    /// a swatch dropped for want of room is a filter the reader cannot reach at all — the sheet
+    /// lists sources and tags by name, and a colour has no name to look up.
+    public static func runs(of options: [MarginaliaFacetOption], limit: Int) -> [FacetRun] {
+        var marks: [MarginaliaFacetOption] = []
+        var sources: [MarginaliaFacetOption] = []
+        var tags: [MarginaliaFacetOption] = []
+
+        for option in options {
+            switch option.kind {
+            case .color: marks.append(option)
+            case .source: sources.append(option)
+            case .tag: tags.append(option)
+            }
+        }
+
+        return [
+            FacetRun(kind: .marks, options: marks),
+            FacetRun(kind: .sources, options: Array(sources.prefix(limit))),
+            FacetRun(kind: .tags, options: Array(tags.prefix(limit)))
+        ].filter { !$0.options.isEmpty }
+    }
+
     public struct LensOption: Equatable, Identifiable {
         public let lens: MarginaliaLens
         public let count: Int
@@ -178,17 +223,23 @@ public nonisolated enum MarginaliaBoard {
                     isSelected: true
                 )
         }
-        let offered = (snapshot.sourceOptions + snapshot.tagOptions)
-            .filter { !$0.isSelected && $0.count > 0 }
-            .sorted(by: byCountThenName)
-        // Colours stay together as a run wherever they stand, chosen or not. They are the one
-        // facet aimed at rather than read, and a swatch that migrates into the middle of the
-        // words is one you have to find again every time.
+        // The row is read in runs of one kind, not as one list sorted by size.
+        //
+        // Every facet used to be poured into a single ranking by count, so a shelf stood
+        // between two words, a swatch stood after them, and the same tag sat in a different
+        // place on the row every time the numbers moved. Nothing about that row could be
+        // learned — the reader had to read all of it to find the one word they came for.
+        // Marks, then shelves, then words: three fixed runs the row prints in the same order
+        // every time, with what is already chosen at the head of its own run. The board only
+        // has to keep the runs contiguous; the row draws the rule between them.
+        let offeredSources = snapshot.sourceOptions.filter { !$0.isSelected && $0.count > 0 }
+        let offeredTags = snapshot.tagOptions.filter { !$0.isSelected && $0.count > 0 }
         snapshot.facetOptions = snapshot.colorOptions.filter(\.isSelected)
-            + chosenSources
-            + chosenTags
             + snapshot.colorOptions.filter { !$0.isSelected }
-            + offered
+            + chosenSources
+            + offeredSources
+            + chosenTags
+            + offeredTags
 
         snapshot.lensOptions = MarginaliaLens.allCases.compactMap { lens in
             let others = controls.lenses.subtracting([lens])

@@ -62,17 +62,22 @@ public struct MarginaliaChip: View {
         return MarginaliaEntry.shortened(label, limit: 24)
     }
 
-    /// A source is tinted even when it is not chosen — that tint is what tells a shelf from a
-    /// word at a glance — so it rests on `accentSoft` rather than on the neutral overlay, the
-    /// same trade `TagChipView` already makes.
-    private var resting: Color {
-        if case .source = kind { return DipleColor.accentSoft }
-        return DipleColor.surfaceOverlay
-    }
+    /// Every chip rests on the same neutral overlay, chosen or not.
+    ///
+    /// A source used to rest on `accentSoft` so the tint would tell a shelf from a word — the
+    /// trade `TagChipView` still makes on a note, where a book chip stands among three tags and
+    /// nothing else. On a filter row it cost more than it bought: `dipleSelected` marks the
+    /// chosen chip with *the same* `accentSoft` plus a ring, so an untouched shelf and a
+    /// pressed word were the same amber capsule differing by a hairline, and a row of eight
+    /// shelves was eight amber capsules that all looked switched on. The kinds are told apart
+    /// here by where they stand — the row prints marks, then shelves, then words, with a rule
+    /// between the runs — and by the glyph the shelf carries. That leaves the accent free to
+    /// mean one thing on this row: chosen.
+    private var resting: Color { DipleColor.surfaceOverlay }
 
     private var foreground: Color {
         if isSelected { return DipleColor.accentInk }
-        if case .source = kind { return DipleColor.accentInk }
+        if case .source = kind { return DipleColor.textSecondary }
         return DipleColor.textTertiary
     }
 
@@ -91,9 +96,15 @@ public struct MarginaliaChip: View {
                     // The swatch is the label. A colour has a name, but the reader chose it as
                     // a colour and recognises it as one; printing "Yellow" beside a yellow dot
                     // is the word for the thing next to the thing.
+                    //
+                    // It carries its own hairline ring. Lilac and yellow are light enough to
+                    // float free of the dark overlay and dark enough to disappear into the
+                    // light one; a ring in the same ink as every other edge in the app gives
+                    // the dot a border on both instead of a shape that changes with the theme.
                     Circle()
                         .fill(Color(hex: hex))
-                        .frame(width: 11, height: 11)
+                        .overlay(Circle().strokeBorder(DipleColor.hairlineStrong, lineWidth: DipleStroke.hairline))
+                        .frame(width: 12, height: 12)
                 } else {
                     Text(text)
                         .dipleType(.micro)
@@ -112,6 +123,10 @@ public struct MarginaliaChip: View {
             }
             .foregroundColor(foreground)
             .diplePadding(.chip)
+            // A resting height, so the run of capsules reads as one band rather than as a
+            // dot, a word and a book at three different sizes — and so a swatch chip, whose
+            // content is 12 pt tall, is not a third of the target its neighbours offer.
+            .frame(minHeight: 28)
             .dipleSelected(isSelected, in: Capsule(), resting: resting)
         }
         .buttonStyle(.plain)

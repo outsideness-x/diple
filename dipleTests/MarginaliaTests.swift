@@ -298,6 +298,54 @@ final class MarginaliaTests: XCTestCase {
         XCTAssertEqual(colorPositions, Array(colorPositions.first!...colorPositions.last!))
     }
 
+    // MARK: - The runs
+
+    /// Every kind stands in one contiguous run, and the runs come in a fixed order: marks,
+    /// then shelves, then words. A single ranking by count put a book between two tags and
+    /// moved every chip whenever the numbers did, so the row had to be read end to end each
+    /// time — see the note in `MarginaliaBoard`.
+    func testTheRowIsThreeRunsInAFixedOrder() {
+        let entries = [
+            coloured("a", "#FFD60A", book: sapiens, tags: ["objection", "essay"]),
+            coloured("b", "#30D158", book: dune, tags: ["essay"]),
+            coloured("c", "#30D158", book: dune, tags: ["essay"])
+        ]
+
+        let ranks: [Int] = snapshot(entries).facetOptions.map { option in
+            switch option.kind {
+            case .color: return 0
+            case .source: return 1
+            case .tag: return 2
+            }
+        }
+
+        XCTAssertEqual(ranks, ranks.sorted(), "runs are out of order or interleaved: \(ranks)")
+        XCTAssertTrue(ranks.contains(0) && ranks.contains(1) && ranks.contains(2))
+    }
+
+    /// Chosen first, but only inside its own run: a pressed word does not jump the shelves.
+    ///
+    /// Both marks have to survive the narrowing for this to test anything — a single colour
+    /// left standing is not a choice and the swatch run is not drawn at all — so `objection`
+    /// is on one passage of each colour.
+    func testAChosenChipLeadsItsOwnRunRatherThanTheWholeRow() {
+        let entries = [
+            coloured("a", "#FFD60A", book: sapiens, tags: ["objection"]),
+            coloured("b", "#30D158", book: dune, tags: ["objection"]),
+            coloured("c", "#30D158", book: dune, tags: ["essay"])
+        ]
+        let options = snapshot(entries, .init(facets: MarginaliaFacets(tags: ["objection"]))).facetOptions
+
+        // The row still opens on the marks, not on the pressed word.
+        guard case .color = options.first?.kind else {
+            return XCTFail("the row should still open on the swatches, not on \(String(describing: options.first?.kind))")
+        }
+
+        let tags = options.filter { if case .tag = $0.kind { return true } else { return false } }
+        XCTAssertEqual(tags.first?.label, "objection")
+        XCTAssertTrue(tags.first?.isSelected == true)
+    }
+
     // MARK: - Lenses
 
     /// Unsorted asks a different question of each kind: a note with no tag and no source has

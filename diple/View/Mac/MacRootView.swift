@@ -1622,40 +1622,69 @@ private struct MacMarginaliaCollection: View {
 
     /// The desktop wraps the chips instead of scrolling them sideways. It has the width, and a
     /// horizontal scroller inside a resizable column is a row whose end nobody finds.
+    ///
+    /// **One `FlowLayout` per run, stacked.** The chips arrive grouped — marks, then shelves,
+    /// then words — and the phone rules between the runs because it has only one line to spend.
+    /// Here the wrap can do it for free: a run of its own is a stronger seam than any hairline,
+    /// and the desktop was the surface where a single ranking by size looked worst, because all
+    /// of it is on screen at once with nothing to scroll past.
+    ///
+    /// The cap is per run for the same reason it is on the phone: `visibleFacets` over the
+    /// whole row means a library with nine books wraps nine shelves and prints no words.
     private var chipRow: some View {
-        FlowLayout(spacing: DipleSpace.s) {
-            ForEach(model.lensOptions) { option in
-                MarginaliaChip(
-                    label: option.lens.title,
-                    kind: .lens(option.lens.systemImage),
-                    count: option.count,
-                    isSelected: option.isSelected
-                ) {
-                    model.toggle(option.lens)
+        VStack(alignment: .leading, spacing: DipleSpace.s) {
+            if !model.lensOptions.isEmpty {
+                FlowLayout(spacing: DipleSpace.s) {
+                    ForEach(model.lensOptions) { option in
+                        MarginaliaChip(
+                            label: option.lens.title,
+                            kind: .lens(option.lens.systemImage),
+                            count: option.count,
+                            isSelected: option.isSelected
+                        ) {
+                            model.toggle(option.lens)
+                        }
+                    }
                 }
             }
 
-            ForEach(model.facetOptions.prefix(visibleFacets)) { option in
-                MarginaliaChip(
-                    label: option.label,
-                    kind: chipKind(for: option),
-                    count: option.count,
-                    isSelected: option.isSelected
-                ) {
-                    model.toggle(option)
-                }
-                .contextMenu { facetMenu(option) }
-            }
+            let runs = MarginaliaBoard.runs(of: model.facetOptions, limit: visibleFacets)
 
-            if model.facetOptions.count > visibleFacets || model.facets.count > 0 {
-                MarginaliaChip(
-                    label: "All filters",
-                    kind: .lens("line.3.horizontal.decrease"),
-                    count: model.facetOptions.count,
-                    isSelected: false
-                ) {
-                    isFilterSheetPresented = true
+            ForEach(runs) { run in
+                FlowLayout(spacing: DipleSpace.s) {
+                    ForEach(run.options) { option in
+                        MarginaliaChip(
+                            label: option.label,
+                            kind: chipKind(for: option),
+                            count: option.count,
+                            isSelected: option.isSelected
+                        ) {
+                            model.toggle(option)
+                        }
+                        .contextMenu { facetMenu(option) }
+                    }
+
+                    // The door to the rest sits at the end of the last run, where the row
+                    // actually ends — usually the words, which is the run a library outgrows
+                    // first.
+                    if run.id == runs.last?.id {
+                        allFiltersChip
+                    }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var allFiltersChip: some View {
+        if model.facetOptions.count > visibleFacets || model.facets.count > 0 {
+            MarginaliaChip(
+                label: "All filters",
+                kind: .lens("line.3.horizontal.decrease"),
+                count: model.facetOptions.count,
+                isSelected: false
+            ) {
+                isFilterSheetPresented = true
             }
         }
     }
