@@ -10,6 +10,8 @@ public enum NotesPlace: Hashable {
     /// Notes written about one source, by its book id.
     case source(String)
     case tasks
+    /// Every day's page, newest day first.
+    case journal
     case allNotes
     /// The All notes board opened with one word already pressed.
     case tag(String)
@@ -46,7 +48,7 @@ public struct NotesWorkshopView: View {
 
     public var body: some View {
         NavigationStack(path: $path) {
-            NotesDeskView(model: model, open: open, openNote: openNote)
+            NotesDeskView(model: model, open: open, openNote: openNote, openToday: openToday)
                 // Set but hidden: it labels the back button of everything pushed from here.
                 .navigationTitle("Notes")
                 .navigationBarTitleDisplayMode(.inline)
@@ -104,6 +106,15 @@ public struct NotesWorkshopView: View {
         path.append(route)
     }
 
+    /// Today's page: the one already begun, or a fresh one that exists from its first word.
+    private func openToday() {
+        if let page = model.todayPage() {
+            openNote(.existing(page))
+        } else {
+            openNote(.daily(Note.dailyKey(for: Date())))
+        }
+    }
+
     /// The place the reader is standing in, for the `+`: the nearest level of the stack that is
     /// a place, so a note opened from a space still counts as being in that space.
     private var currentPlace: NotesPlace? {
@@ -126,6 +137,10 @@ public struct NotesWorkshopView: View {
                 openNote(.newFromSource(book))
                 return
             }
+        case .journal:
+            // In the journal, the page to write on is today's.
+            openToday()
+            return
         default:
             break
         }
@@ -154,6 +169,8 @@ public struct NotesWorkshopView: View {
             }
         case .tasks:
             NotesTasksView(model: model, openNote: openNote)
+        case .journal:
+            NotesListView(model: model, kind: .journal, openNote: openNote)
         case .allNotes:
             MarginaliaView(
                 door: .notes,

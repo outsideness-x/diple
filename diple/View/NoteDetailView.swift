@@ -11,12 +11,26 @@ public enum NoteRoute: Hashable {
     case newFromPassage(PassageItem)
     /// A note started with the `+` while standing in a space: it is born in that space.
     case newInSpace(NoteSpace)
+    /// The day's page, not yet begun, for a key from `Note.dailyKey(for:)`.
+    case daily(String)
 
     public var item: NoteItem? {
         switch self {
         case .existing(let item): return item
-        case .new, .newFromSource, .newFromPassage, .newInSpace: return nil
+        case .new, .newFromSource, .newFromPassage, .newInSpace, .daily: return nil
         }
+    }
+
+    /// The day a new page is the page of, if it is one.
+    public var initialDailyDate: String? {
+        if case .daily(let key) = self { return key }
+        return nil
+    }
+
+    /// The title a new note opens with: the day, for a day's page, and nothing for any other.
+    public var initialTitle: String {
+        if case .daily(let key) = self { return Note.dailyTitle(forKey: key) }
+        return ""
     }
 
     /// The space a new note is born in. Only the new note's own route has one: an existing
@@ -32,7 +46,7 @@ public enum NoteRoute: Hashable {
     public var isBlankPage: Bool {
         switch self {
         case .new, .newInSpace: return true
-        case .existing, .newFromSource, .newFromPassage: return false
+        case .existing, .newFromSource, .newFromPassage, .daily: return false
         }
     }
 
@@ -40,7 +54,7 @@ public enum NoteRoute: Hashable {
         switch self {
         case .newFromSource(let book): return book.id
         case .newFromPassage(let passage): return passage.highlight.bookId
-        case .existing, .new, .newInSpace: return nil
+        case .existing, .new, .newInSpace, .daily: return nil
         }
     }
 
@@ -75,7 +89,7 @@ public enum NoteRoute: Hashable {
             var tags = passage.tags
             if let sourceTag, !tags.contains(sourceTag) { tags.append(sourceTag) }
             return tags
-        case .existing, .new, .newInSpace:
+        case .existing, .new, .newInSpace, .daily:
             return []
         }
     }
@@ -91,6 +105,7 @@ extension NoteRoute: Identifiable {
         case .newFromSource(let book): return "source:\(book.id)"
         case .newFromPassage(let passage): return "passage:\(passage.id)"
         case .newInSpace(let space): return "space:\(space.id)"
+        case .daily(let key): return "daily:\(key)"
         }
     }
 }
@@ -174,13 +189,13 @@ public struct NoteDetailView: View {
 
         let item = route.item
         _isEditing = State(initialValue: item == nil)
-        _title = State(initialValue: item?.note.title ?? "")
+        _title = State(initialValue: item?.note.title ?? route.initialTitle)
         _body_ = State(initialValue: item?.note.body ?? route.initialBody)
         _tags = State(initialValue: item?.tags ?? route.initialTags)
         _selectedBookId = State(initialValue: item?.note.bookId ?? route.initialBookId)
         _draftID = State(initialValue: item?.id ?? UUID().uuidString)
         _lastSavedSnapshot = State(initialValue: Self.snapshot(
-            title: item?.note.title ?? "",
+            title: item?.note.title ?? route.initialTitle,
             body: item?.note.body ?? route.initialBody,
             tags: item?.tags ?? route.initialTags,
             bookID: item?.note.bookId
@@ -214,8 +229,11 @@ public struct NoteDetailView: View {
     }
 
     private var canSave: Bool {
-        !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasBody = !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // A day's page arrives with its date already in the title, and a page holding only the
+        // date it was opened on is not a page anybody wrote. It exists from its first word.
+        if route.item == nil, route.initialDailyDate != nil { return hasBody }
+        return hasBody || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var unusedSuggestions: [String] {
@@ -323,7 +341,9 @@ public struct NoteDetailView: View {
             // board and the next move was as likely a template or a tag. In the notes workshop
             // the `+` is the verb the whole mode is built around, and Things, Bear and Apple Notes
             // all answer it the same way: here is the page, write.
-            if route.item == nil && route.initialBookId != nil {
+            // The day's page too: its title is the date, already written, and what the reader
+            // came to put down is the first line of the day.
+            if route.item == nil && (route.initialBookId != nil || route.initialDailyDate != nil) {
                 isBodyFocused = true
             }
         }
@@ -1058,7 +1078,8 @@ public struct NoteDetailView: View {
             body: body_.trimmingCharacters(in: .whitespacesAndNewlines),
             bookId: selectedBookId,
             createdAt: existing?.createdAt ?? Date(),
-            spaceId: existing?.spaceId ?? route.initialSpaceId
+            spaceId: existing?.spaceId ?? route.initialSpaceId,
+            dailyDate: existing?.dailyDate ?? route.initialDailyDate
         )
         let didSave = onSave(note, finalTags)
         if didSave {

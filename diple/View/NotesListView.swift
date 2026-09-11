@@ -13,6 +13,7 @@ struct NotesListView: View {
         case inbox
         case space(NoteSpace)
         case source(Book)
+        case journal
     }
 
     @ObservedObject var model: NotesWorkshopModel
@@ -44,6 +45,8 @@ struct NotesListView: View {
             return NotesDesk.notes(in: space, from: model.items)
         case .source(let book):
             return NotesDesk.notes(about: book.id, from: model.items)
+        case .journal:
+            return model.journal
         }
     }
 
@@ -52,12 +55,14 @@ struct NotesListView: View {
         case .inbox: return "Inbox"
         case .space(let space): return model.space(id: space.id)?.name ?? space.name
         case .source(let book): return book.title
+        case .journal: return "Journal"
         }
     }
 
     private var strapline: String? {
         let count = items.count
         guard count > 0 else { return nil }
+        if case .journal = kind { return count == 1 ? "1 day" : "\(count) days" }
         return count == 1 ? "1 note" : "\(count) notes"
     }
 
@@ -258,6 +263,7 @@ struct NotesListView: View {
         case .inbox: return "Nothing waiting"
         case .space: return "An empty space"
         case .source: return "No notes about this yet"
+        case .journal: return "No days yet"
         }
     }
 
@@ -269,6 +275,8 @@ struct NotesListView: View {
             return "Press + to write the first note that belongs here."
         case .source:
             return "Press + to write one, or tap the pencil while reading."
+        case .journal:
+            return "Today's page is on the Desk. Each day you write on it appears here."
         }
     }
 }

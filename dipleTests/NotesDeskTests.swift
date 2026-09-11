@@ -150,6 +150,25 @@ final class NotesDeskTests: XCTestCase {
         XCTAssertTrue(NotesDesk.search("   ", in: items).isEmpty)
     }
 
+    func testADaysPageIsTitledWithItsDayAndAKeyThatIsNotADayStaysItself() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .current
+
+        XCTAssertTrue(Note.dailyTitle(forKey: "2026-09-11", calendar: calendar).contains("11"))
+        XCTAssertEqual(Note.dailyTitle(forKey: "someday", calendar: calendar), "someday")
+    }
+
+    /// A day's page is not in the Inbox — it is filed by its date — and a blank one opens with
+    /// the day already written as its title.
+    func testTheDaysPageIsFiledByItsDate() {
+        let route = NoteRoute.daily("2026-09-11")
+
+        XCTAssertEqual(route.initialDailyDate, "2026-09-11")
+        XCTAssertFalse(route.initialTitle.isEmpty)
+        XCTAssertFalse(route.isBlankPage)
+        XCTAssertTrue(NotesDesk.inbox([item("day", daily: "2026-09-11")], spaces: []).isEmpty)
+    }
+
     func testTheJournalIsNewestDayFirstAndTheDaysPageIsTheEarliest() {
         let items = [
             item("tenth", daily: "2026-09-10"),

@@ -13,6 +13,7 @@ struct NotesDeskView: View {
     @ObservedObject var model: NotesWorkshopModel
     let open: (NotesPlace) -> Void
     let openNote: (NoteRoute) -> Void
+    let openToday: () -> Void
 
     @State private var query = ""
     @State private var isSearching = false
@@ -51,7 +52,10 @@ struct NotesDeskView: View {
                     }
                 }
                 .padding(.horizontal, DipleSpace.xl)
-                .padding(.bottom, DipleSpace.scrollBottom)
+                // Room for the bar as well as the usual foot: a Desk only a little taller than the
+                // screen never collapses the bar (too little to scroll), and its last row sat
+                // half under the `+`.
+                .padding(.bottom, DipleSpace.scrollBottom + 72)
             }
             .scrollDismissesKeyboard(.interactively)
             .tracksTabBarCollapse()
@@ -107,6 +111,11 @@ struct NotesDeskView: View {
         VStack(spacing: 0) {
             placeRow("tray", "Inbox", count: model.inbox.count, identifier: "desk.inbox") {
                 open(.inbox)
+            }
+            // The day's page. No count — there is one today, begun or not — and no list: the
+            // row is the page. The days before it are the Journal, further down.
+            placeRow("sun.max", "Today", count: 0, identifier: "desk.today") {
+                openToday()
             }
             placeRow("checklist", "Tasks", count: model.openTaskCount, identifier: "desk.tasks") {
                 open(.tasks)
@@ -169,6 +178,11 @@ struct NotesDeskView: View {
         }
 
         VStack(spacing: 0) {
+            if !model.journal.isEmpty {
+                placeRow("book.pages", "Journal", count: model.journal.count) {
+                    open(.journal)
+                }
+            }
             placeRow("rectangle.stack", "All notes", count: model.items.count) {
                 open(.allNotes)
             }

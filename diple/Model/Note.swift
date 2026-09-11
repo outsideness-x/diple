@@ -66,6 +66,17 @@ public struct Note: Codable, FetchableRecord, PersistableRecord, Identifiable, E
     /// How long a note stays in Recently deleted before it is gone for good.
     public static let trashRetention: TimeInterval = 30 * 24 * 60 * 60
 
+    /// The heading a day's page is born with: the day, as the reader's locale says it. Written
+    /// into the title rather than drawn from the key each time, so the page reads the same in an
+    /// export, in search and in any other Markdown client.
+    public static func dailyTitle(forKey key: String, calendar: Calendar = .current) -> String {
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3,
+              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        else { return key }
+        return date.formatted(.dateTime.weekday(.wide).day().month(.wide))
+    }
+
     /// The key of the day's page for `date`, in the reader's own calendar — the day they are
     /// living in, not the one in Greenwich.
     public static func dailyKey(for date: Date, calendar: Calendar = .current) -> String {
