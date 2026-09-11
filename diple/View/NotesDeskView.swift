@@ -17,6 +17,10 @@ struct NotesDeskView: View {
     @State private var query = ""
     @State private var isSearching = false
     @FocusState private var isSearchFocused: Bool
+    @State private var isCreatingSpace = false
+    @State private var isArrangingSpaces = false
+    @State private var editingSpace: NoteSpace?
+    @State private var spaceToDelete: NoteSpace?
 
     private var dayTitle: String {
         Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())
@@ -52,6 +56,20 @@ struct NotesDeskView: View {
             .scrollDismissesKeyboard(.interactively)
             .tracksTabBarCollapse()
         }
+        .sheet(isPresented: $isCreatingSpace) {
+            NoteSpaceEditor { name, symbol in
+                model.createSpace(named: name, symbol: symbol)
+            }
+        }
+        .sheet(isPresented: $isArrangingSpaces) {
+            NotesSpacesEditor(model: model)
+        }
+        .sheet(item: $editingSpace) { space in
+            NoteSpaceEditor(space: space) { name, symbol in
+                model.update(space, name: name, symbol: symbol)
+            }
+        }
+        .spaceDeletionAlert(model: model, space: $spaceToDelete)
     }
 
     private var masthead: some View {
@@ -100,18 +118,43 @@ struct NotesDeskView: View {
             section("PINNED") {
                 ForEach(model.pinned) { item in
                     pinnedRow(item)
+                        .contextMenu {
+                            Button {
+                                model.setPinned(false, item)
+                            } label: {
+                                Label("Unpin", systemImage: "pin.slash")
+                            }
+                            Button(role: .destructive) {
+                                model.trash([item])
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                 }
             }
         }
 
-        if !model.spaces.isEmpty {
-            section("SPACES") {
-                ForEach(model.spaces) { space in
-                    placeRow(space.symbol, space.name, count: model.spaceCounts[space.id] ?? 0) {
-                        open(.space(space.id))
+        section("SPACES", action: model.spaces.isEmpty ? nil : ("Edit", { isArrangingSpaces = true })) {
+            ForEach(model.spaces) { space in
+                placeRow(space.symbol, space.name, count: model.spaceCounts[space.id] ?? 0) {
+                    open(.space(space.id))
+                }
+                .contextMenu {
+                    Button {
+                        editingSpace = space
+                    } label: {
+                        Label("Name and glyph…", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        spaceToDelete = space
+                    } label: {
+                        Label("Delete space…", systemImage: "trash")
                     }
                 }
             }
+            // Always there, and quieter than a space: the one way to make a place, standing
+            // at the end of the places it would join.
+            newSpaceRow
         }
 
         if !model.sources.isEmpty {
@@ -177,16 +220,55 @@ struct NotesDeskView: View {
 
     private func section<Content: View>(
         _ title: String,
+        action: (label: String, perform: () -> Void)? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text(title)
-                .dipleType(.micro, weight: .semibold)
-                .foregroundStyle(DipleColor.textTertiary)
+            HStack {
+                Text(title)
+                    .dipleType(.micro, weight: .semibold)
+                    .foregroundStyle(DipleColor.textTertiary)
+                Spacer()
+                if let action {
+                    Button {
+                        HapticManager.shared.selection()
+                        action.perform()
+                    } label: {
+                        Text(action.label)
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .frame(minHeight: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             VStack(spacing: 0) {
                 content()
             }
         }
+    }
+
+    private var newSpaceRow: some View {
+        Button {
+            HapticManager.shared.selection()
+            isCreatingSpace = true
+        } label: {
+            HStack(spacing: DipleSpace.m) {
+                Image(systemName: "plus")
+                    .dipleIcon(13)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .frame(width: 24)
+                Text("New space")
+                    .dipleType(.body)
+                    .foregroundStyle(DipleColor.textTertiary)
+                Spacer()
+            }
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.bookCard)
+        .accessibilityIdentifier("desk.newSpace")
     }
 
     /// A place: its glyph, its name, and how much stands in it. The count is the one fact a

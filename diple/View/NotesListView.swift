@@ -19,6 +19,22 @@ struct NotesListView: View {
     let kind: Kind
     let openNote: (NoteRoute) -> Void
 
+    @Environment(\.dismiss) private var dismiss
+    @State private var moving: MoveRequest?
+    @State private var isEditingSpace = false
+    @State private var spaceToDelete: NoteSpace?
+
+    /// The notes on their way to the Move sheet. Wrapped so a sheet can be raised by item.
+    private struct MoveRequest: Identifiable {
+        let id = UUID()
+        let items: [NoteItem]
+    }
+
+    private var space: NoteSpace? {
+        if case .space(let space) = kind { return model.space(id: space.id) ?? space }
+        return nil
+    }
+
     private var items: [NoteItem] {
         switch kind {
         case .inbox:
@@ -51,7 +67,24 @@ struct NotesListView: View {
 
         List {
             DipleMasthead(title: title, strapline: strapline) {
-                EmptyView()
+                if let space {
+                    Menu {
+                        Button {
+                            isEditingSpace = true
+                        } label: {
+                            Label("Name and glyph…", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            spaceToDelete = space
+                        } label: {
+                            Label("Delete space…", systemImage: "trash")
+                        }
+                    } label: {
+                        MastheadGlyph(systemImage: "ellipsis")
+                    }
+                    .buttonStyle(.readerControl)
+                    .accessibilityLabel("Space options")
+                }
             }
             .listRowInsets(EdgeInsets(top: 0, leading: DipleSpace.xl, bottom: DipleSpace.m, trailing: DipleSpace.xl))
             .deskListRow()
@@ -89,10 +122,30 @@ struct NotesListView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
+        .sheet(item: $moving) { request in
+            NoteMoveSheet(model: model, items: request.items)
+        }
+        .sheet(isPresented: $isEditingSpace) {
+            if let space {
+                NoteSpaceEditor(space: space) { name, symbol in
+                    model.update(space, name: name, symbol: symbol)
+                }
+            }
+        }
+        // Deleting the space this page stands for leaves nothing to stand on: the page goes
+        // first, and the notes it held are in the Inbox by the time the Desk is back.
+        .spaceDeletionAlert(model: model, space: $spaceToDelete, onDeleted: { dismiss() })
     }
 
+    /// A note, and the three things done to one without opening it: pin it, move it, delete it.
+    ///
+    /// Pinning is the leading swipe, in the accent, because it is the one that keeps something
+    /// close; deleting is the trailing full swipe, because it can be undone for thirty days and
+    /// so does not need to be hard to reach. Move stands beside it. The context menu says all
+    /// three in words, for the reader who does not swipe.
     private func row(_ item: NoteItem) -> some View {
-        Button {
+        let isPinned = item.note.isPinned
+        return Button {
             HapticManager.shared.selection()
             openNote(.existing(item))
         } label: {
@@ -101,6 +154,49 @@ struct NotesListView: View {
         .buttonStyle(.bookCard)
         .listRowInsets(EdgeInsets(top: 0, leading: DipleSpace.xl, bottom: 0, trailing: DipleSpace.xl))
         .deskListRow()
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                HapticManager.shared.impact(.light)
+                model.setPinned(!isPinned, item)
+            } label: {
+                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
+            }
+            .tint(DipleColor.accent)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                HapticManager.shared.impact(.light)
+                model.trash([item])
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            // Explicit: the shell sets the accent as the app's tint, and a swipe button takes
+            // the environment's tint over its own role — a blue Delete, seen on the simulator.
+            .tint(DipleColor.destructive)
+            Button {
+                moving = MoveRequest(items: [item])
+            } label: {
+                Label("Move", systemImage: "folder")
+            }
+            .tint(Color(uiColor: .systemGray))
+        }
+        .contextMenu {
+            Button {
+                model.setPinned(!isPinned, item)
+            } label: {
+                Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
+            }
+            Button {
+                moving = MoveRequest(items: [item])
+            } label: {
+                Label("Move to…", systemImage: "folder")
+            }
+            Button(role: .destructive) {
+                model.trash([item])
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     private var emptyState: some View {

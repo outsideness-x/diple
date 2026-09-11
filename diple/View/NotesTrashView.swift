@@ -58,6 +58,8 @@ struct NotesTrashView: View {
                         } label: {
                             Label("Delete now", systemImage: "trash")
                         }
+                        // The shell's accent tint would otherwise paint it blue; see NotesListView.
+                        .tint(DipleColor.destructive)
                     }
                     .contextMenu {
                         Button {
