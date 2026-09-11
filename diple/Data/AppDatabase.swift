@@ -1267,6 +1267,7 @@ public nonisolated final class AppDatabase: Sendable {
     public func saveSpace(_ space: NoteSpace) throws {
         try writer.write { db in
             try space.save(db)
+            try markLocalSave(.space, id: space.id, at: space.updatedAt, in: db)
         }
         signalSyncIfNeeded()
     }
@@ -1304,6 +1305,7 @@ public nonisolated final class AppDatabase: Sendable {
                 try markLocalSave(.note, id: noteID, at: date, in: db)
             }
             _ = try NoteSpace.deleteOne(db, key: id)
+            try markLocalDelete(.space, id: id, at: date, in: db)
             return noteIDs.count
         }
         signalSyncIfNeeded()
@@ -2051,6 +2053,9 @@ public nonisolated final class AppDatabase: Sendable {
             for note in try Note.fetchAll(db) {
                 try markLocalSave(.note, id: note.id, at: note.updatedAt, in: db)
             }
+            for space in try NoteSpace.fetchAll(db) {
+                try markLocalSave(.space, id: space.id, at: space.updatedAt, in: db)
+            }
             // A fresh device's defaults must lose to any real settings already in iCloud.
             try markLocalSave(.settings, id: "current", at: Date(timeIntervalSince1970: 0), in: db)
             try db.execute(
@@ -2075,6 +2080,9 @@ public nonisolated final class AppDatabase: Sendable {
             }
             for note in try Note.fetchAll(db) {
                 try markLocalSave(.note, id: note.id, at: note.updatedAt, in: db)
+            }
+            for space in try NoteSpace.fetchAll(db) {
+                try markLocalSave(.space, id: space.id, at: space.updatedAt, in: db)
             }
             try markLocalSave(.settings, id: "current", at: Date(), in: db)
         }
@@ -2147,6 +2155,12 @@ public nonisolated final class AppDatabase: Sendable {
                 .fetchAll(db)
                 .map(\.tag)
             return SyncedNote(note: note, tags: tags)
+        }
+    }
+
+    public func fetchSpaceForSync(id: String) throws -> NoteSpace? {
+        try writer.read { db in
+            try NoteSpace.fetchOne(db, key: id)
         }
     }
 
@@ -2256,6 +2270,20 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// A space from iCloud. Notes already pointing at it — ones that arrived first and waited
+    /// in the Inbox — need nothing done: their `spaceId` was kept, and they are simply in it now.
+    @discardableResult
+    public func applyRemoteSpace(_ space: NoteSpace, modifiedAt: Date, systemFields: Data) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.space, id: space.id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try space.save(db)
+            try storeRemoteMetadata(.space, id: space.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
     /// Assets have their own record, so progress updates never upload a multi-megabyte EPUB.
     @discardableResult
     public func applyRemoteBookAssetMetadata(id: String, modifiedAt: Date, systemFields: Data) throws -> Bool {
@@ -2359,6 +2387,13 @@ public nonisolated final class AppDatabase: Sendable {
                 _ = try NoteTag.filter(Column("noteId") == id).deleteAll(db)
                 _ = try Note.filter(Column("id") == id).deleteAll(db)
                 try deleteSearchDocument(type: .note, id: id, in: db)
+            case .space:
+                // The deleting device sends each of the space's notes back to the Inbox as
+                // saves of their own; clearing the pointer here as well only means this device
+                // does not show them in a space that is gone while those are on their way. Not
+                // marked for sync — it is the same change arriving, not a new one.
+                try db.execute(sql: "UPDATE note SET spaceId = NULL WHERE spaceId = ?", arguments: [id])
+                _ = try NoteSpace.deleteOne(db, key: id)
             case .bookAsset, .settings:
                 break
             }

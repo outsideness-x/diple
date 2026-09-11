@@ -9,6 +9,9 @@ public nonisolated enum SyncEntityType: String, CaseIterable, Sendable {
     case highlight
     case bookmark
     case note
+    /// A notes-workshop space (`DipleSpace`). A device that predates it cannot parse the record
+    /// name and skips the record, which is exactly the right thing for it to do.
+    case space
     case settings
 }
 

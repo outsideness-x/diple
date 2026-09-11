@@ -203,7 +203,8 @@ can write:
 | `DipleBookAsset` | `publication` (ASSET), `fileName`, `cover` (ASSET), `coverFileName`, `modifiedAt` |
 | `DipleHighlight` | `bookID`, `locator`, `text`, `comment`, `colorHex`, `createdAt`, `bookTitle`, `bookAuthor`, **`tags` (STRING LIST)**, **`tagsCount` (INT64)**, `modifiedAt` |
 | `DipleBookmark` | `bookID`, `locator`, `name`, `colorHex`, `createdAt`, `modifiedAt` |
-| `DipleNote` | `title`, `body`, `bookID`, `createdAt`, `updatedAt`, `tags` (STRING LIST), `tagsCount` (INT64), `modifiedAt` |
+| `DipleNote` | `title`, `body`, `bookID`, `createdAt`, `updatedAt`, `tags` (STRING LIST), `tagsCount` (INT64), **`spaceID`**, **`pinnedAt`**, **`trashedAt`**, **`dailyDate`**, `modifiedAt` |
+| **`DipleSpace`** | **`name`, `symbol`, `sortIndex` (DOUBLE), `createdAt`, `updatedAt`, `modifiedAt`** |
 | `DipleSettings` | `payload` (BYTES), `modifiedAt` |
 
 Open Schema → Record Types in the Console and check every row against this table. The ones most
@@ -244,6 +245,40 @@ the Console with the type from the table above.
 > is permanent. The indexes are not: they can be added or dropped later, and sync does not use
 > them at all (`CKSyncEngine` works from zone change tokens, never from queries). They are here
 > only so the Console's record browser can list highlights, and so the three tag fields match.
+
+> **Also new, added 2026-09-11 with the notes workshop (migration v20) — deploy in the same
+> pass as the two fields above.** One new record type and four new fields on an existing one:
+>
+> ```
+> DipleSpace   name        STRING
+>              symbol      STRING
+>              sortIndex   DOUBLE
+>              createdAt   DATE/TIME
+>              updatedAt   DATE/TIME
+>              modifiedAt  DATE/TIME
+>
+> DipleNote    spaceID     STRING
+>              pinnedAt    DATE/TIME
+>              trashedAt   DATE/TIME
+>              dailyDate   STRING      ('yyyy-MM-dd', a string on purpose — see Note.dailyDate)
+> ```
+>
+> **Treat all of it as a blocker, exactly like `tagsCount`.** The four note keys are written on
+> every note save — with a value, or as a removed key when `nil` — and whether Production accepts
+> a removed key for a field it has never heard of has not been tested; assume it refuses the
+> whole record, which would stop notes syncing, not just their filing. `DipleSpace` is certain:
+> until the type exists in Production, every space is refused and parked in the outbox, and notes
+> filed in it reach other devices pointing at a space that never arrives (they show in the Inbox
+> there, filing intact, until it does). Exercising them on an Xcode-installed build with sync on needs
+> each path once: create a space, move a note into it, pin a note, delete a note to Recently
+> deleted, start the day's page. Adding them by hand in the Console with the types above works
+> equally well and is faster; for `DipleSpace` that means creating the record type first.
+>
+> Records of the new type are ignored by v1.0: it cannot parse the `space|…` record name and
+> skips the record, and it never sends the four note keys, which CloudKit then leaves untouched
+> on the server rather than clearing — so an un-upgraded device editing a filed note does not
+> unfile it. That last point is established from how records are rebuilt
+> (`recordToSave` → `restoreRecord` from system fields only), not from a live two-version run.
 
 **Step 2 — Deploy Schema Changes to Production.** Schema → "Deploy Schema Changes…", review the
 diff, deploy.

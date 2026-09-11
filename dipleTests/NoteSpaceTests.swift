@@ -186,6 +186,87 @@ final class NoteSpaceTests: XCTestCase {
         XCTAssertNotNil(try outboxDate(for: "n1", in: db))
     }
 
+    // MARK: - iCloud
+
+    func testASpaceIsQueuedForICloudWhenMadeAndWhenDeleted() throws {
+        let db = try database()
+        let space = try db.createSpace(named: "diple")
+        XCTAssertEqual(
+            try db.fetchSyncOutbox().first { $0.entityType == "space" }?.pendingOperation,
+            .save
+        )
+
+        try db.deleteSpace(id: space.id)
+        XCTAssertEqual(
+            try db.fetchSyncOutbox().first { $0.entityType == "space" }?.pendingOperation,
+            .delete
+        )
+    }
+
+    /// A note that arrives before its space waits in the Inbox with its pointer intact, and is
+    /// simply in the space once the space turns up.
+    func testANoteArrivingBeforeItsSpaceKeepsItsFiling() throws {
+        let db = try database()
+        let note = Note(id: "n1", body: "from the phone", spaceId: "s1", pinnedAt: past)
+        try db.applyRemoteNote(SyncedNote(note: note, tags: []), modifiedAt: past, systemFields: Data())
+
+        XCTAssertEqual(try db.fetchNote(id: "n1")?.spaceId, "s1")
+        XCTAssertTrue(try db.fetchSpaces().isEmpty)
+
+        let space = NoteSpace(id: "s1", name: "diple", sortIndex: 1, createdAt: past, updatedAt: past)
+        try db.applyRemoteSpace(space, modifiedAt: past, systemFields: Data())
+
+        XCTAssertEqual(try db.fetchSpaces().map(\.id), ["s1"])
+        XCTAssertEqual(try db.fetchNote(id: "n1")?.spaceId, "s1")
+        XCTAssertEqual(try db.fetchNote(id: "n1")?.pinnedAt, past)
+    }
+
+    func testARemoteDeletionOfASpaceEmptiesItHere() throws {
+        let db = try database()
+        let space = NoteSpace(id: "s1", name: "diple", sortIndex: 1, createdAt: past, updatedAt: past)
+        try db.applyRemoteSpace(space, modifiedAt: past, systemFields: Data())
+        try db.applyRemoteNote(
+            SyncedNote(note: Note(id: "n1", body: "x", spaceId: "s1"), tags: []),
+            modifiedAt: past,
+            systemFields: Data()
+        )
+
+        XCTAssertTrue(try db.applyRemoteDeletion(entity: .space, id: "s1"))
+
+        XCTAssertTrue(try db.fetchSpaces().isEmpty)
+        XCTAssertNil(try db.fetchNote(id: "n1")?.spaceId)
+    }
+
+    /// A remote note deleted into the trash on another device is not in the library here either.
+    func testANoteDeletedOnAnotherDeviceLeavesTheLibraryHere() throws {
+        let db = try database()
+        let note = Note(id: "n1", body: "zebra", trashedAt: past)
+        try db.applyRemoteNote(SyncedNote(note: note, tags: []), modifiedAt: past, systemFields: Data())
+
+        XCTAssertTrue(try db.fetchAllNotes().isEmpty)
+        XCTAssertFalse(try db.search("zebra").contains { $0.kind == .note })
+    }
+
+    func testTheFirstUploadCarriesTheSpaces() throws {
+        let db = try database()
+        try db.createSpace(named: "diple")
+        // Forget what `createSpace` queued, so the bootstrap alone has to find it.
+        let queued = try db.fetchSyncOutbox()
+        for entry in queued {
+            try db.acknowledgeSavedRecord(
+                entity: try XCTUnwrap(entry.entity),
+                id: entry.entityID,
+                modifiedAt: entry.modifiedAt,
+                systemFields: Data()
+            )
+        }
+        XCTAssertTrue(try db.fetchSyncOutbox().isEmpty)
+
+        try db.prepareInitialSync()
+
+        XCTAssertTrue(try db.fetchSyncOutbox().contains { $0.entityType == "space" })
+    }
+
     // MARK: - The day's page
 
     func testTheDaysPageIsTheEarliestLivingOne() throws {

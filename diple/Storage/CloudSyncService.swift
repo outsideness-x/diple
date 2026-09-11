@@ -401,6 +401,9 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             case .note:
                 guard let note = try database.fetchNoteForSync(id: key.id) else { return nil }
                 Self.populate(note: note, record: record)
+            case .space:
+                guard let space = try database.fetchSpaceForSync(id: key.id) else { return nil }
+                Self.populate(space: space, record: record)
             case .settings:
                 let data = try await MainActor.run { try AppSettingsManager.shared.encodedSettings() }
                 record["payload"] = data as CKRecordValue
@@ -460,6 +463,23 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["createdAt"] = note.note.createdAt as CKRecordValue
         record["updatedAt"] = note.note.updatedAt as CKRecordValue
         Self.write(tags: note.tags, to: record)
+        // Where the note lives. Every key is written on every save, `nil` included, so taking a
+        // note out of a space or off the pin board travels as a removed field. An absent field
+        // on the receiving end therefore always means `nil`: a device that predates these keys
+        // never sends them, and CloudKit keeps the server's values for keys a save leaves
+        // untouched, so an older device editing a note cannot unfile it.
+        record["spaceID"] = note.note.spaceId as CKRecordValue?
+        record["pinnedAt"] = note.note.pinnedAt as CKRecordValue?
+        record["trashedAt"] = note.note.trashedAt as CKRecordValue?
+        record["dailyDate"] = note.note.dailyDate as CKRecordValue?
+    }
+
+    private static func populate(space: NoteSpace, record: CKRecord) {
+        record["name"] = space.name as CKRecordValue
+        record["symbol"] = space.symbol as CKRecordValue
+        record["sortIndex"] = NSNumber(value: space.sortIndex)
+        record["createdAt"] = space.createdAt as CKRecordValue
+        record["updatedAt"] = space.updatedAt as CKRecordValue
     }
 
     // MARK: Tags on a record
@@ -673,13 +693,32 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                     body: body,
                     bookId: record["bookID"] as? String,
                     createdAt: createdAt,
-                    updatedAt: updatedAt
+                    updatedAt: updatedAt,
+                    spaceId: record["spaceID"] as? String,
+                    pinnedAt: record["pinnedAt"] as? Date,
+                    trashedAt: record["trashedAt"] as? Date,
+                    dailyDate: record["dailyDate"] as? String
                 ),
                 // A note carries its tags outright: a record without them is a note with none,
                 // which is why the book's "absent means unknown" distinction does not apply.
                 tags: Self.tags(from: record) ?? []
             )
             return try database.applyRemoteNote(synced, modifiedAt: modifiedAt, systemFields: systemFields)
+        case .space:
+            guard let name = record["name"] as? String,
+                  let sortIndex = (record["sortIndex"] as? NSNumber)?.doubleValue,
+                  let createdAt = record["createdAt"] as? Date,
+                  let updatedAt = record["updatedAt"] as? Date
+            else { return true }
+            let space = NoteSpace(
+                id: key.id,
+                name: name,
+                symbol: record["symbol"] as? String ?? NoteSpace.defaultSymbol,
+                sortIndex: sortIndex,
+                createdAt: createdAt,
+                updatedAt: updatedAt
+            )
+            return try database.applyRemoteSpace(space, modifiedAt: modifiedAt, systemFields: systemFields)
         case .settings:
             guard let payload = record["payload"] as? Data else { return true }
             guard try database.shouldAcceptRemoteChange(entity: .settings, id: "current", modifiedAt: modifiedAt) else {
@@ -918,6 +957,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         case .highlight: return "DipleHighlight"
         case .bookmark: return "DipleBookmark"
         case .note: return "DipleNote"
+        case .space: return "DipleSpace"
         case .settings: return "DipleSettings"
         }
     }
