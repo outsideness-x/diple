@@ -151,6 +151,56 @@ final class MarkdownExportTests: XCTestCase {
         XCTAssertTrue(try read("Highlights/The Dispossessed An Ambiguous Utopia 2.md").contains("<!-- diple:h1 -->"))
     }
 
+    // MARK: - Spaces
+
+    /// The vault is laid out the way the notes workshop is: a note filed in a space is written
+    /// into that space's folder, and says so in its front matter.
+    func testANoteInASpaceIsWrittenIntoItsFolder() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let space = try database.createSpace(named: "Essay: on time")
+        try database.saveNote(Note(id: "n1", title: "Borges", body: "the garden", spaceId: space.id), tags: [])
+        try database.setPinned(true, noteID: "n1")
+        try database.saveNote(Note(id: "n2", title: "Loose", body: "no space"), tags: [])
+
+        _ = try MarkdownLibraryExporter.shared.export(to: folder, database: database)
+
+        let filed = try read("Notes/Essay on time/Borges.md")
+        XCTAssertTrue(filed.contains("space: \"Essay: on time\""))
+        XCTAssertTrue(filed.contains("pinned: true"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.appendingPathComponent("Notes/Loose.md").path))
+    }
+
+    /// A note moved between spaces must not be left behind in the old folder as a second, stale
+    /// copy — and a file in that folder which diple did not write stays exactly where it is.
+    func testMovingANoteMovesItsFileAndLeavesForeignFilesAlone() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        let first = try database.createSpace(named: "First")
+        let second = try database.createSpace(named: "Second")
+        try database.saveNote(Note(id: "n1", title: "Wandering", body: "a thought", spaceId: first.id), tags: [])
+        _ = try MarkdownLibraryExporter.shared.export(to: folder, database: database)
+
+        let foreign = folder.appendingPathComponent("Notes/First/Mine.md")
+        try "---\nauthor: me\n---\n\nnot diple's".write(to: foreign, atomically: true, encoding: .utf8)
+        try database.moveNotes(ids: ["n1"], toSpace: second.id)
+        _ = try MarkdownLibraryExporter.shared.export(to: folder, database: database)
+
+        let fileManager = FileManager.default
+        XCTAssertFalse(fileManager.fileExists(atPath: folder.appendingPathComponent("Notes/First/Wandering.md").path))
+        XCTAssertTrue(fileManager.fileExists(atPath: folder.appendingPathComponent("Notes/Second/Wandering.md").path))
+        XCTAssertTrue(fileManager.fileExists(atPath: foreign.path))
+    }
+
+    /// Recently deleted is not part of the library, so it is not written into the vault.
+    func testADeletedNoteIsNotExported() throws {
+        let database = try AppDatabase(DatabaseQueue())
+        try database.saveNote(Note(id: "n1", title: "Gone", body: "x"), tags: [])
+        try database.trashNote(id: "n1")
+
+        let report = try MarkdownLibraryExporter.shared.export(to: folder, database: database)
+
+        XCTAssertEqual(report.noteFiles, 0)
+    }
+
     func testFileNamesSurviveTitlesThatFilesystemsRefuse() {
         XCTAssertEqual(
             MarkdownLibraryExporter.safeFileName("Sapiens: A Brief/History* of \"Humankind\""),

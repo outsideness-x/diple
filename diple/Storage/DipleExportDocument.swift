@@ -7,7 +7,10 @@ import UniformTypeIdentifiers
 /// portable value here is reading position, saved passages, reflections and
 /// notes. Stable ids preserve relationships for a future importer or any outside script.
 public nonisolated struct DipleExportPayload: Codable, Sendable {
-    public static let currentVersion = 3
+    /// 4 added `spaces`, and notes that carry where they live — including the ones in Recently
+    /// deleted, so a library restored onto a new device still has its thirty days to change its
+    /// mind in. Older files read as they always did: no spaces, and notes that live nowhere.
+    public static let currentVersion = 4
 
     public nonisolated struct Source: Codable, Sendable {
         public let id: String
@@ -114,6 +117,26 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
     public let sources: [Source]
     public let highlights: [TaggedHighlight]
     public let notes: [TaggedNote]
+    /// The notes workshop's spaces. Absent from every file older than version 4.
+    public let spaces: [NoteSpace]
+
+    private enum CodingKeys: String, CodingKey {
+        case format, version, exportedAt, sources, highlights, notes, spaces
+    }
+
+    /// Decoded by hand for one field: `spaces` has to be optional on the way in, or every backup
+    /// written before it existed would stop being restorable. Everything else reads exactly as
+    /// the synthesised decoder did, and `Note`'s own new fields are optionals it already skips.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        format = try values.decode(String.self, forKey: .format)
+        version = try values.decode(Int.self, forKey: .version)
+        exportedAt = try values.decode(Date.self, forKey: .exportedAt)
+        sources = try values.decode([Source].self, forKey: .sources)
+        highlights = try values.decode([TaggedHighlight].self, forKey: .highlights)
+        notes = try values.decode([TaggedNote].self, forKey: .notes)
+        spaces = try values.decodeIfPresent([NoteSpace].self, forKey: .spaces) ?? []
+    }
 
     public init(database: AppDatabase = .shared, exportedAt: Date = Date()) throws {
         let books = try database.fetchAllBooks()
@@ -138,9 +161,10 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         self.highlights = try database.fetchAllHighlights().map {
             TaggedHighlight(highlight: $0, tags: tagsByHighlight[$0.id] ?? [])
         }
-        self.notes = try database.fetchAllNotes().map {
+        self.notes = try (database.fetchAllNotes() + database.fetchTrashedNotes()).map {
             TaggedNote(note: $0, tags: tagsByNote[$0.id] ?? [])
         }
+        self.spaces = try database.fetchSpaces()
     }
 
     public init(
@@ -149,7 +173,8 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         exportedAt: Date,
         sources: [Source],
         highlights: [TaggedHighlight],
-        notes: [TaggedNote]
+        notes: [TaggedNote],
+        spaces: [NoteSpace] = []
     ) {
         self.format = format
         self.version = version
@@ -157,6 +182,7 @@ public nonisolated struct DipleExportPayload: Codable, Sendable {
         self.sources = sources
         self.highlights = highlights
         self.notes = notes
+        self.spaces = spaces
     }
 
     public static var empty: Self {
@@ -207,9 +233,10 @@ public nonisolated struct DipleRestorePreview: Equatable, Sendable {
     public let notesAdded: Int
     public let notesUpdated: Int
     public let notesKept: Int
+    public let spacesAdded: Int
 
     public var changeCount: Int {
-        sourcePositionsUpdated + highlightsAdded + notesAdded + notesUpdated
+        sourcePositionsUpdated + highlightsAdded + notesAdded + notesUpdated + spacesAdded
     }
 
     public var isNoOp: Bool { changeCount == 0 }
@@ -272,18 +299,21 @@ public nonisolated final class DipleBackupRestorer: Sendable {
         }
         guard payload.sources.count <= Self.maximumItemsPerKind,
               payload.highlights.count <= Self.maximumItemsPerKind,
-              payload.notes.count <= Self.maximumItemsPerKind
+              payload.notes.count <= Self.maximumItemsPerKind,
+              payload.spaces.count <= Self.maximumItemsPerKind
         else { throw DipleBackupError.unreasonableItemCount }
 
         let sourceIDs = payload.sources.map(\.id)
         let highlightIDs = payload.highlights.map(\.highlight.id)
         let noteIDs = payload.notes.map(\.note.id)
-        guard (sourceIDs + highlightIDs + noteIDs).allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+        let spaceIDs = payload.spaces.map(\.id)
+        guard (sourceIDs + highlightIDs + noteIDs + spaceIDs).allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
             throw DipleBackupError.invalidIdentifier
         }
         guard Set(sourceIDs).count == sourceIDs.count,
               Set(highlightIDs).count == highlightIDs.count,
-              Set(noteIDs).count == noteIDs.count
+              Set(noteIDs).count == noteIDs.count,
+              Set(spaceIDs).count == spaceIDs.count
         else { throw DipleBackupError.duplicateIdentifier }
     }
 }

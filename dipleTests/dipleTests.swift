@@ -2433,6 +2433,8 @@ final class DipleTests: XCTestCase {
         // having to branch on `version`.
         XCTAssertEqual(decoded.highlights.first?.highlight.id, "legacy-highlight")
         XCTAssertEqual(decoded.highlights.first?.tags, [])
+        // Spaces arrived in version 4; a file from before them is a library without any.
+        XCTAssertTrue(decoded.spaces.isEmpty)
 
         let invalid = DipleExportPayload(
             format: "some-other-export",

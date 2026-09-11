@@ -85,6 +85,7 @@ public nonisolated final class MarkdownLibraryExporter: Sendable {
         let booksByID = Dictionary(uniqueKeysWithValues: try database.fetchAllBooks().map { ($0.id, $0) })
         let notes = try database.fetchAllNotes()
         let tagsByNote = try database.fetchTagsByNote()
+        let spacesByID = Dictionary(uniqueKeysWithValues: try database.fetchSpaces().map { ($0.id, $0) })
 
         var report = MarkdownExportReport(
             sourceFiles: 0,
@@ -114,6 +115,7 @@ public nonisolated final class MarkdownLibraryExporter: Sendable {
                 notes: notes,
                 tagsByNote: tagsByNote,
                 booksByID: booksByID,
+                spacesByID: spacesByID,
                 into: notesFolder,
                 fileManager: fileManager,
                 report: report
@@ -230,34 +232,64 @@ public nonisolated final class MarkdownLibraryExporter: Sendable {
 
     // MARK: - Notes
 
+    /// One file per note, in `Notes/` — or in `Notes/<space>/` for a note filed in a space, so
+    /// the vault is laid out the way the notes workshop is. Obsidian resolves `[[links]]` by
+    /// file name across folders, so filing costs no link anything.
+    ///
+    /// A note that has changed space since the last run would otherwise leave its old file behind
+    /// in the old folder — the same note twice, one of them stale. So every file diple owns under
+    /// `Notes/` is found first, and after a note is written, any *other* file claiming that note is
+    /// removed. Only files carrying diple's own id in their front matter are ever candidates; the
+    /// rule that a file diple did not write is never touched holds here too.
     private func writeNotes(
         notes: [Note],
         tagsByNote: [String: [String]],
         booksByID: [String: Book],
+        spacesByID: [String: NoteSpace],
         into folder: URL,
         fileManager: FileManager,
         report: MarkdownExportReport
     ) throws -> MarkdownExportReport {
         var files = 0
         var skipped = report.skippedForeignFiles
-        var takenNames: Set<String> = []
+        /// Names already handed out, per folder: two notes in two spaces may share a title.
+        var takenNames: [String: Set<String>] = [:]
+        let owned = ownedNoteFiles(under: folder, fileManager: fileManager)
 
         for note in notes.sorted(by: { $0.createdAt < $1.createdAt }) {
             let item = NoteItem(note: note, tags: tagsByNote[note.id] ?? [], book: note.bookId.flatMap { booksByID[$0] })
+            // A note whose space has not arrived from iCloud, or has been deleted, is written at
+            // the top of `Notes/` — the file equivalent of standing in the Inbox.
+            let space = note.spaceId.flatMap { spacesByID[$0] }
+            let noteFolder = space.map {
+                folder.appendingPathComponent(Self.safeFileName($0.name), isDirectory: true)
+            } ?? folder
+            try fileManager.createDirectory(at: noteFolder, withIntermediateDirectories: true)
+
             // The file is named after `displayTitle` — the same string a `[[Wiki link]]`
             // resolves on inside diple. Obsidian resolves its links on filenames, so the links
             // the reader already wrote arrive working rather than as literal brackets.
-            guard let destination = try claim(
+            var taken = takenNames[noteFolder.path, default: []]
+            let claimed = try claim(
                 name: item.displayTitle,
                 key: Self.noteIDKey,
                 value: note.id,
-                in: folder,
+                in: noteFolder,
                 fileManager: fileManager,
-                taken: &takenNames,
+                taken: &taken,
                 skipped: &skipped
-            ) else { continue }
+            )
+            takenNames[noteFolder.path] = taken
+            guard let destination = claimed else { continue }
 
-            var body = frontMatter([Self.noteIDKey: note.id, "created": Self.dateFormatter.string(from: note.createdAt), "updated": Self.dateFormatter.string(from: note.updatedAt)])
+            var fields = [
+                Self.noteIDKey: note.id,
+                "created": Self.dateFormatter.string(from: note.createdAt),
+                "updated": Self.dateFormatter.string(from: note.updatedAt)
+            ]
+            if let space { fields["space"] = space.name }
+            if note.isPinned { fields["pinned"] = "true" }
+            var body = frontMatter(fields)
             body += NoteMarkdownExport.document(
                 title: note.title ?? "",
                 body: note.body,
@@ -268,6 +300,11 @@ public nonisolated final class MarkdownLibraryExporter: Sendable {
             }
             try Data((body + "\n").utf8).write(to: destination, options: .atomic)
             files += 1
+
+            for stale in owned[note.id, default: []]
+            where stale.standardizedFileURL != destination.standardizedFileURL {
+                try? fileManager.removeItem(at: stale)
+            }
         }
 
         return MarkdownExportReport(
@@ -280,6 +317,38 @@ public nonisolated final class MarkdownLibraryExporter: Sendable {
     }
 
     // MARK: - Files
+
+    /// Every note file diple wrote under `Notes/` — its top level and one folder down, which is
+    /// as deep as spaces go — keyed by the note id in its front matter.
+    private func ownedNoteFiles(under folder: URL, fileManager: FileManager) -> [String: [URL]] {
+        var folders = [folder]
+        let children = (try? fileManager.contentsOfDirectory(
+            at: folder,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        folders += children.filter {
+            (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        }
+
+        let marker = "\(Self.noteIDKey): "
+        var owned: [String: [URL]] = [:]
+        for directory in folders {
+            let files = (try? fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            for file in files where file.pathExtension == "md" {
+                guard let head = (try? String(contentsOf: file, encoding: .utf8))?.prefix(512),
+                      let line = head.split(separator: "\n").first(where: { $0.hasPrefix(marker) })
+                else { continue }
+                let id = line.dropFirst(marker.count).trimmingCharacters(in: .whitespaces)
+                owned[id, default: []].append(file)
+            }
+        }
+        return owned
+    }
 
     /// Finds the file this record owns, or a free name to create it under.
     ///

@@ -1472,6 +1472,16 @@ public nonisolated final class AppDatabase: Sendable {
                 existingHighlightIDs.insert(highlight.id)
             }
 
+            // Spaces before notes, so a note is never written pointing at a space the same
+            // restore is about to create. Same rule as a note: the newer copy wins, and a space
+            // only this device has is left alone.
+            let spacesByID = Dictionary(uniqueKeysWithValues: try NoteSpace.fetchAll(db).map { ($0.id, $0) })
+            for space in payload.spaces {
+                if let local = spacesByID[space.id], local.updatedAt >= space.updatedAt { continue }
+                try space.save(db)
+                try markLocalSave(.space, id: space.id, at: restoredAt, in: db)
+            }
+
             var notesByID = Dictionary(uniqueKeysWithValues: try Note.fetchAll(db).map { ($0.id, $0) })
             for tagged in payload.notes {
                 let incoming = tagged.note
@@ -1533,6 +1543,9 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        let existingSpaceIDs = Set(try String.fetchAll(db, sql: "SELECT id FROM space"))
+        let spacesAdded = payload.spaces.lazy.filter { !existingSpaceIDs.contains($0.id) }.count
+
         let highlightsAdded = payload.highlights.lazy.filter { !existingHighlightIDs.contains($0.highlight.id) }.count
         return DipleRestorePreview(
             sourcePositionsUpdated: sourcePositionsUpdated,
@@ -1542,7 +1555,8 @@ public nonisolated final class AppDatabase: Sendable {
             highlightsKept: payload.highlights.count - highlightsAdded,
             notesAdded: notesAdded,
             notesUpdated: notesUpdated,
-            notesKept: notesKept
+            notesKept: notesKept,
+            spacesAdded: spacesAdded
         )
     }
 

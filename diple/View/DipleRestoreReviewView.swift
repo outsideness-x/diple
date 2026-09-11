@@ -116,6 +116,16 @@ public struct DipleRestoreReviewView: View {
                     detail: noteDetail,
                     value: candidate.preview.notesAdded + candidate.preview.notesUpdated
                 )
+                // Only when there are some: a backup from before spaces existed has none to
+                // offer, and a row reading "0 spaces" would describe a feature, not the file.
+                if candidate.preview.spacesAdded > 0 {
+                    ReviewCountRow(
+                        icon: "folder",
+                        title: "Spaces",
+                        detail: candidate.preview.spacesAdded == 1 ? "space to add" : "spaces to add",
+                        value: candidate.preview.spacesAdded
+                    )
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
         }

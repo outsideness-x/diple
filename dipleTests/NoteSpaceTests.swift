@@ -267,6 +267,36 @@ final class NoteSpaceTests: XCTestCase {
         XCTAssertTrue(try db.fetchSyncOutbox().contains { $0.entityType == "space" })
     }
 
+    // MARK: - Backup
+
+    /// A backup carries the spaces, where each note lives, and Recently deleted — a library
+    /// restored onto a new device keeps its thirty days to change its mind in.
+    func testABackupRestoresSpacesFilingAndTheTrash() throws {
+        let source = try database()
+        let space = try source.createSpace(named: "diple", symbol: "lightbulb")
+        try source.saveNote(Note(id: "filed", body: "in a space", spaceId: space.id), tags: [])
+        try source.setPinned(true, noteID: "filed")
+        try source.saveNote(Note(id: "deleted", body: "thrown away"), tags: [])
+        try source.trashNote(id: "deleted")
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(try DipleExportPayload(database: source))
+        let payload = try DipleBackupRestorer.shared.decode(data)
+        XCTAssertEqual(payload.version, 4)
+
+        let target = try database()
+        XCTAssertEqual(try DipleBackupRestorer.shared.preview(payload, database: target).spacesAdded, 1)
+        _ = try DipleBackupRestorer.shared.restore(payload, database: target)
+
+        XCTAssertEqual(try target.fetchSpaces().map(\.symbol), ["lightbulb"])
+        let filed = try XCTUnwrap(try target.fetchNote(id: "filed"))
+        XCTAssertEqual(filed.spaceId, space.id)
+        XCTAssertNotNil(filed.pinnedAt)
+        XCTAssertEqual(try target.fetchTrashedNotes().map(\.id), ["deleted"])
+        XCTAssertEqual(try target.fetchAllNotes().map(\.id), ["filed"])
+    }
+
     // MARK: - The day's page
 
     func testTheDaysPageIsTheEarliestLivingOne() throws {
