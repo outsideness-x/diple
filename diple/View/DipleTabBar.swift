@@ -1,25 +1,39 @@
 import SwiftUI
 import Combine
 
-/// The app's own tab bar: a floating pill of places, with search kept beside it rather than
-/// inside it, and both collapsing out of the way while the reader is scrolling.
+/// The app's own tab bar: the mode on the left, a floating pill of places in the middle, and
+/// the mode's verb on the right — all of it collapsing out of the way while the reader scrolls.
+///
+/// ```
+/// Reading   ( ✎ )     (  ⌂    ▥    ❝  )     ( ⌕ )
+/// Notes     ( ▥ )                           ( + )
+/// ```
 ///
 /// Glyphs only, at every width and on every device. There is no label, no branch that can
 /// produce one, and nothing left to measure a label against.
 ///
 /// The system bar this replaces spanned the full width and sat on top of the content rather
 /// than over it: on the library shelf the "Library" label landed on a book cover, and on the
-/// notes board it landed on note text. It also gave four equal seats to three places and one
-/// verb. Home, Library and Notes are *where things are*; search is something you do to them,
-/// and it belongs next to the pill, not as a fourth room.
+/// notes board it landed on note text. Home, Library and Highlights are *where things are*;
+/// search is something you do to them, and it stands beside the pill, not as a fourth room.
+///
+/// **Switching mode moves nothing sideways.** The two circles stand at the two edges in both
+/// modes, so the mode circle is the one thing that never changes and the verb circle changes
+/// only what it says: in Reading you search, in Notes you write, and the glass under the
+/// magnifier turns to accent under the `+`. The pill closes into the centre by width, the same
+/// number the scroll collapse already walks along, so there is no second animation to drift out
+/// of step with the first.
 ///
 /// Collapsing is the part that matters most. While a page of covers or rows is moving under the
 /// thumb, the bar has nothing to say, so it shrinks to the icon of wherever you already are and
 /// the content behind it comes back. Scrolling up brings it back, because that is the gesture of
 /// going somewhere rather than reading on.
 public struct DipleTabBar: View {
+    let mode: RootTabView.Mode
     @Binding var selection: RootTabView.Tab
     let isCollapsed: Bool
+    let onSwitchMode: () -> Void
+    let onCompose: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -27,13 +41,16 @@ public struct DipleTabBar: View {
     /// while it is selected the lens stays over the place it came from and fades out there.
     @State private var lastPlace: RootTabView.Tab = .home
 
-    /// The four places. Search is deliberately not among them.
+    /// Reading's three places. Search is deliberately not among them, and neither is Notes any
+    /// more: it stopped being a room of the reading app and became the other workshop, reached
+    /// by the circle on the left.
     ///
-    /// Notes and Marks are two doors into one board — the arrangement the desktop's two shelves
-    /// already had — and the door only decides the scope it opens at. Two doors are worth their
-    /// width because the tab bar was naming the smaller pile and hiding the bigger one: a
-    /// library with seventeen saved passages and two notes called its room "Notes".
-    private var places: [RootTabView.Tab] { [.home, .library, .highlights, .notes] }
+    /// That also restores the row's original grammar — three places and one verb. The fourth
+    /// seat was added on 2026-09-07 because the bar named the smaller pile and hid the bigger
+    /// one; with notes in a mode of their own there is no pile left for it to misname.
+    private var places: [RootTabView.Tab] { [.home, .library, .highlights] }
+
+    private var isReading: Bool { mode == .reading }
 
     /// One seat: a glyph and its tap target, square.
     ///
@@ -41,9 +58,10 @@ public struct DipleTabBar: View {
     /// nothing else, and 44 pt around an 18 pt glyph read as a row that had lost something
     /// rather than one that had been simplified.
     ///
-    /// It grows with the reader's text size and then stops. Four seats and a search circle have
-    /// to stand on a 375 pt phone at every setting, and five capped seats plus the gutters come
-    /// to 322 of them; unclamped, one seat alone is past 60 pt by the first accessibility size.
+    /// It grows with the reader's text size and then stops. Three seats and two circles have to
+    /// stand on a 393 pt phone at every setting — capped, that is 58 × 5 plus the pill's padding
+    /// and the gutters, well inside it; unclamped, one seat alone is past 60 pt by the first
+    /// accessibility size.
     /// Capping the seat is the honest end of that — the alternative is a seat that stops
     /// growing under a glyph that does not, which is a clipped icon rather than a small one.
     @ScaledMetric(relativeTo: .body) private var scaledSeat: CGFloat = 50
@@ -60,29 +78,81 @@ public struct DipleTabBar: View {
     /// it is handed — and this number has already been scaled by the seat it came from.
     private var glyph: CGFloat { seat * 0.4 }
 
-    public init(selection: Binding<RootTabView.Tab>, isCollapsed: Bool) {
+    /// The pill's own height: seat plus its padding on both sides. Both circles take it, because
+    /// two round things of nearly the same size beside a capsule read as a mistake in one of them.
+    private var circle: CGFloat { seat + DipleSpace.xs * 2 }
+
+    public init(
+        mode: RootTabView.Mode,
+        selection: Binding<RootTabView.Tab>,
+        isCollapsed: Bool,
+        onSwitchMode: @escaping () -> Void,
+        onCompose: @escaping () -> Void
+    ) {
+        self.mode = mode
         self._selection = selection
         self.isCollapsed = isCollapsed
+        self.onSwitchMode = onSwitchMode
+        self.onCompose = onCompose
     }
 
     public var body: some View {
-        HStack(spacing: DipleSpace.m) {
+        HStack(spacing: 0) {
+            modeButton
+            Spacer(minLength: DipleSpace.m)
             pill
-            searchButton
+            Spacer(minLength: DipleSpace.m)
+            verbButton
         }
         .padding(.horizontal, DipleSpace.l)
     }
 
+    // MARK: - The mode
+
+    /// The way to the other workshop, showing the workshop it leads *to* — the page in Reading,
+    /// the shelf in Notes — the way a camera's flip button shows the other lens.
+    ///
+    /// It steps aside while the bar is collapsed. A collapsed bar is the place you stand in and
+    /// the verb you might want next; leaving the workshop is neither, and three blobs of glass
+    /// strung along the bottom of a page being read is two more than it needs. It fades rather
+    /// than narrowing, so the circle keeps its width and the pill between the two stays exactly
+    /// centred while it goes.
+    private var modeButton: some View {
+        let destination = mode.other
+        let isShown = !isCollapsed
+        return Button(action: onSwitchMode) {
+            Image(systemName: destination.symbol)
+                .font(.system(size: glyph, weight: .medium))
+                .foregroundStyle(DipleColor.textSecondary)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: circle, height: circle)
+                .background { glass(Circle()) }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.dipleTabItem)
+        .scaleEffect(isShown || reduceMotion ? 1 : 0.6)
+        .opacity(isShown ? 1 : 0)
+        .allowsHitTesting(isShown)
+        .accessibilityHidden(!isShown)
+        .accessibilityLabel(destination.title)
+        .accessibilityHint("Switches to \(destination.title)")
+        .accessibilityIdentifier("shell.mode")
+    }
+
     // MARK: - The pill
 
-    /// Four glyphs, and never a word.
+    /// Three glyphs, and never a word.
     ///
-    /// The row used to carry labels and give all four up together through `ViewThatFits` when a
+    /// The row used to carry labels and give them all up together through `ViewThatFits` when a
     /// fourth place stopped fitting on the narrowest phone still shipping. It is icons at every
-    /// width now, and there is no branch left that could put a word back. A house, a shelf, a
-    /// quotation mark and a page are already the plainest names those places have; the labels
-    /// were a second, longer name printed under each one, and they cost the bar a second height
-    /// that had to be got rid of at exactly the moment it was also being collapsed.
+    /// width now, and there is no branch left that could put a word back. A house, a shelf and a
+    /// quotation mark are already the plainest names those places have; the labels were a
+    /// second, longer name printed under each one, and they cost the bar a second height that
+    /// had to be got rid of at exactly the moment it was also being collapsed.
+    ///
+    /// In Notes it closes altogether: every seat narrows to nothing and the glass goes with
+    /// them. Notes is one stack, the way Things is one list, and a pill with nothing in it is a
+    /// control that says "there is somewhere else to go" when there is not.
     private var pill: some View {
         HStack(spacing: 0) {
             ForEach(places, id: \.self) { tab in
@@ -104,16 +174,18 @@ public struct DipleTabBar: View {
             }
         }
         .background(alignment: .leading) { lens }
-        .padding(DipleSpace.xs)
+        .padding(isReading ? DipleSpace.xs : 0)
         .background { glass(Capsule(style: .continuous)) }
+        .opacity(isReading ? 1 : 0)
         .onChange(of: selection, initial: true) { _, tab in
             if places.contains(tab) { lastPlace = tab }
         }
     }
 
-    /// Collapsed, only the place the reader is already standing in keeps its seat.
+    /// Collapsed, only the place the reader is already standing in keeps its seat. In Notes
+    /// there is no place to stand in, and none keeps one.
     private func isShown(_ tab: RootTabView.Tab) -> Bool {
-        !isCollapsed || tab == selection
+        isReading && (!isCollapsed || tab == selection)
     }
 
     // MARK: - The lens
@@ -139,7 +211,7 @@ public struct DipleTabBar: View {
             .fill(DipleColor.accentSoft)
             .frame(width: seat, height: seat)
             .padding(.leading, lensInset)
-            .opacity(places.contains(selection) ? 1 : 0)
+            .opacity(isReading && places.contains(selection) ? 1 : 0)
     }
 
     /// Where the lens starts along the row. A seat's glyph is centred in its stride, so it
@@ -171,34 +243,51 @@ public struct DipleTabBar: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
-    // MARK: - Search
+    // MARK: - The verb
 
-    private var searchButton: some View {
-        let isSelected = selection == .search
+    /// What the open workshop is *for*: search in Reading, a new note in Notes.
+    ///
+    /// One circle that changes what it says rather than two circles taking turns, so the thumb
+    /// that knows where search is already knows where writing is. The glyph is replaced as a
+    /// symbol, and the glass fills with accent underneath it — the one filled control in the
+    /// notes workshop, because writing is the one thing that workshop is for. The fill is the
+    /// bar's own glass turning colour, not a floating button with a shadow of its own: the
+    /// redesign's rule of no third shadow still holds.
+    private var verbButton: some View {
+        let isSearchSelected = isReading && selection == .search
         return Button {
-            select(.search)
+            if isReading {
+                select(.search)
+            } else {
+                onCompose()
+            }
         } label: {
-            Image(systemName: RootTabView.Tab.search.symbol)
-                .font(.system(size: glyph, weight: .medium))
-                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
-                // The pill's own height: seat plus its padding on both sides. The circle
-                // stands beside the capsule, and two round things of nearly the same size
-                // read as a mistake in one of them.
-                .frame(width: seat + DipleSpace.xs * 2, height: seat + DipleSpace.xs * 2)
-                .background { glass(Circle()) }
-                .overlay {
-                    if isSelected {
-                        Circle().fill(DipleColor.accentSoft)
-                        Image(systemName: RootTabView.Tab.search.symbol)
-                            .font(.system(size: glyph, weight: .medium))
-                            .foregroundStyle(DipleColor.accentInk)
+            Image(systemName: isReading ? RootTabView.Tab.search.symbol : "plus")
+                .font(.system(size: glyph, weight: isReading ? .medium : .semibold))
+                .foregroundStyle(
+                    isReading
+                        ? (isSearchSelected ? DipleColor.accentInk : DipleColor.textSecondary)
+                        : DipleColor.textOnAccent
+                )
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: circle, height: circle)
+                .background {
+                    ZStack {
+                        glass(Circle())
+                        Circle()
+                            .fill(DipleColor.accentSoft)
+                            .opacity(isSearchSelected ? 1 : 0)
+                        Circle()
+                            .fill(DipleColor.accent)
+                            .opacity(isReading ? 0 : 1)
                     }
                 }
-                .clipShape(Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.dipleTabItem)
-        .accessibilityLabel(RootTabView.Tab.search.title)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityLabel(isReading ? RootTabView.Tab.search.title : "New note")
+        .accessibilityAddTraits(isSearchSelected ? [.isSelected] : [])
+        .accessibilityIdentifier(isReading ? "shell.search" : "notes.new")
     }
 
     // MARK: - Material

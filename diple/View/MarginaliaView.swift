@@ -39,8 +39,9 @@ public enum MarginaliaDoor {
     /// The day's passage stands at the top of the room the passages are in, and nowhere else.
     var showsDailyPassage: Bool { self == .highlights }
 
-    /// A note is written from the notes room. Nothing writes a passage but reading one, so a
-    /// `+` here would be a control for the wrong room.
+    /// A note is written from the notes room: this is the room that answers the bar's `+` in
+    /// the notes workshop. Nothing writes a passage but reading one, so the passages room
+    /// never does.
     var offersNewNote: Bool { self == .notes }
 }
 
@@ -234,6 +235,13 @@ public struct MarginaliaView: View {
                 Text("Notes are removed permanently. Passages and their comments are removed too.")
             }
             .refreshesOnTabActivation { model.load() }
+            // The bar's `+` in Notes. Only the room notes are written in answers it; the
+            // passages room is a separate instance of this same view and must not push a page
+            // onto its own stack behind the reader's back.
+            .onReceive(NotificationCenter.default.publisher(for: .dipleComposeNote)) { _ in
+                guard door.offersNewNote else { return }
+                path.append(NoteRoute.new)
+            }
         }
     }
 
@@ -388,18 +396,9 @@ public struct MarginaliaView: View {
                 isSearchFieldShown || !model.rawQuery.isEmpty
                     ? "Close search" : "Search everything you have made"
             )
-
-            if door.offersNewNote {
-                Button {
-                    HapticManager.shared.selection()
-                    path.append(NoteRoute.new)
-                } label: {
-                    MastheadGlyph(systemImage: "plus")
-                }
-                .buttonStyle(.readerControl)
-                .accessibilityLabel("New note")
-                .accessibilityIdentifier("notes.new")
-            }
+            // No `+` here any more. In the notes workshop the bar's own verb circle *is* the
+            // `+`, always under the thumb; a second one in the masthead would be two controls
+            // for one act on one screen.
     }
 
     /// What this room holds in total, not what it is currently showing — the narrowed count
@@ -1156,31 +1155,13 @@ public struct MarginaliaView: View {
                 .padding(.horizontal, DipleSpace.xxxl)
             }
 
-            if door.offersNewNote {
-                newNoteButton
-            }
+            // No button here: in the notes workshop the bar's `+` is already under the thumb,
+            // and an empty state that repeats it is two controls for one act on one screen.
         }
         .frame(maxWidth: .infinity)
         .containerRelativeFrame(.vertical, alignment: .center) { length, _ in
             max(length - DipleSpace.scrollBottom, 420)
         }
-    }
-
-    private var newNoteButton: some View {
-            NavigationLink(value: NoteRoute.new) {
-                HStack(spacing: DipleSpace.s) {
-                    Image(systemName: "plus")
-                        .dipleIcon(14, weight: .semibold)
-                    Text("New note")
-                        .dipleType(.body, weight: .semibold)
-                }
-                .foregroundStyle(DipleColor.textOnAccent)
-                .diplePadding(.buttonLarge)
-                .background(DipleColor.accent, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("notes.new")
-            .padding(.top, DipleSpace.s)
     }
 }
 

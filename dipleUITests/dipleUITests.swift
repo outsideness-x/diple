@@ -135,14 +135,16 @@ final class dipleUITests: XCTestCase {
     @MainActor
     func testNotesWorkspaceAndCaptureFlow() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
+        // The shell reopens in whichever mode it was left in, so the run pins Reading and then
+        // crosses to Notes the way a reader does — through the mode circle.
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES", "-diple_app_mode", "reading"]
         app.launch()
 
-        // diple owns a floating tab bar rather than using UITabBar, so the destinations are
-        // regular accessible buttons in XCUI's hierarchy.
-        let notesTab = app.buttons["Notes"]
-        XCTAssertTrue(notesTab.waitForExistence(timeout: 5))
-        notesTab.tap()
+        // diple owns a floating tab bar rather than using UITabBar, so the mode circle and the
+        // `+` it turns into are regular accessible buttons in XCUI's hierarchy.
+        let notesMode = app.buttons["Notes"]
+        XCTAssertTrue(notesMode.waitForExistence(timeout: 5))
+        notesMode.tap()
 
         let newNote = app.buttons.matching(identifier: "notes.new").firstMatch
         XCTAssertTrue(newNote.waitForExistence(timeout: 5))
@@ -246,7 +248,7 @@ final class dipleUITests: XCTestCase {
     @MainActor
     func testEquationComposerAndRenderedFormulaFlow() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-diple_has_completed_first_launch", "YES"]
+        app.launchArguments = ["-diple_has_completed_first_launch", "YES", "-diple_app_mode", "reading"]
         app.launch()
 
         XCTAssertTrue(app.buttons["Notes"].waitForExistence(timeout: 5))
