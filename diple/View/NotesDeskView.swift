@@ -129,6 +129,12 @@ struct NotesDeskView: View {
             placeRow("number", "Tags", count: model.tagVocabulary.count) {
                 open(.tags)
             }
+            // Only while there is something in it: an empty bin is not a place worth a row.
+            if !model.trashed.isEmpty {
+                placeRow("trash", "Recently deleted", count: model.trashed.count) {
+                    open(.trash)
+                }
+            }
         }
     }
 

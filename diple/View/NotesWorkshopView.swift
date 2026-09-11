@@ -13,6 +13,7 @@ public enum NotesPlace: Hashable {
     /// The All notes board opened with one word already pressed.
     case tag(String)
     case tags
+    case trash
 }
 
 /// The notes workshop: one stack, the way Things is one list.
@@ -144,6 +145,8 @@ public struct NotesWorkshopView: View {
             )
         case .tags:
             NotesTagsView(model: model, open: open)
+        case .trash:
+            NotesTrashView(model: model)
         }
     }
 
@@ -157,7 +160,7 @@ public struct NotesWorkshopView: View {
             allNotes: model.items,
             passages: model.passages,
             onSave: { note, tags in model.save(note, tags: tags) },
-            onDelete: { model.deleteForever([$0]) },
+            onDelete: { model.trash([$0]) },
             onOpenNote: { openNote(.existing($0)) },
             onOpenPassage: { editingPassage = $0 }
         )

@@ -294,7 +294,7 @@ public struct MarginaliaView: View {
                 Button("Delete", role: .destructive) { model.deleteSelection() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Notes are removed permanently. Passages and their comments are removed too.")
+                Text("Notes go to Recently deleted for thirty days. Passages and their comments are removed for good.")
             }
             .refreshesOnTabActivation { model.load() }
     }
@@ -932,8 +932,11 @@ public struct MarginaliaView: View {
             Label("Copy text", systemImage: "doc.on.doc")
         }
 
+        // No question: a note goes to Recently deleted and can be brought back for thirty days.
+        // A passage, which cannot, is still asked about.
         Button(role: .destructive) {
-            model.confirmDelete(.note(item))
+            HapticManager.shared.impact(.light)
+            model.delete(.note(item))
         } label: {
             Label("Delete", systemImage: "trash")
         }

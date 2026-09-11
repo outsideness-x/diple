@@ -156,8 +156,8 @@ public final class NotesWorkshopModel: ObservableObject {
         }
     }
 
-    /// Gone for good — the one deletion in the workshop that asks, because it is the one that
-    /// cannot be undone.
+    /// Gone for good, from Recently deleted — the one deletion in the workshop that asks,
+    /// because it is the one that cannot be undone.
     public func deleteForever(_ items: [NoteItem]) {
         perform("delete this note") {
             for item in items { try AppDatabase.shared.deleteNote(id: item.id) }

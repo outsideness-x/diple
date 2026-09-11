@@ -163,7 +163,7 @@ public struct SourceOverviewView: View {
                         }
                     },
                     onDelete: { item in
-                        try? AppDatabase.shared.deleteNote(id: item.id)
+                        try? AppDatabase.shared.trashNote(id: item.id)
                         viewModel.load()
                     },
                     onOpenNote: { path.append(NoteRoute.existing($0)) }

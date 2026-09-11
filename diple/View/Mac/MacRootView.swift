@@ -1535,7 +1535,7 @@ private struct MacMarginaliaCollection: View {
             Text(
                 model.entryToDelete?.kind == .saved
                     ? "This passage and its comment will be removed."
-                    : "This note will be removed permanently."
+                    : "It stays in Recently deleted for thirty days, where it can be restored from diple on iPhone."
             )
         }
         .alert(
@@ -2564,7 +2564,7 @@ private struct MacNoteInspector: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This note and its tags will be removed.")
+            Text("It stays in Recently deleted for thirty days, where it can be restored from diple on iPhone.")
         }
     }
 

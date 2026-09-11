@@ -471,7 +471,9 @@ public final class MarginaliaViewModel: ObservableObject {
         do {
             for entry in entries {
                 switch entry {
-                case .note(let item): try AppDatabase.shared.deleteNote(id: item.id)
+                // A note goes to Recently deleted; a passage has no such place and goes for
+                // good, which is why the bulk delete still asks.
+                case .note(let item): try AppDatabase.shared.trashNote(id: item.id)
                 case .passage(let item): try AppDatabase.shared.deleteHighlight(id: item.id)
                 }
             }
@@ -539,7 +541,7 @@ public final class MarginaliaViewModel: ObservableObject {
     public func delete(_ entry: MarginaliaEntry) {
         do {
             switch entry {
-            case .note(let item): try AppDatabase.shared.deleteNote(id: item.id)
+            case .note(let item): try AppDatabase.shared.trashNote(id: item.id)
             case .passage(let item): try AppDatabase.shared.deleteHighlight(id: item.id)
             }
             load()

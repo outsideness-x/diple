@@ -184,6 +184,10 @@ struct dipleApp: App {
                 // starting them would only mean uploading an empty one over the real thing.
                 guard AppDatabase.startupFailure == nil else { return }
 
+                // What has sat in Recently deleted past its thirty days goes now, before sync
+                // starts, so the deletions travel in the same first pass as everything else.
+                _ = try? AppDatabase.shared.purgeTrash()
+
                 await DailyResurfacingService.shared.reconcileNotifications()
                 // iCloud sync is opt-in (device-local flag, off by default — see CLAUDE.md).
                 // Silent CloudKit pushes don't require notification permission, but the app

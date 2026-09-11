@@ -107,7 +107,9 @@ final class ReaderNoteTests: XCTestCase {
         XCTAssertEqual(model.notes.tagSuggestions, ["open", "other"])
     }
 
-    func testDeletingANoteFromTheBookRemovesItEverywhere() throws {
+    /// Deleting from the book's sheet is the same act as deleting anywhere else: the note leaves
+    /// the book and the library for Recently deleted, and keeps its tags so it comes back whole.
+    func testDeletingANoteFromTheBookSendsItToRecentlyDeleted() throws {
         let database = try AppDatabase(DatabaseQueue())
         let book = Book(id: "book", title: "Book", filePath: "Books/book/book.epub")
         try database.saveBook(book)
@@ -119,7 +121,8 @@ final class ReaderNoteTests: XCTestCase {
 
         XCTAssertTrue(model.notes.forThisBook.isEmpty)
         XCTAssertTrue(try database.fetchAllNotes().isEmpty)
-        XCTAssertTrue(try database.fetchTags(forNoteID: "doomed").isEmpty)
+        XCTAssertEqual(try database.fetchTrashedNotes().map(\.id), ["doomed"])
+        XCTAssertEqual(try database.fetchTags(forNoteID: "doomed"), ["book"])
     }
 
     /// The editor autosaves on a debounce, so a save is not the moment to speak: the toast

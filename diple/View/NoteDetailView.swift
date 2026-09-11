@@ -118,7 +118,6 @@ public struct NoteDetailView: View {
     @State private var isBookPickerPresented = false
     @State private var isAddingTag = false
     @State private var slashContext: NoteSlashContext?
-    @State private var showDeleteConfirmation = false
     @State private var isBodyFocused = false
     @State private var selection = NoteSelectionBox()
     @State private var saveState: NoteSaveState = .saved
@@ -282,17 +281,6 @@ public struct NoteDetailView: View {
             Button("Add") { commitTagDraft() }
             Button("Cancel", role: .cancel) { tagDraft = "" }
         }
-        .alert("Delete note?", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                if let item = route.item {
-                    onDelete(item)
-                }
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This note and its tags will be removed.")
-        }
         .environment(\.openURL, OpenURLAction { url in
             // Only this app's own wiki-link scheme is intercepted; a real http link in a note
             // must still open the way the reader expects.
@@ -395,9 +383,15 @@ public struct NoteDetailView: View {
                         Label("Copy plain text", systemImage: "text.alignleft")
                     }
 
-                    if route.item != nil {
+                    if let item = route.item {
+                        // No question first: the note goes to Recently deleted and can be
+                        // brought back for thirty days. A save landing after this — the editor's
+                        // own `onDisappear` — does not bring it back; `saveNote` keeps where a
+                        // note lives, and that includes the bin.
                         Button(role: .destructive) {
-                            showDeleteConfirmation = true
+                            HapticManager.shared.impact(.light)
+                            onDelete(item)
+                            dismiss()
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }

@@ -618,7 +618,7 @@ public final class ReaderViewModel: ObservableObject {
 
     public func deleteNote(_ item: NoteItem) {
         do {
-            try database.deleteNote(id: item.id)
+            try database.trashNote(id: item.id)
             loadNotes()
         } catch {
             Self.log.error("Failed to delete note: \(error, privacy: .public)")

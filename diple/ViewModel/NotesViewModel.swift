@@ -288,7 +288,7 @@ public final class NotesViewModel: ObservableObject {
     /// Deletion from the note's own page, which has already asked for confirmation.
     public func delete(_ item: NoteItem) {
         do {
-            try AppDatabase.shared.deleteNote(id: item.note.id)
+            try AppDatabase.shared.trashNote(id: item.note.id)
             load()
         } catch {
             errorMessage = "Failed to delete note: \(error.localizedDescription)"
@@ -304,7 +304,7 @@ public final class NotesViewModel: ObservableObject {
     public func deleteConfirmedNote() {
         guard let item = noteToDelete else { return }
         do {
-            try AppDatabase.shared.deleteNote(id: item.note.id)
+            try AppDatabase.shared.trashNote(id: item.note.id)
             load()
         } catch {
             errorMessage = "Failed to delete note: \(error.localizedDescription)"
