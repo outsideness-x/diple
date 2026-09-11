@@ -91,10 +91,15 @@ final class ChapterPullTransitionController {
             guard !attachedScrollViews.contains(scrollView) else { continue }
             attachedScrollViews.add(scrollView)
 
-            // Readium turns bouncing off; without it there is nothing to pull against. Vertical
-            // only: `bounces` would give the column a sideways rubber band as well, and the one
-            // direction this reading mode must never move is sideways — see `holdColumn`.
-            scrollView.bouncesVertically = true
+            // Readium turns bouncing off; without it there is nothing to pull against.
+            //
+            // `bounces`, and not `bouncesVertically` — that was tried and it quietly took the
+            // pull away. WebKit's scroll view remembers what the client last set through
+            // `bounces` and recomputes both axes from it on its own layer commits, so a
+            // vertical-only setting beside Readium's `bounces = false` is reverted almost at
+            // once. The sideways half this also switches on moves nothing: `holdColumn` puts
+            // the column back on every offset change.
+            scrollView.bounces = true
             scrollView.alwaysBounceVertical = true
             columnHolds.setObject(
                 scrollView.observe(\.contentOffset) { [weak self] scrollView, _ in
@@ -117,7 +122,7 @@ final class ChapterPullTransitionController {
 
     private func detachAll() {
         for scrollView in attachedScrollViews.allObjects {
-            scrollView.bouncesVertically = false
+            scrollView.bounces = false
             scrollView.alwaysBounceVertical = false
             columnHolds.object(forKey: scrollView)?.invalidate()
 #if targetEnvironment(macCatalyst)
