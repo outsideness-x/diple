@@ -31,6 +31,26 @@ final class InkHighlightTests: XCTestCase {
         XCTAssertTrue(css.contains("[\(InkHighlightCSS.freshAttribute)=\"\(InkHighlightCSS.freshValue)\"]"))
     }
 
+    /// Every saved highlight was invisible on the page. diple sets a page colour in every
+    /// theme, and ReadiumCSS answers that with `:root[style*="--USER__backgroundColor"] *
+    /// { background-color: transparent !important; }` — a stylesheet fill loses to it however it
+    /// is written. Only an inline `!important` outranks it, which is what Readium's own template
+    /// does. `Scripts/ink-stroke-profile.swift` checks the same thing against the real CSS.
+    func testTheRestingFillIsInlineAndImportantSoReadiumsThemeResetCannotClearIt() {
+        let resting = InkHighlightCSS.element(ink: "rgba(255, 214, 10, 0.3)", isFresh: false)
+        XCTAssertTrue(resting.contains("background-color: rgba(255, 214, 10, 0.3) !important;"))
+
+        // A stylesheet fill would be dead code that looks like the thing doing the work.
+        XCTAssertFalse(css.contains("background-color: var(--diple-ink)"))
+    }
+
+    /// The wet mark must not carry the flat fill: it would sit under the stroke from the first
+    /// frame, and nothing would appear to be drawn.
+    func testAFreshHighlightHasNoFlatFillUnderTheStroke() {
+        let fresh = InkHighlightCSS.element(ink: "rgba(48, 209, 88, 0.3)", isFresh: true)
+        XCTAssertFalse(fresh.contains("background-color"))
+    }
+
     /// The lines are staggered, and the stagger stops. A twelve-line passage is a page, and a
     /// stagger that kept going would land its last line a second and a half after the tap.
     func testTheStaggerRunsDownTheLinesAndThenStops() {
@@ -65,7 +85,8 @@ final class InkHighlightTests: XCTestCase {
         }
         let block = String(css[range.lowerBound...])
         XCTAssertTrue(block.contains("animation: none;"))
-        XCTAssertTrue(block.contains("background-color: var(--diple-ink);"))
+        // The stroke's own last frame, not a background-color — ReadiumCSS clears those.
+        XCTAssertTrue(block.contains("background-size: 130% 100%;"))
     }
 
     /// The flag has to outlast the ink, or the second write lands mid-stroke and the mark

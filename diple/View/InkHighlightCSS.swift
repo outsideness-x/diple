@@ -16,6 +16,18 @@ import Foundation
 /// holds it for exactly as long as the ink is wet, and the decorations are applied a second time
 /// without it. The second write is not a workaround: the passage genuinely stopped being new,
 /// and that is a change to what is being drawn.
+///
+/// **The resting fill is an inline `!important`, and nothing else survives.** ReadiumCSS ends
+/// with `:root[style*="--USER__backgroundColor"] * { background-color: transparent !important; }`
+/// — and diple sets `backgroundColor` for every page theme (Paper is not Readium's white, and
+/// Carbon and Ink share one Readium theme), so that rule is always in force. The Sepia and night
+/// presets add their own `*:not(a)` versions of it. A fill declared in this stylesheet loses to
+/// all of them on specificity no matter how it is written: every saved highlight in every book
+/// was on the page with a transparent background, and a new one showed only for the second the
+/// stroke was wet, because the stroke is a `background-image`, which none of those rules touch.
+/// Only an inline `!important` outranks an author-stylesheet `!important`, which is exactly what
+/// Readium's own highlight template writes. `Scripts/ink-stroke-profile.swift` checks both
+/// states against the real ReadiumCSS.
 enum InkHighlightCSS {
     /// The class every highlight box carries.
     static let className = "diple-ink-highlight"
@@ -43,11 +55,15 @@ enum InkHighlightCSS {
     /// WebKit through `Scripts/ink-stroke-profile.swift`, this curve covers 28% of the line at a
     /// quarter of the duration, 55% at half and 80% at three quarters — near constant speed,
     /// with the small lag at the start that a nib takes to catch.
-    static let easing = "cubic-bezier(0.45, 0.5, 0.7, 0.8)" 
+    static let easing = "cubic-bezier(0.45, 0.5, 0.7, 0.8)"
 
+    /// A resting mark carries its fill inline and `!important` — see the type's comment for the
+    /// ReadiumCSS rule it has to outrank. A wet one must not: a flat fill under the stroke would
+    /// be the whole mark from the first frame, and there would be nothing left to draw.
     static func element(ink: String, isFresh: Bool) -> String {
         let fresh = isFresh ? " \(freshAttribute)=\"\(freshValue)\"" : ""
-        return "<div class=\"\(className)\"\(fresh) style=\"--diple-ink: \(ink);\"></div>"
+        let fill = isFresh ? "" : " background-color: \(ink) !important;"
+        return "<div class=\"\(className)\"\(fresh) style=\"--diple-ink: \(ink);\(fill)\"></div>"
     }
 
     /// Readium's own geometry for a highlight box — the same negative margin, padding and corner
@@ -72,14 +88,15 @@ enum InkHighlightCSS {
             padding: 0 2px 0 0;
             border-radius: 3px;
             box-sizing: border-box;
-            background-color: var(--diple-ink);
             z-index: var(--decoration-z-index);
         }
 
         /* The stroke. The fill is a gradient rather than a plain colour so the leading edge can
            be soft: 14px of ink still spreading, which is what tells a drawn mark from a wipe.
            It is painted from the left in both writing directions on purpose — the mark follows
-           the hand, and the hand is the reader's, not the text's. */
+           the hand, and the hand is the reader's, not the text's. A background-image is also
+           the one part of a background ReadiumCSS leaves alone, which is why the stroke can
+           live here while the resting fill cannot. */
         .\(className)[\(freshAttribute)="\(freshValue)"] {
             background-color: transparent;
             background-image: linear-gradient(
@@ -108,12 +125,12 @@ enum InkHighlightCSS {
         }
 
         /* The web view follows the system setting, so this needs no wiring on the Swift side.
-           Reduce Motion gets the mark, immediately — the point was never the movement. */
+           Reduce Motion gets the mark, immediately — the point was never the movement. It is the
+           stroke's own last frame rather than a background-color, which ReadiumCSS would clear. */
         @media (prefers-reduced-motion: reduce) {
             .\(className)[\(freshAttribute)="\(freshValue)"] {
                 animation: none;
-                background-image: none;
-                background-color: var(--diple-ink);
+                background-size: 130% 100%;
             }
         }
         """
