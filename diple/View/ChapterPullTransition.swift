@@ -41,6 +41,8 @@ final class ChapterPullTransitionController {
     private weak var navigator: EPUBNavigatorViewController?
     private let indicator = ChapterPullIndicatorView()
     private let attachedScrollViews = NSHashTable<UIScrollView>.weakObjects()
+    /// One offset observation per attached web view, dropped with the web view it watches.
+    private let columnHolds = NSMapTable<UIScrollView, NSKeyValueObservation>.weakToStrongObjects()
 #if targetEnvironment(macCatalyst)
     private var originalScrollTypeMasks: [ObjectIdentifier: UIScrollTypeMask] = [:]
 #endif
@@ -89,9 +91,17 @@ final class ChapterPullTransitionController {
             guard !attachedScrollViews.contains(scrollView) else { continue }
             attachedScrollViews.add(scrollView)
 
-            // Readium turns bouncing off; without it there is nothing to pull against.
-            scrollView.bounces = true
+            // Readium turns bouncing off; without it there is nothing to pull against. Vertical
+            // only: `bounces` would give the column a sideways rubber band as well, and the one
+            // direction this reading mode must never move is sideways — see `holdColumn`.
+            scrollView.bouncesVertically = true
             scrollView.alwaysBounceVertical = true
+            columnHolds.setObject(
+                scrollView.observe(\.contentOffset) { [weak self] scrollView, _ in
+                    MainActor.assumeIsolated { self?.holdColumn(in: scrollView) }
+                },
+                forKey: scrollView
+            )
 #if targetEnvironment(macCatalyst)
             // UIScrollView itself responds to trackpad and mouse-wheel input on Catalyst, but
             // targets attached to its pan recognizer do not receive those events unless the
@@ -107,8 +117,9 @@ final class ChapterPullTransitionController {
 
     private func detachAll() {
         for scrollView in attachedScrollViews.allObjects {
-            scrollView.bounces = false
+            scrollView.bouncesVertically = false
             scrollView.alwaysBounceVertical = false
+            columnHolds.object(forKey: scrollView)?.invalidate()
 #if targetEnvironment(macCatalyst)
             if let originalMask = originalScrollTypeMasks[ObjectIdentifier(scrollView)] {
                 scrollView.panGestureRecognizer.allowedScrollTypesMask = originalMask
@@ -117,10 +128,32 @@ final class ChapterPullTransitionController {
             scrollView.panGestureRecognizer.removeTarget(self, action: #selector(handlePan(_:)))
         }
         attachedScrollViews.removeAllObjects()
+        columnHolds.removeAllObjects()
 #if targetEnvironment(macCatalyst)
         originalScrollTypeMasks.removeAll()
 #endif
         resetGestureState()
+    }
+
+    /// Keeps a scroll-mode chapter from moving sideways, whatever asks it to.
+    ///
+    /// A chapter that is wider than the phone — one element the CSS cannot wrap: a publisher's
+    /// fixed-width box, a wide table — turns the whole column into something that can be
+    /// dragged left, and a selection handle carried to the edge autoscrolls it there by itself,
+    /// leaving blank paper on the right. That is how it was reported from a device.
+    /// `ReaderScript.cssOverrides` wraps the common cause, a long URL; this is the floor under
+    /// everything else. The cost is that such an element is clipped at the edge rather than
+    /// panned to, which is what paginated mode has always done with it.
+    ///
+    /// An observation rather than the scroll view's delegate, because Readium owns the delegate;
+    /// and a reset rather than a disabled axis, because UIKit has no switch for one axis and the
+    /// programmatic autoscroll would ignore it anyway. Books set vertically scroll sideways on
+    /// purpose, so they are left alone.
+    private func holdColumn(in scrollView: UIScrollView) {
+        guard isEnabled, navigator?.settings.verticalText == false else { return }
+        let resting = -scrollView.adjustedContentInset.left
+        guard scrollView.contentOffset.x != resting else { return }
+        scrollView.contentOffset.x = resting
     }
 
     // MARK: - Gesture
