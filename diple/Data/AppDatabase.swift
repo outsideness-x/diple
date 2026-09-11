@@ -421,6 +421,33 @@ public nonisolated final class AppDatabase: Sendable {
             try db.create(index: "readingSession_on_bookId", on: "readingSession", columns: ["bookId"])
         }
 
+        // The notes workshop (2026-09-11): spaces to keep notes in, and where each note lives.
+        // Additive and nullable, with no backfill — NULL is exactly what every existing note is:
+        // in no space, not pinned, not deleted, not a day's page. A note with a source lands in
+        // From reading and one without in the Inbox, which is where they genuinely are.
+        //
+        // `dailyDate` gets an ordinary index, not a unique one: two devices offline on the same
+        // morning can each start that day's page, and a UNIQUE constraint would turn the second
+        // one's arrival from iCloud into a failed batch. See `Note.dailyDate`.
+        migrator.registerMigration("v20_createNoteSpaces") { db in
+            try db.create(table: "space") { t in
+                t.column("id", .text).primaryKey()
+                t.column("name", .text).notNull()
+                t.column("symbol", .text).notNull().defaults(to: NoteSpace.defaultSymbol)
+                t.column("sortIndex", .double).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+            try db.alter(table: "note") { t in
+                t.add(column: "spaceId", .text)
+                t.add(column: "pinnedAt", .datetime)
+                t.add(column: "trashedAt", .datetime)
+                t.add(column: "dailyDate", .text)
+            }
+            try db.create(index: "note_on_spaceId", on: "note", columns: ["spaceId"])
+            try db.create(index: "note_on_dailyDate", on: "note", columns: ["dailyDate"])
+        }
+
         return migrator
     }
 
@@ -904,8 +931,23 @@ public nonisolated final class AppDatabase: Sendable {
 
     /// Writes the note and replaces its tag set in one transaction, so a note is never
     /// visible with a half-applied set of tags.
+    ///
+    /// **What the note says, not where it lives.** For a row that already exists, its space,
+    /// pin, deletion date and day are taken from the stored row, whatever the caller passed:
+    /// every editor builds a fresh `Note` from its own fields on each autosave, and a page left
+    /// open while its note was moved to a space — here, or on another device — would otherwise
+    /// move it straight back. Those four columns belong to `moveNotes`, `setPinned` and
+    /// `trashNote`. A *new* note is born with the ones it was given: a note started inside a
+    /// space, or as the day's page, is already somewhere.
     public func saveNote(_ note: Note, tags: [String]) throws {
         try writer.write { db in
+            var note = note
+            if let stored = try Note.fetchOne(db, key: note.id) {
+                note.spaceId = stored.spaceId
+                note.pinnedAt = stored.pinnedAt
+                note.trashedAt = stored.trashedAt
+                note.dailyDate = stored.dailyDate
+            }
             try note.save(db)
             _ = try NoteTag.filter(Column("noteId") == note.id).deleteAll(db)
             let normalizedTags = Set(tags.compactMap(NoteTag.normalized))
@@ -918,9 +960,15 @@ public nonisolated final class AppDatabase: Sendable {
         signalSyncIfNeeded()
     }
 
+    /// Every living note, newest first. What is in Recently deleted is not in the library: it is
+    /// on its way out, and the board, the reader, the export and every count leave it alone. It
+    /// is reached only through `fetchTrashedNotes`.
     public func fetchAllNotes() throws -> [Note] {
         try writer.read { db in
-            try Note.order(Column("updatedAt").desc).fetchAll(db)
+            try Note
+                .filter(Column("trashedAt") == nil)
+                .order(Column("updatedAt").desc)
+                .fetchAll(db)
         }
     }
 
@@ -933,6 +981,7 @@ public nonisolated final class AppDatabase: Sendable {
         try writer.read { db in
             try Note
                 .filter(Column("bookId") == bookID)
+                .filter(Column("trashedAt") == nil)
                 .order(Column("updatedAt").desc)
                 .fetchAll(db)
         }
@@ -971,9 +1020,16 @@ public nonisolated final class AppDatabase: Sendable {
         signalSyncIfNeeded()
     }
 
+    /// The vocabulary of living notes. A word used only by something in Recently deleted is not
+    /// offered to the next note; it comes back with the note if the note does.
     public func fetchAllTags() throws -> [String] {
         try writer.read { db in
-            try String.fetchAll(db, sql: "SELECT DISTINCT tag FROM noteTag ORDER BY tag")
+            try String.fetchAll(db, sql: """
+                SELECT DISTINCT noteTag.tag FROM noteTag
+                JOIN note ON note.id = noteTag.noteId
+                WHERE note.trashedAt IS NULL
+                ORDER BY noteTag.tag
+                """)
         }
     }
 
@@ -1095,6 +1151,163 @@ public nonisolated final class AppDatabase: Sendable {
                 .fetchAll(db)
                 .map(\.tag)
         }
+    }
+
+    // MARK: - Where a note lives
+
+    // Every call in this section is filing, not writing — the rule `setTags(_:forNoteID:)`
+    // already follows. The sync clock moves to `changedAt`, so the change travels and wins on
+    // the other devices; `note.updatedAt` does not, so moving, pinning or deleting a note never
+    // sends it to the top of "Last touched" as though it had been rewritten.
+
+    /// Files notes in a space, or — with `nil` — takes them out of one.
+    public func moveNotes(ids: [String], toSpace spaceID: String?, changedAt: Date = Date()) throws {
+        try reorganiseNotes(ids: ids, changedAt: changedAt) { $0.spaceId = spaceID }
+    }
+
+    public func setPinned(_ pinned: Bool, noteID: String, changedAt: Date = Date()) throws {
+        try reorganiseNotes(ids: [noteID], changedAt: changedAt) { note in
+            // Pinning a pinned note again must not move it in the pinned order.
+            if pinned {
+                note.pinnedAt = note.pinnedAt ?? changedAt
+            } else {
+                note.pinnedAt = nil
+            }
+        }
+    }
+
+    /// Sends a note to Recently deleted. It leaves search on the way (`indexNote`), keeps its
+    /// space and its pin, and comes back with both if it is restored.
+    public func trashNote(id: String, at date: Date = Date()) throws {
+        try reorganiseNotes(ids: [id], changedAt: date) { $0.trashedAt = date }
+    }
+
+    public func restoreNote(id: String, at date: Date = Date()) throws {
+        try reorganiseNotes(ids: [id], changedAt: date) { $0.trashedAt = nil }
+    }
+
+    /// What is in Recently deleted, most recently deleted first.
+    public func fetchTrashedNotes() throws -> [Note] {
+        try writer.read { db in
+            try Note
+                .filter(Column("trashedAt") != nil)
+                .order(Column("trashedAt").desc)
+                .fetchAll(db)
+        }
+    }
+
+    /// Deletes for good whatever has been in Recently deleted longer than the retention. Run on
+    /// launch; returns how many went.
+    @discardableResult
+    public func purgeTrash(now: Date = Date()) throws -> Int {
+        let cutoff = now.addingTimeInterval(-Note.trashRetention)
+        let expired = try writer.read { db in
+            try String.fetchAll(
+                db,
+                sql: "SELECT id FROM note WHERE trashedAt IS NOT NULL AND trashedAt < ?",
+                arguments: [cutoff]
+            )
+        }
+        for id in expired {
+            try deleteNote(id: id)
+        }
+        return expired.count
+    }
+
+    /// The day's page for a key from `Note.dailyKey(for:)`, if it has been started.
+    ///
+    /// The earliest of them, when two devices both started one offline — see `Note.dailyDate`
+    /// for why the column is not unique. A deleted page does not count: the day can be begun
+    /// again.
+    public func fetchDailyNote(forKey key: String) throws -> Note? {
+        try writer.read { db in
+            try Note
+                .filter(Column("dailyDate") == key)
+                .filter(Column("trashedAt") == nil)
+                .order(Column("createdAt"))
+                .fetchOne(db)
+        }
+    }
+
+    /// One transaction for any change to where notes live: read each row, change it, write it,
+    /// reindex it, mark it for iCloud.
+    private func reorganiseNotes(
+        ids: [String],
+        changedAt: Date,
+        _ change: (inout Note) -> Void
+    ) throws {
+        guard !ids.isEmpty else { return }
+        try writer.write { db in
+            for id in ids {
+                guard var note = try Note.fetchOne(db, key: id) else { continue }
+                change(&note)
+                try note.update(db)
+                let tags = try String.fetchAll(
+                    db,
+                    sql: "SELECT tag FROM noteTag WHERE noteId = ? ORDER BY tag",
+                    arguments: [id]
+                )
+                try indexNote(note, tags: tags, in: db)
+                try markLocalSave(.note, id: id, at: changedAt, in: db)
+            }
+        }
+        signalSyncIfNeeded()
+    }
+
+    // MARK: - Spaces
+
+    /// Every space, in the reader's order.
+    public func fetchSpaces() throws -> [NoteSpace] {
+        try writer.read { db in
+            try NoteSpace.order(Column("sortIndex"), Column("createdAt")).fetchAll(db)
+        }
+    }
+
+    /// Creates or changes a space — its name, its glyph or its place in the order.
+    public func saveSpace(_ space: NoteSpace) throws {
+        try writer.write { db in
+            try space.save(db)
+        }
+        signalSyncIfNeeded()
+    }
+
+    /// A new space at the end of the list.
+    @discardableResult
+    public func createSpace(named name: String, symbol: String = NoteSpace.defaultSymbol, at date: Date = Date()) throws -> NoteSpace {
+        let last = try writer.read { db in
+            try Double.fetchOne(db, sql: "SELECT MAX(sortIndex) FROM space")
+        }
+        let space = NoteSpace(
+            name: name,
+            symbol: symbol,
+            sortIndex: NoteSpace.sortIndex(between: last, and: nil),
+            createdAt: date,
+            updatedAt: date
+        )
+        try saveSpace(space)
+        return space
+    }
+
+    /// Deletes a space and sends everything in it back to the Inbox — living notes and deleted
+    /// ones alike, so a note restored later does not come back pointing at nothing. Returns how
+    /// many notes were moved.
+    @discardableResult
+    public func deleteSpace(id: String, at date: Date = Date()) throws -> Int {
+        let moved = try writer.write { db -> Int in
+            let noteIDs = try String.fetchAll(
+                db,
+                sql: "SELECT id FROM note WHERE spaceId = ?",
+                arguments: [id]
+            )
+            try db.execute(sql: "UPDATE note SET spaceId = NULL WHERE spaceId = ?", arguments: [id])
+            for noteID in noteIDs {
+                try markLocalSave(.note, id: noteID, at: date, in: db)
+            }
+            _ = try NoteSpace.deleteOne(db, key: id)
+            return noteIDs.count
+        }
+        signalSyncIfNeeded()
+        return moved
     }
 
     // MARK: - Portable Backup Restore
@@ -1773,8 +1986,12 @@ public nonisolated final class AppDatabase: Sendable {
         )
     }
 
+    /// One rule for every path that indexes a note — a save, a rename, a restore, iCloud: a note
+    /// in Recently deleted is not findable. Search that answers with something the reader threw
+    /// away is search that cannot be trusted with anything else.
     private func indexNote(_ note: Note, tags: [String], in db: Database) throws {
         try deleteSearchDocument(type: .note, id: note.id, in: db)
+        guard !note.isTrashed else { return }
         try db.execute(
             sql: """
                 INSERT INTO searchIndex(entityType, entityID, bookID, title, subtitle, body, tags)
