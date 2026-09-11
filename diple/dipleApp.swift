@@ -16,6 +16,10 @@ struct dipleApp: App {
     /// delegate is the only object in the responder chain a SwiftUI app can reach. See
     /// `DipleMenuBuilder`.
     @UIApplicationDelegateAdaptor(DipleMenuBuilder.self) private var menuBuilder
+    #else
+    /// Installed for the Home Screen quick actions, which only a scene delegate receives. See
+    /// `DipleShortcut`.
+    @UIApplicationDelegateAdaptor(DipleAppDelegate.self) private var appDelegate
     #endif
     // A static var change (`DipleAccent.current`) invalidates nothing on its own — SwiftUI
     // only re-renders what it observes. Observing the manager here and tagging the root with
