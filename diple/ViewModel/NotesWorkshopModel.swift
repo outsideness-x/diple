@@ -130,9 +130,14 @@ public final class NotesWorkshopModel: ObservableObject {
 
     // MARK: - Where notes live
 
-    public func move(_ items: [NoteItem], to space: NoteSpace?) {
-        perform("move this note") {
+    /// `reload: false` is for the filing pass, which walks its own snapshot and reads the
+    /// database once when it closes rather than once per note filed.
+    public func move(_ items: [NoteItem], to space: NoteSpace?, reload: Bool = true) {
+        do {
             try AppDatabase.shared.moveNotes(ids: items.map(\.id), toSpace: space?.id)
+            if reload { load() }
+        } catch {
+            present(error, doing: "move this note")
         }
     }
 

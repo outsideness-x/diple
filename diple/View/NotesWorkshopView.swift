@@ -109,7 +109,25 @@ public struct NotesWorkshopView: View {
         places.last { $0 != nil } ?? nil
     }
 
+    /// A new note, born where the reader stands — Things' Magic Plus, for pages. In a space it
+    /// is filed in that space; on a source's page it is written about that source, with the
+    /// source's link and its name as a tag, exactly as the pencil in the reader makes it; anywhere
+    /// else it waits in the Inbox.
     private func compose() {
+        switch currentPlace {
+        case .space(let id):
+            if let space = model.space(id: id) {
+                openNote(.newInSpace(space))
+                return
+            }
+        case .source(let id):
+            if let book = model.book(id: id) {
+                openNote(.newFromSource(book))
+                return
+            }
+        default:
+            break
+        }
         openNote(.new)
     }
 
@@ -152,6 +170,13 @@ public struct NotesWorkshopView: View {
 
     /// The one note editor in the app, given everything the workshop holds — every note for its
     /// wiki links, every passage for its Connections, the whole vocabulary for its tag menu.
+    ///
+    /// Pushed the ordinary way, the `+`'s page included. It was meant to zoom out of the `+`, and
+    /// that was tried: with the bar as the source the page grew out of the middle of the screen
+    /// (the bar is outside the stack, where a zoom does not look for its source), and with an
+    /// invisible stand-in in each page's corner the source was found but the zoom stalled for a
+    /// second before snapping to its end. Both seen frame by frame on the simulator. A push that
+    /// always works beats a flourish that sometimes hangs.
     private func notePage(for route: NoteRoute) -> some View {
         NoteDetailView(
             route: route,
@@ -202,3 +227,4 @@ public struct NotesWorkshopView: View {
         }
     }
 }
+

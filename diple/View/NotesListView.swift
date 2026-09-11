@@ -23,6 +23,7 @@ struct NotesListView: View {
     @State private var moving: MoveRequest?
     @State private var isEditingSpace = false
     @State private var spaceToDelete: NoteSpace?
+    @State private var isFiling = false
 
     /// The notes on their way to the Move sheet. Wrapped so a sheet can be raised by item.
     private struct MoveRequest: Identifiable {
@@ -89,6 +90,15 @@ struct NotesListView: View {
             .listRowInsets(EdgeInsets(top: 0, leading: DipleSpace.xl, bottom: DipleSpace.m, trailing: DipleSpace.xl))
             .deskListRow()
 
+            // The way into the filing pass, only where it makes sense: standing in the Inbox with
+            // more than one note waiting. A resident control for a ritual performed now and then
+            // is the trade the rest of the app refuses.
+            if case .inbox = kind, items.count > 1, !model.spaces.isEmpty {
+                filingInvitation
+                    .listRowInsets(EdgeInsets(top: 0, leading: DipleSpace.xl, bottom: DipleSpace.m, trailing: DipleSpace.xl))
+                    .deskListRow()
+            }
+
             if items.isEmpty {
                 emptyState
                     .listRowInsets(EdgeInsets(top: DipleSpace.xxl, leading: DipleSpace.xl, bottom: 0, trailing: DipleSpace.xl))
@@ -124,6 +134,9 @@ struct NotesListView: View {
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .sheet(item: $moving) { request in
             NoteMoveSheet(model: model, items: request.items)
+        }
+        .sheet(isPresented: $isFiling) {
+            NotesFilingView(model: model)
         }
         .sheet(isPresented: $isEditingSpace) {
             if let space {
@@ -197,6 +210,35 @@ struct NotesListView: View {
                 Label("Delete", systemImage: "trash")
             }
         }
+    }
+
+    private var filingInvitation: some View {
+        Button {
+            HapticManager.shared.selection()
+            isFiling = true
+        } label: {
+            HStack(spacing: DipleSpace.m) {
+                Image(systemName: "tray.and.arrow.down")
+                    .dipleIcon(15, weight: .medium)
+                    .foregroundStyle(DipleColor.accentInk)
+                VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                    Text("Sort these out")
+                        .dipleType(.body, weight: .semibold)
+                        .foregroundStyle(DipleColor.textPrimary)
+                    Text("One at a time, into your spaces.")
+                        .dipleType(.caption)
+                        .foregroundStyle(DipleColor.textTertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: DipleSpace.s)
+                Image(systemName: "chevron.right")
+                    .dipleIcon(11, weight: .semibold)
+                    .foregroundStyle(DipleColor.textQuaternary)
+            }
+            .padding(DipleSpace.m)
+            .craftSurface(DipleColor.surface)
+        }
+        .buttonStyle(.bookCard)
     }
 
     private var emptyState: some View {

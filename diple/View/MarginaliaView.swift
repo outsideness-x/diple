@@ -1097,7 +1097,7 @@ public struct MarginaliaView: View {
         switch route {
         case .existing(let item):
             page.navigationTransition(.zoom(sourceID: item.id, in: cardNamespace))
-        case .new, .newFromSource, .newFromPassage:
+        case .new, .newFromSource, .newFromPassage, .newInSpace:
             page
         }
     }

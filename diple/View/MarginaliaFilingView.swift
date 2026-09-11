@@ -74,7 +74,7 @@ public struct MarginaliaFilingView: View {
                 Text(
                     current?.kind == .saved
                         ? "This passage and its comment will be removed."
-                        : "This note will be removed permanently."
+                        : "It goes to Recently deleted in Notes for thirty days."
                 )
             }
         }

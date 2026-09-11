@@ -9,11 +9,30 @@ public enum NoteRoute: Hashable {
     /// A note grown out of a saved passage: the quotation is already in the body, and the
     /// thought goes underneath it.
     case newFromPassage(PassageItem)
+    /// A note started with the `+` while standing in a space: it is born in that space.
+    case newInSpace(NoteSpace)
 
     public var item: NoteItem? {
         switch self {
         case .existing(let item): return item
-        case .new, .newFromSource, .newFromPassage: return nil
+        case .new, .newFromSource, .newFromPassage, .newInSpace: return nil
+        }
+    }
+
+    /// The space a new note is born in. Only the new note's own route has one: an existing
+    /// note's place belongs to the organising calls, not to its editor (see `Note`).
+    public var initialSpaceId: String? {
+        if case .newInSpace(let space) = self { return space.id }
+        return nil
+    }
+
+    /// A blank page the reader asked for with `+` — in the Inbox or in a space. The one kind of
+    /// new note that opens with the keyboard on its title: the `+` is the notes workshop's verb,
+    /// and asking for a page is asking to write on it.
+    public var isBlankPage: Bool {
+        switch self {
+        case .new, .newInSpace: return true
+        case .existing, .newFromSource, .newFromPassage: return false
         }
     }
 
@@ -21,7 +40,7 @@ public enum NoteRoute: Hashable {
         switch self {
         case .newFromSource(let book): return book.id
         case .newFromPassage(let passage): return passage.highlight.bookId
-        case .existing, .new: return nil
+        case .existing, .new, .newInSpace: return nil
         }
     }
 
@@ -56,7 +75,7 @@ public enum NoteRoute: Hashable {
             var tags = passage.tags
             if let sourceTag, !tags.contains(sourceTag) { tags.append(sourceTag) }
             return tags
-        case .existing, .new:
+        case .existing, .new, .newInSpace:
             return []
         }
     }
@@ -71,6 +90,7 @@ extension NoteRoute: Identifiable {
         case .new: return "new"
         case .newFromSource(let book): return "source:\(book.id)"
         case .newFromPassage(let passage): return "passage:\(passage.id)"
+        case .newInSpace(let space): return "space:\(space.id)"
         }
     }
 }
@@ -119,6 +139,7 @@ public struct NoteDetailView: View {
     @State private var isAddingTag = false
     @State private var slashContext: NoteSlashContext?
     @State private var isBodyFocused = false
+    @FocusState private var isTitleFocused: Bool
     @State private var selection = NoteSelectionBox()
     @State private var saveState: NoteSaveState = .saved
     @State private var saveTask: Task<Void, Never>?
@@ -297,12 +318,21 @@ public struct NoteDetailView: View {
             // text field afterwards spends a tap on nothing, and on a phone it is the tap that
             // loses the thought.
             //
-            // The board's blank "New note" is deliberately left alone: there the next move is
-            // as likely to be a title, a template or a tag as it is a sentence, and raising the
-            // keyboard over all three would be a guess.
+            // A blank page asked for with `+` opens with the keyboard on its title. That used to
+            // be deliberately left alone, when "New note" was one of four equal controls on the
+            // board and the next move was as likely a template or a tag. In the notes workshop
+            // the `+` is the verb the whole mode is built around, and Things, Bear and Apple Notes
+            // all answer it the same way: here is the page, write.
             if route.item == nil && route.initialBookId != nil {
                 isBodyFocused = true
             }
+        }
+        .task {
+            // After the push has landed rather than during it: focus asked for while the page is
+            // still sliding in is dropped by the text field it was meant for.
+            guard route.isBlankPage else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            isTitleFocused = true
         }
         .onChange(of: title) { _, _ in scheduleSave() }
         .onChange(of: body_) { _, _ in scheduleSave() }
@@ -704,6 +734,7 @@ public struct NoteDetailView: View {
                 .dipleType(.noteTitle)
                 .foregroundStyle(DipleColor.textPrimary)
                 .textInputAutocapitalization(.sentences)
+                .focused($isTitleFocused)
                 .accessibilityIdentifier("note.title")
 
             // Properties belong under the title, where a reader looks to find out what a
@@ -1019,12 +1050,15 @@ public struct NoteDetailView: View {
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let existing = route.item?.note
+        // Where the note lives travels only on its first write — `saveNote` keeps the stored
+        // row's place for every write after that, so a page left open can never undo a move.
         let note = Note(
             id: existing?.id ?? draftID,
             title: trimmedTitle.isEmpty ? nil : trimmedTitle,
             body: body_.trimmingCharacters(in: .whitespacesAndNewlines),
             bookId: selectedBookId,
-            createdAt: existing?.createdAt ?? Date()
+            createdAt: existing?.createdAt ?? Date(),
+            spaceId: existing?.spaceId ?? route.initialSpaceId
         )
         let didSave = onSave(note, finalTags)
         if didSave {
