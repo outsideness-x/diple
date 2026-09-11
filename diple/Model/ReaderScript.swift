@@ -73,12 +73,23 @@ public enum ReaderScript: String {
     ///
     /// CJK does not get them: East Asian typesetting does not hyphenate, and there is nothing
     /// for a limit to restrain.
+    ///
+    /// **Latin needs the escape hatch too, and not only for looks.** Hyphenation breaks words
+    /// it has a dictionary for; a URL in a bibliography is not one of them. Without
+    /// `overflow-wrap` such a token runs past the edge of the column, and in scroll mode that
+    /// makes the whole chapter wider than the phone: measured in WebKit against the real
+    /// ReadiumCSS, one URL gave a 402 pt screen a 589 pt document. The column could then be
+    /// dragged sideways — and a selection handle carried to the edge autoscrolled it — leaving
+    /// blank paper on the right, which is how it was reported from a device. In paginated mode
+    /// the same line was simply cut off at the column. `break-word` only breaks what cannot fit
+    /// whole, so ordinary text is untouched.
     public var cssOverrides: [String: String?] {
         switch self {
         case .latin:
             return [
                 "-webkit-hyphenate-limit-before": "4",
                 "-webkit-hyphenate-limit-after": "3",
+                "overflow-wrap": "break-word",
             ]
         case .cjk:
             return ["word-break": "keep-all", "overflow-wrap": "break-word"]
