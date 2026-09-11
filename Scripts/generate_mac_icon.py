@@ -33,7 +33,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-SET = Path("diple/Assets.xcassets/AppIconDiple.appiconset")
+SET = Path("diple/Assets.xcassets/AppIconHand.appiconset")
 SOURCE = SET / "icon.png"
 
 CANVAS = 1024

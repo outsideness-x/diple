@@ -1034,11 +1034,12 @@ private struct AccentSwatchButton: View {
                 Text(accent.title)
                     .dipleType(.caption)
                     .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textTertiary)
-                    // Five swatches share the row, so a cell is about 76 pt wide and
-                    // "Periwinkle" does not fit in it: it wrapped, mid-word, to "Periwinkl / e"
-                    // and made that one swatch taller than the other four. Shrinking the label
-                    // rather than pinning a width keeps the row honest under Dynamic Type — the
-                    // name still grows with the system size, it just stops before it breaks.
+                    // Five swatches share the row, so a cell is about 76 pt wide. "Periwinkle",
+                    // before Ink replaced it, did not fit: it wrapped mid-word to
+                    // "Periwinkl / e" and made one swatch taller than the other four. Every name
+                    // fits today, but only at the default size — shrinking the label rather than
+                    // pinning a width keeps the row honest under Dynamic Type: the name still
+                    // grows with the system size, it just stops before it breaks.
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }

@@ -1,25 +1,32 @@
 #!/usr/bin/env python3
-"""Draws the app icon: the diple in the margin of a page.
+"""Draws the app icon: the app's wordmark, in the app's own hand.
 
 **What the icon says.** A diple is the wedge Alexandrian scholars set in the margin against a
 line worth noticing — the ancestor of the quotation mark, and literally the app's name and its
-function. The first icon of the app was that wedge alone, and it failed for a reason worth
-keeping written down: on its own in an empty square it is not a diple, it is the system chevron
-for "forward", and at 60 pt nobody reads it as anything else. **The sign only means what it
-means in relation to a line**, which is exactly why the reader's own margin marker works. So the
-icon carries the line too: the wedge stands in the margin, the page runs off the right edge, and
-the mark is a mark rather than a button.
+function. The icon is that wedge with the app's initial and its full stop after it: `>d.`
 
-**The mark is written, not drawn.** The stroke is the region a broad-edged pen covers as it is
-dragged along a path — at every step the nib is a short segment held at a fixed angle, and the
-stroke is the union of the parallelograms it sweeps. The heavy arm and the hairline arm, the
-terminals cut flat at the pen's own angle, and a corner that joins the way ink joins all fall
-out of that model rather than being drawn in by hand.
+**Why the letter is not optional.** The first icon of the app was the wedge alone, and it failed
+for a reason worth keeping written down: on its own in an empty square it is not a diple, it is
+the system chevron for "forward", and at 60 pt nobody reads it as anything else. The icon after
+it answered that by drawing the line the wedge stands against — a whole page of it, three bars
+and a margin. That worked and it was a picture: at Home Screen size it read as a menu glyph with
+a chevron beside it, and it said nothing about which app it was. `>d.` answers the same
+objection with three characters instead of a scene. The `d` is what stops the wedge being a
+chevron, the full stop is the one the wordmark has carried since the redesign (`diple.` in the
+masthead), and together they are a name rather than an illustration.
 
-**Colour carries the roles the app already assigns.** The page is cream, because that is the
-app's paper; the mark is the accent, because in diple the accent is always the reader's own act —
-the highlight, the progress ribbon, `accentInk`. That is also what makes the accent alternates
-worth having: the thing that changes colour is the thing the reader chose.
+**The mark is written, not drawn.** It is set in Caveat, the same notebook hand as the Settings
+colophon and the Living Margins note — the app's one handwriting face, and the only place its
+own voice is not a publisher's. The previous icon simulated a broad-edged pen with swept
+parallelograms to get a written mark out of two straight strokes; a face that was actually
+written needs none of that. Weight 400: the floor of Caveat's `wght` axis, the family has
+nothing lighter, and it is exactly the weight the colophon is set in.
+
+**Colour carries the roles the app already assigns.** The mark is the accent, because in diple
+the accent is always the reader's own act — the highlight, the progress ribbon, `accentInk`.
+That is also what makes the accent alternates worth having: the thing that changes colour is the
+thing the reader chose. The plate is the app's canvas, not its paper: the wordmark in the
+masthead is light-on-dark, and an icon that inverted it would be a different mark.
 
 **The set names carry the artwork, not just the colour** — the primary set included. iOS never
 re-reads an icon whose name is already the one in force, so redrawing one under its old name
@@ -37,85 +44,76 @@ Run from the repository root:
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ASSETS = Path("diple/Assets.xcassets")
+FONT = Path("diple/Resources/Fonts/Caveat-Variable.ttf")
 
 # Must stay in sync with `DipleAccent.alternateIconName` in diple/Theme/DipleAccent.swift and
-# with the two asset-catalog build settings. Brass is the primary set, so it has no alternate.
-SUFFIX = "Diple"
-PRIMARY = "#C8A45C"
+# with the two asset-catalog build settings. Ink is the primary set, so it has no alternate.
+SUFFIX = "Hand"
+PRIMARY = "#86A8FF"
 ACCENTS = {
     "Lilac": "#DF9BE1",
     "Mint": "#6FD6B4",
     "Clay": "#D97757",
-    "Periwinkle": "#8FA4F2",
+    "Brass": "#C8A45C",
 }
 
-CREAM = (233, 226, 212)
+WORDMARK = (">", "d.")
+# The floor of Caveat's axis. The family has no lighter cut, and this is what the colophon uses.
+WEIGHT = 400
+
+# How much ink is taken off each side of every stroke, in pixels of the finished 1024 artwork.
+#
+# **Thinner than the face goes.** At 400, the lightest weight Caveat has, the mark still came
+# out too heavy for an icon: a stem around 45 px on a 1024 square, a felt-tip on the Home Screen
+# rather than a pen. There is no lighter cut to reach for, so the weight is taken off the ink
+# instead — the glyphs are rendered at the supersampled size and eroded evenly, which keeps
+# every letterform and every wobble of the hand exactly where Caveat put them and removes only
+# stroke. Six pixels a side is the value chosen from a side-by-side at 240, 120 and 60 px: at
+# eight the full stop and the thin end of the wedge begin to break up at Spotlight size.
+THINNING = 6
+
+# Taken out of the gap between the wedge and the letter, as a fraction of the em.
+#
+# Caveat spaces `>` as the maths glyph it is in running text, where it stands between two
+# operands with air on both sides. Here it is the first character of a word, and at the face's
+# own fit the two halves read as a chevron *and* a letter rather than as one mark. Measured on
+# the artwork at 1024: past about -0.08 the wedge starts to touch the bowl of the `d`.
+KERN = -0.05
+
 # The dark plate is a couple of units deeper so the icon does not glow against a dark wallpaper.
 PLATE = (11, 11, 15)
 PLATE_DARK = (7, 7, 10)
 
 CANVAS = 1024
-# Drawn at this multiple and downsampled: `ImageDraw` has no anti-aliasing of its own, and the
-# hairline arm of the mark is exactly where that shows.
+# Drawn at this multiple and downsampled. FreeType antialiases the glyph edges already; what
+# this buys is the *placement* — the ink box is measured in supersampled pixels, so centring is
+# accurate to a quarter of a final pixel rather than to a whole one.
 SUPERSAMPLE = 4
 
-# The composition, in 1024 space.
+# How much of the square the ink spans, along whichever axis binds first.
 #
-# **Everything sits on one margin grid.** The content is inset by `MARGIN` on all four sides and
-# nothing crosses it: the mark starts at the left margin, the full lines stop at the right one,
-# and the group is centred in what is left. An earlier draft ran the lines off the right edge to
-# say "the page continues"; at Home Screen size that does not read as a page continuing, it
-# reads as artwork that does not fit its own square.
-MARGIN = 150.0
-GUTTER = 64.0            # between the mark in the margin and the text it stands against
+# A little over half. An icon is masked into a superellipse and then shown at 60 pt beside
+# other icons; a wordmark run towards the edges loses its corners to the mask and its air to
+# the neighbours. Two thirds was the first draft and read as shouting on the Home Screen — the
+# mark is handwriting, and handwriting is smaller than the page it is written on.
+INK_SPAN = 0.56
 
-LINE_PITCH = 112.0
-LINE_THICKNESS = 44.0
-# The last line is short, the way the last line of a paragraph is. It is the one detail that
-# stops three equal bars from reading as a hamburger menu.
-LINE_SHORT = 0.66        # of the measure
-
-MARK_HEIGHT = 165.0
-# The mark reaches this much of its own height to the right of where it starts.
-MARK_REACH = 0.92
-
-# The nib: its width as a fraction of the mark's height, and the angle it is held at before and
-# after the apex.
+# How far the placement is pulled from the ink box towards the ink's centre of mass.
 #
-# **The pen twists at the corner, and it has to.** Held at one angle for the whole sign, the
-# return stroke runs nearly along the nib's own edge and comes out as a needle that tapers to
-# nothing — true to the physics of a fixed nib and useless as a mark, which is exactly why a
-# scribe rolls the pen through the corner instead. Turning it to `NIB_ANGLE[1]` on the way out
-# gives the light arm real weight and a flat terminal, and keeps the contrast that tells the two
-# strokes apart.
-NIB_WIDTH = 0.42
-NIB_ANGLE = (-22.0, -64.0)
-# Where along the path the twist happens. It starts **before** the apex on purpose: a pen that
-# only begins to turn at the corner runs its first centimetre of the return stroke along its own
-# edge, and that shows as a hairline that steps into full weight partway down the arm.
-NIB_TWIST = (0.30, 0.62)
-BOW = (-4.0, 3.0)
-
-
-def layout() -> dict:
-    """Where everything sits, derived from the margin rather than written down twice.
-
-    The group is centred vertically as a whole — the mark hangs above the first line, so
-    centring the block of lines alone would leave the artwork sitting low in the square.
-    """
-    text_left = MARGIN + MARK_HEIGHT * MARK_REACH + GUTTER
-    text_right = 1024 - MARGIN
-    return {
-        "text_left": text_left,
-        "text_right": text_right,
-        "first_line": 512 - (2 * LINE_PITCH + LINE_THICKNESS / 2 - MARK_HEIGHT / 2) / 2,
-    }
+# **Neither one alone centres this mark.** By its box, the wedge — three thin strokes and a lot
+# of enclosed emptiness — claims as much of the width as the `d`, and the word sits visibly
+# right of centre. By its mass, the tall ascender and the full stop drag it the other way and
+# the box hangs off the left. A fraction of the way from one to the other is what the eye reads
+# as centred, and a third of the way is the value that looked right at 1024, at 180 and at 60.
+#
+# This replaces the pair of hand-picked nudges an earlier draft used. Two numbers tuned by eye
+# are two numbers to re-tune the moment the wordmark or the face changes; this is a rule.
+MASS_PULL = 0.33
 
 
 def hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -123,87 +121,90 @@ def hex_to_rgb(value: str) -> tuple[int, int, int]:
     return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def quad(p0, p1, p2, n):
-    out = []
-    for i in range(n + 1):
-        t = i / n
-        u = 1 - t
-        out.append((
-            u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0],
-            u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1],
-        ))
-    return out
+def fitted_font(size: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(FONT), size)
+    font.set_variation_by_axes([WEIGHT])
+    return font
 
 
-def bowed(start, end, bow, samples=120):
-    """A path from start to end, bent perpendicular to itself — a hand rather than a ruler."""
-    dx, dy = end[0] - start[0], end[1] - start[1]
-    length = math.hypot(dx, dy) or 1
-    nx, ny = -dy / length, dx / length
-    mid = ((start[0] + end[0]) / 2 + nx * bow, (start[1] + end[1]) / 2 + ny * bow)
-    return quad(start, mid, end, samples)
+def drawn_wordmark(size: int) -> Image.Image:
+    """The two halves on one baseline, kerned, cropped to the ink and nothing else.
 
+    **Measured, not calculated.** `textbbox` answers with the face's metrics, and Caveat is a
+    hand: its glyphs overshoot their own advances by design — the `d`'s ascender leans out past
+    the letter it belongs to, the wedge sits inside a wide maths sidebearing. Placing by those
+    numbers put the finished mark 55 px right of centre on a 1024 square. Rendering it and
+    reading the alpha channel is the only measurement that is about the ink.
 
-def nib_sweep(path, width, angle_start, angle_end):
-    """The parallelograms a nib of `width` sweeps along `path`, twisting after the apex.
-
-    The angle holds at `angle_start` until `NIB_TWIST[0]` of the way along and reaches
-    `angle_end` by `NIB_TWIST[1]`. Rotating it evenly over the whole path instead puts the change
-    where the stroke is heaviest, which shows as a step in the thick arm rather than as weight in
-    the thin one.
+    The two pieces are drawn from one pen position on one baseline, so every vertical relation
+    in the mark is the face's own; only the gap between them is ours.
     """
-    faces = []
-    for i in range(len(path) - 1):
-        corners = []
-        for j, point in enumerate((path[i], path[i + 1])):
-            t = (i + j) / (len(path) - 1)
-            turn = min(1.0, max(0.0, (t - NIB_TWIST[0]) / (NIB_TWIST[1] - NIB_TWIST[0])))
-            theta = math.radians(angle_start + (angle_end - angle_start) * turn)
-            dx, dy = math.cos(theta) * width / 2, math.sin(theta) * width / 2
-            corners.append(((point[0] - dx, point[1] - dy), (point[0] + dx, point[1] + dy)))
-        faces.append([corners[0][0], corners[0][1], corners[1][1], corners[1][0]])
-    return faces
+    font = fitted_font(size)
+    # Room for the overshoot in every direction, then thrown away by the crop.
+    sheet = Image.new("RGBA", (size * 5, size * 4), (0, 0, 0, 0))
+    art = ImageDraw.Draw(sheet)
+
+    pen = size
+    for index, piece in enumerate(WORDMARK):
+        art.text((pen, size), piece, font=font, fill=(255, 255, 255, 255))
+        pen += art.textlength(piece, font=font) + KERN * size
+
+    return sheet.crop(sheet.getbbox())
 
 
-def mark() -> list[list[tuple[float, float]]]:
-    """The diple: one movement of the pen, down into the apex and back out of it.
+def wordmark_layer(colour: tuple[int, int, int]) -> Image.Image:
+    """The mark, sized to `INK_SPAN`, thinned by `THINNING` and stood in the middle."""
+    ink = drawn_wordmark(CANVAS * SUPERSAMPLE // 3).getchannel("A")
 
-    One continuous path rather than two strokes, because that is how the sign is made and
-    because it is what lets the apex join itself instead of being mitred together.
-    """
-    height = MARK_HEIGHT
-    y = layout()["first_line"]
-    tip = (MARGIN + height * MARK_REACH, y)
-    top = (MARGIN, y - height / 2)
-    bottom = (MARGIN + 12, y + height / 2)
-    path = bowed(top, tip, BOW[0]) + bowed(tip, bottom, BOW[1])[1:]
-    return nib_sweep(path, height * NIB_WIDTH, *NIB_ANGLE)
+    # Sized at the supersampled scale first, so the erosion works on four pixels for every one
+    # it will end up as, and the thinned edge is resampled smooth rather than stepped.
+    scale = CANVAS * SUPERSAMPLE * INK_SPAN / max(ink.size)
+    alpha = ink.resize((max(1, round(ink.width * scale)), max(1, round(ink.height * scale))), Image.LANCZOS)
+    if THINNING:
+        alpha = alpha.filter(ImageFilter.MinFilter(2 * round(THINNING * SUPERSAMPLE) + 1))
+    alpha = alpha.resize(
+        (max(1, round(alpha.width / SUPERSAMPLE)), max(1, round(alpha.height / SUPERSAMPLE))),
+        Image.LANCZOS,
+    )
 
+    origin = optical_origin(alpha)
 
-def page() -> list[list[tuple[float, float]]]:
-    """The lines the mark stands against."""
-    box = layout()
-    left, right = box["text_left"], box["text_right"]
-    ends = (right, right, left + (right - left) * LINE_SHORT)
-    lines = []
-    for index, end in enumerate(ends):
-        y = box["first_line"] + LINE_PITCH * index
-        lines.append([
-            (left, y - LINE_THICKNESS / 2),
-            (end, y - LINE_THICKNESS / 2),
-            (end, y + LINE_THICKNESS / 2),
-            (left, y + LINE_THICKNESS / 2),
-        ])
-    return lines
+    layer = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
+    tinted = Image.new("RGBA", alpha.size, colour + (0,))
+    tinted.putalpha(alpha)
+    layer.paste(tinted, origin, tinted)
+    return layer
 
 
-def artwork(plate, mark_colour, page_colour) -> Image.Image:
-    canvas = Image.new("RGB", (CANVAS * SUPERSAMPLE, CANVAS * SUPERSAMPLE), plate)
-    art = ImageDraw.Draw(canvas)
-    for polygons, fill in ((page(), page_colour), (mark(), mark_colour)):
-        for polygon in polygons:
-            art.polygon([(x * SUPERSAMPLE, y * SUPERSAMPLE) for x, y in polygon], fill=fill)
-    return canvas.resize((CANVAS, CANVAS), Image.LANCZOS)
+def optical_origin(alpha: Image.Image) -> tuple[int, int]:
+    """Where to put the ink so that it *looks* centred. See `MASS_PULL`."""
+    weights = alpha.load()
+    total = 0.0
+    sum_x = 0.0
+    sum_y = 0.0
+    for y in range(alpha.height):
+        for x in range(alpha.width):
+            value = weights[x, y]
+            if value:
+                total += value
+                sum_x += x * value
+                sum_y += y * value
+
+    box_centre = (alpha.width / 2, alpha.height / 2)
+    mass_centre = (sum_x / total, sum_y / total) if total else box_centre
+
+    anchor = tuple(
+        box + (mass - box) * MASS_PULL
+        for box, mass in zip(box_centre, mass_centre)
+    )
+    return (round(CANVAS / 2 - anchor[0]), round(CANVAS / 2 - anchor[1]))
+
+
+def artwork(plate, colour) -> Image.Image:
+    canvas = Image.new("RGB", (CANVAS, CANVAS), plate)
+    layer = wordmark_layer(colour)
+    canvas.paste(layer, (0, 0), layer)
+    return canvas
 
 
 def contents() -> dict:
@@ -240,12 +241,13 @@ def write(name: str, accent: str) -> None:
     icon_set.mkdir(parents=True, exist_ok=True)
     colour = hex_to_rgb(accent)
 
-    artwork(PLATE, colour, CREAM).save(icon_set / "icon.png")
-    artwork(PLATE_DARK, colour, CREAM).save(icon_set / "icon-dark.png")
+    artwork(PLATE, colour).save(icon_set / "icon.png")
+    artwork(PLATE_DARK, colour).save(icon_set / "icon-dark.png")
     # **Tinted has to be greyscale**: the system colours it by luminance from the reader's own
     # tint, and an accent mark under somebody else's hue reads as a mistake rather than a choice.
-    # The page keeps the brighter value, so the hierarchy of the artwork survives the tinting.
-    artwork((0, 0, 0), (150, 150, 150), (255, 255, 255)).save(icon_set / "icon-tinted.png")
+    # Near-white rather than the mid grey the old artwork used — that one had a cream page to
+    # carry the brightness and the mark could sit under it, and this has only the mark.
+    artwork((0, 0, 0), (235, 235, 235)).save(icon_set / "icon-tinted.png")
 
     (icon_set / "Contents.json").write_text(json.dumps(contents(), indent=2) + "\n", encoding="utf-8")
     print(f"wrote {icon_set}")

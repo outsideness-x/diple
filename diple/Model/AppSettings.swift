@@ -40,7 +40,7 @@ public struct AppSettings: Codable, Equatable {
         chapterHapticsEnabled: Bool = true,
         defaultScrollReadingMode: Bool = false,
         readerSettings: ReaderSettings = ReaderSettings(),
-        accent: DipleAccent = .brass,
+        accent: DipleAccent = .ink,
         appearance: DipleAppearance = .dark,
         keepScreenAwakeWhileReading: Bool = true,
         readingSpeed: ReadingSpeed = ReadingSpeed(),
@@ -82,7 +82,11 @@ public struct AppSettings: Codable, Equatable {
             loadedReaderSettings.readingMode = self.defaultScrollReadingMode ? .scroll : .paginated
         }
         self.readerSettings = loadedReaderSettings
-        self.accent = try container.decodeIfPresent(DipleAccent.self, forKey: .accent) ?? .brass
+        // Absent only on payloads from before the accent was a setting, and those readers never
+        // chose one, so they get today's default. A stored value is kept whatever it is: a
+        // reader with `brass` on disk may have picked it, and nothing here can tell them apart
+        // from one who merely inherited it.
+        self.accent = try container.decodeIfPresent(DipleAccent.self, forKey: .accent) ?? .ink
         // Absent for everyone who installed before the light theme existed, and they chose an
         // app that was dark — so the default is `.dark`, not `.system`. Following the device
         // would have silently turned the interface white on the next launch.
