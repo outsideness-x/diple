@@ -45,6 +45,28 @@ public enum MarginaliaDoor {
     var offersNewNote: Bool { self == .notes }
 }
 
+/// How the board stands inside another screen's stack rather than as a tab of its own.
+///
+/// The notes workshop pushes the whole board as its All notes page: every chip, the grouping,
+/// the workbench and the filing pass, one row deeper than the Desk rather than on the first
+/// screen of the mode. Inside someone else's `NavigationStack` the board must not open a second
+/// one, and must not declare destinations of its own — SwiftUI keeps only the declaration nearest
+/// the root for a type and silently drops the rest, the trap already recorded under "Home и
+/// навигация". So it pushes onto the host's path and the host resolves the routes.
+public struct MarginaliaEmbedding {
+    let title: String
+    let path: Binding<NavigationPath>
+    /// A word the board opens already narrowed to — the Tags index sends the reader here with
+    /// one chip pressed, which is all a page for one tag would have been.
+    let initialTag: String?
+
+    public init(title: String, path: Binding<NavigationPath>, initialTag: String? = nil) {
+        self.title = title
+        self.path = path
+        self.initialTag = initialTag
+    }
+}
+
 /// Where the board can go that is not a note.
 public enum MarginaliaRoute: Hashable {
     /// A saved passage, opened where it was written rather than in a list of passages. The
@@ -68,6 +90,7 @@ public enum MarginaliaRoute: Hashable {
 /// not one schema.
 public struct MarginaliaView: View {
     private let door: MarginaliaDoor
+    private let embedding: MarginaliaEmbedding?
     @StateObject private var model: MarginaliaViewModel
 
     /// Rows by default, and the key is the board's old one so a reader who already chose the
@@ -126,13 +149,72 @@ public struct MarginaliaView: View {
     /// prints no words, and the word is what most readers came to press.
     private let visibleFacets = 8
 
-    public init(door: MarginaliaDoor = .notes) {
+    public init(door: MarginaliaDoor = .notes, embedding: MarginaliaEmbedding? = nil) {
         self.door = door
-        _model = StateObject(wrappedValue: MarginaliaViewModel(scope: door.scope))
+        self.embedding = embedding
+        let model = MarginaliaViewModel(scope: door.scope)
+        if let tag = embedding?.initialTag { model.facets.tags = [tag] }
+        _model = StateObject(wrappedValue: model)
+    }
+
+    private var title: String { embedding?.title ?? door.title }
+
+    /// Every push the board makes, onto whichever stack it is standing in.
+    private func push<Route: Hashable>(_ route: Route) {
+        if let embedding {
+            embedding.path.wrappedValue.append(route)
+        } else {
+            push(route)
+        }
     }
 
     public var body: some View {
-        NavigationStack(path: $path) {
+        if embedding != nil {
+            board
+                // A pushed page keeps the system bar for its back button; the masthead below it
+                // still carries the page's name.
+                .navigationTitle("")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(DipleColor.canvas, for: .navigationBar)
+        } else {
+            NavigationStack(path: $path) {
+                board
+                    // Set but hidden: it is what a pushed screen labels its own back button with.
+                    .navigationTitle(title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar(.hidden, for: .navigationBar)
+                    .modifier(MarginaliaDestinations(host: self))
+            }
+        }
+    }
+
+    /// The routes the board resolves itself — only when it owns its stack. Embedded, the host
+    /// declares them; see `MarginaliaEmbedding`.
+    private struct MarginaliaDestinations: ViewModifier {
+        let host: MarginaliaView
+
+        func body(content: Content) -> some View {
+            content
+                .navigationDestination(for: NoteRoute.self) { route in
+                    host.noteDestination(for: route)
+                }
+                .navigationDestination(for: MarginaliaRoute.self) { route in
+                    switch route {
+                    case let .passage(book, locatorJSON):
+                        ReaderContainerView(
+                            book: book,
+                            startingLocator: Locator.from(jsonString: locatorJSON),
+                            onReadingUpdated: { host.model.load() }
+                        )
+                    }
+                }
+                .navigationDestination(for: Book.self) { book in
+                    ReaderContainerView(book: book, onReadingUpdated: { host.model.load() })
+                }
+        }
+    }
+
+    private var board: some View {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
@@ -140,26 +222,6 @@ public struct MarginaliaView: View {
                 // note autosaved invalidated the active destination and made the editor look
                 // as though it had vanished.
                 workspace
-            }
-            // Set but hidden: it is what a pushed screen labels its own back button with.
-            .navigationTitle(door.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: NoteRoute.self) { route in
-                noteDestination(for: route)
-            }
-            .navigationDestination(for: MarginaliaRoute.self) { route in
-                switch route {
-                case let .passage(book, locatorJSON):
-                    ReaderContainerView(
-                        book: book,
-                        startingLocator: Locator.from(jsonString: locatorJSON),
-                        onReadingUpdated: { model.load() }
-                    )
-                }
-            }
-            .navigationDestination(for: Book.self) { book in
-                ReaderContainerView(book: book, onReadingUpdated: { model.load() })
             }
             .sheet(item: $cardPassage) { passage in
                 PassageCardSheet(passage: passage)
@@ -235,14 +297,6 @@ public struct MarginaliaView: View {
                 Text("Notes are removed permanently. Passages and their comments are removed too.")
             }
             .refreshesOnTabActivation { model.load() }
-            // The bar's `+` in Notes. Only the room notes are written in answers it; the
-            // passages room is a separate instance of this same view and must not push a page
-            // onto its own stack behind the reader's back.
-            .onReceive(NotificationCenter.default.publisher(for: .dipleComposeNote)) { _ in
-                guard door.offersNewNote else { return }
-                path.append(NoteRoute.new)
-            }
-        }
     }
 
     // MARK: - Frame
@@ -300,7 +354,7 @@ public struct MarginaliaView: View {
     /// which is the nearest thing left to standing in front of it.
     private func openDaily(_ item: DailyResurfacingItem) {
         if let book = item.summary.book, item.quote.parsedLocator != nil {
-            path.append(MarginaliaRoute.passage(book: book, locatorJSON: item.quote.locator))
+            push(MarginaliaRoute.passage(book: book, locatorJSON: item.quote.locator))
         } else if let passage = model.entries
             .compactMap(\.passageItem)
             .first(where: { $0.id == item.quote.id }) {
@@ -309,7 +363,7 @@ public struct MarginaliaView: View {
     }
 
     private var masthead: some View {
-        DipleMasthead(title: door.title, strapline: strapline) {
+        DipleMasthead(title: title, strapline: strapline) {
             if model.isSelecting {
                 selectionMastheadActions
             } else {
@@ -891,14 +945,14 @@ public struct MarginaliaView: View {
 
         if let book = item.book, item.highlight.parsedLocator != nil {
             Button {
-                path.append(MarginaliaRoute.passage(book: book, locatorJSON: item.highlight.locator))
+                push(MarginaliaRoute.passage(book: book, locatorJSON: item.highlight.locator))
             } label: {
                 Label("Open in the book", systemImage: "book")
             }
         }
 
         Button {
-            path.append(NoteRoute.newFromPassage(item))
+            push(NoteRoute.newFromPassage(item))
         } label: {
             Label("Expand into a note", systemImage: "square.and.pencil")
         }
@@ -1016,13 +1070,13 @@ public struct MarginaliaView: View {
     private func collect() {
         guard let item = model.collect() else { return }
         HapticManager.shared.impact(.light)
-        path.append(NoteRoute.existing(item))
+        push(NoteRoute.existing(item))
     }
 
     // MARK: - Destinations
 
     @ViewBuilder
-    private func noteDestination(for route: NoteRoute) -> some View {
+    fileprivate func noteDestination(for route: NoteRoute) -> some View {
         let page = NoteDetailView(
             route: route,
             books: model.books,
@@ -1031,7 +1085,7 @@ public struct MarginaliaView: View {
             passages: model.entries.compactMap(\.passageItem),
             onSave: { note, tags in model.save(note, tags: tags) },
             onDelete: { model.delete(.note($0)) },
-            onOpenNote: { path.append(NoteRoute.existing($0)) },
+            onOpenNote: { push(NoteRoute.existing($0)) },
             onOpenPassage: { editingPassage = $0 }
         )
 
@@ -1076,9 +1130,9 @@ public struct MarginaliaView: View {
         self.pendingPush = nil
         switch pendingPush {
         case .note(let route):
-            path.append(route)
+            push(route)
         case let .reader(book, locatorJSON):
-            path.append(MarginaliaRoute.passage(book: book, locatorJSON: locatorJSON))
+            push(MarginaliaRoute.passage(book: book, locatorJSON: locatorJSON))
         }
     }
 

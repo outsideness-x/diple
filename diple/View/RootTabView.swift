@@ -177,7 +177,7 @@ public struct RootTabView: View {
             tabRoot(.library) { LibraryView() }
             tabRoot(.highlights) { MarginaliaView(door: .highlights) }
             tabRoot(.search) { GlobalSearchView() }
-            tabRoot(.notes) { MarginaliaView(door: .notes) }
+            tabRoot(.notes) { NotesWorkshopView() }
         }
     }
 

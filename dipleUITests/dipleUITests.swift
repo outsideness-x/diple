@@ -176,6 +176,10 @@ final class dipleUITests: XCTestCase {
         add(editorShot)
 
         app.buttons["Done"].tap()
+        // A note started from the Desk has no place yet, so it waits in the Inbox.
+        let inbox = app.buttons.matching(identifier: "desk.inbox").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        inbox.tap()
         let savedNote = app.staticTexts[noteTitle].firstMatch
         XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
         savedNote.tap()
@@ -291,6 +295,9 @@ final class dipleUITests: XCTestCase {
         XCTAssertTrue((body.value as? String)?.contains("$$") == true)
 
         app.buttons["Done"].tap()
+        let inbox = app.buttons.matching(identifier: "desk.inbox").firstMatch
+        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+        inbox.tap()
         let savedNote = app.staticTexts[noteTitle].firstMatch
         XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
         savedNote.tap()
