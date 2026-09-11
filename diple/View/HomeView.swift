@@ -2,14 +2,20 @@ import SwiftUI
 import UniformTypeIdentifiers
 import ReadiumShared
 
-/// The useful front door to diple: resume something, capture something, or return to an idea.
+/// The front door of the reading workshop: resume something, or add something to read.
 ///
 /// Library/Highlights/Notes used to be four equally weighted databases. Home turns the same
 /// data into a next-action surface without duplicating persistence or inventing a second state
 /// model: the existing view models remain the source of truth for every section and route.
+///
+/// **Reading and nothing else (2026-09-11).** Home used to end in three recent notes and offer
+/// "New note" beside the imports. Notes have a workshop of their own now, one circle away in
+/// the bar, and a front page of the reading workshop that printed the other workshop's latest
+/// pages would be a second door into it — the arrangement the board was unified to get rid of.
+/// The bridges that *are* about reading stay where the reading is: the pencil in the reader,
+/// the source overview's "New note", a passage expanded into a note.
 public struct HomeView: View {
     @StateObject private var library = LibraryViewModel()
-    @StateObject private var notes = NotesViewModel()
 
     @State private var isImportingFile = false
     @State private var isImportingLink = false
@@ -23,10 +29,6 @@ public struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init() {}
-
-    private var recentNotes: [NoteItem] {
-        Array(notes.items.sorted { $0.note.updatedAt > $1.note.updatedAt }.prefix(3))
-    }
 
     /// What the reader has had open lately, most recent first.
     ///
@@ -94,20 +96,7 @@ public struct HomeView: View {
                             }
                         }
 
-                        if !recentNotes.isEmpty {
-                            section("RECENT NOTES") {
-                                VStack(spacing: 0) {
-                                    ForEach(recentNotes) { item in
-                                        NavigationLink(value: NoteRoute.existing(item)) {
-                                            HomeRecentNoteRow(item: item)
-                                        }
-                                        .buttonStyle(.bookCard)
-                                    }
-                                }
-                            }
-                        }
-
-                        if library.books.isEmpty && notes.items.isEmpty {
+                        if library.books.isEmpty {
                             firstStep
                         } else {
                             foot
@@ -130,17 +119,6 @@ public struct HomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Book.self) { book in
                 readerDestination(for: book)
-            }
-            .navigationDestination(for: NoteRoute.self) { route in
-                NoteDetailView(
-                    route: route,
-                    books: notes.books,
-                    suggestedTags: notes.allTags,
-                    allNotes: notes.items,
-                    onSave: { note, tags in notes.save(note, tags: tags) },
-                    onDelete: { notes.delete($0) },
-                    onOpenNote: { path.append(NoteRoute.existing($0)) }
-                )
             }
             .fileImporter(
                 isPresented: $isImportingFile,
@@ -195,12 +173,6 @@ public struct HomeView: View {
                     isImportingFile = true
                 } label: {
                     Label("Import a file", systemImage: "doc.badge.plus")
-                }
-
-                Button {
-                    path.append(NoteRoute.new)
-                } label: {
-                    Label("New note", systemImage: "square.and.pencil")
                 }
             } label: {
                 MastheadGlyph(systemImage: "plus")
@@ -262,13 +234,10 @@ public struct HomeView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// What this workshop holds. Notes are counted in their own.
     private var footLine: String {
-        var parts: [String] = []
         let sources = library.books.count
-        if sources > 0 { parts.append(sources == 1 ? "1 source" : "\(sources) sources") }
-        let written = notes.items.count
-        if written > 0 { parts.append(written == 1 ? "1 note" : "\(written) notes") }
-        return parts.joined(separator: " · ")
+        return sources == 1 ? "1 source" : "\(sources) sources"
     }
 
     private var firstStep: some View {
@@ -308,7 +277,6 @@ public struct HomeView: View {
 
     private func reload() {
         library.loadBooks()
-        notes.load()
     }
 
     @ViewBuilder
@@ -320,53 +288,5 @@ public struct HomeView: View {
         } else {
             reader.navigationTransition(.zoom(sourceID: book.id, in: readingNamespace))
         }
-    }
-}
-
-private struct HomeRecentNoteRow: View {
-    let item: NoteItem
-
-    private var preview: String {
-        item.previewText
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: DipleSpace.m) {
-            Image(systemName: "note.text")
-                .dipleIcon(13, weight: .semibold)
-                .foregroundStyle(DipleColor.textTertiary)
-                .frame(width: 32, height: 32)
-                .background(DipleColor.surfaceOverlay, in: RoundedRectangle(cornerRadius: DipleRadius.s))
-
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text(item.displayTitle)
-                    .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .lineLimit(1)
-
-                if !preview.isEmpty {
-                    Text(preview)
-                        .dipleType(.caption)
-                        .foregroundStyle(DipleColor.textTertiary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-            }
-
-            Spacer(minLength: DipleSpace.s)
-
-            Image(systemName: "chevron.right")
-                .dipleIcon(10, weight: .semibold)
-                .foregroundStyle(DipleColor.textQuaternary)
-                .padding(.top, DipleSpace.s)
-        }
-        .padding(.vertical, DipleSpace.m)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(DipleColor.hairline)
-                .frame(height: DipleStroke.hairline)
-        }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 }
