@@ -193,15 +193,31 @@ public final class ReaderViewModel: ObservableObject {
     /// written**. It is cleared by `createHighlight` — the tap that saves — by a tap away, and
     /// by dismissing the bar; each of those also takes the blue span and its handles off the
     /// page, because the navigator mirrors this through `hasSelection`.
-    @Published public var currentSelection: PendingSelection? = nil
+    ///
+    /// **Raising the actions bar puts the reader's own bars away.** The actions bar pins to the
+    /// far edge of the page from the passage, which is exactly where the top or bottom bar sits
+    /// while the chrome is up: a selection made with the bars raised drew the swatches on top
+    /// of the progress line, with the percentage and the gear sticking out around them. Seen on
+    /// the simulator. The footnote card and the margin already stand the bars down for the same
+    /// reason — one edge, one thing on it — and a tap on the page brings them back.
+    @Published public var currentSelection: PendingSelection? = nil {
+        didSet {
+            if currentSelection != nil, isOverlayVisible { isOverlayVisible = false }
+        }
+    }
     /// The highlight the reader has tapped, and the rect it occupies on the page.
     ///
     /// A selection no longer raises anything — it saves a highlight and gets out of the way —
     /// so this is what the actions bar hangs on instead. The rect comes from Readium's
     /// decoration-activated event and is in the navigator's own coordinate space, the same
     /// space `Selection.frame` used to arrive in, which is what lets the bar pick its edge the
-    /// same way it always did.
-    @Published public var activeHighlight: Highlight? = nil
+    /// same way it always did. It puts the reader's bars away for the reason given on
+    /// `currentSelection`.
+    @Published public var activeHighlight: Highlight? = nil {
+        didSet {
+            if activeHighlight != nil, isOverlayVisible { isOverlayVisible = false }
+        }
+    }
     @Published public var activeHighlightRect: CGRect? = nil
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
