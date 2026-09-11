@@ -116,6 +116,17 @@ final class NotesDeskTests: XCTestCase {
         XCTAssertEqual(NotesDesk.openTaskCount(items), 2)
     }
 
+    /// Ticking a box rewrites its note; by "last touched" its group would leap to the top under
+    /// the finger that ticked it. The list stands in the order the notes were begun.
+    func testTickingATaskDoesNotMoveItsGroup() {
+        let items = [
+            item("older, just ticked", body: "- [ ] One", updated: 999, created: 10),
+            item("newer", body: "- [ ] Two", updated: 20, created: 20)
+        ]
+
+        XCTAssertEqual(NotesDesk.openTasks(items).map(\.id), ["newer", "older, just ticked"])
+    }
+
     /// A task ticked a moment ago stays on the list for the beat it takes to see it land.
     func testAJustCompletedTaskLingersInItsPlace() {
         let items = [item("roadmap", body: "- [x] Deploy\n- [ ] Upload")]

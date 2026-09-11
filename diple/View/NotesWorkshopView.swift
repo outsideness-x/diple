@@ -9,6 +9,7 @@ public enum NotesPlace: Hashable {
     case space(String)
     /// Notes written about one source, by its book id.
     case source(String)
+    case tasks
     case allNotes
     /// The All notes board opened with one word already pressed.
     case tag(String)
@@ -151,6 +152,8 @@ public struct NotesWorkshopView: View {
             } else {
                 NotesListView(model: model, kind: .inbox, openNote: openNote)
             }
+        case .tasks:
+            NotesTasksView(model: model, openNote: openNote)
         case .allNotes:
             MarginaliaView(
                 door: .notes,

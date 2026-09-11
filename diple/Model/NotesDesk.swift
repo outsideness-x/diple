@@ -120,16 +120,24 @@ public nonisolated enum NotesDesk {
         }
     }
 
-    /// Every open `- [ ]` in every living note, grouped by note, in the workshop's order.
+    /// Every open `- [ ]` in every living note, grouped by note.
     ///
     /// `lingering` keeps a just-completed task on the list for the moment it takes the thumb
     /// to see it land — the way Things lets a ticked to-do stay put for a beat before it goes —
     /// rather than whipping the row away in the same frame the box fills.
+    ///
+    /// **Ordered by when each note was begun, not when it was last touched** — the one list in
+    /// the workshop that departs from `ordered`. Ticking a box rewrites its note, and by "last
+    /// touched" the whole group would leap to the top of the list under the finger that ticked
+    /// it. Pinned notes still stand first.
     public static func openTasks(
         _ items: [NoteItem],
         lingering: Set<TaskKey> = []
     ) -> [TaskGroup] {
-        ordered(items).compactMap { item in
+        let stable = pinned(items) + items
+            .filter { !$0.note.isPinned }
+            .sorted { $0.note.createdAt > $1.note.createdAt }
+        return stable.compactMap { item in
             let tasks = NoteMarkdown.parse(item.note.body).flatMap { block -> [NoteTask] in
                 if case .tasks(let tasks) = block { return tasks }
                 return []

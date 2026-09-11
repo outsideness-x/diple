@@ -517,50 +517,6 @@ public struct NoteMarkdownView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One task's words, with or without the rule through them. Both copies have to lay out
-    /// identically or the masked one would sit a pixel off its twin, so they differ by exactly
-    /// the strikethrough and its colour.
-    private func strikeText(_ task: NoteTask, struckThrough: Bool) -> some View {
-        NoteInlineMathText(task.text, style: .noteBody)
-            .dipleType(.noteBody)
-            .foregroundStyle(
-                struckThrough || task.isCompleted ? DipleColor.textTertiary : DipleColor.textPrimary
-            )
-            .strikethrough(struckThrough, color: DipleColor.textQuaternary)
-    }
-
-    /// The whole row is the target, not just the 16pt glyph: a checkbox is tapped with a
-    /// thumb, and `contentShape` makes the gap between the box and the text count too.
-    private func taskRow(_ task: NoteTask) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
-                .foregroundStyle(task.isCompleted ? DipleColor.accentInk : DipleColor.textQuaternary)
-                .contentTransition(.symbolEffect(.replace))
-
-            // The rule is drawn rather than switched on. `.strikethrough` is a text attribute:
-            // it can only be present or absent, so completing a task snapped a finished line
-            // across the words in a single frame — the one moment in Notes worth watching, and
-            // it happened between frames. The struck copy is stacked over the plain one and
-            // revealed by a mask that scales from the leading edge, so the line travels the way
-            // a pen would. Scaling the mask avoids measuring the text, which means it behaves
-            // the same at any Dynamic Type size and wraps to as many lines as it likes.
-            ZStack(alignment: .leading) {
-                strikeText(task, struckThrough: false)
-                strikeText(task, struckThrough: true)
-                    .mask(alignment: .leading) {
-                        Rectangle()
-                            .scaleEffect(x: task.isCompleted ? 1 : 0, anchor: .leading)
-                    }
-            }
-                .lineSpacing(script.swiftUILineSpacing)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(minHeight: 32)
-        .contentShape(Rectangle())
-        .animation(DipleMotion.snappy, value: task.isCompleted)
-    }
-
     @ViewBuilder
     private func view(for block: NoteBlock) -> some View {
         switch block {
@@ -597,13 +553,13 @@ public struct NoteMarkdownView: View {
                         Button {
                             onToggleTask(task)
                         } label: {
-                            taskRow(task)
+                            NoteTaskRow(task: task, lineSpacing: script.swiftUILineSpacing)
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(task.isCompleted ? [.isButton, .isSelected] : .isButton)
                         .accessibilityHint(task.isCompleted ? "Mark as not done" : "Mark as done")
                     } else {
-                        taskRow(task)
+                        NoteTaskRow(task: task, lineSpacing: script.swiftUILineSpacing)
                     }
                 }
             }
@@ -731,4 +687,64 @@ private extension NoteBlock {
     }
     .background(DipleColor.canvas)
     .preferredColorScheme(.dark)
+}
+
+/// One task line — a box and its words — as the note draws it and as the Tasks list draws it.
+///
+/// Lifted out of `NoteMarkdownView` so the two are one drawing: a box ticked in the list and the
+/// same box ticked on the note's page have to look like the same act, and two copies of the
+/// struck-through line would drift at the first edit to either.
+public struct NoteTaskRow: View {
+    let task: NoteTask
+    let lineSpacing: CGFloat
+
+    public init(task: NoteTask, lineSpacing: CGFloat) {
+        self.task = task
+        self.lineSpacing = lineSpacing
+    }
+
+    /// One task's words, with or without the rule through them. Both copies have to lay out
+    /// identically or the masked one would sit a pixel off its twin, so they differ by exactly
+    /// the strikethrough and its colour.
+    private func strikeText(_ task: NoteTask, struckThrough: Bool) -> some View {
+        NoteInlineMathText(task.text, style: .noteBody)
+            .dipleType(.noteBody)
+            .foregroundStyle(
+                struckThrough || task.isCompleted ? DipleColor.textTertiary : DipleColor.textPrimary
+            )
+            .strikethrough(struckThrough, color: DipleColor.textQuaternary)
+    }
+
+    /// The whole row is the target, not just the 16pt glyph: a checkbox is tapped with a
+    /// thumb, and `contentShape` makes the gap between the box and the text count too.
+    public var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DipleSpace.m) {
+            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                .dipleIcon(16, weight: task.isCompleted ? .semibold : .regular)
+                .foregroundStyle(task.isCompleted ? DipleColor.accentInk : DipleColor.textQuaternary)
+                .contentTransition(.symbolEffect(.replace))
+
+            // The rule is drawn rather than switched on. `.strikethrough` is a text attribute:
+            // it can only be present or absent, so completing a task snapped a finished line
+            // across the words in a single frame — the one moment in Notes worth watching, and
+            // it happened between frames. The struck copy is stacked over the plain one and
+            // revealed by a mask that scales from the leading edge, so the line travels the way
+            // a pen would. Scaling the mask avoids measuring the text, which means it behaves
+            // the same at any Dynamic Type size and wraps to as many lines as it likes.
+            ZStack(alignment: .leading) {
+                strikeText(task, struckThrough: false)
+                strikeText(task, struckThrough: true)
+                    .mask(alignment: .leading) {
+                        Rectangle()
+                            .scaleEffect(x: task.isCompleted ? 1 : 0, anchor: .leading)
+                    }
+            }
+                .lineSpacing(lineSpacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: 32)
+        .contentShape(Rectangle())
+        .animation(DipleMotion.snappy, value: task.isCompleted)
+    }
+
 }

@@ -108,6 +108,9 @@ struct NotesDeskView: View {
             placeRow("tray", "Inbox", count: model.inbox.count, identifier: "desk.inbox") {
                 open(.inbox)
             }
+            placeRow("checklist", "Tasks", count: model.openTaskCount, identifier: "desk.tasks") {
+                open(.tasks)
+            }
         }
 
         if model.items.isEmpty {
