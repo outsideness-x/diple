@@ -22,7 +22,10 @@ public struct DipleTabBar: View {
     let isCollapsed: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var indicator
+
+    /// The last place the lens stood on. Search is a verb beside the pill, not a seat in it, so
+    /// while it is selected the lens stays over the place it came from and fades out there.
+    @State private var lastPlace: RootTabView.Tab = .home
 
     /// The four places. Search is deliberately not among them.
     ///
@@ -100,13 +103,52 @@ public struct DipleTabBar: View {
                     .accessibilityHidden(!isShown(tab))
             }
         }
+        .background(alignment: .leading) { lens }
         .padding(DipleSpace.xs)
         .background { glass(Capsule(style: .continuous)) }
+        .onChange(of: selection, initial: true) { _, tab in
+            if places.contains(tab) { lastPlace = tab }
+        }
     }
 
     /// Collapsed, only the place the reader is already standing in keeps its seat.
     private func isShown(_ tab: RootTabView.Tab) -> Bool {
         !isCollapsed || tab == selection
+    }
+
+    // MARK: - The lens
+
+    /// The mark of where you are: one capsule under the whole row, not one inside each seat.
+    ///
+    /// It used to be a `matchedGeometryEffect` in the background of the selected button, and
+    /// that put it inside the seat's `.clipped()` — the clip the collapse cannot do without. A
+    /// lens flying between two seats was cut by the edges of both: it wiped across the row with
+    /// a hard vertical edge instead of travelling, and what arrived was a second capsule
+    /// cross-fading in over the first. Drawn once beneath the row it has nothing to be cut by,
+    /// and its place is a number — the seats before it times their stride — which the spring
+    /// walks along like any other.
+    ///
+    /// The same number carries the collapse. Collapsed, the selected seat is the only one with
+    /// a width and stands first; the seats before it close with the same spring that brings the
+    /// lens's inset to zero, so the two cannot drift apart.
+    ///
+    /// Drawn while collapsed too. The mark of where you are is the whole point of a bar reduced
+    /// to a single icon.
+    private var lens: some View {
+        Capsule(style: .continuous)
+            .fill(DipleColor.accentSoft)
+            .frame(width: seat, height: seat)
+            .padding(.leading, lensInset)
+            .opacity(places.contains(selection) ? 1 : 0)
+    }
+
+    /// Where the lens starts along the row. A seat's glyph is centred in its stride, so it
+    /// stands half a hair in from the seat's own edge. Leading rather than an offset, so a
+    /// right-to-left row carries the lens the right way without a branch here.
+    private var lensInset: CGFloat {
+        let lensPlace = places.contains(selection) ? selection : lastPlace
+        let index = isCollapsed ? 0 : places.firstIndex(of: lensPlace) ?? 0
+        return CGFloat(index) * seatStride + DipleSpace.hair / 2
     }
 
     private func placeButton(_ tab: RootTabView.Tab) -> some View {
@@ -117,17 +159,11 @@ public struct DipleTabBar: View {
             Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
                 .font(.system(size: glyph, weight: .medium))
                 .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
+                // The outline and the filled glyph are two different drawings. Cross-faded,
+                // they stood on top of each other for the length of the lens's travel — a
+                // double-exposed shelf under a lens that had just stopped being crooked.
+                .contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
                 .frame(width: seat, height: seat)
-                .background {
-                    // Drawn while collapsed too. Dropping it there was one more discrete change
-                    // landing in the same frame as the collapse, and the mark of where you are
-                    // is the whole point of a bar reduced to a single icon.
-                    if isSelected {
-                        Capsule(style: .continuous)
-                            .fill(DipleColor.accentSoft)
-                            .matchedGeometryEffect(id: "selected", in: indicator)
-                    }
-                }
                 .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(.dipleTabItem)
