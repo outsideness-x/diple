@@ -124,6 +124,10 @@ public struct NoteEditorView: UIViewRepresentable {
     /// this file worked to put it — see `NoteSelectionBox`.
     public let onSlashChanged: ((NoteSlashContext?) -> Void)?
 
+    /// Read so a change of text size restyles the note: the styling names point sizes, and a
+    /// text view only rescales the one font it was given, not the dozen the Markdown wears.
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     public init(
         text: Binding<String>,
         selection: NoteSelectionBox,
@@ -147,7 +151,7 @@ public struct NoteEditorView: UIViewRepresentable {
     public func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     public func makeUIView(context: Context) -> UITextView {
-        let view = UITextView()
+        let view = NoteTextView()
         view.delegate = context.coordinator
         view.backgroundColor = .clear
         view.textColor = UIColor(DipleColor.textPrimary)
@@ -185,6 +189,11 @@ public struct NoteEditorView: UIViewRepresentable {
             if selection.pending == nil {
                 selection.pending = NSRange(location: (text as NSString).length, length: 0)
             }
+            // A whole new text — a note opened, a template, a formula inserted from its sheet —
+            // is styled whole.
+            context.coordinator.restyle(view, around: nil)
+        } else if context.coordinator.styling?.typeSize != typeSize {
+            context.coordinator.restyle(view, around: nil)
         }
 
         if let pending = selection.pending {
@@ -230,6 +239,84 @@ public struct NoteEditorView: UIViewRepresentable {
         var measuredHeight: CGFloat?
         var lastSlashContext: NoteSlashContext?
 
+        /// What the Markdown wears, for the current text size and script. `nil` until the first
+        /// restyle, and never built at all for the formula source, which is not Markdown.
+        var styling: NoteSyntaxStyling?
+        /// Everything edited since the last restyle. Usually one keystroke; several while a
+        /// syllable is being composed, because nothing is restyled until it is committed.
+        private var pendingEdit: NSRange?
+        /// Korean arrived in a note styled for Latin leading, so the script is looked at again.
+        private var needsScriptCheck = false
+
+        /// Styles the Markdown in place — see `NoteSyntax` for why the characters never change.
+        ///
+        /// Only the lines an edit touched are cleared and set again, which keeps the cost of a
+        /// keystroke independent of the note's length; `edited == nil` styles everything.
+        ///
+        /// **Never while `markedTextRange` is live.** This is the same rule that protects Hangul
+        /// everywhere else in this bridge: a syllable being composed from jamo lives in the text
+        /// view as provisional glyphs, and even an attribute-only edit over them can tear the
+        /// composition down. Its line is styled the moment the syllable is committed.
+        func restyle(_ textView: UITextView, around edited: NSRange?) {
+            guard !parent.usesMonospacedFont, textView.markedTextRange == nil else { return }
+
+            let storage = textView.textStorage
+            let text = storage.mutableString as NSString
+            var restylesEverything = edited == nil
+
+            if styling == nil || styling?.typeSize != parent.typeSize || needsScriptCheck || edited == nil {
+                let fresh = NoteSyntaxStyling(typeSize: parent.typeSize, script: ReaderScript.detect(in: storage.string))
+                if styling?.typeSize != fresh.typeSize || styling?.script != fresh.script {
+                    restylesEverything = true
+                }
+                styling = fresh
+                needsScriptCheck = false
+            }
+            guard let styling else { return }
+
+            let range: NSRange
+            if restylesEverything {
+                range = NSRange(location: 0, length: text.length)
+            } else {
+                // The caret's own line as well as the recorded edit: a list continued by Return
+                // or a marker cleared on an empty item is written by code, and the caret is
+                // where that code left it.
+                var touched = textView.selectedRange
+                if let edited { touched = NSUnionRange(touched, edited) }
+                range = NoteSyntax.restyleRange(for: touched, in: text)
+            }
+            pendingEdit = nil
+
+            guard range.length > 0 else {
+                textView.typingAttributes = styling.base
+                return
+            }
+
+            let spans = NoteSyntax.spans(in: text, restyling: range)
+            let caret = textView.selectedRange
+            storage.beginEditing()
+            storage.setAttributes(styling.base, range: range)
+            for span in spans {
+                styling.apply(span, to: storage)
+            }
+            storage.endEditing()
+            if textView.selectedRange != caret {
+                textView.selectedRange = caret
+            }
+
+            // A heading is taller than the line it was a moment ago, with the same characters.
+            measuredHeight = nil
+            textView.setNeedsLayout()
+        }
+
+        private func recordEdit(at range: NSRange, replacement: String) {
+            let edited = NSRange(location: range.location, length: (replacement as NSString).length)
+            pendingEdit = pendingEdit.map { NSUnionRange($0, edited) } ?? edited
+            if styling?.script == .latin, !replacement.isEmpty, ReaderScript.detect(in: replacement) == .cjk {
+                needsScriptCheck = true
+            }
+        }
+
         init(parent: NoteEditorView) {
             self.parent = parent
         }
@@ -247,6 +334,7 @@ public struct NoteEditorView: UIViewRepresentable {
             shouldChangeTextIn range: NSRange,
             replacementText text: String
         ) -> Bool {
+            recordEdit(at: range, replacement: text)
             guard text == "\n", textView.markedTextRange == nil else { return true }
 
             let source = textView.text as NSString
@@ -272,6 +360,8 @@ public struct NoteEditorView: UIViewRepresentable {
             // Still composing: the text view holds provisional glyphs that are not yet the
             // note's text, and publishing them starts an edit SwiftUI would try to write back.
             guard textView.markedTextRange == nil else { return }
+            // Before publishing, so the measurement SwiftUI asks for next sees the styled text.
+            restyle(textView, around: pendingEdit)
             parent.selection.range = textView.selectedRange
             parent.text = textView.text
             publishSlashContext(in: textView)
