@@ -7,12 +7,6 @@
     " " : {
 
     },
-    "Estimated — this book doesn’t say where its chapters begin." : {
-
-    },
-    "READING" : {
-
-    },
     "·" : {
 
     },
@@ -23,6 +17,19 @@
 
     },
     "#%@" : {
+
+    },
+    "#%@ is already in use on %lld %@. Merging cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "#%1$@ is already in use on %2$lld %3$@. Merging cannot be undone."
+          }
+        }
+      }
+    },
+    "#%@ will be renamed on every note and passage that carries it." : {
 
     },
     "%@ · the quick brown fox" : {
@@ -61,6 +68,16 @@
         }
       }
     },
+    "%@, %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld"
+          }
+        }
+      }
+    },
     "%@, %lld results" : {
       "localizations" : {
         "en" : {
@@ -70,6 +87,9 @@
           }
         }
       }
+    },
+    "%@, selected. Remove" : {
+
     },
     "%@. %@" : {
       "localizations" : {
@@ -107,6 +127,16 @@
     "%lld fragments" : {
       "comment" : "Second Read item count, plural"
     },
+    "%lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
     "%lld of %lld complete" : {
       "localizations" : {
         "en" : {
@@ -124,6 +154,9 @@
 
     },
     "%lld%%" : {
+
+    },
+    "+%lld" : {
 
     },
     "$ … $" : {
@@ -184,6 +217,15 @@
 
     },
     "Adjust to move through the book" : {
+
+    },
+    "All" : {
+
+    },
+    "All sources and tags" : {
+
+    },
+    "All sources and tags, %lld more not shown" : {
 
     },
     "Allow notifications for diple in iOS Settings to receive your daily passage." : {
@@ -258,10 +300,10 @@
     "Choose a Kindle or Readwise export and review it before importing" : {
 
     },
-    "Choose another filter or create a note here." : {
+    "Clear" : {
 
     },
-    "Clear" : {
+    "Clear every filter" : {
 
     },
     "Clear search" : {
@@ -270,16 +312,28 @@
     "Clear search and filters" : {
 
     },
+    "Clear the filters" : {
+
+    },
     "Close" : {
 
     },
     "Close book" : {
 
     },
+    "Close figure" : {
+
+    },
+    "Close footnote" : {
+
+    },
     "Close note" : {
       "comment" : "Closes the currently revealed Living Margins note"
     },
     "Close search" : {
+
+    },
+    "Collect into a note" : {
 
     },
     "COLOR" : {
@@ -351,6 +405,12 @@
     "Delete" : {
 
     },
+    "Delete %lld items?" : {
+
+    },
+    "Delete %lld sources?" : {
+
+    },
     "Delete book?" : {
 
     },
@@ -369,7 +429,16 @@
     "Delete passage?" : {
 
     },
+    "Delete this" : {
+
+    },
     "Delete this note?" : {
+
+    },
+    "Delete this?" : {
+
+    },
+    "Deselect all" : {
 
     },
     "designed and created by chemical pink." : {
@@ -468,11 +537,36 @@
     "Error" : {
 
     },
+    "Estimated — this book doesn’t say where its chapters begin." : {
+
+    },
     "Evergreen idea template" : {
+
+    },
+    "Every sitting since the log began, and when in the day you read" : {
+
+    },
+    "Everything you write collects here, by source and by tag. Passages you keep while reading are in Highlights." : {
+
+    },
+    "Expand into a note" : {
 
     },
     "Exported %@. Review the merge before anything changes." : {
 
+    },
+    "FILE IT AS" : {
+
+    },
+    "Filed %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Filed %1$lld of %2$lld"
+          }
+        }
+      }
     },
     "Files" : {
 
@@ -486,6 +580,9 @@
     "Find your notes, saved highlights, books and the text of imported articles in one place." : {
 
     },
+    "Footnote" : {
+
+    },
     "ƒx" : {
 
     },
@@ -493,6 +590,9 @@
 
     },
     "Go forward to where you jumped from" : {
+
+    },
+    "Group" : {
 
     },
     "Haptic intensity" : {
@@ -505,9 +605,6 @@
       "comment" : "Collapses original prose around a highlighted passage"
     },
     "Highlight %@" : {
-
-    },
-    "Highlight a passage while reading and it will show up here, grouped by book." : {
 
     },
     "Highlight actions" : {
@@ -547,6 +644,9 @@
 
     },
     "Import highlights" : {
+
+    },
+    "IN FORCE" : {
 
     },
     "In progress" : {
@@ -609,6 +709,12 @@
     "Local changes are queued safely until iCloud confirms them." : {
 
     },
+    "Look Up" : {
+
+    },
+    "Mark a passage while reading and it collects here, by source, by tag and by the colour you marked it with." : {
+
+    },
     "Mark as done" : {
 
     },
@@ -621,7 +727,28 @@
     "Markdown written" : {
 
     },
+    "Marked in the text" : {
+
+    },
+    "Merge" : {
+
+    },
+    "Merge tags?" : {
+
+    },
+    "Most often around %@." : {
+
+    },
+    "Move" : {
+
+    },
+    "Move %lld" : {
+
+    },
     "Move to %@" : {
+
+    },
+    "Narrow to" : {
 
     },
     "New Highlight" : {
@@ -642,7 +769,7 @@
     "No bookmarks saved" : {
 
     },
-    "No matching notes" : {
+    "No matches" : {
 
     },
     "No notes yet" : {
@@ -651,10 +778,13 @@
     "No passages saved" : {
 
     },
-    "No passages yet" : {
+    "No source or tag matches that." : {
 
     },
     "No table of contents" : {
+
+    },
+    "None" : {
 
     },
     "Not in your library" : {
@@ -666,13 +796,22 @@
     "Notes" : {
 
     },
+    "Notes are removed permanently. Passages and their comments are removed too." : {
+
+    },
     "Notes, highlights and library" : {
 
     },
     "Nothing captured yet" : {
 
     },
+    "Nothing filed" : {
+
+    },
     "Nothing found" : {
+
+    },
+    "Nothing here carries a source or a tag yet." : {
 
     },
     "Nothing in this view" : {
@@ -681,6 +820,12 @@
     "Nothing marked here yet." : {
       "comment" : "Second Read empty-state title"
     },
+    "Nothing marked yet" : {
+
+    },
+    "Nothing written down yet" : {
+
+    },
     "Notifications are off" : {
 
     },
@@ -688,6 +833,9 @@
       "comment" : "Dismisses a Second Read error alert"
     },
     "On this page" : {
+
+    },
+    "One at a time, with the words you use." : {
 
     },
     "One local change is waiting for iCloud." : {
@@ -702,6 +850,12 @@
     "Open in Book unavailable" : {
       "comment" : "VoiceOver label when the source file cannot be opened"
     },
+    "Open in the book" : {
+
+    },
+    "Open this passage in %@" : {
+
+    },
     "Opens at your last reading position" : {
 
     },
@@ -715,6 +869,12 @@
       "comment" : "Accessibility hint for the Second Read entry"
     },
     "OPTIONAL" : {
+
+    },
+    "Order" : {
+
+    },
+    "Order the names" : {
 
     },
     "Original context is unavailable for this passage." : {
@@ -765,6 +925,12 @@
     "READER DEFAULTS" : {
 
     },
+    "READING" : {
+
+    },
+    "Reading log" : {
+
+    },
     "Reading notes template" : {
 
     },
@@ -787,6 +953,15 @@
 
     },
     "Remove tag %@" : {
+
+    },
+    "Rename" : {
+
+    },
+    "Rename tag" : {
+
+    },
+    "Rename tag…" : {
 
     },
     "Reopening the app is worth trying first. If it keeps failing, you can start a new empty library; the unreadable file is kept beside it, so a future version may still be able to recover it." : {
@@ -855,13 +1030,13 @@
     "Search error" : {
 
     },
-    "Search every note" : {
-
-    },
     "Search everything" : {
 
     },
     "Search Everything" : {
+
+    },
+    "Search everything you have made" : {
 
     },
     "Search in book" : {
@@ -876,6 +1051,9 @@
     "Search the library" : {
 
     },
+    "Searching for %@. Clear the search" : {
+
+    },
     "Second Read" : {
       "comment" : "Feature title"
     },
@@ -885,7 +1063,13 @@
     "Section" : {
 
     },
+    "Select" : {
+
+    },
     "Select a passage while you read and mark it in a colour." : {
+
+    },
+    "Select all" : {
 
     },
     "SELECTED PASSAGE" : {
@@ -897,7 +1081,16 @@
     "Settings" : {
 
     },
+    "Share all" : {
+
+    },
+    "Share as a card" : {
+
+    },
     "Share Markdown" : {
+
+    },
+    "Share the card" : {
 
     },
     "Show another highlight" : {
@@ -909,13 +1102,22 @@
     "Show note" : {
       "comment" : "VoiceOver action hint for a Living Margins marker"
     },
+    "Show only this" : {
+
+    },
+    "Sittings are recorded as you read. A page or two is enough for one to count; a book left open on the table is not reading and is not written down." : {
+
+    },
     "Sort" : {
 
     },
-    "Sort and lay out the board" : {
+    "Sort Library" : {
 
     },
-    "Sort Library" : {
+    "Sort these out" : {
+
+    },
+    "Sort, group and lay out the board" : {
 
     },
     "Source" : {
@@ -948,10 +1150,10 @@
     "Start with something real" : {
 
     },
-    "Start with the thought itself. You can connect a source or add tags when they become useful." : {
+    "Start writing…" : {
 
     },
-    "Start writing…" : {
+    "Starts a note with this passage quoted at the top" : {
 
     },
     "Status" : {
@@ -1002,6 +1204,12 @@
     "The file could not be moved: %@" : {
 
     },
+    "The files and your reading positions are removed. Saved passages stay in Highlights." : {
+
+    },
+    "The inbox is clear." : {
+
+    },
     "The Inland Sea of Japan." : {
 
     },
@@ -1012,6 +1220,12 @@
 
     },
     "The saved passage and its comment will be removed." : {
+
+    },
+    "The word is added to each chosen row. Nothing already there is replaced." : {
+
+    },
+    "The word is added to each chosen source. Nothing already there is replaced." : {
 
     },
     "THIS IMPORT" : {
@@ -1032,6 +1246,9 @@
     "This page is bookmarked" : {
 
     },
+    "This passage and its comment will be removed." : {
+
+    },
     "This passage will be removed." : {
 
     },
@@ -1047,7 +1264,7 @@
     "Title, author or source" : {
 
     },
-    "Try a title, phrase, tag, author or book." : {
+    "Translate" : {
 
     },
     "Try another title, author, source or reading status." : {
@@ -1062,6 +1279,9 @@
     "Type LaTeX or choose a building block" : {
 
     },
+    "Unsorted" : {
+
+    },
     "Use standard LaTeX math syntax. Fractions, roots, matrices, limits, Greek letters and aligned equations render entirely on device." : {
 
     },
@@ -1072,6 +1292,9 @@
 
     },
     "Welcome to diple. A place for what stays with you." : {
+
+    },
+    "What is left keeps its place in Unsorted." : {
 
     },
     "What stayed with you." : {
@@ -1103,6 +1326,9 @@
     },
     "YOUR NOTE" : {
       "comment" : "Label above the reader's thought attached to a highlight"
+    },
+    "YOUR READING" : {
+
     },
     "Your Second Read could not be loaded." : {
       "comment" : "Non-technical Second Read database error"
