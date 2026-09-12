@@ -22,12 +22,17 @@ struct NoteSyntaxStyling {
     private let doneColor: UIColor
     private let quoteParagraph: NSParagraphStyle
     private let codeParagraph: NSParagraphStyle
+    private let bodySize: CGFloat
+    /// What a set formula's source is drawn in: nothing that can be seen, and next to no width, so
+    /// the room the formula takes is exactly the room its kern asks for.
+    private let hiddenFont = UIFont.systemFont(ofSize: 1)
 
     init(typeSize: DynamicTypeSize, script: ReaderScript) {
         self.typeSize = typeSize
         self.script = script
 
         let bodySize = DipleTextStyle.noteBody.scaledSize(for: typeSize)
+        self.bodySize = bodySize
         bodyFont = .systemFont(ofSize: bodySize, weight: .regular)
         titleFont = .systemFont(ofSize: DipleTextStyle.noteTitle.scaledSize(for: typeSize), weight: .semibold)
         headingFont = .systemFont(ofSize: DipleTextStyle.noteHeading.scaledSize(for: typeSize), weight: .semibold)
@@ -83,7 +88,7 @@ struct NoteSyntaxStyling {
         case .emphasis:
             addTrait(.traitItalic, in: range, of: storage)
 
-        case .code:
+        case .code, .math:
             storage.addAttributes([
                 .font: monoFont,
                 .foregroundColor: quoteColor,
@@ -121,6 +126,71 @@ struct NoteSyntaxStyling {
         }
     }
 
+    /// Sets a formula in place of its source, without touching a character of it.
+    ///
+    /// The source stays in the text — the note is still the Markdown it was — drawn in a font too
+    /// small and a colour too clear to see, and holding exactly the room the typeset formula needs:
+    /// a kern on its last character for the width, a line height for the height. `NoteTextView`
+    /// puts the image over that room. Returns `false` when SwiftMath cannot set the LaTeX, and the
+    /// source is left as it was: a formula that does not parse never disappears, here as on the
+    /// rendered page.
+    @discardableResult
+    func setFormula(_ formula: NoteFormula, in storage: NSTextStorage) -> Bool {
+        let range = formula.range
+        guard range.length > 0, range.location + range.length <= storage.length,
+              let image = NoteMathRenderer.image(
+                latex: formula.latex,
+                fontSize: formula.isDisplay ? bodySize * 1.25 : bodySize,
+                display: formula.isDisplay
+              )
+        else { return false }
+
+        let text = storage.mutableString as NSString
+        storage.addAttributes([
+            .font: hiddenFont,
+            .foregroundColor: UIColor.clear,
+            NoteTextView.formulaAttribute: NoteFormulaImage(image: image, isDisplay: formula.isDisplay)
+        ], range: range)
+
+        if formula.isDisplay {
+            // The block's first line carries the whole formula's height and every other line of it
+            // folds away; the image stands centred over that first line.
+            let firstLine = text.lineRange(for: NSRange(location: range.location, length: 0))
+            var line = firstLine
+            while line.location < range.location + range.length {
+                let isFirst = line.location == firstLine.location
+                let paragraph = NSMutableParagraphStyle()
+                let height = isFirst ? image.size.height + DipleSpace.m * 2 : 0.01
+                paragraph.minimumLineHeight = height
+                paragraph.maximumLineHeight = height
+                paragraph.paragraphSpacing = isFirst ? DipleSpace.xs : 0
+                storage.addAttributes([.paragraphStyle: paragraph], range: line)
+                let next = line.location + line.length
+                guard next < text.length else { break }
+                line = text.lineRange(for: NSRange(location: next, length: 0))
+            }
+        } else {
+            let source = text.substring(with: range) as NSString
+            let natural = source.size(withAttributes: [.font: hiddenFont]).width
+            storage.addAttributes(
+                [.kern: max(0, image.size.width + 2 - natural)],
+                range: NSRange(location: range.location + range.length - 1, length: 1)
+            )
+            // A fraction stands taller than the line it sits in, and the line has to make room
+            // rather than let it print over the lines around it.
+            if image.size.height + 4 > bodyFont.lineHeight {
+                let line = text.lineRange(for: range)
+                let current = (storage.attribute(.paragraphStyle, at: line.location, effectiveRange: nil) as? NSParagraphStyle)
+                    ?? NSParagraphStyle.default
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.setParagraphStyle(current)
+                paragraph.minimumLineHeight = image.size.height + 4
+                storage.addAttributes([.paragraphStyle: paragraph], range: line)
+            }
+        }
+        return true
+    }
+
     private func addTrait(_ trait: UIFontDescriptor.SymbolicTraits, in range: NSRange, of storage: NSTextStorage) {
         storage.enumerateAttribute(.font, in: range, options: []) { value, subrange, _ in
             let current = (value as? UIFont) ?? bodyFont
@@ -144,12 +214,28 @@ struct NoteSyntaxStyling {
 /// and drawing into it would give it a backing store the size of the note: hundreds of
 /// megabytes for a long one, to paint a few 2pt lines. A view per quote block costs nothing, and
 /// its dynamic colour follows light and dark without being asked.
+/// The typeset image a formula's hidden source carries, for layout to put over it.
+final class NoteFormulaImage: NSObject {
+    let image: UIImage
+    let isDisplay: Bool
+
+    init(image: UIImage, isDisplay: Bool) {
+        self.image = image
+        self.isDisplay = isDisplay
+    }
+}
+
 final class NoteTextView: UITextView {
     static let quoteIndent: CGFloat = 16
     /// Marks the lines the styling set as quotes, so layout can find them without parsing again.
     static let quoteAttribute = NSAttributedString.Key("diple.noteQuote")
+    /// Marks a formula's hidden source, carrying its `NoteFormulaImage`.
+    static let formulaAttribute = NSAttributedString.Key("diple.noteFormula")
 
     private var rules: [UIView] = []
+    private var formulaViews: [UIImageView] = []
+    /// Where each set formula stands and whose source it covers, so a tap on the formula can open it.
+    private var formulaPlacements: [(frame: CGRect, range: NSRange, isDisplay: Bool)] = []
 
     /// A `[[wiki link]]` was tapped; the title inside the brackets.
     var onOpenLink: ((String) -> Void)?
@@ -202,6 +288,8 @@ final class NoteTextView: UITextView {
         /// The one character between a box's brackets.
         case toggle(NSRange)
         case open(String)
+        /// A set formula, opened at the start of its LaTeX.
+        case editFormula(caret: Int)
     }
 
     /// Whether a tap here lands on a task's box or on a wiki link, found by character rather than
@@ -213,9 +301,16 @@ final class NoteTextView: UITextView {
     /// line the box's target reaches back over its bullet and out to 44 pt: the `[ ]` alone is
     /// narrower than a fingertip.
     fileprivate func action(at point: CGPoint) -> Action? {
-        guard answersMarkdownTaps, textStorage.length > 0, markedTextRange == nil,
-              let position = closestPosition(to: point)
-        else { return nil }
+        guard answersMarkdownTaps, textStorage.length > 0, markedTextRange == nil else { return nil }
+
+        // A set formula first. Its source is next to no width, so the nearest caret position to a
+        // finger on the formula is almost always its end — beside it, not in it — and the formula
+        // would stay set under a tap that meant "let me change this".
+        if let formula = formulaPlacements.first(where: { $0.frame.insetBy(dx: -4, dy: -4).contains(point) }) {
+            return .editFormula(caret: formulaCaret(for: formula.range, isDisplay: formula.isDisplay))
+        }
+
+        guard let position = closestPosition(to: point) else { return nil }
         let text = textStorage.mutableString as NSString
         let offset = min(self.offset(from: beginningOfDocument, to: position), text.length)
         let line = text.lineRange(for: NSRange(location: offset, length: 0))
@@ -250,6 +345,17 @@ final class NoteTextView: UITextView {
         return nil
     }
 
+    /// Just inside the opening delimiter: after `$` or `\(`, or at the first line of a block.
+    private func formulaCaret(for range: NSRange, isDisplay: Bool) -> Int {
+        let text = textStorage.mutableString as NSString
+        guard range.location + range.length <= text.length else { return range.location }
+        if isDisplay {
+            let newline = text.range(of: "\n", options: [], range: range)
+            return newline.location != NSNotFound ? newline.location + 1 : range.location + 2
+        }
+        return range.location + (text.character(at: range.location) == 36 ? 1 : 2)
+    }
+
     private func contains(_ point: CGPoint, in range: NSRange, reach: CGFloat) -> Bool {
         guard let start = position(from: beginningOfDocument, offset: range.location),
               let end = position(from: start, offset: range.length),
@@ -282,6 +388,15 @@ final class NoteTextView: UITextView {
             toggleTask(at: mark)
         case .open(let title):
             onOpenLink?(title)
+        case .editFormula(let caret):
+            if !isFirstResponder {
+                becomeFirstResponder()
+            }
+            selectedRange = NSRange(location: min(caret, textStorage.length), length: 0)
+            // A selection set from code is not reliably announced; the editor has to hear this one
+            // to show the formula's source. Hearing it twice costs nothing — the second finds the
+            // formula already open.
+            delegate?.textViewDidChangeSelection?(self)
         }
     }
 
@@ -308,6 +423,88 @@ final class NoteTextView: UITextView {
     override func layoutSubviews() {
         super.layoutSubviews()
         placeQuoteRules()
+        placeFormulas()
+    }
+
+    /// Puts each set formula's image over the room its hidden source holds: a display formula
+    /// centred on its block's first line and scaled down if the column is narrower than it, an
+    /// inline one at the end of its run, centred on the line.
+    private func placeFormulas() {
+        var placements: [(image: UIImage, frame: CGRect, range: NSRange, isDisplay: Bool)] = []
+
+        if textStorage.length > 0,
+           let layoutManager = textLayoutManager,
+           let contentManager = layoutManager.textContentManager {
+            let documentStart = contentManager.documentRange.location
+            let whole = NSRange(location: 0, length: textStorage.length)
+            let column = textContainer.size.width
+
+            textStorage.enumerateAttribute(Self.formulaAttribute, in: whole, options: []) { value, range, _ in
+                guard let formula = value as? NoteFormulaImage, range.length > 0,
+                      let start = contentManager.location(documentStart, offsetBy: range.location),
+                      let end = contentManager.location(start, offsetBy: range.length),
+                      let textRange = NSTextRange(location: start, end: end)
+                else { return }
+
+                var segments: [CGRect] = []
+                layoutManager.enumerateTextSegments(in: textRange, type: .standard, options: []) { _, frame, _, _ in
+                    segments.append(frame)
+                    return true
+                }
+                let size = formula.image.size
+
+                if formula.isDisplay, let line = segments.first {
+                    let scale = column > 0 ? min(1, column / max(size.width, 1)) : 1
+                    let width = size.width * scale
+                    let height = size.height * scale
+                    placements.append((formula.image, CGRect(
+                        x: textContainerInset.left + (column - width) / 2,
+                        y: textContainerInset.top + line.minY + (line.height - height) / 2,
+                        width: width,
+                        height: height
+                    ), range, true))
+                } else if let first = segments.first {
+                    // Anchored at the caret just before the opening `$`, which nothing about the
+                    // formula moves. Both obvious anchors at the other end are wrong, and both were
+                    // measured: a text segment ends where its glyphs end and leaves out the kern
+                    // that holds the room, and the caret after the last character stands partway
+                    // through that kern, so either put the image over the words before it.
+                    let leadingEdge = self.position(from: beginningOfDocument, offset: range.location)
+                        .map { caretRect(for: $0).minX }
+                        ?? (textContainerInset.left + first.minX)
+                    placements.append((formula.image, CGRect(
+                        x: leadingEdge + 1,
+                        y: textContainerInset.top + first.midY - size.height / 2,
+                        width: size.width,
+                        height: size.height
+                    ), range, false))
+                }
+            }
+        }
+
+        formulaPlacements = placements.map { ($0.frame, $0.range, $0.isDisplay) }
+
+        while formulaViews.count < placements.count {
+            let view = UIImageView()
+            view.contentMode = .scaleAspectFit
+            view.tintColor = UIColor(DipleColor.textPrimary)
+            view.isUserInteractionEnabled = false
+            view.isAccessibilityElement = false
+            addSubview(view)
+            formulaViews.append(view)
+        }
+        for (index, view) in formulaViews.enumerated() {
+            guard index < placements.count else {
+                view.isHidden = true
+                view.image = nil
+                continue
+            }
+            view.isHidden = false
+            if view.image !== placements[index].image {
+                view.image = placements[index].image
+            }
+            view.frame = placements[index].frame
+        }
     }
 
     private func placeQuoteRules() {

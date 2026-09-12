@@ -287,6 +287,8 @@ public struct NoteEditorView: UIViewRepresentable {
         private var pendingEdit: NSRange?
         /// Korean arrived in a note styled for Latin leading, so the script is looked at again.
         private var needsScriptCheck = false
+        /// The formula the caret is in, shown as its source; every other formula is set.
+        private var activeFormula: NSRange?
 
         /// Styles the Markdown in place — see `NoteSyntax` for why the characters never change.
         ///
@@ -333,20 +335,78 @@ public struct NoteEditorView: UIViewRepresentable {
             }
 
             let spans = NoteSyntax.spans(in: text, restyling: range)
+            activeFormula = formulaUnderCaret(in: textView)
+            let formulas = NoteSyntax.formulas(in: text).filter { formula in
+                formula.range != activeFormula
+                    && NSIntersectionRange(formula.range, range).length == formula.range.length
+            }
             let caret = textView.selectedRange
             storage.beginEditing()
             storage.setAttributes(styling.base, range: range)
             for span in spans {
                 styling.apply(span, to: storage)
             }
+            for formula in formulas {
+                styling.setFormula(formula, in: storage)
+            }
             storage.endEditing()
             if textView.selectedRange != caret {
                 textView.selectedRange = caret
             }
+            repairTypingAttributes(textView)
 
-            // A heading is taller than the line it was a moment ago, with the same characters.
+            // A heading is taller than the line it was a moment ago, with the same characters —
+            // and a formula changes height with no character changing at all, when the caret
+            // walks into it or out of it, so SwiftUI is told rather than left to notice.
             measuredHeight = nil
+            textView.invalidateIntrinsicContentSize()
             textView.setNeedsLayout()
+        }
+
+        /// A formula the caret is inside, or the selection overlaps — only while the editor has the
+        /// keyboard. A page that is being read sets every formula it holds.
+        ///
+        /// "Inside" is strict: a caret just before the opening `$` or just after the closing one is
+        /// beside the formula, not in it, so typing the closing `$` sets the formula at once, the way
+        /// the writer meant it.
+        private func formulaUnderCaret(in textView: UITextView) -> NSRange? {
+            guard textView.isFirstResponder else { return nil }
+            let caret = textView.selectedRange
+            return NoteSyntax.formulas(in: textView.textStorage.mutableString as NSString).first { formula in
+                let start = formula.range.location
+                let end = start + formula.range.length
+                if caret.length > 0 { return NSIntersectionRange(caret, formula.range).length > 0 }
+                return caret.location > start && caret.location < end
+            }?.range
+        }
+
+        /// Restyles when the caret has walked into a formula or out of one, so the one it is in
+        /// shows its source and the one it left is set again.
+        func caretMoved(in textView: UITextView) {
+            guard !parent.usesMonospacedFont, textView.markedTextRange == nil else { return }
+            let now = formulaUnderCaret(in: textView)
+            repairTypingAttributes(textView)
+            guard now != activeFormula else { return }
+            let touched = [activeFormula, now].compactMap { $0 }.reduce(nil as NSRange?) { union, range in
+                union.map { NSUnionRange($0, range) } ?? range
+            }
+            activeFormula = now
+            if let touched {
+                restyle(textView, around: touched)
+            }
+        }
+
+        /// A caret right after a set formula would type in the formula's invisible font — and a
+        /// syllable being composed there, which nothing restyles until it is committed, would be
+        /// composed in ink nobody can see.
+        private func repairTypingAttributes(_ textView: UITextView) {
+            let caret = textView.selectedRange.location
+            let storage = textView.textStorage
+            guard caret > 0, caret <= storage.length,
+                  storage.attribute(NoteTextView.formulaAttribute, at: caret - 1, effectiveRange: nil) != nil,
+                  let styling
+            else { return }
+            textView.typingAttributes = styling.base
         }
 
         private func recordEdit(at range: NSRange, replacement: String) {
@@ -410,6 +470,7 @@ public struct NoteEditorView: UIViewRepresentable {
         public func textViewDidChangeSelection(_ textView: UITextView) {
             // Deliberately does not touch SwiftUI state — see `NoteSelectionBox`.
             parent.selection.range = textView.selectedRange
+            caretMoved(in: textView)
             // Moving the caret away from a half-typed command has to close the menu, so this
             // runs here too — but only publishes on an actual change, so an ordinary caret
             // move still costs nothing.
@@ -458,7 +519,12 @@ public struct NoteEditorView: UIViewRepresentable {
             guard let (kind, range) = found else { return nil }
 
             let isInCode = NoteSyntax.spans(in: source, restyling: line).contains { span in
-                span.role == .code && NSLocationInRange(range.location, span.range)
+                let isCode: Bool
+                switch span.role {
+                case .code, .math: isCode = true
+                default: isCode = false
+                }
+                return isCode && NSLocationInRange(range.location, span.range)
             }
             guard !isInCode, let start = textView.selectedTextRange?.start else { return nil }
 
@@ -557,6 +623,7 @@ public struct NoteEditorView: UIViewRepresentable {
 
         public func textViewDidBeginEditing(_ textView: UITextView) {
             parent.isFocused = true
+            caretMoved(in: textView)
             // Coming back to a caret that never moved — after `[[` or `#rea`, where the writer left
             // it — changes no selection, so the menus would wait for the next keystroke to appear.
             publishSlashContext(in: textView)
@@ -567,6 +634,8 @@ public struct NoteEditorView: UIViewRepresentable {
             if parent.text != textView.text {
                 parent.text = textView.text
             }
+            // The keyboard went down: every formula is set again.
+            caretMoved(in: textView)
             // A menu offered at a caret that is no longer there has nothing to complete.
             if lastSlashContext != nil {
                 lastSlashContext = nil

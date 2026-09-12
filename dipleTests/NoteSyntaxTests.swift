@@ -143,4 +143,77 @@ final class NoteSyntaxTests: XCTestCase {
             XCTAssertFalse(source.substring(with: span.range).contains("\n"), "\(span)")
         }
     }
+
+    // MARK: - Formulas
+
+    private func latex(_ text: String) -> [String] {
+        NoteSyntax.formulas(in: text as NSString).map(\.latex)
+    }
+
+    func testInlineMathIsClaimedBeforeMarkdownReadsItsSymbols() {
+        let text = "Energy $a_1 * b_2 * c$ and *soft*"
+        XCTAssertEqual(words(text, .math(display: false)), ["$a_1 * b_2 * c$"])
+        XCTAssertEqual(words(text, .emphasis), ["*soft*"])
+    }
+
+    func testAnEscapedDollarAndAPriceAreNotFormulas() {
+        XCTAssertTrue(latex(#"costs \$5 and \$6"#).isEmpty)
+        XCTAssertTrue(latex("between $ and nothing").isEmpty)
+        XCTAssertTrue(latex("$  $").isEmpty)
+    }
+
+    func testParenthesisDelimitersWorkLikeDollars() {
+        XCTAssertEqual(latex(#"the ratio \(\frac{a}{b}\) holds"#), [#"\frac{a}{b}"#])
+    }
+
+    func testAClosedBlockIsOneDisplayFormulaCoveringItsDelimiters() {
+        let text = "Before\n$$\nx^2 + y^2\n= z^2\n$$\nAfter"
+        let formulas = NoteSyntax.formulas(in: text as NSString)
+        XCTAssertEqual(formulas.count, 1)
+        XCTAssertEqual(formulas.first?.latex, "x^2 + y^2\n= z^2")
+        XCTAssertEqual(formulas.first?.isDisplay, true)
+        XCTAssertEqual(formulas.first.map { (text as NSString).substring(with: $0.range) }, "$$\nx^2 + y^2\n= z^2\n$$")
+        XCTAssertEqual(words(text, .math(display: true)), ["$$", "x^2 + y^2", "= z^2", "$$"])
+    }
+
+    func testAnUnclosedBlockStaysProseAsItDoesOnTheRenderedPage() {
+        let text = "$$\nx *emph*"
+        XCTAssertTrue(latex(text).isEmpty)
+        XCTAssertEqual(words(text, .emphasis), ["*emph*"])
+    }
+
+    func testASingleLineBlockAndABracketBlockAreDisplayFormulas() {
+        XCTAssertEqual(latex("$$ E = mc^2 $$"), ["E = mc^2"])
+        XCTAssertEqual(latex("\\[\n\\sum_i x_i\n\\]"), [#"\sum_i x_i"#])
+    }
+
+    func testMathInsideAFenceIsCode() {
+        XCTAssertTrue(latex("```\n$x$\n$$\ny\n$$\n```").isEmpty)
+    }
+
+    /// The editor and the rendered page must agree on what is a formula, or the eye shows a
+    /// different page from the one being written. They are two readers of the same rules, so the
+    /// agreement is what is tested.
+    func testInlineFormulasAgreeWithTheRenderedPage() {
+        let lines = [
+            "Energy $E = mc^2$ and $$not this$$ but $a$.",
+            #"Escaped \$5, then \(\alpha\) and $\beta$"#,
+            "Nothing here",
+            "$ spaced $ then $x$y$z$",
+            "Only open $ and never closed"
+        ]
+        for line in lines {
+            let page: [String] = NoteMathParser.inlineSegments(in: line).compactMap {
+                if case .formula(let latex) = $0 { return latex }
+                return nil
+            }
+            XCTAssertEqual(latex(line), page, line)
+        }
+    }
+
+    func testAMathBlockRestylesTheWholeNote() {
+        let text = "a\n$$\nx\n$$\nb"
+        let range = NoteSyntax.restyleRange(for: NSRange(location: 0, length: 0), in: text as NSString)
+        XCTAssertEqual(range, NSRange(location: 0, length: (text as NSString).length))
+    }
 }

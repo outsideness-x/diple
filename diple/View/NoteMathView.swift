@@ -182,7 +182,7 @@ extension String {
     }
 }
 
-private enum NoteMathRenderer {
+enum NoteMathRenderer {
     private static let cache = NSCache<NSString, UIImage>()
 
     static func image(latex: String, fontSize: CGFloat, display: Bool) -> UIImage? {
