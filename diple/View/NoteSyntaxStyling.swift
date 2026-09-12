@@ -151,6 +151,160 @@ final class NoteTextView: UITextView {
 
     private var rules: [UIView] = []
 
+    /// A `[[wiki link]]` was tapped; the title inside the brackets.
+    var onOpenLink: ((String) -> Void)?
+    /// A task's box was ticked or unticked in place.
+    var onTaskToggled: (() -> Void)?
+
+    /// Off for the formula source, which is LaTeX and has no boxes or links to press.
+    var answersMarkdownTaps = true
+
+    private lazy var actionTap: UITapGestureRecognizer = {
+        let tap = UITapGestureRecognizer(target: self, action: #selector(performAction(_:)))
+        tap.delegate = tapGate
+        return tap
+    }()
+    private lazy var tapGate = TapGate(view: self)
+
+    /// Lets the box-and-link tap see a touch **only** when it lands on a box or a link.
+    ///
+    /// Failing in `gestureRecognizerShouldBegin` is not enough, and this was measured: a tap
+    /// recognizer merely present on the text view — even one that fails on every touch — stopped
+    /// an ordinary tap from placing the caret in a note with text in it. A recognizer that never
+    /// receives the touch is not in that competition at all. Its own object, because the text
+    /// view is already the delegate of its scroll recognizers.
+    private final class TapGate: NSObject, UIGestureRecognizerDelegate {
+        weak var view: NoteTextView?
+
+        init(view: NoteTextView) {
+            self.view = view
+        }
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard let view else { return false }
+            return view.action(at: touch.location(in: view)) != nil
+        }
+    }
+
+    override init(frame: CGRect, textContainer: NSTextContainer?) {
+        super.init(frame: frame, textContainer: textContainer)
+        addGestureRecognizer(actionTap)
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        addGestureRecognizer(actionTap)
+    }
+
+    // MARK: - Boxes and links that answer a tap
+
+    fileprivate enum Action {
+        /// The one character between a box's brackets.
+        case toggle(NSRange)
+        case open(String)
+    }
+
+    /// Whether a tap here lands on a task's box or on a wiki link, found by character rather than
+    /// by `UITextView`'s own link handling: in editable text a link answers only a long press, and
+    /// a box is not a link at all.
+    ///
+    /// The line comes first — the caret position nearest the finger — and only that line's
+    /// spans are read, so two boxes on neighbouring lines can never both claim one tap. Within the
+    /// line the box's target reaches back over its bullet and out to 44 pt: the `[ ]` alone is
+    /// narrower than a fingertip.
+    fileprivate func action(at point: CGPoint) -> Action? {
+        guard answersMarkdownTaps, textStorage.length > 0, markedTextRange == nil,
+              let position = closestPosition(to: point)
+        else { return nil }
+        let text = textStorage.mutableString as NSString
+        let offset = min(self.offset(from: beginningOfDocument, to: position), text.length)
+        let line = text.lineRange(for: NSRange(location: offset, length: 0))
+        let spans = NoteSyntax.spans(in: text, restyling: line)
+
+        for span in spans {
+            switch span.role {
+            case .task:
+                let bullet = spans.first {
+                    $0.role == .listMarker && $0.range.location + $0.range.length == span.range.location
+                }
+                let start = bullet?.range.location ?? span.range.location
+                let area = NSRange(location: start, length: span.range.location + span.range.length - start)
+                if contains(point, in: area, reach: 44) {
+                    return .toggle(NSRange(location: span.range.location + 1, length: 1))
+                }
+
+            case .link:
+                guard span.range.location >= 2,
+                      text.substring(with: NSRange(location: span.range.location - 2, length: 2)) == "[["
+                else { continue }
+                let area = NSRange(location: span.range.location - 2, length: span.range.length + 4)
+                if contains(point, in: area, reach: 0) {
+                    let title = text.substring(with: span.range).trimmingCharacters(in: .whitespaces)
+                    return title.isEmpty ? nil : .open(title)
+                }
+
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    private func contains(_ point: CGPoint, in range: NSRange, reach: CGFloat) -> Bool {
+        guard let start = position(from: beginningOfDocument, offset: range.location),
+              let end = position(from: start, offset: range.length),
+              let textRange = textRange(from: start, to: end)
+        else { return false }
+        return selectionRects(for: textRange).contains { selection in
+            let rect = selection.rect
+            guard !rect.isNull, rect.width > 0 else { return false }
+            let grow = CGSize(width: max(0, reach - rect.width) / 2, height: max(0, reach - rect.height) / 2)
+            return rect.insetBy(dx: -grow.width, dy: -grow.height).contains(point)
+        }
+    }
+
+    /// A tap on a box or a link belongs to the box or the link. The text view's own taps would
+    /// also put the caret there and raise the keyboard — ticking a box on a page being read is
+    /// not a request to start typing on it.
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer !== actionTap,
+           gestureRecognizer is UITapGestureRecognizer,
+           action(at: gestureRecognizer.location(in: self)) != nil {
+            return false
+        }
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
+    }
+
+    @objc private func performAction(_ tap: UITapGestureRecognizer) {
+        guard tap.state == .ended, let action = action(at: tap.location(in: self)) else { return }
+        switch action {
+        case .toggle(let mark):
+            toggleTask(at: mark)
+        case .open(let title):
+            onOpenLink?(title)
+        }
+    }
+
+    /// Rewrites the one character inside the brackets, through the text view's own editing path:
+    /// the undo stack keeps it, the delegate hears it like any keystroke — so the line restyles
+    /// and the note publishes — and the caret stays where the writer left it.
+    private func toggleTask(at mark: NSRange) {
+        let text = textStorage.mutableString as NSString
+        guard mark.location + mark.length <= text.length,
+              let start = position(from: beginningOfDocument, offset: mark.location),
+              let end = position(from: start, offset: mark.length),
+              let range = textRange(from: start, to: end)
+        else { return }
+
+        let isDone = text.substring(with: mark).lowercased() == "x"
+        let caret = selectedRange
+        replace(range, withText: isDone ? " " : "x")
+        if selectedRange != caret {
+            selectedRange = caret
+        }
+        onTaskToggled?()
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         placeQuoteRules()

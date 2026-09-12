@@ -2517,7 +2517,12 @@ private struct MacNoteInspector: View {
                             text: $bodyText,
                             selection: selection,
                             isFocused: $isBodyFocused,
-                            onSlashChanged: { slashContext = $0 }
+                            onSlashChanged: { slashContext = $0 },
+                            onOpenLink: { title in
+                                guard let target = note(titled: title) else { return }
+                                onOpenNote(target)
+                            },
+                            onTaskToggled: { saveImmediately() }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .noteSlashMenu(context: slashContext) { command in

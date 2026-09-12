@@ -824,7 +824,17 @@ public struct NoteDetailView: View {
                     text: $body_,
                     selection: selection,
                     isFocused: $isBodyFocused,
-                    onSlashChanged: { slashContext = $0 }
+                    onSlashChanged: { slashContext = $0 },
+                    onOpenLink: { title in
+                        guard let target = note(titled: title), let onOpenNote else { return }
+                        HapticManager.shared.selection()
+                        onOpenNote(target)
+                    },
+                    onTaskToggled: {
+                        announceTaskToggle(in: body_)
+                        saveTask?.cancel()
+                        _ = save(feedback: false)
+                    }
                 )
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .noteSlashMenu(context: slashContext) { command in
@@ -1055,20 +1065,22 @@ public struct NoteDetailView: View {
     /// stale until the page was left.
     private func toggleTask(_ task: NoteTask) {
         guard let updated = NoteMarkdown.togglingTask(atLine: task.lineIndex, in: body_) else { return }
+        announceTaskToggle(in: updated)
+        body_ = updated
+        saveTask?.cancel()
+        _ = save(feedback: false)
+    }
 
-        // Clearing the last item is the end of something, not another tick, and the hand
-        // should hear the difference.
-        let progress = NoteMarkdown.taskProgress(in: updated)
+    /// Clearing the last item is the end of something, not another tick, and the hand should hear
+    /// the difference. One rule for a box ticked on the set page and one ticked in the text.
+    private func announceTaskToggle(in markdown: String) {
+        let progress = NoteMarkdown.taskProgress(in: markdown)
         let finishedTheList = progress.map { $0.completed == $0.total && $0.total > 0 } ?? false
         if finishedTheList {
             HapticManager.shared.notification(.success)
         } else {
             HapticManager.shared.impact(.light)
         }
-
-        body_ = updated
-        saveTask?.cancel()
-        _ = save(feedback: false)
     }
 
     private func commitTagDraft() {

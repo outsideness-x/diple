@@ -123,6 +123,12 @@ public struct NoteEditorView: UIViewRepresentable {
     /// only when it actually changes keeps the editor's per-keystroke cost where the rest of
     /// this file worked to put it — see `NoteSelectionBox`.
     public let onSlashChanged: ((NoteSlashContext?) -> Void)?
+    /// A `[[wiki link]]` tapped in the text, with the title it names. Where it leads belongs to
+    /// the screen that owns the stack, exactly as it does for a link on the rendered page.
+    public let onOpenLink: ((String) -> Void)?
+    /// A box ticked in the text. The edit itself is already made and published; this is the
+    /// moment to say so to the hand and to write the note without waiting for the debounce.
+    public let onTaskToggled: (() -> Void)?
 
     /// Read so a change of text size restyles the note: the styling names point sizes, and a
     /// text view only rescales the one font it was given, not the dozen the Markdown wears.
@@ -136,7 +142,9 @@ public struct NoteEditorView: UIViewRepresentable {
         usesMonospacedFont: Bool = false,
         accessibilityLabel: String = "Note body",
         accessibilityIdentifier: String = "note.body",
-        onSlashChanged: ((NoteSlashContext?) -> Void)? = nil
+        onSlashChanged: ((NoteSlashContext?) -> Void)? = nil,
+        onOpenLink: ((String) -> Void)? = nil,
+        onTaskToggled: (() -> Void)? = nil
     ) {
         _text = text
         self.selection = selection
@@ -146,6 +154,8 @@ public struct NoteEditorView: UIViewRepresentable {
         self.editorAccessibilityLabel = accessibilityLabel
         self.editorAccessibilityIdentifier = accessibilityIdentifier
         self.onSlashChanged = onSlashChanged
+        self.onOpenLink = onOpenLink
+        self.onTaskToggled = onTaskToggled
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -153,6 +163,12 @@ public struct NoteEditorView: UIViewRepresentable {
     public func makeUIView(context: Context) -> UITextView {
         let view = NoteTextView()
         view.delegate = context.coordinator
+        // Through the coordinator rather than captured here: `parent` is replaced on every update,
+        // and a closure taken at creation would call the page as it was when the note opened.
+        let coordinator = context.coordinator
+        view.onOpenLink = { [weak coordinator] title in coordinator?.parent.onOpenLink?(title) }
+        view.onTaskToggled = { [weak coordinator] in coordinator?.parent.onTaskToggled?() }
+        view.answersMarkdownTaps = !usesMonospacedFont
         view.backgroundColor = .clear
         view.textColor = UIColor(DipleColor.textPrimary)
         view.tintColor = UIColor(DipleColor.accent)
