@@ -144,9 +144,19 @@ public struct NoteDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isEditing: Bool
+    /// The optional look at the page as it will read — formulas set, callouts drawn, the
+    /// outline listed — reached by the eye in the toolbar. The page itself is never in a mode:
+    /// it is open for writing from the moment it opens.
+    @State private var isPreviewing = false
     @State private var title: String
     @State private var body_: String
+    /// The body the Connections block was last built from.
+    ///
+    /// Connections read every note in the library and run a regular expression over this one.
+    /// Under an editor that is always open, wired to `body_`, that would run on every keystroke
+    /// — the same cost the caret was moved out of SwiftUI state to avoid. It settles a beat
+    /// after typing stops, which is the same moment the note is written.
+    @State private var settledBody: String
     @State private var tags: [String]
     @State private var tagDraft: String = ""
     @State private var selectedBookId: String?
@@ -188,9 +198,9 @@ public struct NoteDetailView: View {
         self.linkableNotes = Array(allNotes.filter { $0.id != route.item?.id }.prefix(30))
 
         let item = route.item
-        _isEditing = State(initialValue: item == nil)
         _title = State(initialValue: item?.note.title ?? route.initialTitle)
         _body_ = State(initialValue: item?.note.body ?? route.initialBody)
+        _settledBody = State(initialValue: item?.note.body ?? route.initialBody)
         _tags = State(initialValue: item?.tags ?? route.initialTags)
         _selectedBookId = State(initialValue: item?.note.bookId ?? route.initialBookId)
         _draftID = State(initialValue: item?.id ?? UUID().uuidString)
@@ -228,6 +238,10 @@ public struct NoteDetailView: View {
         books.first { $0.id == selectedBookId }
     }
 
+    /// The keyboard is up and the page belongs to the hands: the tab bar steps aside, the
+    /// formatting bar takes the bottom of the screen, and the toolbar offers Done.
+    private var isWriting: Bool { isBodyFocused || isTitleFocused }
+
     private var canSave: Bool {
         let hasBody = !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         // A day's page arrives with its date already in the title, and a page holding only the
@@ -262,14 +276,14 @@ public struct NoteDetailView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: DipleSpace.xxl) {
-                        if isEditing {
-                            editor
-                        } else {
+                        if isPreviewing {
                             reader { anchor in
                                 withAnimation(DipleMotion.gentle) {
                                     proxy.scrollTo(anchor, anchor: .top)
                                 }
                             }
+                        } else {
+                            editor
                         }
                     }
                     // A page of prose stops being readable long before it stops being wide, so the
@@ -282,25 +296,33 @@ public struct NoteDetailView: View {
                 }
             }
         }
-        .navigationTitle(isEditing ? (route.item == nil ? "New note" : "Editing") : "")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .toolbar { toolbarContent }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if isEditing {
+            // Only with the body's own keyboard up. These buttons write into the body, and a
+            // bar offering Bold while the caret sits in the title offers to format somewhere
+            // the writer is not looking.
+            if isBodyFocused {
                 formattingBar
             }
         }
-        // Editing owns the bottom of the screen. The formatting bar is a bottom safe-area inset,
-        // so with no software keyboard up — a hardware keyboard attached, or the keyboard
-        // dismissed mid-edit — it lands exactly where the floating tab bar is, and the tab bar
-        // covered half its controls. This is the same mechanism the reader uses, and it is a
-        // preference, so it goes away with the view: leaving the editor brings the bar back
-        // whether the reader tapped Done or swiped the screen away.
+        // A note page takes the tab bar down for as long as it is open, the way the reader
+        // does. Two reasons, and either would be enough.
         //
-        // Only while *editing*. Reading a note keeps the tab bar, because there is nothing at
-        // the bottom of the screen to collide with and no reason to take navigation away.
-        .modifier(HidesTabBarWhileEditing(isEditing: isEditing))
+        // The first is what the bar would say. Its `+` starts a note; offered over a note that
+        // is open and being written, it offers to start a second one. A page is not a place,
+        // and the bar belongs to places.
+        //
+        // The second is that it cannot be drawn over this page at all. The floating bar sits in
+        // the shell's ZStack above the whole root, and above a page holding the editor's
+        // `UITextView` the hosting view's layout never settles: `layoutSubviews` re-enters
+        // forever, `makeUIView` builds text view after text view, and the main thread sits at
+        // 100% — the keyboard cannot even come up. It went unseen until now because the two had
+        // never met: before the page opened for writing, the bar was up only over the *rendered*
+        // note, and editing hid it.
+        .hidesDipleTabBar()
         .sheet(isPresented: $isBookPickerPresented) {
             BookTagPickerView(books: books, selectedBookId: selectedBookId) { bookId in
                 selectedBookId = bookId
@@ -329,7 +351,7 @@ public struct NoteDetailView: View {
             onOpenNote(target)
             return .handled
         })
-        .animation(DipleMotion.standard, value: isEditing)
+        .animation(DipleMotion.standard, value: isPreviewing)
         .onAppear {
             // A note started *inside* a source opens ready to write. The reader tapped a
             // pencil with a book in hand and has one sentence in mind; asking them to find the
@@ -370,47 +392,55 @@ public struct NoteDetailView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        if isEditing {
+        // An empty new note has never been written anywhere, so "Saved" would be a claim about
+        // a row that does not exist. The indicator appears once there is something a save could
+        // actually be about — and the *item* appears with it: a principal toolbar item holding
+        // an empty view sends UIKit into an endless measuring loop, which pinned the main thread
+        // at 100% on every blank page.
+        if canSave || route.item != nil {
             ToolbarItem(placement: .principal) {
-                // An empty new note has never been written anywhere, so "Saved" would be a
-                // claim about a row that does not exist. The indicator appears once there is
-                // something a save could actually be about.
-                if canSave || route.item != nil {
-                    HStack(spacing: DipleSpace.s) {
-                        Circle()
-                            .fill(saveState.color)
-                            .frame(width: 6, height: 6)
-                            // The dot swells while a write is pending and settles when it
-                            // lands, so saving is something the writer catches at the edge of
-                            // vision rather than a word that quietly changes. Scaling leaves
-                            // the dot's own 6pt footprint alone, so the row never reflows.
-                            .scaleEffect(saveState == .saving ? 1.5 : 1)
-                        Text(saveState.label)
-                            .dipleType(.micro)
-                            .foregroundStyle(saveState.color)
-                            .contentTransition(.opacity)
-                    }
-                    .animation(DipleMotion.snappy, value: saveState)
+                HStack(spacing: DipleSpace.s) {
+                    Circle()
+                        .fill(saveState.color)
+                        .frame(width: 6, height: 6)
+                        // The dot swells while a write is pending and settles when it
+                        // lands, so saving is something the writer catches at the edge of
+                        // vision rather than a word that quietly changes. Scaling leaves
+                        // the dot's own 6pt footprint alone, so the row never reflows.
+                        .scaleEffect(saveState == .saving ? 1.5 : 1)
+                    Text(saveState.label)
+                        .dipleType(.micro)
+                        .foregroundStyle(saveState.color)
+                        .contentTransition(.opacity)
                 }
+                .animation(DipleMotion.snappy, value: saveState)
             }
+        }
 
+        if isWriting {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Done") { commit() }
+                // Puts the keyboard down. It leaves nothing, because there was no mode to
+                // leave: what is written is already written, and Back is the way off the page.
+                Button("Done") { finishWriting() }
                     .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(canSave ? DipleColor.accentInk : DipleColor.textQuaternary)
-                    .disabled(!canSave)
+                    .foregroundStyle(DipleColor.accentInk)
             }
         } else {
             ToolbarItem(placement: .navigationBarTrailing) {
+                // The page as it will read: formulas set, callouts drawn, the outline listed.
+                // Not the old Read half of a Read/Edit pair — nothing here is switched off by
+                // it, and the writing state it returns to is the one the page opens in.
                 Button {
                     HapticManager.shared.selection()
-                    isEditing = true
+                    isPreviewing.toggle()
                 } label: {
-                    Image(systemName: "square.and.pencil")
+                    Image(systemName: isPreviewing ? "square.and.pencil" : "eye")
                         .dipleIcon(16)
-                        .foregroundStyle(DipleColor.accentInk)
+                        .foregroundStyle(isPreviewing ? DipleColor.accentInk : DipleColor.textSecondary)
                 }
                 .buttonStyle(.readerControl)
+                .accessibilityLabel(isPreviewing ? "Back to writing" : "Read the page")
+                .accessibilityIdentifier("note.preview")
             }
 
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -538,7 +568,7 @@ public struct NoteDetailView: View {
     @ViewBuilder
     private var connectionsSection: some View {
         let backlinks = NoteKnowledge.backlinks(to: currentNoteForConnections, among: allNotes)
-        let outgoing = NoteKnowledge.outgoing(from: body_, among: allNotes)
+        let outgoing = NoteKnowledge.outgoing(from: settledBody, among: allNotes)
             .filter { $0.id != route.item?.id }
         let related = relatedNotes(excluding: Set((backlinks + outgoing).map(\.id)))
 
@@ -681,7 +711,7 @@ public struct NoteDetailView: View {
 
     private var currentNoteForConnections: NoteItem {
         if let item = route.item { return item }
-        let note = Note(id: draftID, title: title, body: body_, bookId: selectedBookId)
+        let note = Note(id: draftID, title: title, body: settledBody, bookId: selectedBookId)
         return NoteItem(note: note, tags: tags, book: selectedBook)
     }
 
@@ -804,6 +834,12 @@ public struct NoteDetailView: View {
                     isBodyFocused = true
                 }
             }
+
+            // What this thought is standing next to stays on the page now that the page is
+            // never left: the backlinks, the notes it points at, and the passages marked in
+            // the same book. This is the bridge back to reading, and it belongs under the
+            // writing rather than behind a mode.
+            connectionsSection
         }
     }
 
@@ -1002,9 +1038,6 @@ public struct NoteDetailView: View {
 
     // MARK: - Actions
 
-    /// Ticking a box is a finished decision, not a keystroke, so it is written straight away
-    /// rather than through the typing debounce — which is also gated on `isEditing` and would
-    /// never fire here, leaving the board's progress bar stale until the page was left.
     /// Resolves a wiki link's title the same way `NoteKnowledge` does when it builds the
     /// Connections list, so following a link and appearing in "Linked notes" cannot disagree
     /// about what a title matches.
@@ -1017,6 +1050,9 @@ public struct NoteDetailView: View {
         }
     }
 
+    /// Ticking a box is a finished decision, not a keystroke, so it is written straight away
+    /// rather than left to the typing debounce: the board's progress bar would otherwise stay
+    /// stale until the page was left.
     private func toggleTask(_ task: NoteTask) {
         guard let updated = NoteMarkdown.togglingTask(atLine: task.lineIndex, in: body_) else { return }
 
@@ -1044,19 +1080,18 @@ public struct NoteDetailView: View {
         tagDraft = ""
     }
 
-    /// Leaves editing. A new note has nothing to fall back to, so finishing it also leaves
-    /// the page; an existing one drops into its reading view.
-    private func commit() {
+    /// Puts the keyboard down and writes what is there.
+    ///
+    /// Not "leaving edit mode": there is no mode to leave. Done used to dismiss a new note
+    /// outright, because it was the only way out of a page that had opened in a state; the way
+    /// off the page is Back, and Done is what the thumb reaches for when the thought is
+    /// finished and the page is not.
+    private func finishWriting() {
+        isBodyFocused = false
+        isTitleFocused = false
         guard canSave else { return }
         saveTask?.cancel()
-        guard save(feedback: true) else { return }
-        isBodyFocused = false
-
-        if route.item == nil {
-            dismiss()
-        } else {
-            isEditing = false
-        }
+        _ = save(feedback: true)
     }
 
     private func save(feedback: Bool) -> Bool {
@@ -1081,6 +1116,10 @@ public struct NoteDetailView: View {
             spaceId: existing?.spaceId ?? route.initialSpaceId,
             dailyDate: existing?.dailyDate ?? route.initialDailyDate
         )
+        // Whatever is being written has stopped moving long enough to be written down, which
+        // is exactly when the Connections block is worth rebuilding.
+        settledBody = body_
+
         let didSave = onSave(note, finalTags)
         if didSave {
             lastSavedSnapshot = currentSnapshot
@@ -1103,7 +1142,7 @@ public struct NoteDetailView: View {
     }
 
     private func scheduleSave() {
-        guard isEditing, canSave, currentSnapshot != lastSavedSnapshot else { return }
+        guard canSave, currentSnapshot != lastSavedSnapshot else { return }
         saveTask?.cancel()
         saveState = .saving
         saveTask = Task { @MainActor in
@@ -1197,17 +1236,3 @@ public enum NoteKnowledge {
     }
 }
 
-/// Applied rather than written inline because `hidesDipleTabBar()` is a preference and has to be
-/// attached to something present in both states — a bare `if` would add and remove the view that
-/// carries it, which is a different thing from changing what it says.
-private struct HidesTabBarWhileEditing: ViewModifier {
-    let isEditing: Bool
-
-    func body(content: Content) -> some View {
-        if isEditing {
-            content.hidesDipleTabBar()
-        } else {
-            content
-        }
-    }
-}

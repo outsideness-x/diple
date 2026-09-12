@@ -61,6 +61,18 @@ struct dipleApp: App {
         #endif
     }
 
+    /// The notes workshop seals without seeding: the run writes its own note and reads it back.
+    /// What it needs from the seal is the top of the screen. The shared-link banner lands over
+    /// the navigation bar, and a note page's toolbar — Done, and the eye that shows the page as
+    /// it reads — lives exactly there.
+    private var isNotesWorkshopUITestFixture: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-diple-test-notes-workshop")
+        #else
+        false
+        #endif
+    }
+
     /// True for **any** XCUI fixture, which is what the seals below have to ask.
     ///
     /// They used to name the living-margins fixture directly, so the second fixture added
@@ -71,6 +83,7 @@ struct dipleApp: App {
         isLivingMarginsUITestFixture
             || isFinishedColophonUITestFixture
             || isReadingTrailUITestFixture
+            || isNotesWorkshopUITestFixture
     }
 
     init() {

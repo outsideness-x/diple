@@ -137,7 +137,11 @@ final class dipleUITests: XCTestCase {
         let app = XCUIApplication()
         // The shell reopens in whichever mode it was left in, so the run pins Reading and then
         // crosses to Notes the way a reader does — through the mode circle.
-        app.launchArguments = ["-diple_has_completed_first_launch", "YES", "-diple_app_mode", "reading"]
+        app.launchArguments = [
+            "-diple_has_completed_first_launch", "YES",
+            "-diple_app_mode", "reading",
+            "-diple-test-notes-workshop"
+        ]
         app.launch()
 
         // diple owns a floating tab bar rather than using UITabBar, so the mode circle and the
@@ -175,7 +179,11 @@ final class dipleUITests: XCTestCase {
         editorShot.lifetime = .keepAlways
         add(editorShot)
 
+        // Done only puts the keyboard down — the page is not a mode to leave — so getting off
+        // it is the back swipe.
         app.buttons["Done"].tap()
+        app.swipeBackFromEdge()
+
         // A note started from the Desk has no place yet, so it waits in the Inbox.
         let inbox = app.buttons.matching(identifier: "desk.inbox").firstMatch
         XCTAssertTrue(inbox.waitForExistence(timeout: 5))
@@ -184,6 +192,11 @@ final class dipleUITests: XCTestCase {
         XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
         savedNote.tap()
 
+        // It opens ready to write, with its own Markdown in front of the writer. The eye shows
+        // the page as it will read.
+        let preview = app.buttons["note.preview"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        preview.tap()
         XCTAssertTrue(app.staticTexts["On this page"].waitForExistence(timeout: 5))
 
         let readerShot = XCTAttachment(screenshot: app.screenshot())
@@ -252,7 +265,11 @@ final class dipleUITests: XCTestCase {
     @MainActor
     func testEquationComposerAndRenderedFormulaFlow() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-diple_has_completed_first_launch", "YES", "-diple_app_mode", "reading"]
+        app.launchArguments = [
+            "-diple_has_completed_first_launch", "YES",
+            "-diple_app_mode", "reading",
+            "-diple-test-notes-workshop"
+        ]
         app.launch()
 
         XCTAssertTrue(app.buttons["Notes"].waitForExistence(timeout: 5))
@@ -266,6 +283,11 @@ final class dipleUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
         title.typeText(noteTitle)
+
+        // The formatting bar belongs to the body's keyboard, so the caret goes there first.
+        let body = app.textViews["note.body"]
+        XCTAssertTrue(body.waitForExistence(timeout: 5))
+        body.tap()
 
         let equationButton = app.buttons["Equation"]
         XCTAssertTrue(equationButton.waitForExistence(timeout: 5))
@@ -290,17 +312,22 @@ final class dipleUITests: XCTestCase {
         XCTAssertTrue(insert.isEnabled)
         insert.tap()
 
-        let body = app.textViews["note.body"]
-        XCTAssertTrue(body.waitForExistence(timeout: 5))
         XCTAssertTrue((body.value as? String)?.contains("$$") == true)
 
         app.buttons["Done"].tap()
+        app.swipeBackFromEdge()
+
         let inbox = app.buttons.matching(identifier: "desk.inbox").firstMatch
         XCTAssertTrue(inbox.waitForExistence(timeout: 5))
         inbox.tap()
         let savedNote = app.staticTexts[noteTitle].firstMatch
         XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
         savedNote.tap()
+
+        // In the editor the formula is still its own source; set, it is under the eye.
+        let preview = app.buttons["note.preview"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5))
+        preview.tap()
         XCTAssertTrue(app.staticTexts["EQUATION"].waitForExistence(timeout: 5))
 
         let readerShot = XCTAttachment(screenshot: app.screenshot())
@@ -450,4 +477,18 @@ final class dipleUITests: XCTestCase {
         add(shot)
     }
 
+}
+
+
+extension XCUIApplication {
+    /// Leaves a pushed page the way a thumb does.
+    ///
+    /// Not the navigation bar's own button: the shell keeps every root mounted, so a query for
+    /// "the first button in the first navigation bar" is a lottery among the bars of screens
+    /// nobody is looking at.
+    func swipeBackFromEdge() {
+        let start = coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.55))
+        let end = coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.55))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
 }
