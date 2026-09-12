@@ -40,6 +40,25 @@ public struct NoteSlashContext: Equatable {
     public let caretRect: CGRect
 }
 
+/// A `[[link` or a `#tag` being typed at the caret.
+///
+/// The same arrangement as `NoteSlashContext`, and for the same reasons: the token opens a word
+/// and sits at the caret, otherwise it is text; it is published only when it changes; and the
+/// caret rect is in the text view's own space, where the menu is placed.
+public struct NoteCompletionContext: Equatable {
+    public enum Kind: Equatable {
+        case link
+        case tag
+    }
+
+    public let kind: Kind
+    /// What follows the `[[` or the `#`.
+    public let query: String
+    /// The trigger and the query together, replaced wholesale when a row is chosen.
+    public let range: NSRange
+    public let caretRect: CGRect
+}
+
 /// One entry in the slash menu.
 ///
 /// Deliberately expressed as the same prefix/suffix pair the formatting bar already uses, so a
@@ -129,6 +148,8 @@ public struct NoteEditorView: UIViewRepresentable {
     /// A box ticked in the text. The edit itself is already made and published; this is the
     /// moment to say so to the hand and to write the note without waiting for the debounce.
     public let onTaskToggled: (() -> Void)?
+    /// Reports a `[[` or `#` being typed, and `nil` the moment it stops being one.
+    public let onCompletionChanged: ((NoteCompletionContext?) -> Void)?
 
     /// Read so a change of text size restyles the note: the styling names point sizes, and a
     /// text view only rescales the one font it was given, not the dozen the Markdown wears.
@@ -144,7 +165,8 @@ public struct NoteEditorView: UIViewRepresentable {
         accessibilityIdentifier: String = "note.body",
         onSlashChanged: ((NoteSlashContext?) -> Void)? = nil,
         onOpenLink: ((String) -> Void)? = nil,
-        onTaskToggled: (() -> Void)? = nil
+        onTaskToggled: (() -> Void)? = nil,
+        onCompletionChanged: ((NoteCompletionContext?) -> Void)? = nil
     ) {
         _text = text
         self.selection = selection
@@ -156,6 +178,7 @@ public struct NoteEditorView: UIViewRepresentable {
         self.onSlashChanged = onSlashChanged
         self.onOpenLink = onOpenLink
         self.onTaskToggled = onTaskToggled
+        self.onCompletionChanged = onCompletionChanged
     }
 
     public func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -254,6 +277,7 @@ public struct NoteEditorView: UIViewRepresentable {
         var measuredText: String?
         var measuredHeight: CGFloat?
         var lastSlashContext: NoteSlashContext?
+        var lastCompletionContext: NoteCompletionContext?
 
         /// What the Markdown wears, for the current text size and script. `nil` until the first
         /// restyle, and never built at all for the formula source, which is not Markdown.
@@ -393,11 +417,105 @@ public struct NoteEditorView: UIViewRepresentable {
         }
 
         private func publishSlashContext(in textView: UITextView) {
-            guard let onSlashChanged = parent.onSlashChanged else { return }
-            let context = Self.slashContext(in: textView)
-            guard context != lastSlashContext else { return }
-            lastSlashContext = context
-            onSlashChanged(context)
+            if let onSlashChanged = parent.onSlashChanged {
+                let context = Self.slashContext(in: textView)
+                if context != lastSlashContext {
+                    lastSlashContext = context
+                    onSlashChanged(context)
+                }
+            }
+            if let onCompletionChanged = parent.onCompletionChanged {
+                let context = Self.completionContext(in: textView)
+                if context != lastCompletionContext {
+                    lastCompletionContext = context
+                    onCompletionChanged(context)
+                }
+            }
+        }
+
+        /// Finds a `[[link` or a `#tag` being typed immediately before the caret.
+        ///
+        /// A link is an unclosed `[[` earlier on the line with no `]]` after it; a caret already
+        /// inside a closed link is editing a link, not asking for one. A tag is a `#` that opens a
+        /// word with at least one tag letter after it — a bare `#` is the start of a heading as
+        /// often as of a tag, and a menu flashing on every heading would be noise — and the caret
+        /// has to be at its end, not in its middle. Neither opens inside code, where a `#` is a
+        /// comment and `[[` an array.
+        static func completionContext(in textView: UITextView) -> NoteCompletionContext? {
+            guard textView.markedTextRange == nil else { return nil }
+            let source = textView.text as NSString
+            let caret = textView.selectedRange
+            guard caret.length == 0, caret.location <= source.length, caret.location > 0 else { return nil }
+
+            let line = source.lineRange(for: NSRange(location: caret.location, length: 0))
+            var lineEnd = line.location + line.length
+            while lineEnd > line.location, source.character(at: lineEnd - 1) == 10 || source.character(at: lineEnd - 1) == 13 {
+                lineEnd -= 1
+            }
+
+            let found = linkContext(in: source, caret: caret.location, line: line.location, lineEnd: lineEnd)
+                ?? tagContext(in: source, caret: caret.location, line: line.location, lineEnd: lineEnd)
+            guard let (kind, range) = found else { return nil }
+
+            let isInCode = NoteSyntax.spans(in: source, restyling: line).contains { span in
+                span.role == .code && NSLocationInRange(range.location, span.range)
+            }
+            guard !isInCode, let start = textView.selectedTextRange?.start else { return nil }
+
+            let triggerLength = kind == .link ? 2 : 1
+            return NoteCompletionContext(
+                kind: kind,
+                query: source.substring(with: NSRange(
+                    location: range.location + triggerLength,
+                    length: range.length - triggerLength
+                )),
+                range: range,
+                caretRect: textView.caretRect(for: start)
+            )
+        }
+
+        private static func linkContext(
+            in source: NSString, caret: Int, line: Int, lineEnd: Int
+        ) -> (NoteCompletionContext.Kind, NSRange)? {
+            var index = caret - 1
+            while index > line, caret - index <= 80 {
+                let character = source.character(at: index)
+                let previous = source.character(at: index - 1)
+                if character == 93, previous == 93 { return nil } // "]]": the link is already closed
+                if character == 91, previous == 91 { // "[["
+                    // A closing pair ahead of the caret, before any new opening, means the caret
+                    // is inside `[[Existing]]`.
+                    var ahead = caret
+                    while ahead + 1 < lineEnd {
+                        let first = source.character(at: ahead)
+                        let second = source.character(at: ahead + 1)
+                        if first == 91, second == 91 { break }
+                        if first == 93, second == 93 { return nil }
+                        ahead += 1
+                    }
+                    return (.link, NSRange(location: index - 1, length: caret - index + 1))
+                }
+                index -= 1
+            }
+            return nil
+        }
+
+        private static func tagContext(
+            in source: NSString, caret: Int, line: Int, lineEnd: Int
+        ) -> (NoteCompletionContext.Kind, NSRange)? {
+            if caret < lineEnd, NoteSyntax.isTagCharacter(source.character(at: caret)) { return nil }
+            var index = caret - 1
+            while index >= line {
+                let character = source.character(at: index)
+                if character == 35 { // "#"
+                    let opensWord = index == line || NoteSyntax.isBlank(source.character(at: index - 1))
+                    guard opensWord, caret - index > 1 else { return nil }
+                    return (.tag, NSRange(location: index, length: caret - index))
+                }
+                guard NoteSyntax.isTagCharacter(character) else { return nil }
+                index -= 1
+            }
+            return nil
         }
 
         /// Finds a `/command` being typed immediately before the caret.
@@ -439,12 +557,24 @@ public struct NoteEditorView: UIViewRepresentable {
 
         public func textViewDidBeginEditing(_ textView: UITextView) {
             parent.isFocused = true
+            // Coming back to a caret that never moved — after `[[` or `#rea`, where the writer left
+            // it — changes no selection, so the menus would wait for the next keystroke to appear.
+            publishSlashContext(in: textView)
         }
 
         public func textViewDidEndEditing(_ textView: UITextView) {
             // Composition is committed when editing ends; publish whatever it produced.
             if parent.text != textView.text {
                 parent.text = textView.text
+            }
+            // A menu offered at a caret that is no longer there has nothing to complete.
+            if lastSlashContext != nil {
+                lastSlashContext = nil
+                parent.onSlashChanged?(nil)
+            }
+            if lastCompletionContext != nil {
+                lastCompletionContext = nil
+                parent.onCompletionChanged?(nil)
             }
             parent.isFocused = false
         }
@@ -534,6 +664,47 @@ private extension UITextView {
 }
 
 public enum NoteEditing {
+    /// Writes a chosen completion in place of the `[[query` or `#query` that summoned it, and
+    /// leaves the caret after it.
+    ///
+    /// A tag is followed by a space unless one is already there: the next thing typed after
+    /// choosing a tag is a word, not more of the tag. A link is closed, because a chosen title is
+    /// a finished link.
+    public static func complete(
+        _ context: NoteCompletionContext,
+        with value: String,
+        in text: inout String,
+        selection: NoteSelectionBox
+    ) {
+        var range = selection.range
+        complete(context, with: value, in: &text, selection: &range)
+        selection.move(to: range)
+    }
+
+    public static func complete(
+        _ context: NoteCompletionContext,
+        with value: String,
+        in text: inout String,
+        selection: inout NSRange
+    ) {
+        let source = text as NSString
+        guard context.range.location >= 0, context.range.location + context.range.length <= source.length else { return }
+
+        let replacement: String
+        switch context.kind {
+        case .link:
+            replacement = "[[\(value)]]"
+        case .tag:
+            let end = context.range.location + context.range.length
+            let followedBySpace = end < source.length && NoteSyntax.isBlank(source.character(at: end))
+            replacement = "#\(value)" + (followedBySpace ? "" : " ")
+        }
+
+        var target = context.range
+        replaceSelection(in: &text, selection: &target, with: replacement)
+        selection = target
+    }
+
     /// Runs a slash command: removes the `/query` that summoned it, then applies the command
     /// exactly as the matching formatting-bar button would.
     ///

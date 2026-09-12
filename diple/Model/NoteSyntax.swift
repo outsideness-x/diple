@@ -437,7 +437,7 @@ public enum NoteSyntax {
         return isBlank(text.character(at: index - 1))
     }
 
-    private static func isBlank(_ character: unichar) -> Bool {
+    static func isBlank(_ character: unichar) -> Bool {
         character == 32 || character == 9 || character == 10 || character == 13
     }
 
@@ -451,7 +451,7 @@ public enum NoteSyntax {
 
     /// Stated as what ends a tag rather than what a tag may contain, so every script keeps its
     /// letters without being listed.
-    private static func isTagCharacter(_ character: unichar) -> Bool {
+    static func isTagCharacter(_ character: unichar) -> Bool {
         if isBlank(character) { return false }
         switch character {
         case 35, 44, 46, 59, 58, 33, 63, 40, 41, 91, 93, 123, 125, 34, 39, 96, 42:

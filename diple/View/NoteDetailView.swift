@@ -141,6 +141,9 @@ public struct NoteDetailView: View {
     /// screen is on screen, so this is settled once in `init` — computing it inside `body`
     /// re-filtered the whole library and rebuilt a thirty-item menu on every keystroke.
     private let linkableNotes: [NoteItem]
+    /// Every title `[[` can complete to, for the same reason `linkableNotes` is settled once: the
+    /// menu is asked on every keystroke inside a link.
+    private let linkTitles: [String]
 
     @Environment(\.dismiss) private var dismiss
 
@@ -163,6 +166,7 @@ public struct NoteDetailView: View {
     @State private var isBookPickerPresented = false
     @State private var isAddingTag = false
     @State private var slashContext: NoteSlashContext?
+    @State private var completionContext: NoteCompletionContext?
     @State private var isBodyFocused = false
     @FocusState private var isTitleFocused: Bool
     @State private var selection = NoteSelectionBox()
@@ -196,6 +200,7 @@ public struct NoteDetailView: View {
         self.onOpenNote = onOpenNote
         self.onOpenPassage = onOpenPassage
         self.linkableNotes = Array(allNotes.filter { $0.id != route.item?.id }.prefix(30))
+        self.linkTitles = allNotes.filter { $0.id != route.item?.id }.map(\.displayTitle)
 
         let item = route.item
         _title = State(initialValue: item?.note.title ?? route.initialTitle)
@@ -834,9 +839,31 @@ public struct NoteDetailView: View {
                         announceTaskToggle(in: body_)
                         saveTask?.cancel()
                         _ = save(feedback: false)
-                    }
+                    },
+                    onCompletionChanged: { completionContext = $0 }
                 )
                 .frame(maxWidth: .infinity, alignment: .topLeading)
+                .noteCompletionMenu(
+                    context: completionContext,
+                    linkTitles: linkTitles,
+                    tagVocabulary: tags + unusedSuggestions,
+                    onPickLink: { pick, context in
+                        NoteEditing.complete(context, with: pick.title, in: &body_, selection: selection)
+                        completionContext = nil
+                        isBodyFocused = true
+                    },
+                    onPickTag: { pick, context in
+                        NoteEditing.complete(context, with: pick.tag, in: &body_, selection: selection)
+                        // The word in the text and the tag on the note are the same act: a tag
+                        // chosen here lands in the properties line too, so the note is found
+                        // under it — on its tag page, in the filters, in every other client.
+                        if !tags.contains(pick.tag) {
+                            tags.append(pick.tag)
+                        }
+                        completionContext = nil
+                        isBodyFocused = true
+                    }
+                )
                 .noteSlashMenu(context: slashContext) { command in
                     guard let context = slashContext else { return }
                     NoteEditing.applySlash(command, replacing: context.range, in: &body_, selection: selection)
@@ -844,6 +871,10 @@ public struct NoteDetailView: View {
                     isBodyFocused = true
                 }
             }
+            // The caret menus are overlays on the editor, and a stack draws its later children on
+            // top: without this the Connections block below printed its heading straight through
+            // a menu opened on the last lines of a note.
+            .zIndex(1)
 
             // What this thought is standing next to stays on the page now that the page is
             // never left: the backlinks, the notes it points at, and the passages marked in

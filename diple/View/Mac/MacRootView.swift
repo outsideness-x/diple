@@ -2328,6 +2328,8 @@ private struct MacNoteInspector: View {
     let onOpenNote: (NoteItem) -> Void
     let onSave: (Note, [String]) -> Bool
     let onDelete: () -> Void
+    /// What `[[` completes to, settled once: the menu is asked on every keystroke inside a link.
+    private let linkTitles: [String]
 
     @State private var title: String
     @State private var bodyText: String
@@ -2348,6 +2350,7 @@ private struct MacNoteInspector: View {
     @State private var isBodyFocused = false
     @State private var isPreviewing = false
     @State private var slashContext: NoteSlashContext?
+    @State private var completionContext: NoteCompletionContext?
     @State private var isFormulaComposerPresented = false
     @State private var formulaSeed = ""
     @State private var formulaMode: NoteFormulaMode = .inline
@@ -2391,6 +2394,7 @@ private struct MacNoteInspector: View {
         self.onOpenNote = onOpenNote
         self.onSave = onSave
         self.onDelete = onDelete
+        self.linkTitles = allNotes.filter { $0.id != item.id }.map(\.displayTitle)
 
         let initialTitle = item.note.title ?? ""
         _title = State(initialValue: initialTitle)
@@ -2522,7 +2526,26 @@ private struct MacNoteInspector: View {
                                 guard let target = note(titled: title) else { return }
                                 onOpenNote(target)
                             },
-                            onTaskToggled: { saveImmediately() }
+                            onTaskToggled: { saveImmediately() },
+                            onCompletionChanged: { completionContext = $0 }
+                        )
+                        .noteCompletionMenu(
+                            context: completionContext,
+                            linkTitles: linkTitles,
+                            tagVocabulary: tags + unusedSuggestions,
+                            onPickLink: { pick, context in
+                                NoteEditing.complete(context, with: pick.title, in: &bodyText, selection: selection)
+                                completionContext = nil
+                                isBodyFocused = true
+                            },
+                            onPickTag: { pick, context in
+                                NoteEditing.complete(context, with: pick.tag, in: &bodyText, selection: selection)
+                                if !tags.contains(pick.tag) {
+                                    tags.append(pick.tag)
+                                }
+                                completionContext = nil
+                                isBodyFocused = true
+                            }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .noteSlashMenu(context: slashContext) { command in
