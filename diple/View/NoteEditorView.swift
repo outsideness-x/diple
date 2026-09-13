@@ -622,7 +622,12 @@ public struct NoteEditorView: UIViewRepresentable {
         }
 
         public func textViewDidBeginEditing(_ textView: UITextView) {
-            parent.isFocused = true
+            // Only when it is news. Focus asked for by `updateUIView` itself arrives here inside
+            // that update, and writing the binding back to the value it already holds is still a
+            // state change during a view update as far as SwiftUI is concerned.
+            if !parent.isFocused {
+                parent.isFocused = true
+            }
             caretMoved(in: textView)
             // Coming back to a caret that never moved — after `[[` or `#rea`, where the writer left
             // it — changes no selection, so the menus would wait for the next keystroke to appear.
@@ -645,7 +650,9 @@ public struct NoteEditorView: UIViewRepresentable {
                 lastCompletionContext = nil
                 parent.onCompletionChanged?(nil)
             }
-            parent.isFocused = false
+            if parent.isFocused {
+                parent.isFocused = false
+            }
         }
     }
 }
