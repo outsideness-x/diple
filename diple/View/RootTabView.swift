@@ -157,13 +157,13 @@ public struct RootTabView: View {
 
     private func perform(_ shortcut: DipleShortcut) {
         mode = .notes
-        guard shortcut == .newNote else { return }
+        guard shortcut != .notes else { return }
         // One turn of the run loop later. On a cold launch the notes stack is being built in
         // this same pass, and a request posted before it is listening would be a page nobody
         // opens.
         Task { @MainActor in
             await Task.yield()
-            NotificationCenter.default.post(name: .dipleComposeNote, object: nil)
+            NotificationCenter.default.post(name: .dipleNotesArrival, object: shortcut.rawValue)
         }
     }
 
@@ -220,4 +220,7 @@ public struct RootTabView: View {
 extension Notification.Name {
     /// The bar's `+` in Notes was pressed: start a new note in the notes stack.
     static let dipleComposeNote = Notification.Name("diple.composeNote")
+    /// A way in from outside the app — a quick action, the widget, Control Center, Shortcuts —
+    /// asked for a page of the notes workshop. The object is a `DipleShortcut` raw value.
+    static let dipleNotesArrival = Notification.Name("diple.notesArrival")
 }

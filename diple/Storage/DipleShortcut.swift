@@ -10,10 +10,31 @@ import UIKit
 /// Installed from code rather than declared in `Info.plist`. The plist is shared with the Mac
 /// build, where a Home Screen does not exist, and items set here can be localised like any
 /// other string in the app.
+///
+/// The same routes carry every other way in from outside the app: the `diple://new-note`,
+/// `diple://today` and `diple://inbox` addresses the widget and the Control Center button open,
+/// and the New Note command in Shortcuts, Siri and the Action button. One set of routes, so a
+/// thought started from the Lock Screen and one started from the icon land on the same page.
 @MainActor
 enum DipleShortcut: String {
     case newNote = "com.chemical-pink.diple.newNote"
     case notes = "com.chemical-pink.diple.notes"
+    /// Today's page. Not a Home Screen item — the widget's route.
+    case today = "com.chemical-pink.diple.today"
+    /// The Inbox. Not a Home Screen item — the widget's route.
+    case inbox = "com.chemical-pink.diple.inbox"
+
+    /// The route a `diple://` address names, or `nil` for any other address.
+    init?(url: URL) {
+        guard url.scheme == "diple" else { return nil }
+        switch url.host {
+        case "new-note": self = .newNote
+        case "today": self = .today
+        case "inbox": self = .inbox
+        case "notes": self = .notes
+        default: return nil
+        }
+    }
 
     /// A shortcut that arrived before anything could act on it. On a cold launch the scene
     /// connects — and hands over the item — before `RootTabView` exists to hear a notification,
@@ -42,9 +63,25 @@ enum DipleShortcut: String {
     @discardableResult
     static func receive(_ item: UIApplicationShortcutItem) -> Bool {
         guard let shortcut = DipleShortcut(rawValue: item.type) else { return false }
+        receive(shortcut)
+        return true
+    }
+
+    /// Takes a route to whichever shell this build has.
+    ///
+    /// The phone's shell reads `pending`; the Mac's has no Notes mode to switch into and answers
+    /// its own menu commands, so a new note there is the File menu's New Note and every other
+    /// route opens the Notes column.
+    static func receive(_ shortcut: DipleShortcut) {
+        #if targetEnvironment(macCatalyst)
+        switch shortcut {
+        case .newNote: MacCommand.newNote.post()
+        case .notes, .today, .inbox: MacCommand.goNotes.post()
+        }
+        #else
         pending = shortcut
         NotificationCenter.default.post(name: .dipleShortcut, object: nil)
-        return true
+        #endif
     }
 
     /// The shortcut waiting to be acted on, handed out once.

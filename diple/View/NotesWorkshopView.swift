@@ -43,6 +43,13 @@ public struct NotesWorkshopView: View {
     /// sheet lands in a hierarchy that is still tearing that sheet down and is lost.
     @State private var pendingRoute: NoteRoute?
     @State private var pendingReader: (book: Book, locatorJSON: String)?
+    /// Counts arrivals from outside the app, and is the note pages' identity.
+    ///
+    /// An arrival empties the stack and pushes its page in one update, so the new page stands at
+    /// the position the old one left — and SwiftUI kept the old page there, with its `@State`:
+    /// asked for Today over a blank new note, it showed the blank note under Today's route, marked
+    /// Saved. A new count makes it a new page.
+    @State private var arrivals = 0
 
     public init() {}
 
@@ -92,6 +99,10 @@ public struct NotesWorkshopView: View {
         .onReceive(NotificationCenter.default.publisher(for: .dipleComposeNote)) { _ in
             compose()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .dipleNotesArrival)) { notification in
+            guard let raw = notification.object as? String, let route = DipleShortcut(rawValue: raw) else { return }
+            arrive(route)
+        }
         .refreshesOnTabActivation { model.load() }
     }
 
@@ -104,6 +115,30 @@ public struct NotesWorkshopView: View {
 
     private func openNote(_ route: NoteRoute) {
         path.append(route)
+    }
+
+    /// A page asked for from outside the app, opened from the Desk rather than from wherever the
+    /// stack was left.
+    ///
+    /// The bar's `+` is contextual because the writer can see where they stand. A button on the
+    /// Lock Screen cannot: "New note" pressed there while a space was left open yesterday would
+    /// file the thought in that space, out of sight. So an arrival goes where its name says — a new
+    /// note waits in the Inbox, Today is today's page — and the page that was open is saved on its
+    /// way off the stack like any page that is left.
+    private func arrive(_ route: DipleShortcut) {
+        arrivals += 1
+        places = []
+        path = NavigationPath()
+        switch route {
+        case .newNote:
+            openNote(.new)
+        case .today:
+            openToday()
+        case .inbox:
+            open(.inbox)
+        case .notes:
+            break
+        }
     }
 
     /// Today's page: the one already begun, or a fresh one that exists from its first word.
@@ -209,6 +244,7 @@ public struct NotesWorkshopView: View {
             onOpenNote: { openNote(.existing($0)) },
             onOpenPassage: { editingPassage = $0 }
         )
+        .id(arrivals)
     }
 
     // MARK: - A passage, from a note's Connections

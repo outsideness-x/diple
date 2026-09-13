@@ -180,6 +180,12 @@ struct dipleApp: App {
             // Tapping the widget lands on Highlights, through the same door the daily
             // notification already opens — one route into that screen, not two.
             .onOpenURL { url in
+                if let route = DipleShortcut(url: url) {
+                    // The widget's and Control Center's ways into Notes — the same routes the
+                    // Home Screen quick actions travel.
+                    DipleShortcut.receive(route)
+                    return
+                }
                 guard url.scheme == "diple", url.host == "daily" else { return }
                 DailyResurfacingService.shared.requestOpenFromNotification()
             }
