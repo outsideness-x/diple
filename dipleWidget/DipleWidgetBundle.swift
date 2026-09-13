@@ -5,5 +5,9 @@ import WidgetKit
 struct DipleWidgetBundle: WidgetBundle {
     var body: some Widget {
         DailyPassageWidget()
+        NotesWidget()
+        #if !targetEnvironment(macCatalyst)
+        NewNoteControl()
+        #endif
     }
 }

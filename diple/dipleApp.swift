@@ -156,6 +156,11 @@ struct dipleApp: App {
             // and running it on every activation costs nothing: `apply` returns immediately when
             // the icon already matches.
             .onChange(of: scenePhase, initial: true) { _, phase in
+                // Leaving the screen is when a session's writing is over, so it is when the notes
+                // widget is told what the session wrote.
+                if phase == .background, !isUITestFixture {
+                    NotesWidgetSnapshot.refresh()
+                }
                 guard phase == .active else { return }
                 #if targetEnvironment(macCatalyst)
                 DipleWindowCapture.runIfRequested()
@@ -168,6 +173,7 @@ struct dipleApp: App {
                     // Activation is the one moment the app reliably gets, and the widget's copy
                     // only ever needs to be as fresh as the last time diple was opened.
                     DailyResurfacingService.shared.refreshWidgetSnapshot()
+                    NotesWidgetSnapshot.refresh()
                 }
             }
             // A restore, an import or an iCloud batch can change the whole pool the day's
@@ -178,6 +184,8 @@ struct dipleApp: App {
             }
             .onReceive(NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)) { _ in
                 DailyResurfacingService.shared.refreshWidgetSnapshot()
+                // iCloud, Add to Today and the share sheet all post this.
+                NotesWidgetSnapshot.refresh()
             }
             // Tapping the widget lands on Highlights, through the same door the daily
             // notification already opens — one route into that screen, not two.

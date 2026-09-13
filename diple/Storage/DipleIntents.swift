@@ -41,6 +41,9 @@ struct AddToTodayIntent: AppIntent {
         // Every screen that shows notes rereads on this, the same news it already takes from
         // iCloud: rows changed under it that it did not change itself.
         NotificationCenter.default.post(name: .dipleRemoteDataDidChange, object: nil)
+        // Written here and now rather than left to that notification: run from Siri, the app may
+        // have no scene to hear it, and the process can be put away the moment this returns.
+        NotesWidgetSnapshot.write(now: Date())
         return .result(dialog: "Added to \(day).")
     }
 }
