@@ -78,6 +78,16 @@
         }
       }
     },
+    "%@, %lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld %3$@"
+          }
+        }
+      }
+    },
     "%@, %lld results" : {
       "localizations" : {
         "en" : {
@@ -177,7 +187,13 @@
     "A" : {
 
     },
+    "A line that begins with - [ ] in any note is a task, and it collects here." : {
+
+    },
     "A note written here is filed under this book and tagged with its name, and it waits for you in Notes with everything else you have written." : {
+
+    },
+    "A note's tags are set under its title. Every word used on a note is listed here." : {
 
     },
     "A place for what stays with you." : {
@@ -190,6 +206,9 @@
 
     },
     "Add" : {
+
+    },
+    "Add ${text} to Today" : {
 
     },
     "Add a tag" : {
@@ -207,7 +226,13 @@
     "Add tags or a source" : {
 
     },
+    "Add to Today" : {
+
+    },
     "Add to your library" : {
+
+    },
+    "Added to %@." : {
 
     },
     "Adding to your library" : {
@@ -216,10 +241,16 @@
     "Adding to your library…" : {
 
     },
+    "Adds a line to today’s page in diple without opening the app." : {
+
+    },
     "Adjust to move through the book" : {
 
     },
     "All" : {
+
+    },
+    "All %lld notes here will be deleted and cannot be restored." : {
 
     },
     "All sources and tags" : {
@@ -245,6 +276,9 @@
     },
     "Back" : {
       "comment" : "Second Read navigation back button"
+    },
+    "Back to writing" : {
+
     },
     "Begin a line with **-** for a list, **- [ ]** for a task, **#** for a heading, or **>** to quote. Return carries the list on." : {
 
@@ -381,6 +415,9 @@
     "Copy text" : {
 
     },
+    "Create" : {
+
+    },
     "Creates a versioned JSON backup you can save or share" : {
 
     },
@@ -405,6 +442,12 @@
     "Delete" : {
 
     },
+    "Delete “%@”?" : {
+
+    },
+    "Delete %lld" : {
+
+    },
     "Delete %lld items?" : {
 
     },
@@ -412,6 +455,9 @@
 
     },
     "Delete book?" : {
+
+    },
+    "Delete for good?" : {
 
     },
     "Delete highlight" : {
@@ -423,19 +469,28 @@
     "Delete note?" : {
 
     },
+    "Delete now" : {
+
+    },
     "Delete passage" : {
 
     },
     "Delete passage?" : {
 
     },
+    "Delete space…" : {
+
+    },
     "Delete this" : {
 
     },
-    "Delete this note?" : {
+    "Delete this note" : {
 
     },
     "Delete this?" : {
+
+    },
+    "Deleted notes stay here for thirty days, then go for good." : {
 
     },
     "Deselect all" : {
@@ -498,9 +553,6 @@
     "Edit the comment on this passage" : {
 
     },
-    "Editing" : {
-
-    },
     "EDITORIAL — LITERATA" : {
 
     },
@@ -511,6 +563,12 @@
 
     },
     "Elsewhere in your reading: %@" : {
+
+    },
+    "Empty" : {
+
+    },
+    "Empty Recently deleted?" : {
 
     },
     "Enable haptics" : {
@@ -574,10 +632,16 @@
     "Filter and sort" : {
 
     },
+    "Find a note" : {
+
+    },
     "Find every passage that mentions a word or phrase, and jump straight to it." : {
 
     },
     "Find your notes, saved highlights, books and the text of imported articles in one place." : {
+
+    },
+    "Finish" : {
 
     },
     "Footnote" : {
@@ -652,6 +716,9 @@
     "In progress" : {
 
     },
+    "Inbox" : {
+
+    },
     "Indexing your library" : {
 
     },
@@ -664,6 +731,9 @@
     "INTERFACE — SANS" : {
 
     },
+    "It goes to Recently deleted in Notes for thirty days." : {
+
+    },
     "It may have been deleted since the search was performed." : {
 
     },
@@ -671,6 +741,12 @@
 
     },
     "items returned to your library" : {
+
+    },
+    "Its %lld notes move to the Inbox." : {
+
+    },
+    "Its note moves to the Inbox." : {
 
     },
     "Keep reading" : {
@@ -683,6 +759,9 @@
 
     },
     "Layout" : {
+
+    },
+    "Leave in Inbox" : {
 
     },
     "Library" : {
@@ -745,7 +824,22 @@
     "Move %lld" : {
 
     },
+    "Move %lld notes" : {
+
+    },
+    "Move note" : {
+
+    },
     "Move to %@" : {
+
+    },
+    "Move to…" : {
+
+    },
+    "Name" : {
+
+    },
+    "Name and glyph…" : {
 
     },
     "Narrow to" : {
@@ -760,6 +854,12 @@
     "New Note" : {
 
     },
+    "New space" : {
+
+    },
+    "New space…" : {
+
+    },
     "New tag" : {
 
     },
@@ -770,6 +870,9 @@
 
     },
     "No matches" : {
+
+    },
+    "No notes match" : {
 
     },
     "No notes yet" : {
@@ -796,7 +899,7 @@
     "Notes" : {
 
     },
-    "Notes are removed permanently. Passages and their comments are removed too." : {
+    "Notes go to Recently deleted for thirty days. Passages and their comments are removed for good." : {
 
     },
     "Notes, highlights and library" : {
@@ -823,6 +926,9 @@
     "Nothing marked yet" : {
 
     },
+    "Nothing to do" : {
+
+    },
     "Nothing written down yet" : {
 
     },
@@ -833,6 +939,9 @@
       "comment" : "Dismisses a Second Read error alert"
     },
     "On this page" : {
+
+    },
+    "One at a time, into your spaces." : {
 
     },
     "One at a time, with the words you use." : {
@@ -856,10 +965,16 @@
     "Open this passage in %@" : {
 
     },
+    "Opens a blank page in diple’s Inbox." : {
+
+    },
     "Opens at your last reading position" : {
 
     },
     "Opens that passage" : {
+
+    },
+    "Opens the note" : {
 
     },
     "Opens the privacy policy in your browser" : {
@@ -901,7 +1016,16 @@
     "Photos" : {
 
     },
+    "Pin" : {
+
+    },
+    "PINNED" : {
+
+    },
     "Preparing search…" : {
+
+    },
+    "Press + to start one. It waits in the Inbox until it has a place; a note you write inside a book is filed under that book." : {
 
     },
     "Previous note" : {
@@ -916,7 +1040,13 @@
     "Privacy Policy" : {
 
     },
+    "PUT IT IN" : {
+
+    },
     "Quote" : {
+
+    },
+    "Read the page" : {
 
     },
     "Reader" : {
@@ -965,6 +1095,9 @@
 
     },
     "Reopening the app is worth trying first. If it keeps failing, you can start a new empty library; the unreadable file is kept beside it, so a future version may still be able to recover it." : {
+
+    },
+    "Restore" : {
 
     },
     "Restore backup" : {
@@ -1132,6 +1265,15 @@
     "Source unavailable" : {
       "comment" : "Shown when a Second Read fragment's book file is missing"
     },
+    "Space" : {
+
+    },
+    "Space options" : {
+
+    },
+    "Spaces" : {
+
+    },
     "Start a new library" : {
 
     },
@@ -1159,10 +1301,16 @@
     "Status" : {
 
     },
+    "Swipe right to restore" : {
+
+    },
     "Switch to covers" : {
 
     },
     "Switch to list" : {
+
+    },
+    "Switches to %@" : {
 
     },
     "Sync your library, highlights and notes across your devices" : {
@@ -1195,6 +1343,9 @@
     "Taps reaching the page: %lld" : {
 
     },
+    "Text" : {
+
+    },
     "The backup was merged without deleting anything already on this device." : {
 
     },
@@ -1210,7 +1361,13 @@
     "The inbox is clear." : {
 
     },
+    "The Inbox is clear." : {
+
+    },
     "The Inland Sea of Japan." : {
+
+    },
+    "The note here will be deleted and cannot be restored." : {
 
     },
     "The page remembers where the reader paused, and the words continue in their own quiet measure." : {
@@ -1222,19 +1379,22 @@
     "The saved passage and its comment will be removed." : {
 
     },
+    "The space is empty." : {
+
+    },
     "The word is added to each chosen row. Nothing already there is replaced." : {
 
     },
     "The word is added to each chosen source. Nothing already there is replaced." : {
 
     },
+    "There was nothing to add." : {
+
+    },
     "THIS IMPORT" : {
 
     },
-    "This note and its tags will be removed everywhere, not only from this book." : {
-
-    },
-    "This note and its tags will be removed." : {
+    "This note cannot be restored afterwards." : {
 
     },
     "This note will be removed permanently." : {
@@ -1279,6 +1439,9 @@
     "Type LaTeX or choose a building block" : {
 
     },
+    "Unpin" : {
+
+    },
     "Unsorted" : {
 
     },
@@ -1295,6 +1458,12 @@
 
     },
     "What is left keeps its place in Unsorted." : {
+
+    },
+    "What is left waits in the Inbox." : {
+
+    },
+    "What should go on today’s page?" : {
 
     },
     "What stayed with you." : {
