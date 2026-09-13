@@ -163,6 +163,8 @@ struct dipleApp: App {
                 AppIconManager.apply(settingsManager.settings.accent)
                 if !isUITestFixture {
                     sharedLinkCoordinator.processPending()
+                    // Words shared from another app become notes before anything reads the Inbox.
+                    SharedNoteDrain.run()
                     // Activation is the one moment the app reliably gets, and the widget's copy
                     // only ever needs to be as fresh as the last time diple was opened.
                     DailyResurfacingService.shared.refreshWidgetSnapshot()
@@ -206,6 +208,10 @@ struct dipleApp: App {
                 // What has sat in Recently deleted past its thirty days goes now, before sync
                 // starts, so the deletions travel in the same first pass as everything else.
                 _ = try? AppDatabase.shared.purgeTrash()
+
+                // Words shared while diple is already on screen — from its own share sheet —
+                // arrive without an activation to wait for.
+                SharedNoteDrain.listen()
 
                 await DailyResurfacingService.shared.reconcileNotifications()
                 // iCloud sync is opt-in (device-local flag, off by default — see CLAUDE.md).

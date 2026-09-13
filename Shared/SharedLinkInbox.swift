@@ -94,8 +94,7 @@ public nonisolated struct SharedLinkInbox: Sendable {
     }
 
     private static let maximumPendingCount = 100
-    private let directoryURL: URL
-    private let queueURL: URL
+    private let queue: AppGroupJSONFile<Entry>
 
     public static func live() throws -> Self {
         guard let directoryURL = FileManager.default.containerURL(
@@ -109,8 +108,7 @@ public nonisolated struct SharedLinkInbox: Sendable {
     /// An injectable directory keeps queue semantics testable without requiring signed App
     /// Group entitlements in the XCTest host.
     public init(directoryURL: URL) {
-        self.directoryURL = directoryURL
-        self.queueURL = directoryURL.appendingPathComponent("shared-link-inbox.json")
+        self.queue = AppGroupJSONFile(directoryURL: directoryURL, fileName: "shared-link-inbox.json")
     }
 
     @discardableResult
@@ -134,7 +132,7 @@ public nonisolated struct SharedLinkInbox: Sendable {
     }
 
     public func pending() throws -> [Entry] {
-        try coordinate { try readQueue() }
+        try queue.read().sorted { $0.createdAt < $1.createdAt }
     }
 
     public func remove(id: UUID) throws {
@@ -187,47 +185,9 @@ public nonisolated struct SharedLinkInbox: Sendable {
     }
 
     private func mutate<Output>(_ change: (inout [Entry]) throws -> Output) throws -> Output {
-        try coordinate {
-            var entries = try readQueue()
-            let result = try change(&entries)
-            try writeQueue(entries)
-            return result
+        try queue.mutate { entries in
+            entries.sort { $0.createdAt < $1.createdAt }
+            return try change(&entries)
         }
-    }
-
-    private func coordinate<Output>(_ work: () throws -> Output) throws -> Output {
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-
-        let coordinator = NSFileCoordinator(filePresenter: nil)
-        var coordinationError: NSError?
-        var outcome: Result<Output, Error>?
-        coordinator.coordinate(
-            writingItemAt: directoryURL,
-            options: .forMerging,
-            error: &coordinationError
-        ) { _ in
-            outcome = Result { try work() }
-        }
-
-        if let coordinationError { throw coordinationError }
-        guard let outcome else { throw InboxError.queueUnavailable }
-        return try outcome.get()
-    }
-
-    private func readQueue() throws -> [Entry] {
-        guard FileManager.default.fileExists(atPath: queueURL.path) else { return [] }
-        let data = try Data(contentsOf: queueURL, options: .mappedIfSafe)
-        guard !data.isEmpty else { return [] }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode([Entry].self, from: data)
-            .sorted { $0.createdAt < $1.createdAt }
-    }
-
-    private func writeQueue(_ entries: [Entry]) throws {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.sortedKeys]
-        try encoder.encode(entries).write(to: queueURL, options: .atomic)
     }
 }

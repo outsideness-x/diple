@@ -30,11 +30,22 @@ final class ShareViewController: UIViewController {
 
 @MainActor
 private final class ShareExtensionModel: ObservableObject {
+    /// What arrived: an address to import as an article, or words to keep as a note.
+    enum Kept: Equatable {
+        case link(host: String)
+        case note(preview: String)
+    }
+
     enum State: Equatable {
         case reading
-        case saving(host: String)
-        case saved(host: String)
+        case saving(Kept)
+        case saved(Kept)
         case failed(message: String)
+    }
+
+    private enum SharedItem {
+        case link(URL)
+        case note(String)
     }
 
     @Published private(set) var state: State = .reading
@@ -47,12 +58,20 @@ private final class ShareExtensionModel: ObservableObject {
     func begin() {
         Task {
             do {
-                let url = try await sharedURL()
-                let host = url.host(percentEncoded: false) ?? url.host ?? "article"
-                state = .saving(host: host)
-                _ = try SharedLinkInbox.live().enqueue(url)
+                let kept: Kept
+                switch try await sharedItem() {
+                case .link(let url):
+                    kept = .link(host: url.host(percentEncoded: false) ?? url.host ?? "article")
+                    state = .saving(kept)
+                    _ = try SharedLinkInbox.live().enqueue(url)
+                case .note(let text):
+                    kept = .note(preview: Self.preview(of: text))
+                    state = .saving(kept)
+                    _ = try SharedNoteInbox.live().enqueue(text)
+                    SharedNoteInbox.announceEnqueue()
+                }
                 withAnimation(.spring(response: 0.44, dampingFraction: 0.84)) {
-                    state = .saved(host: host)
+                    state = .saved(kept)
                 }
             } catch {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
@@ -66,7 +85,12 @@ private final class ShareExtensionModel: ObservableObject {
         context.completeRequest(returningItems: nil)
     }
 
-    private func sharedURL() async throws -> URL {
+    /// A web address is imported as an article, as it always was; words become a note in the
+    /// Inbox. A real URL attachment wins outright — Safari shares the page itself. Plain text is a
+    /// link only when it is nothing but an address (`SharedNoteInbox.linkOnly`): a paragraph that
+    /// happens to cite a page was shared to keep the paragraph, and used to be thrown away for the
+    /// first address found inside it.
+    private func sharedItem() async throws -> SharedItem {
         let providers = context.inputItems
             .compactMap { $0 as? NSExtensionItem }
             .flatMap { $0.attachments ?? [] }
@@ -74,26 +98,37 @@ private final class ShareExtensionModel: ObservableObject {
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
             let item = try await provider.loadItem(forTypeIdentifier: UTType.url.identifier)
             if let url = item as? URL, let normalized = SharedLinkInbox.normalized(url) {
-                return normalized
+                return .link(normalized)
             }
             if let url = item as? NSURL,
                let normalized = SharedLinkInbox.normalized(url as URL) {
-                return normalized
+                return .link(normalized)
             }
         }
 
+        var texts: [String] = []
         for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
             let item = try await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier)
-            guard let text = item as? String else { continue }
-            for token in text.split(whereSeparator: { $0.isWhitespace }) {
-                guard let url = URL(string: String(token)),
-                      let normalized = SharedLinkInbox.normalized(url)
-                else { continue }
-                return normalized
+            if let text = item as? String {
+                texts.append(text)
+            } else if let data = item as? Data, let text = String(data: data, encoding: .utf8) {
+                texts.append(text)
             }
         }
 
-        throw SharedLinkInbox.InboxError.unsupportedURL
+        let text = texts.joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = SharedNoteInbox.linkOnly(in: text) {
+            return .link(url)
+        }
+        guard !text.isEmpty else { throw SharedLinkInbox.InboxError.unsupportedURL }
+        return .note(text)
+    }
+
+    /// The first line of what was shared, short enough for the sheet to show whole.
+    private static func preview(of text: String) -> String {
+        let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
+        guard firstLine.count > 80 else { return firstLine }
+        return String(firstLine.prefix(79)) + "…"
     }
 }
 
@@ -219,10 +254,12 @@ private struct ShareExtensionView: View {
 
     private var title: String {
         switch model.state {
-        case .reading: return "Finding the article"
-        case .saving: return "Keeping it for later"
-        case .saved: return "Saved to diple"
-        case .failed: return "Couldn’t save this link"
+        case .reading: return "Reading what was shared"
+        case .saving(.link): return "Keeping it for later"
+        case .saving(.note): return "Keeping your words"
+        case .saved(.link): return "Saved to diple"
+        case .saved(.note): return "Saved to your Inbox"
+        case .failed: return "Couldn’t save this"
         }
     }
 
@@ -230,10 +267,14 @@ private struct ShareExtensionView: View {
         switch model.state {
         case .reading:
             return "Reading the shared item…"
-        case .saving(let host):
+        case .saving(.link(let host)):
             return host
-        case .saved(let host):
+        case .saving(.note(let preview)):
+            return preview
+        case .saved(.link(let host)):
             return "\(host) is waiting in your inbox. diple will finish preparing it when the app opens."
+        case .saved(.note(let preview)):
+            return "“\(preview)” will be a note in your Inbox when diple opens."
         case .failed(let message):
             return message
         }
