@@ -703,6 +703,12 @@ public struct MacRootView: View {
                 onCollected: { note in notesDetail = note }
             )
 
+        case .tasks:
+            MacTasksList(model: notes, selectedID: notesDetail?.id) { notesDetail = $0 }
+
+        case .trash:
+            MacTrashList(model: notes)
+
         case let place:
             MacNotesList(
                 title: title(of: place),
@@ -716,7 +722,11 @@ public struct MacRootView: View {
                 onCreate: createNote,
                 onSetPinned: { item, pinned in notes.setPinned(pinned, item) },
                 onMove: { item, space in fileFromList([item], in: space) },
-                onMoveToNewSpace: { spaceCreation = .filing($0, followingPage: false) }
+                onMoveToNewSpace: { spaceCreation = .filing($0, followingPage: false) },
+                onTrash: { item in
+                    notes.trash([item])
+                    if notesDetail?.id == item.id { notesDetail = nil }
+                }
             )
         }
     }
@@ -751,7 +761,7 @@ public struct MacRootView: View {
             )
             .id(draft.id)
         } else {
-            MacNotesPlaceholder()
+            MacNotesPlaceholder(inTrash: notesPlace == .trash)
         }
     }
 
@@ -764,6 +774,8 @@ public struct MacRootView: View {
             return NotesDesk.notes(in: space, from: notes.items)
         case .source(let id): return NotesDesk.notes(about: id, from: notes.items)
         case .allNotes: return NotesDesk.ordered(notes.items)
+        case .tasks: return NotesDesk.openTasks(notes.items).map(\.item)
+        case .trash: return []
         }
     }
 
@@ -813,6 +825,7 @@ public struct MacRootView: View {
         case .source(let id): return note.bookId == id
         case .today, .journal: return note.dailyDate != nil
         case .inbox, .allNotes: return note.spaceId == nil && note.bookId == nil && note.dailyDate == nil
+        case .tasks, .trash: return false
         }
     }
 
@@ -822,6 +835,8 @@ public struct MacRootView: View {
         case .today: return "Today"
         case .journal: return "Journal"
         case .allNotes: return "All notes"
+        case .tasks: return "Tasks"
+        case .trash: return "Recently deleted"
         case .space(let id): return notes.space(id: id)?.name ?? "Inbox"
         case .source(let id): return notes.book(id: id)?.title ?? "Notes"
         }
@@ -840,6 +855,10 @@ public struct MacRootView: View {
             return ("book.closed", "No notes about this source", "A note written inside the book stands here.")
         case .allNotes:
             return ("rectangle.stack", "No notes yet", "Press ⌘N to write the first one.")
+        case .tasks:
+            return ("checklist", "Nothing to do", "A line that begins with - [ ] in any note is a task, and it collects here.")
+        case .trash:
+            return ("trash", "Nothing deleted", "Deleted notes stay here for thirty days, then go for good.")
         }
     }
 
@@ -869,6 +888,11 @@ public struct MacRootView: View {
             openToday()
         case .inbox, .allNotes:
             notesDetail = NoteItem(note: Note(body: ""), tags: [], book: nil)
+        case .tasks, .trash:
+            // Neither is a place a page is written in: the new one waits in the Inbox, and the
+            // window goes there with it rather than open it beside a list it is not in.
+            notesPlace = .inbox
+            notesDetail = NoteItem(note: Note(body: ""), tags: [], book: nil)
         }
     }
 
@@ -895,6 +919,8 @@ public struct MacRootView: View {
         switch requested {
         case "today": notesPlace = .today
         case "journal": notesPlace = .journal
+        case "tasks": notesPlace = .tasks
+        case "trash": notesPlace = .trash
         case "allNotes": notesPlace = .allNotes
         default:
             if requested.hasPrefix("space:"),
@@ -2691,7 +2717,6 @@ struct MacNoteInspector: View {
     @State private var saveState: SaveState = .saved
     @State private var saveTask: Task<Void, Never>?
     @State private var isBookPickerPresented = false
-    @State private var isShowingDeleteConfirmation = false
     @State private var isDeleting = false
     @State private var isClosing = false
     @State private var selection = NoteSelectionBox()
@@ -2821,8 +2846,13 @@ struct MacNoteInspector: View {
                         Label("Copy Markdown", systemImage: "doc.on.doc")
                     }
                     Divider()
+                    // No question first: the note waits thirty days in Recently deleted, a place
+                    // in this sidebar, and a question in front of an act that can be undone is
+                    // only a delay. The same rule as the phone's.
                     Button(role: .destructive) {
-                        isShowingDeleteConfirmation = true
+                        isDeleting = true
+                        saveTask?.cancel()
+                        onDelete()
                     } label: {
                         Label("Delete note", systemImage: "trash")
                     }
@@ -2980,15 +3010,13 @@ struct MacNoteInspector: View {
             .id(formulaSessionID)
             .dipleMacSheet(minWidth: 620, minHeight: 680)
         }
-        .alert("Delete note?", isPresented: $isShowingDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                isDeleting = true
-                saveTask?.cancel()
-                onDelete()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("It stays in Recently deleted for thirty days, where it can be restored from diple on iPhone.")
+        // A task ticked in the Tasks column beside this page rewrote the note under it, and so
+        // can iCloud. A page with nothing of its own left to save takes the new text; one with
+        // words still pending keeps them, and its save wins, as the later edit always does.
+        .onChange(of: item.note.body) { _, stored in
+            guard stored != lastSavedBody, bodyText == lastSavedBody else { return }
+            bodyText = stored
+            lastSavedBody = stored
         }
     }
 

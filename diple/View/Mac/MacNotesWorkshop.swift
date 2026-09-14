@@ -32,11 +32,15 @@ enum MacMode: String {
 enum MacNotesPlace: Hashable {
     case inbox
     case today
+    /// Every open box in every note.
+    case tasks
     case space(String)
     /// Notes written about one source, by book id.
     case source(String)
     case allNotes
     case journal
+    /// Recently deleted.
+    case trash
 }
 
 // MARK: - Dragging a note
@@ -145,6 +149,7 @@ struct MacNotesSidebar: View {
                 row(.inbox, symbol: "tray", title: "Inbox", count: model.inbox.count)
                     .modifier(MacNoteDropTarget { ids in onDrop(ids, nil) })
                 row(.today, symbol: "sun.max", title: "Today")
+                row(.tasks, symbol: "checklist", title: "Tasks", count: model.openTaskCount)
             }
 
             Section {
@@ -163,7 +168,7 @@ struct MacNotesSidebar: View {
                         Button {
                             onEditSpace(space)
                         } label: {
-                            Label("Rename…", systemImage: "pencil")
+                            Label("Name and glyph…", systemImage: "pencil")
                         }
                         if model.spaces.count > 1 {
                             Button {
@@ -219,6 +224,12 @@ struct MacNotesSidebar: View {
                     row(.journal, symbol: "book.pages", title: "Journal", count: model.journal.count)
                 }
                 row(.allNotes, symbol: "rectangle.stack", title: "All notes", count: model.items.count)
+                // Only while there is something in it, as on the Desk — or while the window
+                // stands in it, so emptying the bin does not pull the row out from under the
+                // selection that is showing it.
+                if !model.trashed.isEmpty || place == .trash {
+                    row(.trash, symbol: "trash", title: "Recently deleted", count: model.trashed.count)
+                }
             }
         }
         .listStyle(.sidebar)
@@ -273,6 +284,8 @@ struct MacNotesList: View {
     /// A row filed from its menu: to the Inbox (`nil`) or a space.
     let onMove: (NoteItem, NoteSpace?) -> Void
     let onMoveToNewSpace: (NoteItem) -> Void
+    /// To Recently deleted, without asking: it is thirty days from gone, one row down the sidebar.
+    let onTrash: (NoteItem) -> Void
 
     private var visible: [NoteItem] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -355,8 +368,7 @@ struct MacNotesList: View {
             .background(DipleColor.surfaceRaised, in: Capsule())
     }
 
-    /// Pin and Move, as the phone's row offers them under a long press. Delete is not here yet:
-    /// the desk has no Recently deleted to take it back from.
+    /// Pin, Move and Delete, as the phone's row offers them under a long press.
     @ViewBuilder
     private func menu(for item: NoteItem) -> some View {
         let isPinned = item.note.pinnedAt != nil
@@ -384,6 +396,13 @@ struct MacNotesList: View {
         } label: {
             Label("Move to", systemImage: "folder")
         }
+
+        Divider()
+        Button(role: .destructive) {
+            onTrash(item)
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
     }
 
     private func moveDestination(
@@ -403,6 +422,9 @@ struct MacNotesList: View {
 
 /// What stands where the page will be before one is chosen.
 struct MacNotesPlaceholder: View {
+    /// Standing in Recently deleted, where nothing opens: a note there is brought back or let go.
+    var inTrash = false
+
     private static let shortcuts: [(key: String, label: String)] = [
         ("⌘N", "New note here"),
         ("⌘8", "Today’s page"),
@@ -412,30 +434,289 @@ struct MacNotesPlaceholder: View {
 
     var body: some View {
         VStack(spacing: DipleSpace.l) {
-            Image(systemName: "note.text")
+            Image(systemName: inTrash ? "trash" : "note.text")
                 .dipleIcon(28, weight: .light)
                 .foregroundStyle(DipleColor.textQuaternary)
 
-            Text("Choose a note")
+            Text(inTrash ? "Nothing opens here" : "Choose a note")
                 .dipleType(.title, weight: .semibold)
                 .foregroundStyle(DipleColor.textSecondary)
 
-            VStack(alignment: .leading, spacing: DipleSpace.s) {
-                ForEach(Self.shortcuts, id: \.key) { shortcut in
-                    HStack(spacing: DipleSpace.m) {
-                        Text(shortcut.key)
-                            .dipleType(.micro, weight: .semibold)
-                            .foregroundStyle(DipleColor.textTertiary)
-                            .frame(width: 32, alignment: .trailing)
-                        Text(shortcut.label)
-                            .dipleType(.footnote)
-                            .foregroundStyle(DipleColor.textTertiary)
+            if inTrash {
+                Text("A deleted note is restored or let go. Right-click one for both.")
+                    .dipleType(.footnote)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .multilineTextAlignment(.center)
+            } else {
+                VStack(alignment: .leading, spacing: DipleSpace.s) {
+                    ForEach(Self.shortcuts, id: \.key) { shortcut in
+                        HStack(spacing: DipleSpace.m) {
+                            Text(shortcut.key)
+                                .dipleType(.micro, weight: .semibold)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .frame(width: 32, alignment: .trailing)
+                            Text(shortcut.label)
+                                .dipleType(.footnote)
+                                .foregroundStyle(DipleColor.textTertiary)
+                        }
                     }
                 }
             }
         }
+        .padding(DipleSpace.xxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DipleColor.surface)
+    }
+}
+// MARK: - Tasks
+
+/// Every open box in every note, in the middle column — the phone's Tasks page on the desk.
+///
+/// The same `NotesDesk.openTasks` and the same pause: a ticked task stays, struck through, for
+/// the beat it takes to see it land, then the list closes over it. Ticking rewrites the line in
+/// its note (`NotesWorkshopModel.toggleTask`) exactly as ticking it on the page does, and a page
+/// open beside the list takes the new text (`MacNoteInspector`). A group's head opens its note in
+/// the editor and leaves the window standing in Tasks.
+struct MacTasksList: View {
+    @ObservedObject var model: NotesWorkshopModel
+    let selectedID: String?
+    let onSelect: (NoteItem) -> Void
+
+    @State private var lingering: Set<NotesDesk.TaskKey> = []
+
+    /// How long a ticked task stays on the list before it goes — the phone's number.
+    private let lingerFor: Duration = .milliseconds(1200)
+
+    var body: some View {
+        let groups = NotesDesk.openTasks(model.items, lingering: lingering)
+        let open = groups.reduce(0) { $0 + $1.tasks.filter { !$0.isCompleted }.count }
+
+        VStack(spacing: 0) {
+            MacColumnHeader(title: "Tasks", count: open > 0 ? open : nil) {
+                EmptyView()
+            }
+
+            if groups.isEmpty {
+                MacEmptyCollection(
+                    icon: "checklist",
+                    title: "Nothing to do",
+                    message: "A line that begins with - [ ] in any note is a task, and it collects here."
+                )
+                // A beat late, so the last task has finished leaving first.
+                .transition(.opacity.animation(DipleMotion.gentle.delay(0.3)))
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
+                        ForEach(groups) { group in
+                            section(group)
+                        }
+                    }
+                    .padding(.horizontal, DipleSpace.xxl)
+                    .padding(.vertical, DipleSpace.l)
+                    .animation(DipleMotion.standard, value: groups)
+                }
+            }
+        }
+        .background(DipleColor.canvas)
+    }
+
+    private func section(_ group: NotesDesk.TaskGroup) -> some View {
+        let isSelected = selectedID == group.item.id
+        return VStack(alignment: .leading, spacing: DipleSpace.s) {
+            Button {
+                onSelect(group.item)
+            } label: {
+                HStack(spacing: DipleSpace.xs) {
+                    Text(group.item.displayTitle)
+                        .dipleType(.footnote, weight: .semibold)
+                        .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textSecondary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.right")
+                        .dipleIcon(9, weight: .semibold)
+                        .foregroundStyle(DipleColor.textQuaternary)
+                    Spacer(minLength: DipleSpace.s)
+                    if let place = placeName(of: group.item) {
+                        Text(place)
+                            .dipleType(.caption)
+                            .foregroundStyle(DipleColor.textQuaternary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.vertical, DipleSpace.xs)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open the note")
+
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                ForEach(group.tasks, id: \.lineIndex) { task in
+                    Button {
+                        toggle(task, in: group.item)
+                    } label: {
+                        NoteTaskRow(
+                            task: task,
+                            lineSpacing: ReaderScript.detect(in: task.text).swiftUILineSpacing
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .accessibilityAddTraits(task.isCompleted ? [.isButton, .isSelected] : .isButton)
+                }
+            }
+        }
+        .padding(.bottom, DipleSpace.m)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(DipleColor.hairline).frame(height: DipleStroke.hairline)
+        }
+    }
+
+    /// Where the note stands, small beside its name: the space, or the source.
+    private func placeName(of item: NoteItem) -> String? {
+        if let id = item.note.spaceId, let space = model.space(id: id) { return space.name }
+        return item.book?.title
+    }
+
+    private func toggle(_ task: NoteTask, in item: NoteItem) {
+        let key = NotesDesk.TaskKey(noteID: item.id, lineIndex: task.lineIndex)
+        guard !task.isCompleted else {
+            // Unticked while it still lingers: it is simply open again.
+            lingering.remove(key)
+            model.toggleTask(task, in: item)
+            return
+        }
+        lingering.insert(key)
+        model.toggleTask(task, in: item)
+        Task { @MainActor in
+            try? await Task.sleep(for: lingerFor)
+            withAnimation(DipleMotion.gentle) { _ = lingering.remove(key) }
+        }
+    }
+}
+
+// MARK: - Recently deleted
+
+/// What was deleted in the last thirty days, and the way back — the phone's page, on the desk.
+///
+/// Deleting a note on the Mac stopped asking the moment this column existed. The questions stand
+/// here instead, in front of the two acts that cannot be undone: deleting one for good, and
+/// emptying the bin. A row is not opened; it is restored or let go.
+struct MacTrashList: View {
+    @ObservedObject var model: NotesWorkshopModel
+
+    @State private var toDelete: NoteItem?
+    @State private var isConfirmingEmpty = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MacColumnHeader(
+                title: "Recently deleted",
+                count: model.trashed.isEmpty ? nil : model.trashed.count
+            ) {
+                if !model.trashed.isEmpty {
+                    Button {
+                        isConfirmingEmpty = true
+                    } label: {
+                        Text("Empty")
+                            .dipleType(.footnote, weight: .semibold)
+                            .foregroundStyle(DipleColor.destructive)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    .buttonStyle(.plain)
+                    .help("Delete every note here for good")
+                }
+            }
+
+            if model.trashed.isEmpty {
+                MacEmptyCollection(
+                    icon: "trash",
+                    title: "Nothing deleted",
+                    message: "Deleted notes stay here for thirty days, then go for good."
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(model.trashed) { item in
+                            row(item)
+                        }
+                    }
+                    .padding(.horizontal, DipleSpace.xxl)
+                    .padding(.vertical, DipleSpace.m)
+                }
+            }
+        }
+        .background(DipleColor.canvas)
+        .alert(
+            "Delete for good?",
+            isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }),
+            presenting: toDelete
+        ) { item in
+            Button("Delete", role: .destructive) { model.deleteForever([item]) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This note cannot be restored afterwards.")
+        }
+        .alert("Empty Recently deleted?", isPresented: $isConfirmingEmpty) {
+            Button("Delete \(model.trashed.count)", role: .destructive) {
+                model.deleteForever(model.trashed)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(model.trashed.count == 1
+                ? "The note here will be deleted and cannot be restored."
+                : "All \(model.trashed.count) notes here will be deleted and cannot be restored.")
+        }
+    }
+
+    /// The name, when it went and what is left — and Restore in plain sight. On the phone the
+    /// way back is a swipe; a pointer has no swipe, and a way back hidden under a right click is
+    /// one the reader who deleted by mistake would not find.
+    private func row(_ item: NoteItem) -> some View {
+        HStack(alignment: .center, spacing: DipleSpace.m) {
+            VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                Text(item.displayTitle)
+                    .dipleType(.headline)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .lineLimit(2)
+                // Two lines, not one: beside Restore in a narrow column the days left — the
+                // half of the line that matters — were the half cut off.
+                Text(NotesTrashView.dateline(item))
+                    .dipleType(.caption)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                model.restore(item)
+            } label: {
+                Label("Restore", systemImage: "arrow.uturn.backward")
+                    .dipleType(.footnote, weight: .medium)
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .diplePadding(.chip)
+                    .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, DipleSpace.m)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(DipleColor.hairline).frame(height: DipleStroke.hairline)
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button {
+                model.restore(item)
+            } label: {
+                Label("Restore", systemImage: "arrow.uturn.backward")
+            }
+            Button(role: .destructive) {
+                toDelete = item
+            } label: {
+                Label("Delete now…", systemImage: "trash")
+            }
+        }
     }
 }
 #endif

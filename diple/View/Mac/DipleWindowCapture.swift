@@ -43,8 +43,8 @@ enum DipleWindowCapture {
         #endif
     }
 
-    /// A place in the notes workshop to stand on: `inbox`, `today`, `journal`, `allNotes`, or
-    /// `space:<name>`. Applied once the workshop has loaded, because a space is known by name
+    /// A place in the notes workshop to stand on: `inbox`, `today`, `tasks`, `journal`,
+    /// `allNotes`, `trash`, or `space:<name>`. Applied once the workshop has loaded, because a space is known by name
     /// here and by id in the window.
     static var requestedPlace: String? {
         #if DEBUG

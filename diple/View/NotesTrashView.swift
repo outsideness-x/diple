@@ -120,7 +120,7 @@ struct NotesTrashView: View {
                 .dipleType(.headline)
                 .foregroundStyle(DipleColor.textSecondary)
                 .lineLimit(2)
-            Text(dateline(item))
+            Text(Self.dateline(item))
                 .dipleType(.caption)
                 .foregroundStyle(DipleColor.textTertiary)
                 .lineLimit(1)
@@ -135,7 +135,9 @@ struct NotesTrashView: View {
         .accessibilityHint("Swipe right to restore")
     }
 
-    private func dateline(_ item: NoteItem) -> String {
+    /// When it went and how long it has left. Shared with the desk's page, so the two never
+    /// count the thirty days differently.
+    static func dateline(_ item: NoteItem) -> String {
         guard let trashedAt = item.note.trashedAt else { return "" }
         let deleted = trashedAt.formatted(.relative(presentation: .named, unitsStyle: .wide))
         // Rounded up: a note deleted a minute ago has thirty days, not twenty-nine and change.
