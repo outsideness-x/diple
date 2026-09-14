@@ -46,19 +46,18 @@ final class dipleUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(intro.waitForExistence(timeout: 5))
 
-        // Capture the central beat — opened pages, the icon mark and its reading line — rather
-        // than racing the self-dismiss transition at the very end of the sequence.
+        // Capture the mark part-way through being written rather than the finished frame, which
+        // is what a regression in the pen's masking would change.
         Thread.sleep(forTimeInterval: 2.0)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "First launch colophon"
+        screenshot.name = "First launch mark"
         screenshot.lifetime = .keepAlways
         add(screenshot)
 
         XCTAssertTrue(intro.exists)
 
-        // The finished colophon now keeps its promise: TAP TO BEGIN remains on screen until
-        // the reader taps, rather than appearing a fraction of a second before an automatic
-        // dismissal.
+        // The finished intro keeps its promise: TAP TO BEGIN remains on screen until the reader
+        // taps, rather than appearing a fraction of a second before an automatic dismissal.
         Thread.sleep(forTimeInterval: 3.0)
         XCTAssertTrue(intro.exists)
         intro.tap()
