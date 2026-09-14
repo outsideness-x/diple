@@ -178,6 +178,9 @@ public struct MacRootView: View {
     }
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    /// Whether Reading shows its inspector — the book, passage or result the shelf has chosen.
+    /// A habit of this desk, like the mode: remembered here and not synced.
+    @AppStorage("diple_mac_inspector_shown") private var isInspectorShown = true
     @State private var readerRequest: MacReaderRequest?
     @State private var secondReadBook: Book?
     @State private var isImportingFile = false
@@ -202,31 +205,7 @@ public struct MacRootView: View {
     public init() {}
 
     public var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
-        } content: {
-            switch mode {
-            case .reading:
-                collection
-                    .navigationSplitViewColumnWidth(min: 380, ideal: 640)
-            case .notes:
-                // Bear's proportions: the list is a list, and the page takes the room.
-                notesCollection
-                    .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 460)
-            }
-        } detail: {
-            switch mode {
-            case .reading:
-                inspector
-                    // Narrower than it was. At the width the window opens at, an inspector allowed
-                    // 460 pt left the cover grid two tiles wide under a header that had to fold.
-                    .navigationSplitViewColumnWidth(min: 288, ideal: 330, max: 400)
-            case .notes:
-                notesEditor
-                    .navigationSplitViewColumnWidth(min: 420, ideal: 680)
-            }
-        }
+        splitView
         .controlSize(.large)
         .background(DipleColor.canvas)
         .tint(DipleColor.accent)
@@ -410,6 +389,10 @@ public struct MacRootView: View {
         case .findInBook:
             // Answered by the reader itself, which is presented above this view.
             break
+
+        case .toggleInspector:
+            guard !isReading, mode == .reading else { return }
+            withAnimation(DipleMotion.snappy) { isInspectorShown.toggle() }
         }
     }
 
@@ -538,6 +521,51 @@ public struct MacRootView: View {
         .foregroundStyle(source == item ? DipleColor.textPrimary : DipleColor.textSecondary)
         .help(item.shortcut.map { "\(item.title) (⌘\($0))" } ?? item.title)
         .tag(item)
+    }
+
+    // MARK: - Columns
+
+    /// Reading is two columns and an inspector that folds away; Notes is Bear's three.
+    ///
+    /// The inspector used to be the split view's third column, and `NavigationSplitView` cannot
+    /// hide its detail column — only the columns before it — so the book, passage or result it
+    /// described stood on the desk whether the reader needed it or not, and took its 330 points
+    /// from the shelf. As `.inspector` it is a trailing column the reader can close (⌥⌘I or the
+    /// button in the column header), and the shelf takes the room. In Notes the third column is
+    /// the page being written, which is the point of the room, so it stays a column.
+    @ViewBuilder
+    private var splitView: some View {
+        switch mode {
+        case .reading:
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                sidebar
+                    .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
+            } detail: {
+                collection
+                    .environment(\.macInspectorToggle, MacInspectorToggle(isShown: isInspectorShown) {
+                        withAnimation(DipleMotion.snappy) { isInspectorShown.toggle() }
+                    })
+            }
+            .inspector(isPresented: $isInspectorShown) {
+                inspector
+                    // Narrower than it was. At the width the window opens at, an inspector
+                    // allowed 460 pt left the cover grid two tiles wide under a header that had
+                    // to fold.
+                    .inspectorColumnWidth(min: 288, ideal: 330, max: 400)
+            }
+        case .notes:
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                sidebar
+                    .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
+            } content: {
+                // Bear's proportions: the list is a list, and the page takes the room.
+                notesCollection
+                    .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 460)
+            } detail: {
+                notesEditor
+                    .navigationSplitViewColumnWidth(min: 420, ideal: 680)
+            }
+        }
     }
 
     // MARK: - Collection
@@ -1032,6 +1060,25 @@ enum MacSearchTarget: Hashable {
 /// Title, count, an optional line of context, the field that narrows the collection, then the
 /// actions — always in that order, always the same height, always pinned above the scroll. The
 /// four sources used to disagree about all five of those things.
+/// The way a Reading column header opens and closes the inspector beside it. Handed down through
+/// the environment rather than a parameter, so every shelf's header — the library's, the board's,
+/// the search's — carries the same control in the same corner without each collection passing it.
+struct MacInspectorToggle {
+    let isShown: Bool
+    let toggle: () -> Void
+}
+
+private struct MacInspectorToggleKey: EnvironmentKey {
+    static let defaultValue: MacInspectorToggle? = nil
+}
+
+extension EnvironmentValues {
+    var macInspectorToggle: MacInspectorToggle? {
+        get { self[MacInspectorToggleKey.self] }
+        set { self[MacInspectorToggleKey.self] = newValue }
+    }
+}
+
 struct MacColumnHeader<Actions: View>: View {
     let title: String
     var count: Int? = nil
@@ -1046,6 +1093,7 @@ struct MacColumnHeader<Actions: View>: View {
     @ViewBuilder var actions: () -> Actions
 
     @FocusState private var isFieldFocused: Bool
+    @Environment(\.macInspectorToggle) private var inspectorToggle
 
     var body: some View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
@@ -1061,10 +1109,15 @@ struct MacColumnHeader<Actions: View>: View {
                     titleBlock
                     Spacer(minLength: DipleSpace.m)
                     actions()
+                    inspectorButton
                 }
 
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
-                    titleBlock
+                    HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
+                        titleBlock
+                        Spacer(minLength: DipleSpace.m)
+                        inspectorButton
+                    }
                     HStack(spacing: DipleSpace.s) {
                         Spacer(minLength: 0)
                         actions()
@@ -1091,6 +1144,22 @@ struct MacColumnHeader<Actions: View>: View {
             Rectangle()
                 .fill(DipleColor.separator)
                 .frame(height: DipleStroke.hairline)
+        }
+    }
+
+    /// The glyph the platform uses for a trailing panel, at the trailing edge of the column it
+    /// opens beside — the last thing in the row, so the reader's actions keep their places
+    /// whether the panel is open or not.
+    @ViewBuilder
+    private var inspectorButton: some View {
+        if let inspectorToggle {
+            MacIconButton(
+                systemImage: "sidebar.right",
+                help: inspectorToggle.isShown ? "Hide inspector (⌥⌘I)" : "Show inspector (⌥⌘I)",
+                accessibilityLabel: inspectorToggle.isShown ? "Hide inspector" : "Show inspector",
+                action: inspectorToggle.toggle
+            )
+            .fixedSize()
         }
     }
 

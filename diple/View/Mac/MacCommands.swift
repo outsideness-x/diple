@@ -38,6 +38,8 @@ enum MacCommand: String, Sendable, CaseIterable {
     /// the arrow and space keys straight from the navigator, which is the only place they can
     /// be read reliably once the web view holds first responder.
     case findInBook
+    /// Open or close Reading's inspector.
+    case toggleInspector
 }
 
 extension Notification.Name {
@@ -112,6 +114,12 @@ struct DipleMacCommands: Commands {
         // UIKit refuses to build a menu containing two commands with one shortcut, by raising
         // an exception inside `buildMenu` that aborts the app before its first window.
         CommandGroup(after: .sidebar) {
+            // ⌥⌘I is the Mac's key for an inspector. Declared here, not through SwiftUI's
+            // `InspectorCommands`, which would add a second item on the same key — and a menu
+            // with two items on one shortcut is the crash described above.
+            Button("Show or Hide Inspector") { MacCommand.toggleInspector.post() }
+                .keyboardShortcut("i", modifiers: [.command, .option])
+
             Button("Refresh") { MacCommand.refresh.post() }
                 .keyboardShortcut("r", modifiers: .command)
         }
