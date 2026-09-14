@@ -152,7 +152,7 @@ struct NotesListView: View {
         }
         // Deleting the space this page stands for leaves nothing to stand on: the page goes
         // first, and the notes it held are in the Inbox by the time the Desk is back.
-        .spaceDeletionAlert(model: model, space: $spaceToDelete, onDeleted: { dismiss() })
+        .spaceDeletionAlert(model: model, space: $spaceToDelete, onDeleted: { _ in dismiss() })
     }
 
     /// A note, and the three things done to one without opening it: pin it, move it, delete it.

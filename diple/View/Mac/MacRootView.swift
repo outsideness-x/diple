@@ -140,7 +140,26 @@ public struct MacRootView: View {
     /// note, or a day's page — which exists from its first word, as on the phone.
     @State private var notesDetail: NoteItem?
     @State private var notesQuery = ""
-    @State private var isCreatingSpace = false
+    /// A space being made, and what it is being made for.
+    @State private var spaceCreation: SpaceCreation?
+    @State private var spaceBeingEdited: NoteSpace?
+    @State private var isArrangingSpaces = false
+    @State private var spaceToDelete: NoteSpace?
+
+    /// Why a new space is being made: to stand in it, or to file a note into it on the spot —
+    /// from its row, where the writer stays at the list, or from its page, which the writer
+    /// follows. See `file(_:in:followingPage:)`.
+    private enum SpaceCreation: Identifiable {
+        case place
+        case filing(NoteItem, followingPage: Bool)
+
+        var id: String {
+            switch self {
+            case .place: return "place"
+            case .filing(let item, _): return "filing:\(item.id)"
+            }
+        }
+    }
 
     /// The shelf the window opens at. `DipleWindowCapture` can name a different one, so a
     /// screenshot of the board does not depend on a command arriving and two columns agreeing
@@ -284,13 +303,33 @@ public struct MacRootView: View {
                 }
             }
         }
-        .sheet(isPresented: $isCreatingSpace) {
+        .sheet(item: $spaceCreation) { purpose in
             NoteSpaceEditor { name, symbol in
-                if let space = notes.createSpace(named: name, symbol: symbol) {
+                guard let space = notes.createSpace(named: name, symbol: symbol) else { return }
+                switch purpose {
+                case .place:
                     notesPlace = .space(space.id)
+                case .filing(let item, let followingPage):
+                    file(item, in: space, followingPage: followingPage)
                 }
             }
             .dipleMacSheet(minWidth: 480, minHeight: 520)
+        }
+        .sheet(item: $spaceBeingEdited) { space in
+            NoteSpaceEditor(space: space) { name, symbol in
+                notes.update(space, name: name, symbol: symbol)
+            }
+            .dipleMacSheet(minWidth: 480, minHeight: 520)
+        }
+        .sheet(isPresented: $isArrangingSpaces) {
+            NotesSpacesEditor(model: notes)
+                .dipleMacSheet(minWidth: 480, minHeight: 520)
+        }
+        .spaceDeletionAlert(model: notes, space: $spaceToDelete) { deleted in
+            // The window leaves the space before it goes, as the phone's page does.
+            if case .space(let id) = notesPlace, id == deleted.id {
+                notesPlace = .inbox
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
             mode = .reading
@@ -381,9 +420,20 @@ public struct MacRootView: View {
             switch mode {
             case .reading: readingSidebar
             case .notes:
-                MacNotesSidebar(model: notes, place: $notesPlace) {
-                    isCreatingSpace = true
-                }
+                MacNotesSidebar(
+                    model: notes,
+                    place: $notesPlace,
+                    onNewSpace: { spaceCreation = .place },
+                    onDrop: { ids, space in
+                        let dropped = ids.compactMap { id in notes.items.first { $0.id == id } }
+                        guard !dropped.isEmpty else { return false }
+                        fileFromList(dropped, in: space)
+                        return true
+                    },
+                    onEditSpace: { spaceBeingEdited = $0 },
+                    onArrangeSpaces: { isArrangingSpaces = true },
+                    onDeleteSpace: { spaceToDelete = $0 }
+                )
             }
         }
         .background(DipleColor.surface)
@@ -661,8 +711,12 @@ public struct MacRootView: View {
                 empty: emptyState(of: place),
                 query: $notesQuery,
                 searchFocusRequest: $searchFocusRequest,
+                spaces: notes.spaces,
                 onSelect: { notesDetail = $0 },
-                onCreate: createNote
+                onCreate: createNote,
+                onSetPinned: { item, pinned in notes.setPinned(pinned, item) },
+                onMove: { item, space in fileFromList([item], in: space) },
+                onMoveToNewSpace: { spaceCreation = .filing($0, followingPage: false) }
             )
         }
     }
@@ -677,7 +731,13 @@ public struct MacRootView: View {
                 books: notes.books,
                 suggestedTags: notes.tagVocabulary,
                 allNotes: notes.items,
+                spaces: notes.spaces,
                 onOpenNote: { notesDetail = $0 },
+                onMove: { space in file(current ?? draft, in: space, followingPage: true) },
+                onMoveToNewSpace: { spaceCreation = .filing(current ?? draft, followingPage: true) },
+                onSetPinned: { pinned in
+                    if let current { notes.setPinned(pinned, current) }
+                },
                 onSave: { note, tags in
                     let saved = notes.save(note, tags: tags)
                     if notesPlace == .allNotes { notesBoard.load() }
@@ -704,6 +764,39 @@ public struct MacRootView: View {
             return NotesDesk.notes(in: space, from: notes.items)
         case .source(let id): return NotesDesk.notes(about: id, from: notes.items)
         case .allNotes: return NotesDesk.ordered(notes.items)
+        }
+    }
+
+    /// Notes filed from the list — dragged onto a place, or moved from a row's menu. The writer
+    /// stays at the list they are sorting, so a page that has just left it closes rather than
+    /// describe a note the list no longer shows.
+    private func fileFromList(_ items: [NoteItem], in space: NoteSpace?) {
+        let moving = items.filter { $0.note.spaceId != space?.id }
+        guard !moving.isEmpty else { return }
+        notes.move(moving, to: space)
+        if let page = notesDetail, !stands(page, in: notesPlace) {
+            notesDetail = nil
+        }
+    }
+
+    /// A note filed from its own page, which the writer follows to where it went: the page is
+    /// what they are looking at, and a list that no longer holds it would leave it standing
+    /// beside nothing. A draft is not written by filing — it only learns where its first word
+    /// will put it.
+    private func file(_ item: NoteItem, in space: NoteSpace?, followingPage: Bool) {
+        guard followingPage else {
+            fileFromList([item], in: space)
+            return
+        }
+        if let current = notes.current(item) {
+            if current.note.spaceId != space?.id { notes.move([current], to: space) }
+            if let moved = notes.current(current) { openInNotes(moved) }
+        } else {
+            var note = item.note
+            note.spaceId = space?.id
+            notesDetail = NoteItem(note: note, tags: item.tags, book: item.book)
+            // Out of a space, a page about a book stands under that book, as a written one would.
+            notesPlace = space.map { .space($0.id) } ?? note.bookId.map { .source($0) } ?? .inbox
         }
     }
 
@@ -2574,7 +2667,13 @@ struct MacNoteInspector: View {
     let suggestedTags: [String]
     /// Wiki links resolve against these, exactly as they do on the phone.
     let allNotes: [NoteItem]
+    /// Where the page can be filed from its properties line.
+    let spaces: [NoteSpace]
     let onOpenNote: (NoteItem) -> Void
+    /// The page filed into a space, or back out of one (`nil`).
+    let onMove: (NoteSpace?) -> Void
+    let onMoveToNewSpace: () -> Void
+    let onSetPinned: (Bool) -> Void
     let onSave: (Note, [String]) -> Bool
     let onDelete: () -> Void
     /// What `[[` completes to, settled once: the menu is asked on every keystroke inside a link.
@@ -2607,7 +2706,9 @@ struct MacNoteInspector: View {
     /// Set by the first save of a draft. The view is not rebuilt when the draft becomes a row —
     /// its identity is the note's id either way — so it has to learn that for itself.
     @State private var hasBeenWritten = false
+    @State private var isAddingTag = false
     @FocusState private var isTitleFocused: Bool
+    @FocusState private var isTagFieldFocused: Bool
 
     private enum SaveState {
         case saved
@@ -2637,7 +2738,11 @@ struct MacNoteInspector: View {
         books: [Book],
         suggestedTags: [String],
         allNotes: [NoteItem],
+        spaces: [NoteSpace],
         onOpenNote: @escaping (NoteItem) -> Void,
+        onMove: @escaping (NoteSpace?) -> Void,
+        onMoveToNewSpace: @escaping () -> Void,
+        onSetPinned: @escaping (Bool) -> Void,
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping () -> Void
     ) {
@@ -2646,7 +2751,11 @@ struct MacNoteInspector: View {
         self.books = books
         self.suggestedTags = suggestedTags
         self.allNotes = allNotes
+        self.spaces = spaces
         self.onOpenNote = onOpenNote
+        self.onMove = onMove
+        self.onMoveToNewSpace = onMoveToNewSpace
+        self.onSetPinned = onSetPinned
         self.onSave = onSave
         self.onDelete = onDelete
         self.linkTitles = allNotes.filter { $0.id != item.id }.map(\.displayTitle)
@@ -2685,6 +2794,22 @@ struct MacNoteInspector: View {
                     .contentTransition(.opacity)
 
                 Spacer()
+
+                // A page that is not written yet has no row to pin. It gains the control with its
+                // first word rather than offering one that would do nothing.
+                if !isUnwritten {
+                    let isPinned = item.note.pinnedAt != nil
+                    Button {
+                        onSetPinned(!isPinned)
+                    } label: {
+                        Image(systemName: isPinned ? "pin.fill" : "pin")
+                            .dipleIcon(14)
+                            .foregroundStyle(isPinned ? DipleColor.accentInk : DipleColor.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(isPinned ? "Unpin" : "Pin to the top of its place")
+                    .accessibilityLabel(isPinned ? "Unpin" : "Pin")
+                }
 
                 Menu {
                     ShareLink(item: exportMarkdown) {
@@ -2741,7 +2866,7 @@ struct MacNoteInspector: View {
                 .foregroundStyle(DipleColor.textQuaternary)
                 .monospacedDigit()
 
-                propertiesEditor
+                propertiesLine
 
                 Rectangle()
                     .fill(DipleColor.separator)
@@ -2867,126 +2992,188 @@ struct MacNoteInspector: View {
         }
     }
 
-    private var propertiesEditor: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
-            HStack(spacing: DipleSpace.s) {
-                Label("Tags", systemImage: "number")
-                    .dipleType(.micro, weight: .semibold)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .frame(width: 70, alignment: .leading)
+    /// A page nothing has been written on yet.
+    private var isUnwritten: Bool { isDraft && !hasBeenWritten }
 
-                TextField("Add tag", text: $tagDraft)
-                    .textFieldStyle(.plain)
-                    .dipleType(.callout)
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .onSubmit(commitTagDraft)
-                    .padding(.horizontal, DipleSpace.m)
-                    .padding(.vertical, DipleSpace.s)
-                    .background(
-                        DipleColor.surfaceRaised,
-                        in: RoundedRectangle(cornerRadius: DipleRadius.s)
-                    )
-
-                Button(action: commitTagDraft) {
-                    Image(systemName: "plus")
-                        .dipleIcon(13, weight: .semibold)
-                        .foregroundStyle(DipleColor.textOnAccent)
-                        .frame(width: 30, height: 30)
-                        .background(DipleColor.accent, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(NoteTag.normalized(tagDraft) == nil)
-                .opacity(NoteTag.normalized(tagDraft) == nil ? 0.4 : 1)
-                .help("Add tag")
+    /// Where the page lives, its tags and its source, as one quiet line under the title — the
+    /// phone's properties row, with the space the desk can also file it into.
+    ///
+    /// It replaced a boxed form of labelled fields that stood between the title and the first
+    /// line of the page and was taller than most notes: on a page that is always open for writing
+    /// the properties are consulted, not filled in, and the words should start near the title.
+    private var propertiesLine: some View {
+        FlowLayout(spacing: DipleSpace.s) {
+            // A day's page is filed by its date, and has no space to show or change.
+            if item.note.dailyDate == nil {
+                spaceChip
             }
 
-            if !tags.isEmpty {
-                FlowLayout(spacing: DipleSpace.s) {
-                    ForEach(tags, id: \.self) { tag in
-                        Button {
-                            tags.removeAll { $0 == tag }
-                        } label: {
-                            HStack(spacing: DipleSpace.xs) {
-                                Text("#\(tag)")
-                                    .dipleType(.caption, weight: .medium)
-                                Image(systemName: "xmark")
-                                    .dipleIcon(9, weight: .bold)
-                            }
-                            .foregroundStyle(DipleColor.textSecondary)
-                            .diplePadding(.chip)
-                            .background(DipleColor.surfaceOverlay, in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Remove #\(tag)")
+            ForEach(tags, id: \.self) { tag in
+                Button {
+                    tags.removeAll { $0 == tag }
+                } label: {
+                    HStack(spacing: DipleSpace.xs) {
+                        Text("#\(tag)")
+                            .dipleType(.caption, weight: .medium)
+                        Image(systemName: "xmark")
+                            .dipleIcon(9, weight: .bold)
                     }
+                    .foregroundStyle(DipleColor.textSecondary)
+                    .diplePadding(.chip)
+                    .background(DipleColor.surfaceOverlay, in: Capsule())
                 }
+                .buttonStyle(.plain)
+                .help("Remove #\(tag)")
+            }
+
+            if let book = selectedBook {
+                Button {
+                    selectedBookId = nil
+                } label: {
+                    HStack(spacing: DipleSpace.xs) {
+                        Image(systemName: "book.closed")
+                            .dipleIcon(10, weight: .medium)
+                        Text(book.title)
+                            .dipleType(.caption, weight: .medium)
+                            .lineLimit(1)
+                        Image(systemName: "xmark")
+                            .dipleIcon(9, weight: .bold)
+                    }
+                    .foregroundStyle(DipleColor.accentInk)
+                    .diplePadding(.chip)
+                    .background(DipleColor.accentSoft, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("Unlink \(book.title)")
+            }
+
+            if isAddingTag {
+                newTagField
+            } else {
+                addMenu
+            }
+        }
+    }
+
+    /// The page's place, named, with the places it can go under it.
+    private var spaceChip: some View {
+        let current = item.note.spaceId.flatMap { id in spaces.first { $0.id == id } }
+        return Menu {
+            Button {
+                onMove(nil)
+            } label: {
+                Label("Inbox", systemImage: current == nil ? "checkmark" : "tray")
+            }
+            .disabled(current == nil)
+            ForEach(spaces) { space in
+                Button {
+                    onMove(space)
+                } label: {
+                    Label(space.name, systemImage: current?.id == space.id ? "checkmark" : space.symbol)
+                }
+                .disabled(current?.id == space.id)
+            }
+            Divider()
+            Button {
+                onMoveToNewSpace()
+            } label: {
+                Label("New space…", systemImage: "plus")
+            }
+        } label: {
+            HStack(spacing: DipleSpace.xs) {
+                Image(systemName: current?.symbol ?? "tray")
+                    .dipleIcon(10, weight: .medium)
+                // A note about a book and in no space stands under the book, not in the Inbox:
+                // the chip names the space, and no space is said as "No space" there.
+                Text(current?.name ?? (selectedBookId == nil ? "Inbox" : "No space"))
+                    .dipleType(.caption, weight: .medium)
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .dipleIcon(8, weight: .semibold)
+            }
+            .foregroundStyle(DipleColor.textSecondary)
+            .diplePadding(.chip)
+            .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
+        }
+        // `.borderlessButton` on Catalyst redraws the label as a system pull-down — its own
+        // chevron and grey plate, the glyph dropped — so the chip would stop matching the tag
+        // chips beside it. A plain button style keeps the label as drawn.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Move to a space")
+    }
+
+    private var addMenu: some View {
+        Menu {
+            Button {
+                isBookPickerPresented = true
+            } label: {
+                Label(selectedBook == nil ? "Link a source…" : "Change source…", systemImage: "book.closed")
             }
 
             if !unusedSuggestions.isEmpty {
-                Menu {
-                    ForEach(unusedSuggestions, id: \.self) { tag in
-                        Button("#\(tag)") {
-                            tags.append(tag)
-                        }
-                    }
-                } label: {
-                    Label("Add existing tag", systemImage: "tag")
-                        .dipleType(.micro)
-                        .foregroundStyle(DipleColor.textTertiary)
-                }
-                .menuStyle(.borderlessButton)
-            }
-
-            HStack(spacing: DipleSpace.s) {
-                Label("Book", systemImage: "book.closed")
-                    .dipleType(.micro, weight: .semibold)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .frame(width: 70, alignment: .leading)
-
-                Button {
-                    isBookPickerPresented = true
-                } label: {
-                    HStack(spacing: DipleSpace.s) {
-                        Text(selectedBook?.title ?? "Link a library item")
-                            .dipleType(.callout)
-                            .foregroundStyle(
-                                selectedBook == nil
-                                    ? DipleColor.textTertiary
-                                    : DipleColor.textPrimary
-                            )
-                            .lineLimit(1)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .dipleIcon(10, weight: .semibold)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                    }
-                    .padding(.horizontal, DipleSpace.m)
-                    .padding(.vertical, DipleSpace.s)
-                    .background(
-                        DipleColor.surfaceRaised,
-                        in: RoundedRectangle(cornerRadius: DipleRadius.s)
-                    )
-                }
-                .buttonStyle(.plain)
-
-                if selectedBookId != nil {
-                    Button {
-                        selectedBookId = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .dipleIcon(14)
-                            .foregroundStyle(DipleColor.textQuaternary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove book link")
+                Divider()
+                ForEach(unusedSuggestions.prefix(8), id: \.self) { tag in
+                    Button("#\(tag)") { tags.append(tag) }
                 }
             }
+
+            Divider()
+            Button {
+                isAddingTag = true
+            } label: {
+                Label("New tag…", systemImage: "number")
+            }
+        } label: {
+            HStack(spacing: DipleSpace.xs) {
+                Image(systemName: "plus")
+                    .dipleIcon(10, weight: .semibold)
+                Text(tags.isEmpty && selectedBook == nil ? "Add tags or a source" : "Add")
+                    .dipleType(.caption, weight: .medium)
+            }
+            .foregroundStyle(DipleColor.textTertiary)
+            .diplePadding(.chip)
+            .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
         }
-        .padding(DipleSpace.m)
-        .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-        .overlay {
-            RoundedRectangle(cornerRadius: DipleRadius.m)
-                .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    /// A tag typed where the chips stand, rather than in a dialog: on a desk the keyboard is
+    /// already under the hands. Return keeps it, Escape or a click elsewhere lets it go — the
+    /// half-typed word is still kept if the page closes, as it always was.
+    private var newTagField: some View {
+        HStack(spacing: DipleSpace.xs) {
+            Text("#")
+                .dipleType(.caption, weight: .medium)
+                .foregroundStyle(DipleColor.textTertiary)
+            TextField("new tag", text: $tagDraft)
+                .textFieldStyle(.plain)
+                .dipleType(.caption, weight: .medium)
+                .foregroundStyle(DipleColor.textPrimary)
+                .focused($isTagFieldFocused)
+                .fixedSize()
+                .onSubmit {
+                    commitTagDraft()
+                    isAddingTag = false
+                }
+                .onKeyPress(.escape) {
+                    tagDraft = ""
+                    isAddingTag = false
+                    return .handled
+                }
+        }
+        .diplePadding(.chip)
+        .overlay(Capsule().stroke(DipleColor.accent, lineWidth: DipleStroke.selection))
+        .onAppear { isTagFieldFocused = true }
+        .onChange(of: isTagFieldFocused) { _, focused in
+            guard !focused else { return }
+            commitTagDraft()
+            isAddingTag = false
         }
     }
 

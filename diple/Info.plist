@@ -22,6 +22,23 @@
 			</array>
 		</dict>
 	</array>
+	<!-- A note carried by the pointer between the Mac's list and its sidebar. Declared so the
+	     drag has a type of its own: as text it would be accepted by the note editor beside the
+	     list and type the note's id into the page. Exported for the app's own drags only; no
+	     file of this type exists and nothing outside diple is claimed. -->
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.chemical-pink.diple.note-reference</string>
+			<key>UTTypeDescription</key>
+			<string>diple note</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

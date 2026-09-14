@@ -1,5 +1,6 @@
 #if targetEnvironment(macCatalyst)
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The two workshops the phone has, as a switch at the top of the desktop sidebar.
 ///
@@ -36,6 +37,49 @@ enum MacNotesPlace: Hashable {
     case source(String)
     case allNotes
     case journal
+}
+
+// MARK: - Dragging a note
+
+extension UTType {
+    /// A note carried by the pointer inside the window. Its own type, declared in Info.plist,
+    /// rather than the note's id as text: text would be taken by every field it passed over —
+    /// dropped on the editor beside the list, it would type the id into the page.
+    static let dipleNoteReference = UTType(exportedAs: "com.chemical-pink.diple.note-reference")
+}
+
+/// What a note row gives the pointer: which note, and nothing else. The note itself is read
+/// back from the workshop on the drop, so a row dragged while it was being edited files the
+/// note as it is now.
+nonisolated struct MacNoteReference: Codable, Transferable {
+    let id: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .dipleNoteReference)
+    }
+}
+
+/// A place in the sidebar a note can be dropped on: a ring while the pointer holds one over it,
+/// the same ring that says "this one" everywhere else.
+private struct MacNoteDropTarget: ViewModifier {
+    let onDrop: ([String]) -> Bool
+
+    @State private var isTargeted = false
+
+    func body(content: Content) -> some View {
+        content
+            .dipleSelected(
+                isTargeted,
+                in: RoundedRectangle(cornerRadius: DipleRadius.s, style: .continuous),
+                resting: .clear
+            )
+            .animation(DipleMotion.snappy, value: isTargeted)
+            .dropDestination(for: MacNoteReference.self) { references, _ in
+                onDrop(references.map(\.id))
+            } isTargeted: { targeted in
+                isTargeted = targeted
+            }
+    }
 }
 
 // MARK: - The switch
@@ -89,11 +133,17 @@ struct MacNotesSidebar: View {
     @ObservedObject var model: NotesWorkshopModel
     @Binding var place: MacNotesPlace?
     let onNewSpace: () -> Void
+    /// Notes dropped on a place: the Inbox (`nil`) or a space. Answers whether they were taken.
+    let onDrop: ([String], NoteSpace?) -> Bool
+    let onEditSpace: (NoteSpace) -> Void
+    let onArrangeSpaces: () -> Void
+    let onDeleteSpace: (NoteSpace) -> Void
 
     var body: some View {
         List(selection: $place) {
             Section {
                 row(.inbox, symbol: "tray", title: "Inbox", count: model.inbox.count)
+                    .modifier(MacNoteDropTarget { ids in onDrop(ids, nil) })
                 row(.today, symbol: "sun.max", title: "Today")
             }
 
@@ -105,6 +155,30 @@ struct MacNotesSidebar: View {
                         title: space.name,
                         count: model.spaceCounts[space.id] ?? 0
                     )
+                    .modifier(MacNoteDropTarget { ids in onDrop(ids, space) })
+                    // The phone keeps these in a sheet behind "Edit" so the Desk cannot grow
+                    // handles under a stray press; a pointer has no stray press, and the menu
+                    // under the right click is where a desktop keeps what a row can be asked.
+                    .contextMenu {
+                        Button {
+                            onEditSpace(space)
+                        } label: {
+                            Label("Rename…", systemImage: "pencil")
+                        }
+                        if model.spaces.count > 1 {
+                            Button {
+                                onArrangeSpaces()
+                            } label: {
+                                Label("Arrange spaces…", systemImage: "arrow.up.arrow.down")
+                            }
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            onDeleteSpace(space)
+                        } label: {
+                            Label("Delete space…", systemImage: "trash")
+                        }
+                    }
                 }
                 // Quieter than a space and not a place: it makes one. Last, where the new space
                 // will stand.
@@ -191,8 +265,14 @@ struct MacNotesList: View {
     let empty: (symbol: String, title: String, message: String)
     @Binding var query: String
     @Binding var searchFocusRequest: MacSearchTarget?
+    /// Where a note can be filed from its row's menu.
+    let spaces: [NoteSpace]
     let onSelect: (NoteItem) -> Void
     let onCreate: () -> Void
+    let onSetPinned: (NoteItem, Bool) -> Void
+    /// A row filed from its menu: to the Inbox (`nil`) or a space.
+    let onMove: (NoteItem, NoteSpace?) -> Void
+    let onMoveToNewSpace: (NoteItem) -> Void
 
     private var visible: [NoteItem] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -235,7 +315,14 @@ struct MacNotesList: View {
                             } content: {
                                 NoteCardView(item: item, style: .row)
                                     .padding(.horizontal, DipleSpace.m)
+                                    .overlay(alignment: .topTrailing) {
+                                        if item.note.pinnedAt != nil { pinMark }
+                                    }
                             }
+                            .draggable(MacNoteReference(id: item.id)) {
+                                dragPreview(of: item)
+                            }
+                            .contextMenu { menu(for: item) }
                         }
                     }
                     .padding(.horizontal, DipleSpace.l)
@@ -244,6 +331,71 @@ struct MacNotesList: View {
             }
         }
         .background(DipleColor.canvas)
+    }
+
+    /// Pinned notes stand first in every list, and on a desk the order alone does not say why.
+    /// Quiet, in the corner: the mark answers the question, it does not ask to be pressed.
+    private var pinMark: some View {
+        Image(systemName: "pin.fill")
+            .dipleIcon(10, weight: .medium)
+            .foregroundStyle(DipleColor.textQuaternary)
+            .padding(DipleSpace.m)
+            .accessibilityLabel("Pinned")
+    }
+
+    /// The title alone under the pointer: the row at full width would cover the sidebar it is
+    /// being carried to.
+    private func dragPreview(of item: NoteItem) -> some View {
+        Label(item.displayTitle, systemImage: "note.text")
+            .dipleType(.footnote, weight: .medium)
+            .foregroundStyle(DipleColor.textPrimary)
+            .lineLimit(1)
+            .padding(.horizontal, DipleSpace.m)
+            .padding(.vertical, DipleSpace.s)
+            .background(DipleColor.surfaceRaised, in: Capsule())
+    }
+
+    /// Pin and Move, as the phone's row offers them under a long press. Delete is not here yet:
+    /// the desk has no Recently deleted to take it back from.
+    @ViewBuilder
+    private func menu(for item: NoteItem) -> some View {
+        let isPinned = item.note.pinnedAt != nil
+        Button {
+            onSetPinned(item, !isPinned)
+        } label: {
+            Label(isPinned ? "Unpin" : "Pin", systemImage: isPinned ? "pin.slash" : "pin")
+        }
+
+        Menu {
+            moveDestination("Inbox", symbol: "tray", isCurrent: item.note.spaceId == nil) {
+                onMove(item, nil)
+            }
+            ForEach(spaces) { space in
+                moveDestination(space.name, symbol: space.symbol, isCurrent: item.note.spaceId == space.id) {
+                    onMove(item, space)
+                }
+            }
+            Divider()
+            Button {
+                onMoveToNewSpace(item)
+            } label: {
+                Label("New space…", systemImage: "plus")
+            }
+        } label: {
+            Label("Move to", systemImage: "folder")
+        }
+    }
+
+    private func moveDestination(
+        _ title: String,
+        symbol: String,
+        isCurrent: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: isCurrent ? "checkmark" : symbol)
+        }
+        .disabled(isCurrent)
     }
 }
 

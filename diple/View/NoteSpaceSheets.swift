@@ -272,7 +272,7 @@ extension View {
     func spaceDeletionAlert(
         model: NotesWorkshopModel,
         space: Binding<NoteSpace?>,
-        onDeleted: @escaping () -> Void = {}
+        onDeleted: @escaping (NoteSpace) -> Void = { _ in }
     ) -> some View {
         alert(
             "Delete “\(space.wrappedValue?.name ?? "")”?",
@@ -285,7 +285,7 @@ extension View {
             Button("Delete", role: .destructive) {
                 // The caller leaves first — a page standing on this space must be gone before
                 // the space is, or it redraws for a frame as whatever it falls back to.
-                onDeleted()
+                onDeleted(target)
                 model.delete(target)
             }
             Button("Cancel", role: .cancel) {}
