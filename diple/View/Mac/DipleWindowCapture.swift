@@ -20,6 +20,10 @@ import SwiftUI
 ///   updated and the middle column still shows the previous shelf — which reads exactly like a
 ///   state bug and is not one.
 ///
+/// - **The reader does not come out.** Readium's page is a `WKWebView`, which draws out of
+///   process, and `drawHierarchy` returns its frame empty: an open book photographs as a blank
+///   page under its own chrome. Shelves, boards and the notes columns are all ordinary views.
+///
 /// `DIPLE_CAPTURE_SOURCE` names the shelf to open at. A `MacCommand` posted from in here is the
 /// other way to drive the shell, but the shelf has to be set before the first render for the
 /// columns to agree by the time the shutter opens.
@@ -63,9 +67,52 @@ enum DipleWindowCapture {
         #endif
     }
 
+    /// The start of a book's title, to select that book on the shelf so the inspector describes it.
+    static var requestedBook: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_BOOK"]
+        #else
+        nil
+        #endif
+    }
+
+    /// The start of a passage's text, to select it on the Highlights board so the inspector shows it.
+    static var requestedPassage: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_PASSAGE"]
+        #else
+        nil
+        #endif
+    }
+
+    /// The window's content size in points, as `1280x800`. macOS restores whatever size the window
+    /// last had, so a set of photographs taken on different days would otherwise not share a frame.
+    /// App Store frames are 16:10; at @2x, 1440x900 is exactly 2880x1800.
+    static var requestedSize: CGSize? {
+        #if DEBUG
+        guard let raw = ProcessInfo.processInfo.environment["DIPLE_CAPTURE_SIZE"] else { return nil }
+        let parts = raw.split(separator: "x").compactMap { Double($0) }
+        guard parts.count == 2 else { return nil }
+        return CGSize(width: parts[0], height: parts[1])
+        #else
+        nil
+        #endif
+    }
+
     static func runIfRequested() {
         guard let filename = requestedFilename else { return }
         Task { @MainActor in
+            if let size = requestedSize,
+               let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+                // A geometry request alone is ignored once macOS has restored a frame; pinning both
+                // restrictions to the size is what makes the window give way. Now and then the
+                // content lands a titlebar's height low under a black band — take that one again.
+                try? await Task.sleep(for: .seconds(1))
+                scene.sizeRestrictions?.minimumSize = size
+                scene.sizeRestrictions?.maximumSize = size
+                let origin = scene.effectiveGeometry.systemFrame.origin
+                scene.requestGeometryUpdate(.Mac(systemFrame: CGRect(origin: origin, size: size)))
+            }
             try? await Task.sleep(for: .seconds(14))
             guard let window = UIApplication.shared.connectedScenes
                 .compactMap({ ($0 as? UIWindowScene)?.keyWindow })

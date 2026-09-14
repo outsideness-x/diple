@@ -941,6 +941,18 @@ public struct MacRootView: View {
     /// The place and note `DipleWindowCapture` names, for a photograph of one screen. Nothing at
     /// all in a run that is not a capture.
     private func standWhereTheCaptureAsks() {
+        if let start = DipleWindowCapture.requestedBook,
+           let book = library.books.first(where: { $0.title.hasPrefix(start) }) {
+            mode = .reading
+            detail = .book(book)
+        }
+        if let start = DipleWindowCapture.requestedPassage,
+           let item = marginalia.entries.compactMap(\.passageItem)
+               .first(where: { $0.highlight.text.hasPrefix(start) }) {
+            mode = .reading
+            source = .highlights
+            detail = .passage(item)
+        }
         guard let requested = DipleWindowCapture.requestedPlace else { return }
         notes.load()
         mode = .notes
