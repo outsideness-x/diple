@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draws the app icon: the app's wordmark, in the app's own hand.
+"""Draws the app icon: the app's wordmark, written by hand.
 
 **What the icon says.** A diple is the wedge Alexandrian scholars set in the margin against a
 line worth noticing — the ancestor of the quotation mark, and literally the app's name and its
@@ -15,18 +15,21 @@ objection with three characters instead of a scene. The `d` is what stops the we
 chevron, the full stop is the one the wordmark has carried since the redesign (`diple.` in the
 masthead), and together they are a name rather than an illustration.
 
-**The mark is written, not drawn.** It is set in Caveat, the same notebook hand as the Settings
-colophon and the Living Margins note — the app's one handwriting face, and the only place its
-own voice is not a publisher's. The previous icon simulated a broad-edged pen with swept
-parallelograms to get a written mark out of two straight strokes; a face that was actually
-written needs none of that. Weight 400: the floor of Caveat's `wght` axis, the family has
-nothing lighter, and it is exactly the weight the colophon is set in.
+**The mark is written, not drawn.** It is set in Mynerve (2026-09-14), Alex's choice after a
+side-by-side of Caveat against ten other hands — copperplate, brush pen, ballpoint, pencil. It is
+a plain felt-tip print with an upright `d` and a wedge that opens wide. It is used at its own
+weight: its stroke already measures what the Caveat mark before it had to be eroded down to.
+
+**Mynerve is the icon's hand, not the app's.** It has no Cyrillic, so the Settings colophon and
+the Living Margins note — which a Russian reader writes in — stay in Caveat. The intro writes the
+icon, so it is the one other place Mynerve appears.
 
 **Colour carries the roles the app already assigns.** The mark is the accent, because in diple
 the accent is always the reader's own act — the highlight, the progress ribbon, `accentInk`.
 That is also what makes the accent alternates worth having: the thing that changes colour is the
-thing the reader chose. The plate is the app's canvas, not its paper: the wordmark in the
-masthead is light-on-dark, and an icon that inverted it would be a different mark.
+thing the reader chose. The primary is Vellum, `#E6D4B5`, the default accent since the same day.
+The plate is the app's canvas, not its paper: the wordmark in the masthead is light-on-dark, and
+an icon that inverted it would be a different mark.
 
 **The set names carry the artwork, not just the colour** — the primary set included. iOS never
 re-reads an icon whose name is already the one in force, so redrawing one under its old name
@@ -49,41 +52,37 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ASSETS = Path("diple/Assets.xcassets")
-FONT = Path("diple/Resources/Fonts/Caveat-Variable.ttf")
+FONT = Path("diple/Resources/Fonts/Mynerve-Regular.ttf")
 
 # Must stay in sync with `DipleAccent.alternateIconName` in diple/Theme/DipleAccent.swift and
-# with the two asset-catalog build settings. Ink is the primary set, so it has no alternate.
-SUFFIX = "Hand"
-PRIMARY = "#86A8FF"
+# with the two asset-catalog build settings. Vellum is the primary set, so it has no alternate.
+SUFFIX = "Mynerve"
+PRIMARY = "#E6D4B5"
 ACCENTS = {
+    "Ink": "#86A8FF",
     "Lilac": "#DF9BE1",
     "Mint": "#6FD6B4",
     "Clay": "#D97757",
-    "Brass": "#C8A45C",
 }
 
 WORDMARK = (">", "d.")
-# The floor of Caveat's axis. The family has no lighter cut, and this is what the colophon uses.
-WEIGHT = 400
 
 # How much ink is taken off each side of every stroke, in pixels of the finished 1024 artwork.
 #
-# **Thinner than the face goes.** At 400, the lightest weight Caveat has, the mark still came
-# out too heavy for an icon: a stem around 45 px on a 1024 square, a felt-tip on the Home Screen
-# rather than a pen. There is no lighter cut to reach for, so the weight is taken off the ink
-# instead — the glyphs are rendered at the supersampled size and eroded evenly, which keeps
-# every letterform and every wobble of the hand exactly where Caveat put them and removes only
-# stroke. Six pixels a side is the value chosen from a side-by-side at 240, 120 and 60 px: at
-# eight the full stop and the thin end of the wedge begin to break up at Spotlight size.
-THINNING = 6
+# **None, for Mynerve.** The Caveat mark before it was eroded by 6 px a side: at 400, the
+# lightest weight Caveat has, its stem was about 45 px, a felt-tip rather than a pen, and no
+# lighter cut existed. Mynerve at `INK_SPAN` measures a 28 px stroke at its own weight — within a
+# pixel and a half of what the eroded Caveat came to — so there is nothing to take off. The
+# mechanism stays for the next face that is heavier than its icon should be.
+THINNING = 0
 
 # Taken out of the gap between the wedge and the letter, as a fraction of the em.
 #
-# Caveat spaces `>` as the maths glyph it is in running text, where it stands between two
-# operands with air on both sides. Here it is the first character of a word, and at the face's
-# own fit the two halves read as a chevron *and* a letter rather than as one mark. Measured on
-# the artwork at 1024: past about -0.08 the wedge starts to touch the bowl of the `d`.
-KERN = -0.05
+# **None, for Mynerve.** Caveat spaced `>` as the maths glyph it is in running text, and needed
+# -0.05 em before the two halves read as one mark. Mynerve's wedge is a wide, open stroke that
+# fills most of its own advance, and at its own fit the gap to the `d` is already about the
+# width of one stroke — the reference artwork Alex chose is set exactly so.
+KERN = 0.0
 
 # The dark plate is a couple of units deeper so the icon does not glow against a dark wallpaper.
 PLATE = (11, 11, 15)
@@ -97,11 +96,12 @@ SUPERSAMPLE = 4
 
 # How much of the square the ink spans, along whichever axis binds first.
 #
-# A little over half. An icon is masked into a superellipse and then shown at 60 pt beside
+# A little under half. An icon is masked into a superellipse and then shown at 60 pt beside
 # other icons; a wordmark run towards the edges loses its corners to the mask and its air to
-# the neighbours. Two thirds was the first draft and read as shouting on the Home Screen — the
-# mark is handwriting, and handwriting is smaller than the page it is written on.
-INK_SPAN = 0.56
+# the neighbours. Two thirds was the first Caveat draft and read as shouting on the Home Screen;
+# Caveat shipped at 56%. Mynerve is set at 43% — the span of the reference artwork Alex chose,
+# which this script reproduces to the pixel horizontally.
+INK_SPAN = 0.43
 
 # How far the placement is pulled from the ink box towards the ink's centre of mass.
 #
@@ -122,19 +122,17 @@ def hex_to_rgb(value: str) -> tuple[int, int, int]:
 
 
 def fitted_font(size: int) -> ImageFont.FreeTypeFont:
-    font = ImageFont.truetype(str(FONT), size)
-    font.set_variation_by_axes([WEIGHT])
-    return font
+    return ImageFont.truetype(str(FONT), size)
 
 
 def drawn_wordmark(size: int) -> Image.Image:
     """The two halves on one baseline, kerned, cropped to the ink and nothing else.
 
-    **Measured, not calculated.** `textbbox` answers with the face's metrics, and Caveat is a
-    hand: its glyphs overshoot their own advances by design — the `d`'s ascender leans out past
-    the letter it belongs to, the wedge sits inside a wide maths sidebearing. Placing by those
-    numbers put the finished mark 55 px right of centre on a 1024 square. Rendering it and
-    reading the alpha channel is the only measurement that is about the ink.
+    **Measured, not calculated.** `textbbox` answers with the face's metrics, and a hand's glyphs
+    overshoot their own advances by design — Caveat's `d` leaned its ascender out past the letter
+    it belongs to and set the wedge inside a wide maths sidebearing. Placing by those numbers put
+    the Caveat mark 55 px right of centre on a 1024 square. Rendering it and reading the alpha
+    channel is the only measurement that is about the ink.
 
     The two pieces are drawn from one pen position on one baseline, so every vertical relation
     in the mark is the face's own; only the gap between them is ours.
