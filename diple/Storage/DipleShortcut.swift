@@ -76,7 +76,8 @@ enum DipleShortcut: String {
         #if targetEnvironment(macCatalyst)
         switch shortcut {
         case .newNote: MacCommand.newNote.post()
-        case .notes, .today, .inbox: MacCommand.goNotes.post()
+        case .today: MacCommand.goToday.post()
+        case .notes, .inbox: MacCommand.goNotes.post()
         }
         #else
         pending = shortcut

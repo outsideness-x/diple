@@ -43,6 +43,26 @@ enum DipleWindowCapture {
         #endif
     }
 
+    /// A place in the notes workshop to stand on: `inbox`, `today`, `journal`, `allNotes`, or
+    /// `space:<name>`. Applied once the workshop has loaded, because a space is known by name
+    /// here and by id in the window.
+    static var requestedPlace: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_PLACE"]
+        #else
+        nil
+        #endif
+    }
+
+    /// The start of a note's title, to open that note in the editor column.
+    static var requestedNote: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_NOTE"]
+        #else
+        nil
+        #endif
+    }
+
     static func runIfRequested() {
         guard let filename = requestedFilename else { return }
         Task { @MainActor in

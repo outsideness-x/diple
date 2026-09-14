@@ -25,7 +25,10 @@ enum MacCommand: String, Sendable, CaseIterable {
     case goReading
     case goArticles
     case goHighlights
+    /// The notes workshop, at its Inbox.
     case goNotes
+    /// The notes workshop, on today's page.
+    case goToday
     case goSearch
     /// Put the caret in whatever field narrows the column that is open. Distinct from
     /// `goSearch`, which is a *place*: ⌘F on the shelf must not throw away the shelf.
@@ -127,10 +130,17 @@ struct DipleMacCommands: Commands {
 
             Button("Highlights") { MacCommand.goHighlights.post() }
                 .keyboardShortcut("5", modifiers: .command)
-            Button("Notes") { MacCommand.goNotes.post() }
-                .keyboardShortcut("6", modifiers: .command)
             Button("Search Everything") { MacCommand.goSearch.post() }
                 .keyboardShortcut("7", modifiers: .command)
+
+            Divider()
+
+            // The notes workshop. Its keys keep the numbers they had while Notes was a shelf,
+            // and Today takes the next one free: moving ⌘6 would retrain a hand for nothing.
+            Button("Notes") { MacCommand.goNotes.post() }
+                .keyboardShortcut("6", modifiers: .command)
+            Button("Today") { MacCommand.goToday.post() }
+                .keyboardShortcut("8", modifiers: .command)
 
             Divider()
 
