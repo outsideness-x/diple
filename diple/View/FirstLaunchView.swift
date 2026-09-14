@@ -162,14 +162,15 @@ private struct FirstLaunchView: View {
 
 /// When each beat happens, in seconds of `PenClock` time.
 ///
-/// The pen moves at roughly handwriting pace — about 1100 font units a second, a little faster
+/// The pen moves at roughly handwriting pace — about 1400 font units a second, a little faster
 /// on the downstroke of the `d` — and lifts between strokes for as long as a hand takes to
-/// travel to the next one. The silence before the first stroke is what lets the system launch
+/// travel to the next one. (The Caveat mark ran at 1100: Mynerve's `>d.` is 40% wider in font
+/// units, so the same speed on screen is a larger number.) The silence before the first stroke is what lets the system launch
 /// screen, which is the same canvas, read as the page the mark is about to be written on.
 private enum LaunchScript {
-    static let taglineStart = 2.75
-    static let taglineEnd = 3.35
-    static let duration = 3.35
+    static let taglineStart = 2.95
+    static let taglineEnd = 3.55
+    static let duration = 3.55
 }
 
 /// The intro's clock, which moves only as frames are actually drawn.
@@ -220,7 +221,7 @@ private final class PenClock: NSObject {
     }
 }
 
-/// `>d.`, the icon's mark, as geometry: the Caveat outlines the icon is set from and the path a
+/// `>d.`, the icon's mark, as geometry: the Mynerve outlines the icon is set from and the path a
 /// pen takes through each of them.
 ///
 /// **The ink is the face's own outline; the pen only uncovers it.** A written reveal drawn by
@@ -230,9 +231,9 @@ private final class PenClock: NSObject {
 /// the icon's letters, and only the order they arrive in is authored.
 ///
 /// The centre lines were measured, not drawn by eye: the midpoints of the glyphs' horizontal
-/// ink runs, in font units, rasterised from `Caveat-Variable.ttf` at weight 400. At a pen of
-/// 80 units every pixel of the thinned glyphs is under some stroke; at 70 the joint where the
-/// bowl of the `d` meets its stem is left bare.
+/// ink runs, in font units, rasterised from `Mynerve-Regular.ttf`. At a pen of 100 units every
+/// pixel of the three glyphs is under some stroke; at 90 the top of the bowl, where it runs into
+/// the stem, is left bare.
 private struct LaunchMark {
     struct Stroke {
         enum Kind {
@@ -262,7 +263,7 @@ private struct LaunchMark {
         }
     }
 
-    /// The thinned glyph outlines, y down, in font units at 1000 per em.
+    /// The glyph outlines, y down, in font units at 1000 per em.
     let ink: Path
     let strokes: [Stroke]
     /// Where the mark is stood when it is centred — see `MASS_PULL` in `Scripts/generate_icons.py`.
@@ -270,24 +271,24 @@ private struct LaunchMark {
     /// The ink's larger dimension, which is what the icon sizes the mark by.
     let span: CGFloat
 
-    static let penWidth: CGFloat = 80
-    /// The thinned full stop is about 40 units across its radius; the rest is antialiasing room.
-    static let dotReach: CGFloat = 56
+    static let penWidth: CGFloat = 100
+    /// Mynerve's full stop is a lopsided blob whose farthest point is 60 units from its centre;
+    /// the rest is antialiasing room.
+    static let dotReach: CGFloat = 70
 
     /// Nil only if the bundled face could not be loaded, in which case there is no mark to write.
     static let shared = LaunchMark.make()
 
     /// Mirrors `Scripts/generate_icons.py`, so the intro writes the icon rather than a relative.
-    private static let kern: CGFloat = -50
-    /// `THINNING` in the icon script is 6 px a side on a mark spanning `INK_SPAN` (56%) of 1024.
-    private static let thinningShareOfSpan: CGFloat = 6 / (1024 * 0.56)
+    /// The icon sets Mynerve with no kern and no erosion (`KERN`, `THINNING`), so the mark here is
+    /// the glyphs at their own advances and weight; only the centring rule is carried over.
     private static let massPull: CGFloat = 0.33
 
     private static func make() -> LaunchMark? {
-        let font = CTFontCreateWithName("Caveat-Regular" as CFString, 1000, nil)
+        let font = CTFontCreateWithName("Mynerve-Regular" as CFString, 1000, nil)
         // CoreText substitutes a system face for a missing one without saying so, and a
-        // Helvetica `d` under Caveat's pen paths would be a mark written by nobody.
-        guard CTFontCopyPostScriptName(font) as String == "Caveat-Regular" else { return nil }
+        // Helvetica `d` under Mynerve's pen paths would be a mark written by nobody.
+        guard CTFontCopyPostScriptName(font) as String == "Mynerve-Regular" else { return nil }
 
         var characters: [UniChar] = Array(">d.".utf16)
         var glyphs = [CGGlyph](repeating: 0, count: characters.count)
@@ -300,21 +301,17 @@ private struct LaunchMark {
         var pen: CGFloat = 0
         for index in glyphs.indices {
             origins.append(pen)
-            pen += advances[index].width + (index == 0 ? kern : 0)
+            pen += advances[index].width
         }
 
-        var outline = Path()
+        var ink = Path()
         for (index, glyph) in glyphs.enumerated() {
             guard let glyphPath = CTFontCreatePathForGlyph(font, glyph, nil) else { return nil }
-            outline.addPath(Path(glyphPath), transform: glyphSpace(origin: origins[index]))
+            ink.addPath(Path(glyphPath), transform: glyphSpace(origin: origins[index]))
         }
 
-        let box = outline.boundingRect
+        let box = ink.boundingRect
         let span = max(box.width, box.height)
-        let thinning = span * thinningShareOfSpan
-        let ink = outline.subtracting(
-            outline.strokedPath(StrokeStyle(lineWidth: thinning * 2, lineCap: .round, lineJoin: .round))
-        )
 
         let strokes = script.map { entry in
             let transform = glyphSpace(origin: origins[entry.glyph])
@@ -348,32 +345,38 @@ private struct LaunchMark {
     /// bowl of the `d` anticlockwise from where it meets the stem, the stem from the top down,
     /// and the full stop pressed in last. Points are font units relative to each glyph's origin.
     ///
-    /// The bowl starts a pen's width short of the stem, and the stem runs along the left of its
-    /// own ink past the joint: starting the bowl *at* the joint put the round tip of the pen on
-    /// the stem, and for two frames the first thing written read as `~`.
+    /// The bowl starts half a pen short of the stem: started *at* the joint, the round tip of
+    /// the pen landed on the stem and for two frames the first thing written read as `~` (seen
+    /// with Caveat, and Mynerve's bowl meets its stem the same way). It then goes all the way
+    /// round and back up its right side — Mynerve's bowl is a closed oval whose right side runs
+    /// into the stem, and a bowl stroke that stopped at the bottom right left a wedge of ink
+    /// between the counter and the stem that no stroke uncovered.
     private static let script: [ScriptEntry] = [
-        ScriptEntry(glyph: 0, kind: .line, start: 0.40, duration: 0.32, points: [
-            CGPoint(x: 172, y: 382), CGPoint(x: 282, y: 340), CGPoint(x: 358, y: 300),
-            CGPoint(x: 409, y: 260), CGPoint(x: 445, y: 225), CGPoint(x: 464, y: 204)
+        ScriptEntry(glyph: 0, kind: .line, start: 0.40, duration: 0.35, points: [
+            CGPoint(x: 85, y: 505), CGPoint(x: 160, y: 480), CGPoint(x: 248, y: 440),
+            CGPoint(x: 313, y: 400), CGPoint(x: 371, y: 360), CGPoint(x: 423, y: 320),
+            CGPoint(x: 464, y: 288), CGPoint(x: 494, y: 272)
         ]),
-        ScriptEntry(glyph: 0, kind: .line, start: 0.72, duration: 0.30, points: [
-            CGPoint(x: 464, y: 204), CGPoint(x: 400, y: 180), CGPoint(x: 324, y: 140),
-            CGPoint(x: 235, y: 100), CGPoint(x: 185, y: 68), CGPoint(x: 172, y: 54)
+        ScriptEntry(glyph: 0, kind: .line, start: 0.75, duration: 0.35, points: [
+            CGPoint(x: 494, y: 272), CGPoint(x: 440, y: 250), CGPoint(x: 370, y: 220),
+            CGPoint(x: 297, y: 180), CGPoint(x: 224, y: 140), CGPoint(x: 153, y: 100),
+            CGPoint(x: 100, y: 70), CGPoint(x: 55, y: 55)
         ]),
-        ScriptEntry(glyph: 1, kind: .line, start: 1.16, duration: 0.52, points: [
-            CGPoint(x: 315, y: 314), CGPoint(x: 290, y: 316), CGPoint(x: 235, y: 302),
-            CGPoint(x: 190, y: 264), CGPoint(x: 155, y: 210), CGPoint(x: 132, y: 150),
-            CGPoint(x: 126, y: 100), CGPoint(x: 150, y: 62), CGPoint(x: 195, y: 60),
-            CGPoint(x: 251, y: 100), CGPoint(x: 300, y: 134), CGPoint(x: 338, y: 160)
+        ScriptEntry(glyph: 1, kind: .line, start: 1.24, duration: 0.66, points: [
+            CGPoint(x: 262, y: 432), CGPoint(x: 200, y: 425), CGPoint(x: 140, y: 392),
+            CGPoint(x: 102, y: 340), CGPoint(x: 82, y: 280), CGPoint(x: 76, y: 210),
+            CGPoint(x: 80, y: 150), CGPoint(x: 95, y: 100), CGPoint(x: 125, y: 60),
+            CGPoint(x: 170, y: 42), CGPoint(x: 215, y: 55), CGPoint(x: 250, y: 95),
+            CGPoint(x: 272, y: 140), CGPoint(x: 288, y: 190), CGPoint(x: 298, y: 250),
+            CGPoint(x: 302, y: 310), CGPoint(x: 296, y: 370)
         ]),
-        ScriptEntry(glyph: 1, kind: .line, start: 1.74, duration: 0.44, points: [
-            CGPoint(x: 490, y: 630), CGPoint(x: 488, y: 600), CGPoint(x: 481, y: 575),
-            CGPoint(x: 466, y: 540), CGPoint(x: 431, y: 460), CGPoint(x: 400, y: 380),
-            CGPoint(x: 374, y: 300), CGPoint(x: 358, y: 210), CGPoint(x: 347, y: 120),
-            CGPoint(x: 346, y: 50), CGPoint(x: 358, y: -10)
+        ScriptEntry(glyph: 1, kind: .line, start: 1.96, duration: 0.42, points: [
+            CGPoint(x: 362, y: 690), CGPoint(x: 360, y: 600), CGPoint(x: 358, y: 500),
+            CGPoint(x: 352, y: 420), CGPoint(x: 350, y: 320), CGPoint(x: 352, y: 220),
+            CGPoint(x: 360, y: 120), CGPoint(x: 364, y: 60), CGPoint(x: 376, y: 12)
         ]),
-        ScriptEntry(glyph: 2, kind: .dot, start: 2.34, duration: 0.20, points: [
-            CGPoint(x: 137, y: 95)
+        ScriptEntry(glyph: 2, kind: .dot, start: 2.54, duration: 0.20, points: [
+            CGPoint(x: 103, y: 40)
         ])
     ]
 
@@ -397,8 +400,9 @@ private struct LaunchMark {
     }
 
     /// A third of the way from the ink's box centre to its centre of mass, as the icon does.
-    /// The mass is read from a small rasterisation because the thinned outline is the result of
-    /// a boolean operation whose contour directions are not something to integrate over.
+    /// The mass is read from a small rasterisation, as the icon script reads it from pixels,
+    /// rather than integrated over the outline: a font's contours may overlap, and their
+    /// directions are the font's business.
     private static func opticalAnchor(of ink: Path) -> CGPoint {
         let box = ink.boundingRect
         let boxCentre = CGPoint(x: box.midX, y: box.midY)
