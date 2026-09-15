@@ -1,0 +1,154 @@
+DEFINE SCHEMA
+
+    RECORD TYPE DipleBook (
+        "___createTime"  TIMESTAMP,
+        "___createdBy"   REFERENCE,
+        "___etag"        STRING,
+        "___modTime"     TIMESTAMP,
+        "___modifiedBy"  REFERENCE,
+        "___recordID"    REFERENCE,
+        addedAt          TIMESTAMP QUERYABLE SORTABLE,
+        author           STRING QUERYABLE SEARCHABLE SORTABLE,
+        coverFileName    STRING QUERYABLE SEARCHABLE SORTABLE,
+        fileName         STRING QUERYABLE SEARCHABLE SORTABLE,
+        furthestProgress DOUBLE QUERYABLE SORTABLE,
+        lastOpenedAt     TIMESTAMP QUERYABLE SORTABLE,
+        location         STRING QUERYABLE SEARCHABLE SORTABLE,
+        locator          STRING QUERYABLE SEARCHABLE SORTABLE,
+        modifiedAt       TIMESTAMP QUERYABLE SORTABLE,
+        progress         DOUBLE QUERYABLE SORTABLE,
+        sourceKind       STRING QUERYABLE SEARCHABLE SORTABLE,
+        sourceURL        STRING QUERYABLE SEARCHABLE SORTABLE,
+        tags             LIST<STRING> QUERYABLE SEARCHABLE,
+        tagsCount        INT64 QUERYABLE SORTABLE,
+        title            STRING QUERYABLE SEARCHABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DipleBookAsset (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        cover           ASSET,
+        coverFileName   STRING QUERYABLE SEARCHABLE SORTABLE,
+        fileName        STRING QUERYABLE SEARCHABLE SORTABLE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        publication     ASSET,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DipleBookmark (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        bookID          STRING QUERYABLE SEARCHABLE SORTABLE,
+        colorHex        STRING QUERYABLE SEARCHABLE SORTABLE,
+        createdAt       TIMESTAMP QUERYABLE SORTABLE,
+        locator         STRING QUERYABLE SEARCHABLE SORTABLE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        name            STRING QUERYABLE SEARCHABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DipleHighlight (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        bookAuthor      STRING QUERYABLE SEARCHABLE SORTABLE,
+        bookID          STRING QUERYABLE SEARCHABLE SORTABLE,
+        bookTitle       STRING QUERYABLE SEARCHABLE SORTABLE,
+        colorHex        STRING QUERYABLE SEARCHABLE SORTABLE,
+        comment         STRING QUERYABLE SEARCHABLE SORTABLE,
+        createdAt       TIMESTAMP QUERYABLE SORTABLE,
+        locator         STRING QUERYABLE SEARCHABLE SORTABLE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        tags            LIST<STRING> QUERYABLE SEARCHABLE,
+        tagsCount       INT64 QUERYABLE SORTABLE,
+        text            STRING QUERYABLE SEARCHABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DipleNote (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        body            STRING QUERYABLE SEARCHABLE SORTABLE,
+        bookID          STRING QUERYABLE SEARCHABLE SORTABLE,
+        createdAt       TIMESTAMP QUERYABLE SORTABLE,
+        dailyDate       STRING QUERYABLE SEARCHABLE SORTABLE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        pinnedAt        TIMESTAMP QUERYABLE SORTABLE,
+        spaceID         STRING QUERYABLE SEARCHABLE SORTABLE,
+        tags            LIST<STRING> QUERYABLE SEARCHABLE,
+        tagsCount       INT64 QUERYABLE SORTABLE,
+        title           STRING QUERYABLE SEARCHABLE SORTABLE,
+        trashedAt       TIMESTAMP QUERYABLE SORTABLE,
+        updatedAt       TIMESTAMP QUERYABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DipleSettings (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        payload         BYTES QUERYABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE DipleSpace (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        createdAt       TIMESTAMP QUERYABLE SORTABLE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        name            STRING QUERYABLE SEARCHABLE SORTABLE,
+        sortIndex       DOUBLE QUERYABLE SORTABLE,
+        symbol          STRING QUERYABLE SEARCHABLE SORTABLE,
+        updatedAt       TIMESTAMP QUERYABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
+    RECORD TYPE Users (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        roles           LIST<INT64>,
+        GRANT WRITE TO "_creator",
+        GRANT READ TO "_world"
+    );
