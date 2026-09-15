@@ -183,7 +183,7 @@ them later is an ordinary additive deploy.
 ## CloudKit Console — what has to happen before the release build
 
 > **Deployed 2026-09-15.** Everything listed below — the highlight tags, `DipleSpace` and the four
-> note keys — is in Production; the exact schema is `app-store/cloudkit-schema-1.2.ckdb`. The text
+> note keys — is in Production; the exact schema is `app-store/cloudkit-schema-1.1.ckdb`. The text
 > below stays as the method for the next change.
 
 This is a hard blocker that nothing in the build can warn you about. **A TestFlight or App

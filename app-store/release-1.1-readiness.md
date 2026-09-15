@@ -1,11 +1,11 @@
-# diple. 1.2 — release readiness (iOS + macOS)
+# diple. 1.1 — release readiness (iOS + macOS)
 
 Audited 2026-09-14 against `main` at `5a245d4`. Method as in `readiness-report.md`: build real
 Release archives and inspect the products, run the unit tests, then walk the built app. Read that
 report first — what it verified (no tracking SDKs, ATS, font licences, export compliance) is not
 repeated here unless it changed.
 
-**Verdict: the build is ready; the release is not.** Nothing in the code blocks 1.2. The CloudKit
+**Verdict: the build is ready; the release is not.** Nothing in the code blocks 1.1. The CloudKit
 Production schema did, and was deployed on 2026-09-15 (below); what remains is a distribution
 certificate and a handful of paths that have never been touched by a human hand.
 
@@ -13,9 +13,9 @@ certificate and a handful of paths that have never been touched by a human hand.
 
 ## Fixed in this pass
 
-**Version was still `1.0 (1)` on every target.** Now `1.2 (2)` (`20a5660`). Both extensions read
+**Version was still `1.0 (1)` on every target.** Now `1.1 (2)`. (`20a5660` first numbered it 1.2 by mistake; the release after 1.0 is 1.1.) Both extensions read
 `$(MARKETING_VERSION)` / `$(CURRENT_PROJECT_VERSION)`, verified in the archived `.appex` plists. If
-App Store Connect already holds a 1.2 build 2 from somewhere, bump the build number again.
+App Store Connect already holds a 1.1 build 2 from somewhere, bump the build number again.
 
 ---
 
@@ -47,7 +47,7 @@ simulator locale, which is how it has always been run. UI tests were not run in 
 ## Blockers — cannot be done from this machine
 
 **1. CloudKit Production schema — deployed 2026-09-15.** Alex deployed it from the Console. The
-Production export read back afterwards is **byte-identical** to `app-store/cloudkit-schema-1.2.ckdb`,
+Production export read back afterwards is **byte-identical** to `app-store/cloudkit-schema-1.1.ckdb`,
 and the deploy diff was additions only (24 lines, no removals, no type changes). Whether a
 distribution-signed build actually saves through it is still the first TestFlight check below.
 What it needed, kept for the record:
@@ -59,7 +59,7 @@ What it needed, kept for the record:
 Types and the exact procedure are in `readiness-report.md` → *CloudKit Console*. Without the deploy a
 TestFlight or App Store build silently parks every highlight and every note in the outbox. `cktool`
 has no management token on this Mac; the schema was read through Console exports pasted by hand.
-**The next schema change starts from `cloudkit-schema-1.2.ckdb`**: add to that file, import it into
+**The next schema change starts from `cloudkit-schema-1.1.ckdb`**: add to that file, import it into
 Development, deploy, and diff the Production export against it.
 
 **2. No Apple Distribution certificate** in this keychain. Xcode's Distribute flow creates it; it
@@ -97,12 +97,12 @@ What's New text promises most of them:
 
 ## Prepared, outside the repo
 
-`/Users/chemical_pink/dev/diple/app-store/1.2/`:
+`/Users/chemical_pink/dev/diple/app-store/1.1/`:
 
 - `ios-6.9in-dark/`, `ios-6.9in-paper/` — eight 1320×2868 frames each;
 - `mac-dark/`, `mac-paper/` — five 2880×1800 frames each;
 - `raw/` — the untouched captures; `tools/` — the seed and render scripts;
-- `metadata-1.2.md` — What's New (iOS and macOS), promotional text, keywords, description
+- `metadata-1.1.md` — What's New (iOS and macOS), promotional text, keywords, description
   insert, captions and a review-notes paragraph.
 
 The Mac reader is not among the frames: the window-photograph harness cannot see a `WKWebView`

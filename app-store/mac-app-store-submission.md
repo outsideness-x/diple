@@ -14,7 +14,7 @@ Store Connect record.
 ## 0. The one thing that blocks the release, and it is not macOS
 
 > **Done 2026-09-15** — the Production schema now carries everything below plus the notes-workshop
-> fields; see `release-1.2-readiness.md`. Kept as the explanation of why it mattered.
+> fields; see `release-1.1-readiness.md`. Kept as the explanation of why it mattered.
 
 **The CloudKit Production schema is out of date.** `DipleHighlight` gained `tags` (STRING LIST)
 and `tagsCount` (INT64) when passages got tags; neither field exists in the schema deployed for
@@ -90,11 +90,11 @@ baked into the build. See `app-store/readiness-report.md`.
 2. Confirm you are signed into Xcode with the account for team `KX98K6BPAP`
    (Xcode → Settings → Accounts).
 3. Decide the build number. macOS and iOS have **separate build-number namespaces** in App Store
-   Connect. Since 2026-09-14 the project says `1.2 (2)` on every target (see
-   `release-1.2-readiness.md`); `2` is free for the first macOS upload. If App Store Connect
+   Connect. Since 2026-09-14 the project says `1.1 (2)` on every target (see
+   `release-1.1-readiness.md`); `2` is free for the first macOS upload. If App Store Connect
    refuses it, bump `CURRENT_PROJECT_VERSION` in `project.pbxproj` (every configuration) and
    archive again — never reuse a build number.
-4. `MARKETING_VERSION` is `1.2`, the same string as the iOS update that ships with it.
+4. `MARKETING_VERSION` is `1.1`, the same string as the iOS update that ships with it.
 
 ---
 
@@ -144,7 +144,7 @@ except where noted.
 
 | Field | What to use |
 |---|---|
-| Screenshots | For 1.2: `/Users/chemical_pink/dev/diple/app-store/1.2/mac-dark/` or `mac-paper/` — five 2880×1800 PNGs of the two-mode interface, outside the repo. `app-store/mac-screenshots/` holds the pre-Notes set of 2026-09-06. Apple accepts 1280×800, 1440×900, 2560×1600 or 2880×1800; at least one, up to ten. |
+| Screenshots | For 1.1: `/Users/chemical_pink/dev/diple/app-store/1.1/mac-dark/` or `mac-paper/` — five 2880×1800 PNGs of the two-mode interface, outside the repo. `app-store/mac-screenshots/` holds the pre-Notes set of 2026-09-06. Apple accepts 1280×800, 1440×900, 2560×1600 or 2880×1800; at least one, up to ten. |
 | Promotional text / Description / Keywords | From `metadata-en.md`. **Change any "iPhone" wording** — the description should describe a desktop reader. |
 | Support URL / Marketing URL | `https://diple-reader.vercel.app` |
 | Copyright | `2026 chemical_pink` (matches `NSHumanReadableCopyright` in the build) |
