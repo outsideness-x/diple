@@ -6,7 +6,8 @@ report first — what it verified (no tracking SDKs, ATS, font licences, export 
 repeated here unless it changed.
 
 **Verdict: the build is ready; the release is not.** Nothing in the code blocks 1.2. The CloudKit
-Production schema does, and a handful of paths have never been touched by a human hand.
+Production schema did, and was deployed on 2026-09-15 (below); what remains is a distribution
+certificate and a handful of paths that have never been touched by a human hand.
 
 ---
 
@@ -45,7 +46,11 @@ simulator locale, which is how it has always been run. UI tests were not run in 
 
 ## Blockers — cannot be done from this machine
 
-**1. CloudKit Production schema.** Unchanged since the 1.0 deploy, and 1.2 needs all of it at once:
+**1. CloudKit Production schema — deployed 2026-09-15.** Alex deployed it from the Console. The
+Production export read back afterwards is **byte-identical** to `app-store/cloudkit-schema-1.2.ckdb`,
+and the deploy diff was additions only (24 lines, no removals, no type changes). Whether a
+distribution-signed build actually saves through it is still the first TestFlight check below.
+What it needed, kept for the record:
 
 - `DipleHighlight`: `tags` LIST&lt;STRING&gt;, `tagsCount` INT64 — `tagsCount` is written on every highlight save;
 - `DipleSpace`: the whole record type (`name`, `symbol`, `sortIndex` DOUBLE, `createdAt`, `updatedAt`, `modifiedAt`);
@@ -53,8 +58,9 @@ simulator locale, which is how it has always been run. UI tests were not run in 
 
 Types and the exact procedure are in `readiness-report.md` → *CloudKit Console*. Without the deploy a
 TestFlight or App Store build silently parks every highlight and every note in the outbox. `cktool`
-has no management token on this Mac, so the deployed schema could not even be read to confirm its
-state — the assumption here is that nothing has been deployed since 2026-08-29.
+has no management token on this Mac; the schema was read through Console exports pasted by hand.
+**The next schema change starts from `cloudkit-schema-1.2.ckdb`**: add to that file, import it into
+Development, deploy, and diff the Production export against it.
 
 **2. No Apple Distribution certificate** in this keychain. Xcode's Distribute flow creates it; it
 is why both archives above are unsigned / development-signed.

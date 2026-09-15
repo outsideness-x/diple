@@ -13,6 +13,9 @@ Store Connect record.
 
 ## 0. The one thing that blocks the release, and it is not macOS
 
+> **Done 2026-09-15** — the Production schema now carries everything below plus the notes-workshop
+> fields; see `release-1.2-readiness.md`. Kept as the explanation of why it mattered.
+
 **The CloudKit Production schema is out of date.** `DipleHighlight` gained `tags` (STRING LIST)
 and `tagsCount` (INT64) when passages got tags; neither field exists in the schema deployed for
 v1.0. `tagsCount` is written on **every** highlight save, not only a tagged one, so against the
@@ -83,7 +86,7 @@ baked into the build. See `app-store/readiness-report.md`.
 
 ## 4. Before you open Xcode
 
-1. **Deploy the CloudKit Production schema** (section 0). Nothing else matters until this is done.
+1. ~~Deploy the CloudKit Production schema~~ — done 2026-09-15 (section 0).
 2. Confirm you are signed into Xcode with the account for team `KX98K6BPAP`
    (Xcode → Settings → Accounts).
 3. Decide the build number. macOS and iOS have **separate build-number namespaces** in App Store
