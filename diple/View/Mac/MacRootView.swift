@@ -945,6 +945,9 @@ public struct MacRootView: View {
            let book = library.books.first(where: { $0.title.hasPrefix(start) }) {
             mode = .reading
             detail = .book(book)
+            if DipleWindowCapture.requestsReader {
+                readerRequest = MacReaderRequest(book: book)
+            }
         }
         if let start = DipleWindowCapture.requestedPassage,
            let item = marginalia.entries.compactMap(\.passageItem)

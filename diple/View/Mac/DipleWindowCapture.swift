@@ -1,5 +1,6 @@
 #if targetEnvironment(macCatalyst)
 import SwiftUI
+import WebKit
 
 /// Photographs the desktop's own key window, because nothing else on this machine can.
 ///
@@ -20,9 +21,10 @@ import SwiftUI
 ///   updated and the middle column still shows the previous shelf — which reads exactly like a
 ///   state bug and is not one.
 ///
-/// - **The reader does not come out.** Readium's page is a `WKWebView`, which draws out of
-///   process, and `drawHierarchy` returns its frame empty: an open book photographs as a blank
-///   page under its own chrome. Shelves, boards and the notes columns are all ordinary views.
+/// - **The reader needs WebKit's own picture.** Readium's page is a `WKWebView`, which draws out
+///   of process, and `drawHierarchy` returns its frame empty. So every web view is asked for a
+///   snapshot of itself and painted back into the window image — without that, an open book
+///   photographs as a blank page under its own chrome.
 ///
 /// `DIPLE_CAPTURE_SOURCE` names the shelf to open at. A `MacCommand` posted from in here is the
 /// other way to drive the shell, but the shelf has to be set before the first render for the
@@ -76,6 +78,15 @@ enum DipleWindowCapture {
         #endif
     }
 
+    /// Whether the requested book should be opened in the reader rather than only selected.
+    static var requestsReader: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_READ"] != nil
+        #else
+        false
+        #endif
+    }
+
     /// The start of a passage's text, to select it on the Highlights board so the inspector shows it.
     static var requestedPassage: String? {
         #if DEBUG
@@ -117,12 +128,57 @@ enum DipleWindowCapture {
             guard let window = UIApplication.shared.connectedScenes
                 .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
                 .first else { exit(2) }
+            // A web view draws out of process, so `drawHierarchy` leaves its frame empty — an open
+            // book used to photograph as a blank page under its own chrome. WebKit will take its own
+            // picture, so each one is asked for it and painted back into place afterwards.
+            var pages: [(CGRect, UIImage)] = []
+            for web in webViews(under: window) where web.bounds.width > 1 && web.bounds.height > 1 {
+                if let page = await web.snapshotImage() {
+                    pages.append((web.convert(web.bounds, to: window), page))
+                }
+            }
             let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
                 window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                for (frame, page) in pages { page.draw(in: frame) }
             }
             let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(filename)
             try? image.pngData()?.write(to: url)
             exit(0)
+        }
+    }
+
+    /// Every web view in the hierarchy, in the order they are drawn. Readium keeps one per spread,
+    /// and the ones off screen land outside the window's bounds, where drawing them costs nothing.
+    private static func webViews(under view: UIView) -> [WKWebView] {
+        if let web = view as? WKWebView { return [web] }
+        return view.subviews.flatMap { webViews(under: $0) }
+    }
+}
+
+/// One answer, whichever arrives first. `takeSnapshot` can simply never call back on a spread the
+/// engine has parked, and a shutter that waits forever is a hung app, not a slow one.
+@MainActor private final class FirstAnswer {
+    private var isDone = false
+    func resume(_ continuation: CheckedContinuation<UIImage?, Never>, with image: UIImage?) {
+        guard !isDone else { return }
+        isDone = true
+        continuation.resume(returning: image)
+    }
+}
+
+private extension WKWebView {
+    /// WebKit's own picture of the page. `nil` rather than a throw: a capture that loses one spread
+    /// is still a usable photograph of the window, and there is nobody here to handle the error.
+    func snapshotImage(timeout: Duration = .seconds(4)) async -> UIImage? {
+        let answer = FirstAnswer()
+        return await withCheckedContinuation { continuation in
+            let configuration = WKSnapshotConfiguration()
+            configuration.rect = bounds
+            takeSnapshot(with: configuration) { image, _ in answer.resume(continuation, with: image) }
+            Task { @MainActor in
+                try? await Task.sleep(for: timeout)
+                answer.resume(continuation, with: nil)
+            }
         }
     }
 }
