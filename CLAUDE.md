@@ -4323,6 +4323,15 @@
   возвращает `nil` из `containerURL(forSecurityApplicationGroupIdentifier:)` — молча, без записи
   в лог: очередь Share Extension и снапшот виджета на Mac не находили каталога **никогда**.
   Объявлены оба имени, `SharedLinkInbox.appGroupIdentifier` спрашивает префиксное первым.
+- **Убрать префиксное имя из entitlements нельзя — измерено 2026-09-16.** С одним только
+  `group.com.chemical-pink.diple` подписанная Catalyst-сборка получает `nil` на **оба** имени:
+  контейнер группы не пишется вовсе (проверено по mtime `daily-quote-snapshot.json` в обоих
+  `~/Library/Group Containers/…`). Вернули — снапшоты снова пишутся.
+- **Из-за этого автоматическая подпись не проходит App Store-путь**: архив несёт развёрнутое
+  `KX98K6BPAP.group.…`, портал регистрирует только имена на `group.`, и Xcode валит все три
+  профиля («Application Group identifiers should start with 'group.'»). Лечится ручными
+  профилями — Mac Catalyst-профиль разработки несёт голое `group.…` и при этом авторизует
+  префиксное entitlement. Пошагово — `app-store/mac-app-store-submission.md`, раздел 4a.
 - **Иконка macOS выводится из iOS-артворка, а не переиспользует его** (`Scripts/generate_mac_icon.py`).
   iOS-иконка рисуется в край, потому что система сама её маскирует; macOS не маскирует ничего, и
   тот же файл встаёт в Dock прямоугольником с острыми углами, заметно крупнее соседей. Сетка

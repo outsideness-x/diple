@@ -98,6 +98,45 @@ baked into the build. See `app-store/readiness-report.md`.
 
 ---
 
+## 4a. The App Group breaks automatic signing on the App Store path (2026-09-16)
+
+`Distribute App → App Store Connect` fails before it uploads anything:
+
+```
+Communication with Apple failed.
+Application Group identifiers should start with 'group.'
+No profiles for 'com.chemical-pink.diple(.ShareExtension|.Widget)' were found
+```
+
+**Why.** macOS requires the App Group in the entitlements to carry the team identifier, so the
+Catalyst entitlements expand to `KX98K6BPAP.group.com.chemical-pink.diple` in the archive. The
+developer portal only registers App Group identifiers beginning with `group.`, and the bundle ids
+here are the iOS ones (`DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO`), so Xcode's automatic
+signing reads the archived entitlements, fails to match the prefixed name and tries to register it.
+Apple refuses, and all three profile requests die with it.
+
+**What cannot be done about it in the project.** Dropping the prefixed entry was measured on
+2026-09-16: with only `group.com.chemical-pink.diple` declared, a signed Catalyst build gets `nil`
+from `containerURL(forSecurityApplicationGroupIdentifier:)` for **both** names — the group container
+is never written and the widget snapshot, the share queue and the shared note inbox silently have
+nowhere to live. The prefixed entry has to stay.
+
+**The way through is manual profiles**, and the existing Mac Catalyst *development* profile shows
+why it works: it carries `group.com.chemical-pink.diple` alone, and a build whose entitlements ask
+for the prefixed name runs against it. A profile authorises the capability; it does not have to
+spell the macOS form.
+
+1. Developer portal → Identifiers → `com.chemical-pink.diple` → confirm **App Groups** is enabled
+   and `group.com.chemical-pink.diple` is assigned. Same for `.ShareExtension` and `.Widget`.
+2. Profiles → **+** → Distribution → **Mac App Store Connect**, profile type **Mac Catalyst**, one
+   for each of the three bundle ids. Download and open them.
+3. In Xcode, for each of the three targets: Signing & Capabilities → the Release configuration →
+   uncheck *Automatically manage signing* → pick the downloaded profile.
+4. Archive again and distribute with **manually manage signing**.
+
+The iOS side is unaffected: its entitlements carry only `group.com.chemical-pink.diple`, which is
+exactly what the portal holds.
+
 ## 5. Archive and upload
 
 1. Open `diple.xcodeproj`.
