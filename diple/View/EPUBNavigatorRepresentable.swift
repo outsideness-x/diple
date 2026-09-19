@@ -408,8 +408,11 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             controller.chapterTitleProvider = { [weak self] href in
                 self?.chapterTitles[href]
             }
+            // `setEnabled` attaches when it turns on, and every new spread web view attaches
+            // itself from `setupUserScripts`. Refreshing here as well walked the whole view
+            // hierarchy looking for web views on **every** SwiftUI update — which, while a book
+            // is being scrolled, is every pixel.
             controller.setEnabled(parent.preferences.scroll == true)
-            controller.refreshAttachments()
         }
 
         public func navigator(_ navigator: Navigator, presentError error: NavigatorError) {

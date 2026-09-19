@@ -232,6 +232,14 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
     @Published public var activeHighlightRect: CGRect? = nil
+    /// Where the navigator says the reader is — the published copy, which the interface draws.
+    ///
+    /// **Behind it, `latestLocator` is the truth.** The navigator reports a location on every
+    /// scrolled pixel, and publishing each one re-evaluates the whole reader — a view with
+    /// bars, a progress line, a toast, a trail pill and a web view in it — at the rate the
+    /// finger moves. What the interface actually shows from this changes far more slowly: a
+    /// line the width of the display, a whole percentage, a chapter name. So the report is kept
+    /// exactly and published when it is worth a frame; see `saveLocation`.
     @Published public var currentLocator: Locator? = nil
     @Published public var isAddBookmarkPresented: Bool = false
     /// Everywhere this sitting has jumped from, and everywhere a step back has undone.
@@ -262,6 +270,18 @@ public final class ReaderViewModel: ObservableObject {
     /// Whether the note editor has written anything since it was raised. Read and cleared by
     /// `announceSavedNote` when the editor leaves.
     private var hasSavedNoteWhileEditing = false
+
+    /// The newest position the navigator has reported, published or not. Everything the app
+    /// decides — where to write, when the book is finished, how fast it is being read — is
+    /// decided from this rather than from the copy the interface happens to be drawing.
+    private var latestLocator: Locator?
+    private var latestProgress: Double = 0
+    /// Holds the last report until it is worth a frame. See `publishLocation`.
+    private var locationPublishTask: Task<Void, Never>?
+    /// How far the reader must move for the interface to have anything new to say. The resting
+    /// progress line spans the display, so on the narrowest phone this is under half a point of
+    /// it — and the percentage beside it is a whole number.
+    private static let visibleProgressStep = 0.001
 
     private var persistTask: Task<Void, Never>?
     private var inkTask: Task<Void, Never>? = nil
@@ -367,6 +387,7 @@ public final class ReaderViewModel: ObservableObject {
         self.startingLocator = startingLocator
         self.database = database
         self.currentProgress = book.progress
+        self.latestProgress = book.progress
         self.settings = AppSettingsManager.shared.settings.readerSettings
         loadHighlights()
         loadBookmarks()
@@ -707,8 +728,10 @@ public final class ReaderViewModel: ObservableObject {
             // exactly — saved locator in, saved locator back out.
             if startingLocator == nil {
                 self.currentLocator = savedLocator
+                self.latestLocator = savedLocator
                 if let savedLocator {
                     self.currentProgress = progress(for: savedLocator)
+                    self.latestProgress = self.currentProgress
                 }
             }
             self.isLoading = false
@@ -748,9 +771,10 @@ public final class ReaderViewModel: ObservableObject {
     }
 
     public func saveLocation(_ locator: Locator) {
-        self.currentLocator = locator
-        self.currentProgress = progress(for: locator)
-        if currentProgress < readingEnd.progression {
+        self.latestLocator = locator
+        self.latestProgress = progress(for: locator)
+        publishLocationIfWorthAFrame()
+        if latestProgress < readingEnd.progression {
             canOfferColophonAfterCrossing = true
         }
         offerFinishedColophonIfNeeded()
@@ -762,15 +786,54 @@ public final class ReaderViewModel: ObservableObject {
             abandonSpeedSample()
             return
         }
-        if let sample = speedSampler?.observe(progress: currentProgress) {
+        if let sample = speedSampler?.observe(progress: latestProgress) {
             sessionCharacters += sample.characters
             sessionSeconds += sample.seconds
         }
         schedulePersist()
     }
 
+    /// Hands the newest report to the interface when it has something new to show, and holds
+    /// it briefly when it does not.
+    ///
+    /// A new resource or a visibly different position goes out at once — the chapter name and
+    /// the progress line must not lag the page. Everything else waits for the trailing publish,
+    /// which is armed **once** per window rather than cancelled and rebuilt on every report:
+    /// re-arming per pixel is the allocation-per-pixel that `ReaderIdleTimerKeeper.poke` was
+    /// already written to avoid.
+    private func publishLocationIfWorthAFrame() {
+        let movedVisibly = abs(latestProgress - currentProgress) >= Self.visibleProgressStep
+        let changedResource = latestLocator?.href.string != currentLocator?.href.string
+
+        guard !(movedVisibly || changedResource || currentLocator == nil) else {
+            publishLocation()
+            return
+        }
+
+        guard locationPublishTask == nil else { return }
+        locationPublishTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            self?.publishLocation()
+        }
+    }
+
+    private func publishLocation() {
+        locationPublishTask?.cancel()
+        locationPublishTask = nil
+        publishedLocationCount += 1
+        currentLocator = latestLocator
+        currentProgress = latestProgress
+    }
+
+    /// How many of the navigator's reports have reached the interface. The point of the
+    /// coalescing is that this is far smaller than the number of reports, which is a thing a
+    /// test can say and a screenshot cannot.
+    private var publishedLocationCount = 0
+    var publishedLocationCountForTests: Int { publishedLocationCount }
+
     private func offerFinishedColophonIfNeeded() {
-        guard currentProgress >= readingEnd.progression,
+        guard latestProgress >= readingEnd.progression,
               book.progress < 0.995,
               !hasOfferedColophon,
               canOfferColophonAfterCrossing
@@ -816,6 +879,7 @@ public final class ReaderViewModel: ObservableObject {
         do {
             try database.markBookAsFinished(id: book.id)
             hasFinishedReading = true
+            latestProgress = 1
             currentProgress = 1
             finishedColophon = nil
             return true
@@ -955,7 +1019,7 @@ public final class ReaderViewModel: ObservableObject {
         } else if let chapterProgression = locator.locations.progression {
             calculated = chapterProgression
         } else {
-            calculated = currentProgress
+            calculated = latestProgress
         }
         return min(max(calculated, 0.0), 1.0)
     }
@@ -975,6 +1039,7 @@ public final class ReaderViewModel: ObservableObject {
     /// Writes the last known position immediately. Called when the reader closes so the
     /// library grid can be refreshed with a value that is already in the database.
     public func flushPendingProgress() {
+        publishLocation()
         cancelPendingProgressWrites()
         flushReadingSpeed()
         guard let payload = progressPayload() else { return }
@@ -1009,10 +1074,10 @@ public final class ReaderViewModel: ObservableObject {
                 locator: try? detour.originLocator.jsonString()
             )
         }
-        guard let locator = currentLocator else { return nil }
+        guard let locator = latestLocator else { return nil }
         return ProgressPayload(
             bookId: book.id,
-            progress: currentProgress,
+            progress: latestProgress,
             locator: try? locator.jsonString()
         )
     }
@@ -1068,7 +1133,9 @@ public final class ReaderViewModel: ObservableObject {
     /// or the wrong line tapped in the outline, overwrote the reading position and kept no copy
     /// of it, so there was nowhere to go but hunt for the page by hand.
     private func recordReturnPoint() {
-        guard let origin = currentLocator ?? initialLocator else { return }
+        // The newest report rather than the published copy: what the way back has to restore is
+        // the page the reader was on, not the one the bars have caught up to.
+        guard let origin = latestLocator ?? initialLocator else { return }
         pushBackLocation(origin)
     }
 
@@ -1247,10 +1314,10 @@ public final class ReaderViewModel: ObservableObject {
         guard reference.bookID == book.id else { return }
 
         if nearbySourceDetour == nil,
-           let origin = currentLocator ?? initialLocator {
+           let origin = latestLocator ?? initialLocator {
             nearbySourceDetour = NearbySourceDetour(
                 originLocator: origin,
-                originProgress: currentProgress
+                originProgress: latestProgress
             )
             pushBackLocation(origin)
         }
