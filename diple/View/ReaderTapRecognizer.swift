@@ -129,9 +129,14 @@ final class ReaderTapRecognizer {
 @MainActor
 final class ReaderTapObserver: InputObserving {
     private let recognizer = ReaderTapRecognizer()
-    private let onTap: (CGPoint) -> Void
+    /// Handed the tap and the moment its touch went down. The second argument is what lets the
+    /// reader tell a tap from the tap that dismissed a selection: the page takes a selection
+    /// down on touch-down and says so through its own channel, so the only thing tying the two
+    /// together is that they happened inside one touch. See `Coordinator.pageWasTapped`.
+    private let onTap: (CGPoint, ContinuousClock.Instant) -> Void
+    private var touchBeganAt = ContinuousClock.now
 
-    init(onTap: @escaping (CGPoint) -> Void) {
+    init(onTap: @escaping (CGPoint, ContinuousClock.Instant) -> Void) {
         self.onTap = onTap
     }
 
@@ -156,10 +161,14 @@ final class ReaderTapObserver: InputObserving {
             phase = .cancel
         }
 
+        if phase == .down {
+            touchBeganAt = .now
+        }
+
         if let point = recognizer.receive(
             ReaderTapRecognizer.Touch(id: event.pointer.id, phase: phase, location: event.location)
         ) {
-            onTap(point)
+            onTap(point, touchBeganAt)
         }
         return false
     }

@@ -23,12 +23,23 @@ final class SelectionSettle {
 
     private var task: Task<Void, Never>?
 
+    /// Whether a selection is on the page that the app has not been told about yet.
+    ///
+    /// The gap is the quiet period above, and something has to know about it: the publication
+    /// has a selection from the first callback, while `currentSelection` — and therefore
+    /// `hasSelection`, and therefore the request to clear it — only catches up 220 ms later.
+    /// Anything that clears the selection because the app does not seem to have one has to wait
+    /// this out, or it wipes the selection out from under the finger that is making it. See
+    /// `EPUBNavigatorRepresentable.Coordinator.clearSelectionIfNeeded`.
+    var isPending: Bool { task != nil }
+
     /// Runs `action` with the newest selection once the callbacks stop arriving.
     func settle(on selection: Selection, then action: @escaping (Selection) -> Void) {
         task?.cancel()
-        task = Task {
+        task = Task { [weak self] in
             try? await Task.sleep(for: Self.quietPeriod)
             guard !Task.isCancelled else { return }
+            self?.task = nil
             action(selection)
         }
     }

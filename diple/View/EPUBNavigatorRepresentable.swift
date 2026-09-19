@@ -25,6 +25,13 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let hasSelection: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
+    /// The page's own selection has collapsed. Readium reports a selection but never its
+    /// absence, and the app has to know — see `ReaderSelectionScript`.
+    public let onSelectionCleared: () -> Void
+    /// Takes the actions bar down if it is up, and says whether it was. A tap that closes the
+    /// bar must do nothing else: left to fall through it would also turn the page or raise the
+    /// reader's bars, so closing would never be the only thing that happened.
+    public let onDismissActions: () -> Bool
     public let onHighlightActivated: (String, CGRect?) -> Void
     public let onLivingMarginActivated: (String) -> Void
     public let onLivingMarginsEdgeSwipe: () -> Void
@@ -54,6 +61,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
+        onSelectionCleared: @escaping () -> Void = {},
+        onDismissActions: @escaping () -> Bool = { false },
         onHighlightActivated: @escaping (String, CGRect?) -> Void = { _, _ in },
         onLivingMarginActivated: @escaping (String) -> Void = { _ in },
         onLivingMarginsEdgeSwipe: @escaping () -> Void = {},
@@ -77,6 +86,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.hasSelection = hasSelection
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
+        self.onSelectionCleared = onSelectionCleared
+        self.onDismissActions = onDismissActions
         self.onHighlightActivated = onHighlightActivated
         self.onLivingMarginActivated = onLivingMarginActivated
         self.onLivingMarginsEdgeSwipe = onLivingMarginsEdgeSwipe
@@ -143,8 +154,8 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             // The page's taps come from here rather than from `didTapAt` — see
             // `ReaderTapRecognizer` for the jam in the toolkit's own recogniser that stops a
             // book answering taps part-way through a sitting.
-            navigator.addObserver(ReaderTapObserver { [weak coordinator = context.coordinator] point in
-                coordinator?.pageWasTapped(at: point)
+            navigator.addObserver(ReaderTapObserver { [weak coordinator = context.coordinator] point, touchBeganAt in
+                coordinator?.pageWasTapped(at: point, touchBeganAt: touchBeganAt)
             })
             context.coordinator.bindKeyboardPageTurns(to: navigator)
             return navigator
@@ -232,6 +243,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         var lastHighlights: [Highlight]? = nil
         var lastLivingMarginAnnotations: [LivingMarginAnnotation]? = nil
         private var didClearSelection = false
+        /// When the page last reported its selection collapsing. Read once, by the touch that
+        /// caused it — see `pageWasTapped`.
+        private var selectionClearedAt: ContinuousClock.Instant?
         private let selectionSettle = SelectionSettle()
         private var pullTransition: ChapterPullTransitionController? = nil
         private var inFlightTarget: NavigationTarget? = nil
@@ -373,6 +387,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                 didClearSelection = false
                 return
             }
+            // A selection the app has not been told about yet is still a selection. The gap is
+            // `SelectionSettle`'s quiet period, and this method runs on every SwiftUI update —
+            // and reading a page produces one on every scrolled pixel — so without this guard an
+            // ordinary progress tick lands inside the gap and wipes the passage out from under
+            // the finger that is dragging its handles.
+            guard !selectionSettle.isPending else { return }
             guard !didClearSelection else { return }
             didClearSelection = true
             navigator.clearSelection()
@@ -443,10 +463,34 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                     forMainFrameOnly: false
                 )
             )
+
+            // The other direction of the same bridge: the page says when its selection is gone,
+            // which is what lets the actions bar stop covering the page to find that out. See
+            // `ReaderSelectionScript`.
+            userContentController.removeScriptMessageHandler(forName: ReaderSelectionScript.messageName)
+            userContentController.add(
+                SelectionMessageProxy(coordinator: self),
+                name: ReaderSelectionScript.messageName
+            )
+            userContentController.addUserScript(
+                WKUserScript(
+                    source: ReaderSelectionScript.source,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: false
+                )
+            )
         }
 
         func figureTapped(source: String, alt: String) {
             parent.onFigure(source, alt)
+        }
+
+        /// The page's selection collapsed — tapped away, scrolled away, or cleared by the app.
+        /// Nothing pending should land on top of that.
+        func selectionWasCleared() {
+            selectionSettle.cancel()
+            selectionClearedAt = .now
+            parent.onSelectionCleared()
         }
 
         /// - Important: The parameter type must be `Navigator`, not `VisualNavigator`.
@@ -522,8 +566,25 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {}
 
         /// What a tap on the page does, wherever the tap was recognised.
-        func pageWasTapped(at point: CGPoint) {
+        func pageWasTapped(at point: CGPoint, touchBeganAt: ContinuousClock.Instant) {
             selectionSettle.cancel()
+
+            // A tap that takes the actions bar down does that and nothing else. It is the same
+            // rule the transparent layer over the page used to enforce by swallowing the tap —
+            // and the reason that layer is gone is that it also swallowed the touches that
+            // adjust a selection. See `ReaderSelectionScript`.
+            if parent.onDismissActions() { return }
+
+            // The same rule, for the case where the bar has already gone: WebKit dismisses a
+            // selection on touch-down, and the page reports the collapse on its own channel,
+            // so by the time the touch is over the bar it was closing may be closed. What ties
+            // the two together is that they are one touch — a collapse reported after this
+            // touch went down is this touch's doing, and the touch has already done its job.
+            if let selectionClearedAt, selectionClearedAt > touchBeganAt {
+                self.selectionClearedAt = nil
+                return
+            }
+
             parent.onSelectionChanged(nil)
 
             // In continuous scroll mode, horizontal tap gestures MUST NOT turn pages.
@@ -699,5 +760,25 @@ private final class FigureMessageProxy: NSObject, WKScriptMessageHandler {
         else { return }
 
         coordinator?.figureTapped(source: source, alt: body["alt"] as? String ?? "")
+    }
+}
+
+/// The same weak stand-in for `ReaderSelectionScript`'s bridge.
+private final class SelectionMessageProxy: NSObject, WKScriptMessageHandler {
+    private weak var coordinator: EPUBNavigatorRepresentable.Coordinator?
+
+    init(coordinator: EPUBNavigatorRepresentable.Coordinator) {
+        self.coordinator = coordinator
+    }
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard let body = message.body as? [String: Any],
+              body["collapsed"] as? Bool == true
+        else { return }
+
+        coordinator?.selectionWasCleared()
     }
 }

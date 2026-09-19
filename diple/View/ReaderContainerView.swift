@@ -133,6 +133,7 @@ public struct ReaderContainerView: View {
                             beginPendingSelection(selection)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
+                        onDismissActions: dismissHighlightActionsIfShown,
                         onCenterTap: {
                             viewModel.toggleOverlay()
                             ReaderIdleTimerKeeper.shared.poke()
@@ -169,6 +170,15 @@ public struct ReaderContainerView: View {
                             beginPendingSelection(selection)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
+                        onSelectionCleared: {
+                            // The page says its selection is gone. Only the pending bar hangs
+                            // on one: a committed highlight's bar was raised by the tap that
+                            // saved it, which clears the selection on its way, and must not be
+                            // taken down by the echo of its own doing.
+                            guard viewModel.activeHighlight == nil else { return }
+                            viewModel.currentSelection = nil
+                        },
+                        onDismissActions: dismissHighlightActionsIfShown,
                         onHighlightActivated: { highlightID, rect in
                             guard let highlight = viewModel.highlights.first(where: { $0.id == highlightID }) else {
                                 return
@@ -987,14 +997,14 @@ public struct ReaderContainerView: View {
             // compare Readium's frame against it directly.
             GeometryReader { geo in
                 ZStack {
-                    // Dismissing has to consume the tap. Left to fall through it would also
-                    // turn the page or toggle the reader's bars, so closing the bar would never
-                    // be the only thing that happened. This one layer does span the display.
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { dismissHighlightActions() }
-                        .ignoresSafeArea()
-
+                    // **Nothing is laid over the page here, and that is the whole point.**
+                    // Dismissing used to be a transparent sheet across the display that took
+                    // the tap — which also took every touch the page needed: the grab handles
+                    // at the ends of a live selection could not be moved at all, so a passage
+                    // that came out a word short had to be dropped and made again. The tap is
+                    // taken where it lands instead: by WebKit, which dismisses the selection
+                    // and tells the app through `ReaderSelectionScript`, and by the navigator's
+                    // own tap for a bar with no selection under it (`onDismissActions`).
                     HighlightActionsBar(
                         chrome: chrome,
                         mode: subject.barMode,
@@ -1050,6 +1060,14 @@ public struct ReaderContainerView: View {
     private func dismissHighlightActions() {
         viewModel.dismissHighlightActions()
         viewModel.currentSelection = nil
+    }
+
+    /// Takes the bar down on a tap that landed on the page, and reports whether there was
+    /// anything to take down. Handed to both navigators, which stop there when it answers true.
+    private func dismissHighlightActionsIfShown() -> Bool {
+        guard highlightActionsSubject != nil else { return false }
+        dismissHighlightActions()
+        return true
     }
 
     /// The tap that either saves the passage or recolours it. Either way the choice becomes the

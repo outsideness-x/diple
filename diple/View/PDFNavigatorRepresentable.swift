@@ -23,6 +23,8 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public let hasSelection: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
+    /// See `EPUBNavigatorRepresentable.onDismissActions`.
+    public let onDismissActions: () -> Bool
     public let onCenterTap: () -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
@@ -37,6 +39,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         hasSelection: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
+        onDismissActions: @escaping () -> Bool = { false },
         onCenterTap: @escaping () -> Void,
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
@@ -50,6 +53,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         self.hasSelection = hasSelection
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
+        self.onDismissActions = onDismissActions
         self.onCenterTap = onCenterTap
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
@@ -131,6 +135,7 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
                 didClearSelection = false
                 return
             }
+            guard !selectionSettle.isPending else { return }
             guard !didClearSelection else { return }
             didClearSelection = true
             navigator.clearSelection()
@@ -209,6 +214,11 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
 
         public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
             selectionSettle.cancel()
+
+            // See `EPUBNavigatorRepresentable.Coordinator.pageWasTapped`: a tap that closes the
+            // actions bar closes it and does nothing else.
+            if parent.onDismissActions() { return }
+
             parent.onSelectionChanged(nil)
 
             if parent.preferences.scroll == true {
