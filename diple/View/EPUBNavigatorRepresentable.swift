@@ -140,6 +140,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             navigator.observeDecorationInteractions(inGroup: "living-margins") { [weak coordinator = context.coordinator] event in
                 coordinator?.activateLivingMargin(id: event.decoration.id)
             }
+            // The page's taps come from here rather than from `didTapAt` — see
+            // `ReaderTapRecognizer` for the jam in the toolkit's own recogniser that stops a
+            // book answering taps part-way through a sitting.
+            navigator.addObserver(ReaderTapObserver { [weak coordinator = context.coordinator] point in
+                coordinator?.pageWasTapped(at: point)
+            })
             context.coordinator.bindKeyboardPageTurns(to: navigator)
             return navigator
         } catch {
@@ -508,7 +514,15 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             return false
         }
 
-        public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {
+        /// Deliberately empty. The reader answers taps from its own recogniser (registered in
+        /// `makeUIViewController`), because the toolkit's stops recognising them altogether
+        /// after one pointer release goes missing — see `ReaderTapRecognizer`. Leaving this
+        /// live as well would mean every tap arriving twice, and the chrome toggling itself
+        /// straight back off.
+        public func navigator(_ navigator: VisualNavigator, didTapAt point: CGPoint) {}
+
+        /// What a tap on the page does, wherever the tap was recognised.
+        func pageWasTapped(at point: CGPoint) {
             selectionSettle.cancel()
             parent.onSelectionChanged(nil)
 
@@ -518,7 +532,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                 return
             }
 
-            guard let view = navigator.view else { return }
+            guard let navigator, let view = navigator.view else { return }
             let width = view.bounds.width
             guard width > 0 else { return }
 
