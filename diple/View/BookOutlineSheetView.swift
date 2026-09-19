@@ -5,10 +5,17 @@ import ReadiumShared
 /// about it. Everything here is reached from one control, because all four answer the same
 /// question — "what is in this book, mine included".
 public struct BookOutlineSheetView: View {
-    public let tableOfContents: [ReadiumShared.Link]
-    /// The publication's position list, which is what lets Contents say where each chapter
-    /// begins. Empty is survivable — see `BookContents`.
-    public let positions: [ReadiumShared.Locator]
+    /// The book's chapters, already laid out on the reading axis.
+    ///
+    /// **Laid out by the reader, not here.** Building this walks the publication's position
+    /// list, which is per kilobyte of text rather than per chapter, so on a long book it is
+    /// real work — and a `body` is evaluated again every time anything on this sheet changes,
+    /// including each tap on the segmented control. The reader builds it once when the book
+    /// opens; see `ReaderViewModel.contents`.
+    public let contents: BookContents
+    /// The saved passages, as dots against the chapters they fall in. Also built by the reader,
+    /// for the same reason: each one parses a stored locator.
+    public let marks: [ContentsMark]
     /// Where reading is, in the same `totalProgression` every locator uses.
     public let progress: Double
     /// Where reading is as the reader itself knows it. The resource on screen is a fact where
@@ -42,8 +49,8 @@ public struct BookOutlineSheetView: View {
     }
 
     public init(
-        tableOfContents: [ReadiumShared.Link],
-        positions: [ReadiumShared.Locator] = [],
+        contents: BookContents,
+        marks: [ContentsMark] = [],
         progress: Double = 0,
         currentLocator: ReadiumShared.Locator? = nil,
         highlights: [Highlight],
@@ -58,8 +65,8 @@ public struct BookOutlineSheetView: View {
         onSelectBookmark: @escaping (Bookmark) -> Void = { _ in },
         onDeleteBookmark: @escaping (Bookmark) -> Void = { _ in }
     ) {
-        self.tableOfContents = tableOfContents
-        self.positions = positions
+        self.contents = contents
+        self.marks = marks
         self.progress = progress
         self.currentLocator = currentLocator
         self.highlights = highlights
@@ -219,7 +226,7 @@ public struct BookOutlineSheetView: View {
     /// opens.
     private var contentsSection: some View {
         Group {
-            if tableOfContents.isEmpty {
+            if contents.isEmpty {
                 VStack(spacing: DipleSpace.m) {
                     Spacer()
                     Image(systemName: "list.bullet.indent")
@@ -231,11 +238,6 @@ public struct BookOutlineSheetView: View {
                     Spacer()
                 }
             } else {
-                let contents = BookContents.make(
-                    tableOfContents: tableOfContents,
-                    positions: positions
-                )
-
                 BookContentsView(
                     contents: contents,
                     currentID: contents.current(at: progress, resource: currentLocator?.href)?.id,
@@ -247,20 +249,6 @@ public struct BookOutlineSheetView: View {
                     }
                 )
             }
-        }
-    }
-
-    /// Saved passages, against the chapters they fall in. A passage whose locator carries no
-    /// place in the whole book is left off rather than counted at zero: a mark in the wrong
-    /// chapter is worse than a mark missing, and the reader has no way to tell the difference.
-    private var marks: [ContentsMark] {
-        highlights.compactMap { highlight in
-            guard let progression = highlight.parsedLocator?.locations.totalProgression else { return nil }
-            return ContentsMark(
-                id: highlight.id,
-                progress: progression,
-                colorHex: highlight.colorHex
-            )
         }
     }
 

@@ -150,8 +150,19 @@ public final class ReaderViewModel: ObservableObject {
         }
     }
     @Published public var tableOfContents: [ReadiumShared.Link] = []
+    /// The book's chapters laid out on the reading axis, built once per opening.
+    ///
+    /// **Not built by the sheet that shows it.** Laying the contents out reads the publication's
+    /// position list, and a position list is per kilobyte of text rather than per chapter — on a
+    /// long book that is real work, and a SwiftUI `body` runs again on every change to the view
+    /// that holds it. Built here it is paid for once, before the reader ever asks for it, and on
+    /// a background thread. See `PositionIndex` for what the work itself was reduced to.
+    @Published public private(set) var contents = BookContents(chapters: [], isMeasured: false)
     @Published public var highlights: [Highlight] = [] {
-        didSet { synchronizeLivingMargins() }
+        didSet {
+            synchronizeLivingMargins()
+            synchronizeContentsMarks()
+        }
     }
     /// The words filed against this book's passages, by highlight id. Kept beside `highlights`
     /// rather than folded into `Highlight` — the tags are their own table, and a record type
@@ -168,6 +179,8 @@ public final class ReaderViewModel: ObservableObject {
     /// A transient projection of highlights carrying personal writing. Readium receives this
     /// list as semantic locator decorations; no marker position is persisted.
     @Published public private(set) var livingMarginAnnotations: [LivingMarginAnnotation] = []
+    /// See `synchronizeContentsMarks`.
+    @Published public private(set) var contentsMarks: [ContentsMark] = []
     @Published public private(set) var activeLivingMarginID: String? = nil
     /// The publisher's note open at the foot of the page, if the reader tapped a marker. It is
     /// read out of the publication on the tap and kept nowhere else: a footnote is part of the
@@ -538,6 +551,24 @@ public final class ReaderViewModel: ObservableObject {
         return highlights.first { $0.id == activeLivingMarginID }
     }
 
+    /// The saved passages as the contents list shows them: a place in the book and a colour.
+    ///
+    /// Kept beside `highlights` rather than derived where it is drawn, because each mark parses
+    /// a stored locator out of JSON — cheap once per change to the passages, and a hundred
+    /// decodes per frame in a `body`.
+    private func synchronizeContentsMarks() {
+        contentsMarks = highlights.compactMap { highlight in
+            guard let progression = highlight.parsedLocator?.locations.totalProgression else {
+                return nil
+            }
+            return ContentsMark(
+                id: highlight.id,
+                progress: progression,
+                colorHex: highlight.colorHex
+            )
+        }
+    }
+
     private func synchronizeLivingMargins() {
         let annotations = LivingMarginAnnotations.make(from: highlights)
         livingMarginAnnotations = annotations
@@ -664,6 +695,10 @@ public final class ReaderViewModel: ObservableObject {
 
             self.publication = pub
             self.tableOfContents = toc
+            // A list of names is worth having before the positions that measure it: the sheet
+            // is openable from the first page, and this build is O(entries) with nothing to
+            // walk. The measured one replaces it below.
+            self.contents = BookContents.make(tableOfContents: toc, positions: [])
             self.initialLocator = startingLocator ?? savedLocator
             // A search hit is a presentation-time override the navigator has not confirmed
             // yet: seeding `currentLocator` from it here, before the navigator has actually
@@ -686,6 +721,7 @@ public final class ReaderViewModel: ObservableObject {
             // Computing positions can take a moment on large books; the reader is usable
             // without them, only the progress bar cannot be dragged yet.
             self.positions = (try? await pub.positions().get()) ?? []
+            self.contents = await Self.layOutContents(tableOfContents: toc, positions: positions)
             self.readingEnd = ReadingEnd.resolve(
                 landmarks: pub.landmarks,
                 tableOfContents: toc,
@@ -698,6 +734,17 @@ public final class ReaderViewModel: ObservableObject {
             self.errorMessage = "Failed to open book: \(error.localizedDescription)"
             self.isLoading = false
         }
+    }
+
+    /// Off the main actor: on a book of several hundred sections this is tens of milliseconds,
+    /// and it lands at the moment the reader is most likely to be turning the first page.
+    private nonisolated static func layOutContents(
+        tableOfContents: [ReadiumShared.Link],
+        positions: [Locator]
+    ) async -> BookContents {
+        await Task.detached(priority: .userInitiated) {
+            BookContents.make(tableOfContents: tableOfContents, positions: positions)
+        }.value
     }
 
     public func saveLocation(_ locator: Locator) {
