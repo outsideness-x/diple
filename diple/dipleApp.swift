@@ -16,10 +16,6 @@ struct dipleApp: App {
     /// delegate is the only object in the responder chain a SwiftUI app can reach. See
     /// `DipleMenuBuilder`.
     @UIApplicationDelegateAdaptor(DipleMenuBuilder.self) private var menuBuilder
-    #else
-    /// Installed for the Home Screen quick actions, which only a scene delegate receives. See
-    /// `DipleShortcut`.
-    @UIApplicationDelegateAdaptor(DipleAppDelegate.self) private var appDelegate
     #endif
     // A static var change (`DipleAccent.current`) invalidates nothing on its own — SwiftUI
     // only re-renders what it observes. Observing the manager here and tagging the root with
@@ -156,11 +152,6 @@ struct dipleApp: App {
             // and running it on every activation costs nothing: `apply` returns immediately when
             // the icon already matches.
             .onChange(of: scenePhase, initial: true) { _, phase in
-                // Leaving the screen is when a session's writing is over, so it is when the notes
-                // widget is told what the session wrote.
-                if phase == .background, !isUITestFixture {
-                    NotesWidgetSnapshot.refresh()
-                }
                 guard phase == .active else { return }
                 #if targetEnvironment(macCatalyst)
                 DipleWindowCapture.runIfRequested()
@@ -168,12 +159,9 @@ struct dipleApp: App {
                 AppIconManager.apply(settingsManager.settings.accent)
                 if !isUITestFixture {
                     sharedLinkCoordinator.processPending()
-                    // Words shared from another app become notes before anything reads the Inbox.
-                    SharedNoteDrain.run()
                     // Activation is the one moment the app reliably gets, and the widget's copy
                     // only ever needs to be as fresh as the last time diple was opened.
                     DailyResurfacingService.shared.refreshWidgetSnapshot()
-                    NotesWidgetSnapshot.refresh()
                 }
             }
             // A restore, an import or an iCloud batch can change the whole pool the day's
@@ -184,18 +172,10 @@ struct dipleApp: App {
             }
             .onReceive(NotificationCenter.default.publisher(for: .dipleRemoteDataDidChange)) { _ in
                 DailyResurfacingService.shared.refreshWidgetSnapshot()
-                // iCloud, Add to Today and the share sheet all post this.
-                NotesWidgetSnapshot.refresh()
             }
             // Tapping the widget lands on Highlights, through the same door the daily
             // notification already opens — one route into that screen, not two.
             .onOpenURL { url in
-                if let route = DipleShortcut(url: url) {
-                    // The widget's and Control Center's ways into Notes — the same routes the
-                    // Home Screen quick actions travel.
-                    DipleShortcut.receive(route)
-                    return
-                }
                 guard url.scheme == "diple", url.host == "daily" else { return }
                 DailyResurfacingService.shared.requestOpenFromNotification()
             }
@@ -216,10 +196,6 @@ struct dipleApp: App {
                 // What has sat in Recently deleted past its thirty days goes now, before sync
                 // starts, so the deletions travel in the same first pass as everything else.
                 _ = try? AppDatabase.shared.purgeTrash()
-
-                // Words shared while diple is already on screen — from its own share sheet —
-                // arrive without an activation to wait for.
-                SharedNoteDrain.listen()
 
                 await DailyResurfacingService.shared.reconcileNotifications()
                 // iCloud sync is opt-in (device-local flag, off by default — see CLAUDE.md).
