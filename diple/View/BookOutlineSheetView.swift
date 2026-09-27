@@ -36,7 +36,8 @@ public struct BookOutlineSheetView: View {
 
     @State private var selectedTab: Section = .contents
     /// The note a trash tap is asking about. Writing is not re-creatable the way a quote is,
-    /// so it is confirmed here as it is on the notes board.
+    /// so it is confirmed here as it is on the board and on the note's own page.
+    @State private var noteToDelete: NoteItem?
     @Environment(\.dismiss) private var dismiss
 
     /// Named rather than numbered. A fourth pane went in between two existing ones, and with
@@ -212,9 +213,25 @@ public struct BookOutlineSheetView: View {
         .animation(DipleMotion.standard, value: bookmarks)
         .animation(DipleMotion.standard, value: highlights)
         .animation(DipleMotion.standard, value: notes)
-        // No question before deleting a note any more: it goes to Recently deleted in the notes
-        // workshop and can be brought back for thirty days. The board stopped asking for the same
-        // reason, and the two surfaces still must not disagree about what a note costs.
+        // The board and the note's page ask before a note goes, and the two surfaces must not
+        // disagree about what a note costs.
+        .alert(
+            "Delete note?",
+            isPresented: Binding(
+                get: { noteToDelete != nil },
+                set: { if !$0 { noteToDelete = nil } }
+            ),
+            presenting: noteToDelete
+        ) { item in
+            Button("Delete", role: .destructive) {
+                HapticManager.shared.impact(.light)
+                onDeleteNote(item)
+                noteToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { noteToDelete = nil }
+        } message: { _ in
+            Text("This note will be deleted.")
+        }
     }
 
     /// Contents: the book's chapters, as a column of names.
@@ -297,8 +314,7 @@ public struct BookOutlineSheetView: View {
                                 dismiss()
                             },
                             onDelete: {
-                                HapticManager.shared.impact(.light)
-                                onDeleteNote(item)
+                                noteToDelete = item
                             }
                         )
                     }

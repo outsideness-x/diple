@@ -471,8 +471,8 @@ public final class MarginaliaViewModel: ObservableObject {
         do {
             for entry in entries {
                 switch entry {
-                // A note goes to Recently deleted; a passage has no such place and goes for
-                // good, which is why the bulk delete still asks.
+                // A note is set aside for thirty days before it is purged, a passage goes at
+                // once; the bulk delete asks about both.
                 case .note(let item): try AppDatabase.shared.trashNote(id: item.id)
                 case .passage(let item): try AppDatabase.shared.deleteHighlight(id: item.id)
                 }

@@ -132,30 +132,20 @@ final class dipleUITests: XCTestCase {
     }
 
     @MainActor
-    func testNotesWorkspaceAndCaptureFlow() throws {
+    func testNotesHalfAndWritingFlow() throws {
         let app = XCUIApplication()
-        // The shell reopens in whichever mode it was left in, so the run pins Reading and then
-        // crosses to Notes the way a reader does — through the mode circle.
         app.launchArguments = [
             "-diple_has_completed_first_launch", "YES",
-            "-diple_app_mode", "reading",
-            "-diple-test-notes-workshop"
+            "-diple-test-notes"
         ]
         app.launch()
 
-        // diple owns a floating tab bar rather than using UITabBar, so the mode circle and the
-        // `+` it turns into are regular accessible buttons in XCUI's hierarchy.
-        let notesMode = app.buttons["Notes"]
-        XCTAssertTrue(notesMode.waitForExistence(timeout: 5))
-        notesMode.tap()
+        let newNote = app.openNotesHalf()
 
-        let newNote = app.buttons.matching(identifier: "notes.new").firstMatch
-        XCTAssertTrue(newNote.waitForExistence(timeout: 5))
-
-        let workspaceShot = XCTAttachment(screenshot: app.screenshot())
-        workspaceShot.name = "Notes workspace"
-        workspaceShot.lifetime = .keepAlways
-        add(workspaceShot)
+        let notesShot = XCTAttachment(screenshot: app.screenshot())
+        notesShot.name = "Notes, the second half of Highlights"
+        notesShot.lifetime = .keepAlways
+        add(notesShot)
 
         newNote.tap()
 
@@ -183,10 +173,7 @@ final class dipleUITests: XCTestCase {
         app.buttons["Done"].tap()
         app.swipeBackFromEdge()
 
-        // A note started from the Desk has no place yet, so it waits in the Inbox.
-        let inbox = app.buttons.matching(identifier: "desk.inbox").firstMatch
-        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
-        inbox.tap()
+        // Back on the notes half, the new note is its newest row.
         let savedNote = app.staticTexts[noteTitle].firstMatch
         XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
         savedNote.tap()
@@ -266,16 +253,11 @@ final class dipleUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = [
             "-diple_has_completed_first_launch", "YES",
-            "-diple_app_mode", "reading",
-            "-diple-test-notes-workshop"
+            "-diple-test-notes"
         ]
         app.launch()
 
-        XCTAssertTrue(app.buttons["Notes"].waitForExistence(timeout: 5))
-        app.buttons["Notes"].tap()
-        let newNote = app.buttons.matching(identifier: "notes.new").firstMatch
-        XCTAssertTrue(newNote.waitForExistence(timeout: 5))
-        newNote.tap()
+        app.openNotesHalf().tap()
 
         let noteTitle = "Equation QA · \(Int(Date().timeIntervalSince1970))"
         let title = app.textFields["note.title"]
@@ -316,9 +298,6 @@ final class dipleUITests: XCTestCase {
         app.buttons["Done"].tap()
         app.swipeBackFromEdge()
 
-        let inbox = app.buttons.matching(identifier: "desk.inbox").firstMatch
-        XCTAssertTrue(inbox.waitForExistence(timeout: 5))
-        inbox.tap()
         let savedNote = app.staticTexts[noteTitle].firstMatch
         XCTAssertTrue(savedNote.waitForExistence(timeout: 5))
         savedNote.tap()
@@ -489,5 +468,24 @@ extension XCUIApplication {
         let start = coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.55))
         let end = coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.55))
         start.press(forDuration: 0.05, thenDragTo: end)
+    }
+
+    /// Crosses to the notes half of Highlights the way a reader does — the quotation mark in the
+    /// tab bar, then the rubric under the masthead — and hands back its pencil.
+    ///
+    /// diple owns a floating tab bar rather than using UITabBar, so its places are regular
+    /// accessible buttons, labelled by name.
+    func openNotesHalf() -> XCUIElement {
+        let highlights = buttons["Highlights"].firstMatch
+        XCTAssertTrue(highlights.waitForExistence(timeout: 5))
+        highlights.tap()
+
+        let notesHalf = buttons.matching(identifier: "highlights.notes").firstMatch
+        XCTAssertTrue(notesHalf.waitForExistence(timeout: 5))
+        notesHalf.tap()
+
+        let newNote = buttons.matching(identifier: "notes.new").firstMatch
+        XCTAssertTrue(newNote.waitForExistence(timeout: 5))
+        return newNote
     }
 }

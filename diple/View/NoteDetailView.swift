@@ -4,49 +4,27 @@ import SwiftUI
 /// route of its own rather than an optional item.
 public enum NoteRoute: Hashable {
     case existing(NoteItem)
+    /// A blank page, about no book yet — the pencil in the notes half of Highlights.
     case new
     case newFromSource(Book)
     /// A note grown out of a saved passage: the quotation is already in the body, and the
     /// thought goes underneath it.
     case newFromPassage(PassageItem)
-    /// A note started with the `+` while standing in a space: it is born in that space.
-    case newInSpace(NoteSpace)
-    /// The day's page, not yet begun, for a key from `Note.dailyKey(for:)`.
-    case daily(String)
 
     public var item: NoteItem? {
         switch self {
         case .existing(let item): return item
-        case .new, .newFromSource, .newFromPassage, .newInSpace, .daily: return nil
+        case .new, .newFromSource, .newFromPassage: return nil
         }
     }
 
-    /// The day a new page is the page of, if it is one.
-    public var initialDailyDate: String? {
-        if case .daily(let key) = self { return key }
-        return nil
-    }
-
-    /// The title a new note opens with: the day, for a day's page, and nothing for any other.
-    public var initialTitle: String {
-        if case .daily(let key) = self { return Note.dailyTitle(forKey: key) }
-        return ""
-    }
-
-    /// The space a new note is born in. Only the new note's own route has one: an existing
-    /// note's place belongs to the organising calls, not to its editor (see `Note`).
-    public var initialSpaceId: String? {
-        if case .newInSpace(let space) = self { return space.id }
-        return nil
-    }
-
-    /// A blank page the reader asked for with `+` — in the Inbox or in a space. The one kind of
-    /// new note that opens with the keyboard on its title: the `+` is the notes workshop's verb,
-    /// and asking for a page is asking to write on it.
+    /// A blank page the reader asked for with the pencil. The one kind of new note that opens
+    /// with the keyboard on its title: asking for an empty page is asking to write on it, and the
+    /// first thing a page with no book behind it needs is a name.
     public var isBlankPage: Bool {
         switch self {
-        case .new, .newInSpace: return true
-        case .existing, .newFromSource, .newFromPassage, .daily: return false
+        case .new: return true
+        case .existing, .newFromSource, .newFromPassage: return false
         }
     }
 
@@ -54,7 +32,7 @@ public enum NoteRoute: Hashable {
         switch self {
         case .newFromSource(let book): return book.id
         case .newFromPassage(let passage): return passage.highlight.bookId
-        case .existing, .new, .newInSpace, .daily: return nil
+        case .existing, .new: return nil
         }
     }
 
@@ -89,7 +67,7 @@ public enum NoteRoute: Hashable {
             var tags = passage.tags
             if let sourceTag, !tags.contains(sourceTag) { tags.append(sourceTag) }
             return tags
-        case .existing, .new, .newInSpace, .daily:
+        case .existing, .new:
             return []
         }
     }
@@ -104,8 +82,6 @@ extension NoteRoute: Identifiable {
         case .new: return "new"
         case .newFromSource(let book): return "source:\(book.id)"
         case .newFromPassage(let passage): return "passage:\(passage.id)"
-        case .newInSpace(let space): return "space:\(space.id)"
-        case .daily(let key): return "daily:\(key)"
         }
     }
 }
@@ -165,6 +141,7 @@ public struct NoteDetailView: View {
     @State private var selectedBookId: String?
     @State private var isBookPickerPresented = false
     @State private var isAddingTag = false
+    @State private var isConfirmingDelete = false
     @State private var slashContext: NoteSlashContext?
     @State private var completionContext: NoteCompletionContext?
     @State private var isBodyFocused = false
@@ -203,14 +180,14 @@ public struct NoteDetailView: View {
         self.linkTitles = allNotes.filter { $0.id != route.item?.id }.map(\.displayTitle)
 
         let item = route.item
-        _title = State(initialValue: item?.note.title ?? route.initialTitle)
+        _title = State(initialValue: item?.note.title ?? "")
         _body_ = State(initialValue: item?.note.body ?? route.initialBody)
         _settledBody = State(initialValue: item?.note.body ?? route.initialBody)
         _tags = State(initialValue: item?.tags ?? route.initialTags)
         _selectedBookId = State(initialValue: item?.note.bookId ?? route.initialBookId)
         _draftID = State(initialValue: item?.id ?? UUID().uuidString)
         _lastSavedSnapshot = State(initialValue: Self.snapshot(
-            title: item?.note.title ?? route.initialTitle,
+            title: item?.note.title ?? "",
             body: item?.note.body ?? route.initialBody,
             tags: item?.tags ?? route.initialTags,
             bookID: item?.note.bookId
@@ -249,9 +226,6 @@ public struct NoteDetailView: View {
 
     private var canSave: Bool {
         let hasBody = !body_.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        // A day's page arrives with its date already in the title, and a page holding only the
-        // date it was opened on is not a page anybody wrote. It exists from its first word.
-        if route.item == nil, route.initialDailyDate != nil { return hasBody }
         return hasBody || !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -316,9 +290,8 @@ public struct NoteDetailView: View {
         // A note page takes the tab bar down for as long as it is open, the way the reader
         // does. Two reasons, and either would be enough.
         //
-        // The first is what the bar would say. Its `+` starts a note; offered over a note that
-        // is open and being written, it offers to start a second one. A page is not a place,
-        // and the bar belongs to places.
+        // The first is what the bar is for. It names places, and a page being written is not a
+        // place: offering Home and the shelf over it is offering three ways off a thought.
         //
         // The second is that it cannot be drawn over this page at all. The floating bar sits in
         // the shell's ZStack above the whole root, and above a page holding the editor's
@@ -339,6 +312,19 @@ public struct NoteDetailView: View {
                 isBodyFocused = true
             }
             .id(formulaSessionID)
+        }
+        .alert("Delete note?", isPresented: $isConfirmingDelete) {
+            Button("Delete", role: .destructive) {
+                guard let item = route.item else { return }
+                HapticManager.shared.impact(.light)
+                // A save landing after this — the editor's own `onDisappear` — does not bring
+                // the note back: `saveNote` keeps where a note lives, and that includes the bin.
+                onDelete(item)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This note will be deleted.")
         }
         .alert("New tag", isPresented: $isAddingTag) {
             TextField("Tag", text: $tagDraft)
@@ -363,14 +349,9 @@ public struct NoteDetailView: View {
             // text field afterwards spends a tap on nothing, and on a phone it is the tap that
             // loses the thought.
             //
-            // A blank page asked for with `+` opens with the keyboard on its title. That used to
-            // be deliberately left alone, when "New note" was one of four equal controls on the
-            // board and the next move was as likely a template or a tag. In the notes workshop
-            // the `+` is the verb the whole mode is built around, and Things, Bear and Apple Notes
-            // all answer it the same way: here is the page, write.
-            // The day's page too: its title is the date, already written, and what the reader
-            // came to put down is the first line of the day.
-            if route.item == nil && (route.initialBookId != nil || route.initialDailyDate != nil) {
+            // A blank page asked for with the pencil opens with the keyboard on its title — see
+            // the `.task` below. Things, Bear and Apple Notes all answer a new page that way.
+            if route.item == nil && route.initialBookId != nil {
                 isBodyFocused = true
             }
         }
@@ -468,15 +449,12 @@ public struct NoteDetailView: View {
                         Label("Copy plain text", systemImage: "text.alignleft")
                     }
 
-                    if let item = route.item {
-                        // No question first: the note goes to Recently deleted and can be
-                        // brought back for thirty days. A save landing after this — the editor's
-                        // own `onDisappear` — does not bring it back; `saveNote` keeps where a
-                        // note lives, and that includes the bin.
+                    if route.item != nil {
+                        // Asked first. There is no Recently deleted to bring a note back from any
+                        // more; the row is kept, hidden, for thirty days only so a device still
+                        // on an older build can agree with this one about it.
                         Button(role: .destructive) {
-                            HapticManager.shared.impact(.light)
-                            onDelete(item)
-                            dismiss()
+                            isConfirmingDelete = true
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -1148,16 +1126,17 @@ public struct NoteDetailView: View {
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let existing = route.item?.note
-        // Where the note lives travels only on its first write — `saveNote` keeps the stored
-        // row's place for every write after that, so a page left open can never undo a move.
+        // A note filed into a space or begun as a day's page while the app had a notes
+        // workshop (2026-09-11 to 2026-09-27) keeps those columns: `saveNote` keeps the stored
+        // row's place on every write, and nothing here sets a new one.
         let note = Note(
             id: existing?.id ?? draftID,
             title: trimmedTitle.isEmpty ? nil : trimmedTitle,
             body: body_.trimmingCharacters(in: .whitespacesAndNewlines),
             bookId: selectedBookId,
             createdAt: existing?.createdAt ?? Date(),
-            spaceId: existing?.spaceId ?? route.initialSpaceId,
-            dailyDate: existing?.dailyDate ?? route.initialDailyDate
+            spaceId: existing?.spaceId,
+            dailyDate: existing?.dailyDate
         )
         // Whatever is being written has stopped moving long enough to be written down, which
         // is exactly when the Connections block is worth rebuilding.

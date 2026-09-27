@@ -4,11 +4,13 @@ import UniformTypeIdentifiers
 
 /// The two workshops the phone has, as a switch at the top of the desktop sidebar.
 ///
-/// Remembered under the phone's own key (`RootTabView.modeKey`) with the same raw values, and
-/// like the phone's it is **not synced**: the mode a Mac was left in is a fact about that desk.
+/// Remembered on this Mac and **not synced**: the mode a Mac was left in is a fact about that
+/// desk. The key is the one the phone's mode used while it had one.
 enum MacMode: String {
     case reading
     case notes
+
+    static let storageKey = "diple_app_mode"
 
     var title: String {
         switch self {
@@ -601,6 +603,17 @@ struct MacTasksList: View {
 /// here instead, in front of the two acts that cannot be undone: deleting one for good, and
 /// emptying the bin. A row is not opened; it is restored or let go.
 struct MacTrashList: View {
+    /// When it went and how long it has left.
+    static func dateline(_ item: NoteItem) -> String {
+        guard let trashedAt = item.note.trashedAt else { return "" }
+        let deleted = trashedAt.formatted(.relative(presentation: .named, unitsStyle: .wide))
+        // Rounded up: a note deleted a minute ago has thirty days, not twenty-nine and change.
+        let remaining = trashedAt.addingTimeInterval(Note.trashRetention).timeIntervalSinceNow
+        let days = max(0, Int((remaining / 86_400).rounded(.up)))
+        let left = days <= 1 ? (remaining > 0 ? "1 day left" : "goes today") : "\(days) days left"
+        return "Deleted \(deleted) · \(left)"
+    }
+
     @ObservedObject var model: NotesWorkshopModel
 
     @State private var toDelete: NoteItem?
@@ -680,7 +693,7 @@ struct MacTrashList: View {
                     .lineLimit(2)
                 // Two lines, not one: beside Restore in a narrow column the days left — the
                 // half of the line that matters — were the half cut off.
-                Text(NotesTrashView.dateline(item))
+                Text(Self.dateline(item))
                     .dipleType(.caption)
                     .foregroundStyle(DipleColor.textTertiary)
                     .lineLimit(2)

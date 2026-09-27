@@ -825,60 +825,21 @@ public struct LibraryView: View {
         }
     }
 
-    /// The queue, as three places rather than three filters.
+    /// The queue, as three places rather than three filters — a `DipleRubric`, the same one
+    /// Highlights sets its two halves in.
     ///
-    /// Set as a rubric, not as a control. It was a system `Picker(.segmented)` — the only piece
-    /// of stock UIKit on the screen, and it read as one: a settings widget where the page wanted
-    /// a section head. A section is announced in type. The current place is set at full strength
-    /// with a rule under it, the two you might go to are dimmed, and nothing is boxed.
-    ///
-    /// The distinction the segmented control was there to protect still holds and is now carried
+    /// The distinction a segmented control was once there to protect still holds and is carried
     /// by the difference in kind rather than by the difference in shape: location is *where you
     /// are*, and everything in the filter menu narrows what you see once you are there.
-    ///
-    /// The count rides as a superior figure rather than in the label, because "Inbox 2" reads as
-    /// a name containing a number and `Inbox²` reads as a name with a count attached.
     private var locationPicker: some View {
-        HStack(alignment: .bottom, spacing: DipleSpace.xl) {
-            ForEach(BookLocation.allCases, id: \.self) { option in
-                locationSegment(option)
-            }
-            Spacer(minLength: 0)
-        }
+        DipleRubric(
+            options: BookLocation.allCases,
+            selection: $location,
+            title: \.title,
+            count: { viewModel.count(in: $0) },
+            identifier: { "library.location.\($0.rawValue)" }
+        )
         .accessibilityLabel("Reading queue")
-    }
-
-    private func locationSegment(_ option: BookLocation) -> some View {
-        let isSelected = location == option
-        let count = viewModel.count(in: option)
-        return Button {
-            guard !isSelected else { return }
-            HapticManager.shared.selection()
-            withAnimation(DipleMotion.standard) { location = option }
-        } label: {
-            HStack(alignment: .top, spacing: DipleSpace.hair) {
-                Text(option.title)
-                    .dipleType(.headline, weight: isSelected ? .semibold : .regular)
-
-                if count > 0 {
-                    Text("\(count)")
-                        .dipleType(.tag)
-                        .monospacedDigit()
-                        .baselineOffset(7)
-                }
-            }
-            .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textQuaternary)
-            .padding(.bottom, DipleSpace.s)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(isSelected ? DipleColor.accent : Color.clear)
-                    .frame(height: DipleStroke.selection)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.readerControl)
-        .accessibilityLabel(count > 0 ? "\(option.title), \(count)" : option.title)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var emptyLocation: some View {

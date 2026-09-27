@@ -174,7 +174,7 @@ public struct MacRootView: View {
     private static var openingMode: MacMode {
         if DipleWindowCapture.requestedSource == "notes" { return .notes }
         if DipleWindowCapture.requestedSource != nil { return .reading }
-        return MacMode(rawValue: UserDefaults.standard.string(forKey: RootTabView.modeKey) ?? "") ?? .reading
+        return MacMode(rawValue: UserDefaults.standard.string(forKey: MacMode.storageKey) ?? "") ?? .reading
     }
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -261,7 +261,7 @@ public struct MacRootView: View {
             detail = .welcome
         }
         .onChange(of: mode) { _, newMode in
-            UserDefaults.standard.set(newMode.rawValue, forKey: RootTabView.modeKey)
+            UserDefaults.standard.set(newMode.rawValue, forKey: MacMode.storageKey)
             if newMode == .notes {
                 notes.load()
                 notesBoard.load()

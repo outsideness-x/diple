@@ -57,13 +57,13 @@ struct dipleApp: App {
         #endif
     }
 
-    /// The notes workshop seals without seeding: the run writes its own note and reads it back.
-    /// What it needs from the seal is the top of the screen. The shared-link banner lands over
-    /// the navigation bar, and a note page's toolbar — Done, and the eye that shows the page as
-    /// it reads — lives exactly there.
-    private var isNotesWorkshopUITestFixture: Bool {
+    /// The notes runs seal without seeding: each writes its own note and reads it back. What
+    /// they need from the seal is the top of the screen. The shared-link banner lands over the
+    /// navigation bar, and a note page's toolbar — Done, and the eye that shows the page as it
+    /// reads — lives exactly there.
+    private var isNotesUITestFixture: Bool {
         #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-diple-test-notes-workshop")
+        ProcessInfo.processInfo.arguments.contains("-diple-test-notes")
         #else
         false
         #endif
@@ -79,7 +79,7 @@ struct dipleApp: App {
         isLivingMarginsUITestFixture
             || isFinishedColophonUITestFixture
             || isReadingTrailUITestFixture
-            || isNotesWorkshopUITestFixture
+            || isNotesUITestFixture
     }
 
     init() {

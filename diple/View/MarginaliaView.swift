@@ -5,30 +5,42 @@ import SwiftUI
 // rather than at the import.
 import struct ReadiumShared.Locator
 
-/// Which room of the board this is.
+/// Which half of Highlights is open: the passages marked in books, or the notes written about
+/// them.
 ///
-/// Two rooms over one catalogue — the arrangement the desktop's sidebar already had. The room
-/// decides *what it holds* and two small things that follow from that; every control below it
-/// is the same board.
+/// Two halves of one room, not two rooms. They were two places in the tab bar (2026-09-07), then
+/// notes left for a workshop of their own (2026-09-11), and on 2026-09-27 they came back as the
+/// second half of Highlights: a note is what the reader made of a book, the same as a passage
+/// is, and the room that keeps one keeps the other.
 ///
-/// What the room no longer decides is a starting point the reader can walk away from. There
-/// used to be a scope bar under the masthead — All / Written / Saved — so Highlights opened on
-/// passages and was one tap from a page of notes, with the masthead announcing both counts in
-/// both rooms. Two doors into a room you can leave by the same door are one room with a
-/// confusing name: a reader who marked something in a book and came to Highlights was shown
-/// their notes. Highlights holds passages, Notes holds notes, and neither shows the other's.
-public enum MarginaliaDoor {
-    case notes
+/// The half still decides what the board holds and nothing else. It is not a scope the reader
+/// can widen: a reader who marked something in a book and came here is shown passages, and one
+/// who wrote about it is one tap from notes — never a page of both, which was the confusing
+/// room the 2026-09-07 split undid.
+public enum MarginaliaDoor: String, CaseIterable, Identifiable {
     case highlights
+    case notes
 
+    public var id: Self { self }
+
+    /// The half's name on the rubric. The first one is called by what it holds, not by the
+    /// room's name: "Highlights" over "Highlights · Notes" would print the same word twice.
     var title: String {
         switch self {
+        case .highlights: return "Passages"
         case .notes: return "Notes"
-        case .highlights: return "Highlights"
         }
     }
 
-    /// What this room holds — fixed for as long as it is open, not a first position.
+    /// What a page pushed from this half labels its back button with.
+    var backTitle: String {
+        switch self {
+        case .highlights: return "Highlights"
+        case .notes: return "Notes"
+        }
+    }
+
+    /// What this half holds — fixed for as long as it is open, not a first position.
     var scope: MarginaliaScope {
         switch self {
         case .notes: return .written
@@ -36,35 +48,12 @@ public enum MarginaliaDoor {
         }
     }
 
-    /// The day's passage stands at the top of the room the passages are in, and nowhere else.
+    /// The day's passage stands at the top of the half the passages are in, and nowhere else.
     var showsDailyPassage: Bool { self == .highlights }
 
-    /// A note is written from the notes room: this is the room that answers the bar's `+` in
-    /// the notes workshop. Nothing writes a passage but reading one, so the passages room
-    /// never does.
+    /// A note can be started here, without a book — the pencil in the masthead. Nothing writes a
+    /// passage but reading one, so the passages half never offers it.
     var offersNewNote: Bool { self == .notes }
-}
-
-/// How the board stands inside another screen's stack rather than as a tab of its own.
-///
-/// The notes workshop pushes the whole board as its All notes page: every chip, the grouping,
-/// the workbench and the filing pass, one row deeper than the Desk rather than on the first
-/// screen of the mode. Inside someone else's `NavigationStack` the board must not open a second
-/// one, and must not declare destinations of its own — SwiftUI keeps only the declaration nearest
-/// the root for a type and silently drops the rest, the trap already recorded under "Home и
-/// навигация". So it pushes onto the host's path and the host resolves the routes.
-public struct MarginaliaEmbedding {
-    let title: String
-    let path: Binding<NavigationPath>
-    /// A word the board opens already narrowed to — the Tags index sends the reader here with
-    /// one chip pressed, which is all a page for one tag would have been.
-    let initialTag: String?
-
-    public init(title: String, path: Binding<NavigationPath>, initialTag: String? = nil) {
-        self.title = title
-        self.path = path
-        self.initialTag = initialTag
-    }
 }
 
 /// Where the board can go that is not a note.
@@ -75,40 +64,220 @@ public enum MarginaliaRoute: Hashable {
     case passage(book: Book, locatorJSON: String)
 }
 
-/// One place for everything made out of reading.
+/// Everything made out of reading, in one room: the passages marked in books, and the notes
+/// written about them.
 ///
-/// This was two screens. Notes had a board with filters, a search field and a sort; passages
-/// had a list of books reachable from Home and nothing else — no tag control at all, though
-/// every passage has carried tags since v18. A reader with a thought about Sapiens had to know
-/// in advance whether they had written it down or marked it in the text to know which of the
-/// two places to look, which is a question about this app's storage layout rather than about
-/// their own thinking.
+/// This was two screens once. Notes had a board with filters, a search field and a sort;
+/// passages had a list of books reachable from Home and nothing else — no tag control at all,
+/// though every passage has carried tags since v18. So the collections keep their tables and
+/// share their controls — the filter row, the search field, the order, the grouping and the
+/// filing pass are written once and stand over both halves. What they do not share is a page:
+/// each half shows one kind, under the rubric that switches between them.
 ///
-/// So the collections keep their tables and share their controls — the filter row, the search
-/// field, the order, the grouping and the filing pass are written once and stand in both rooms.
-/// What they no longer share is a page: each room shows one kind. What changed is one screen,
-/// not one schema.
+/// **One stack, two boards.** Each half keeps its own model, so a chip pressed among the
+/// passages does not narrow the notes, and its own scroll position, so going to the other half
+/// and back lands where the reader was. Both stay mounted — hidden by opacity, the way the tab
+/// roots are — and both push onto this view's one path, which declares every route once:
+/// SwiftUI keeps only the declaration nearest the root for a type and drops the rest silently
+/// (see "Home и навигация" in CLAUDE.md).
 public struct MarginaliaView: View {
-    private let door: MarginaliaDoor
-    private let embedding: MarginaliaEmbedding?
-    @StateObject private var model: MarginaliaViewModel
+    @StateObject private var passages = MarginaliaViewModel(scope: .saved)
+    @StateObject private var notes = MarginaliaViewModel(scope: .written)
 
-    /// Rows by default, and the key is the board's old one so a reader who already chose the
-    /// card grid keeps it. `AppStorage` takes its default only when the key is absent.
-    @AppStorage("diple_notes_layout") private var storedLayout = MarginaliaLayout.list.rawValue
+    /// Passages first, at every launch: the room is named for them, and it is where the day's
+    /// passage — and the notification and widget that bring the reader here — stands.
+    @State private var door: MarginaliaDoor = .highlights
+
+    /// One path for the room, so a wiki link followed from inside a note pushes onto the same
+    /// stack the rows push onto.
+    @State private var path = NavigationPath()
 
     /// Ties a row to the page it becomes, so a note expands out of the entry that was tapped
     /// instead of sliding in from the side.
     @Namespace private var cardNamespace
 
-    /// One path for the tab, so a wiki link followed from inside a note pushes onto the same
-    /// stack the rows push onto.
-    @State private var path = NavigationPath()
+    /// The passage open in its editor — from a row, from the day's passage, or from a note's
+    /// Connections. Here rather than in each half, because a note page is pushed onto this
+    /// view's stack and has no half of its own to raise a sheet from.
+    @State private var editingPassage: PassageItem?
+    /// Where to go once the passage sheet has finished closing. A push raised from inside a
+    /// sheet is presented into a hierarchy that is still tearing that sheet down and is lost —
+    /// the same trap the reader's contents sheet already documents.
+    @State private var pendingPush: PendingPush?
+
+    @Environment(\.dipleTabIsActive) private var isTabActive
+
+    private enum PendingPush {
+        case note(NoteRoute)
+        case reader(Book, String)
+    }
+
+    public init() {}
+
+    public var body: some View {
+        NavigationStack(path: $path) {
+            ZStack {
+                DipleColor.canvas.ignoresSafeArea()
+
+                half(.highlights, model: passages)
+                half(.notes, model: notes)
+            }
+            // Set but hidden: it is what a pushed screen labels its own back button with.
+            .navigationTitle(door.backTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: NoteRoute.self) { route in
+                noteDestination(for: route)
+            }
+            .navigationDestination(for: MarginaliaRoute.self) { route in
+                switch route {
+                case let .passage(book, locatorJSON):
+                    ReaderContainerView(
+                        book: book,
+                        startingLocator: Locator.from(jsonString: locatorJSON),
+                        onReadingUpdated: reloadBoth
+                    )
+                }
+            }
+            .navigationDestination(for: Book.self) { book in
+                ReaderContainerView(book: book, onReadingUpdated: reloadBoth)
+            }
+        }
+        .sheet(item: $editingPassage, onDismiss: consumePendingPush) { passage in
+            passageEditor(for: passage)
+        }
+        // The notification and the widget open on the day's passage, which stands in the
+        // passages half.
+        .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
+            door = .highlights
+        }
+    }
+
+    /// One half, mounted whether or not it is open. Only the open one counts as the active tab:
+    /// that is what its scroll reports to the tab bar, what hides the bar while it is choosing,
+    /// and what reloads it when the reader comes back to it.
+    private func half(_ side: MarginaliaDoor, model: MarginaliaViewModel) -> some View {
+        let isOpen = door == side
+        return MarginaliaBoardPage(
+            door: side,
+            model: model,
+            room: $door,
+            counts: [.highlights: passages.totalInScope, .notes: notes.totalInScope],
+            cardNamespace: cardNamespace,
+            openNote: { path.append($0) },
+            openInBook: { path.append($0) },
+            openPassage: { editingPassage = $0 }
+        )
+        .environment(\.dipleTabIsActive, isTabActive && isOpen)
+        .opacity(isOpen ? 1 : 0)
+        .allowsHitTesting(isOpen)
+        .accessibilityHidden(!isOpen)
+        .zIndex(isOpen ? 1 : 0)
+    }
+
+    private func reloadBoth() {
+        passages.load()
+        notes.load()
+    }
+
+    // MARK: - Destinations
+
+    /// The one note editor in the app, given everything the room holds — every note for its
+    /// wiki links, every passage for its Connections, the whole vocabulary for its tag menu.
+    @ViewBuilder
+    private func noteDestination(for route: NoteRoute) -> some View {
+        let page = NoteDetailView(
+            route: route,
+            books: notes.books,
+            suggestedTags: notes.noteTagVocabulary,
+            allNotes: notes.entries.compactMap(\.noteItem),
+            passages: notes.entries.compactMap(\.passageItem),
+            onSave: { note, tags in notes.save(note, tags: tags) },
+            onDelete: { notes.delete(.note($0)) },
+            onOpenNote: { path.append(NoteRoute.existing($0)) },
+            onOpenPassage: { editingPassage = $0 }
+        )
+
+        // A new note has no row on the board to expand out of, so it gets the standard push.
+        // `NavigationTransition` has no type eraser, so the cases branch here.
+        switch route {
+        case .existing(let item):
+            page.navigationTransition(.zoom(sourceID: item.id, in: cardNamespace))
+        case .new, .newFromSource, .newFromPassage:
+            page
+        }
+    }
+
+    /// The passage editor is the reader's own, not a second one. A sheet that drifted from the
+    /// one in the reader would mean a passage edited from the board and the same passage edited
+    /// on its page were two different objects with two different rules.
+    private func passageEditor(for passage: PassageItem) -> some View {
+        HighlightEditorView(
+            quote: passage.highlight.text,
+            initialColorHex: passage.highlight.colorHex,
+            initialComment: passage.comment,
+            initialTags: passage.tags,
+            tagSuggestions: passages.passageTagVocabulary,
+            isExisting: true,
+            sourceTitle: passage.book?.title ?? passage.highlight.bookTitle,
+            onSave: { colorHex, comment, tags in
+                passages.savePassage(passage, colorHex: colorHex, comment: comment, tags: tags)
+                // A note's Connections read passages out of the notes half's copy.
+                notes.load()
+            },
+            onDelete: {
+                passages.delete(.passage(passage))
+                notes.load()
+            },
+            onOpenInSource: openInSourceAction(for: passage),
+            onExpandIntoNote: { pendingPush = .note(.newFromPassage(passage)) }
+        )
+    }
+
+    private func openInSourceAction(for passage: PassageItem) -> (() -> Void)? {
+        guard let book = passage.book, passage.highlight.parsedLocator != nil else { return nil }
+        return { pendingPush = .reader(book, passage.highlight.locator) }
+    }
+
+    private func consumePendingPush() {
+        guard let pendingPush else { return }
+        self.pendingPush = nil
+        switch pendingPush {
+        case .note(let route):
+            path.append(route)
+        case let .reader(book, locatorJSON):
+            path.append(MarginaliaRoute.passage(book: book, locatorJSON: locatorJSON))
+        }
+    }
+}
+
+/// One half of Highlights: the board of passages, or the board of notes.
+///
+/// Every control is written once and stands over both — the rubric that switches them, the
+/// filter row, the search field, the order, the grouping, the workbench and the filing pass.
+/// The half knows only which kind it holds; where anything opens is the room's business, so it
+/// hands every push to it.
+private struct MarginaliaBoardPage: View {
+    let door: MarginaliaDoor
+    @ObservedObject var model: MarginaliaViewModel
+    /// Which half is open, for the rubric under the masthead.
+    @Binding var room: MarginaliaDoor
+    /// How many rows each half holds, for the rubric's superior figures. The other half's number
+    /// comes from the other model, which only the room observes.
+    let counts: [MarginaliaDoor: Int]
+    let cardNamespace: Namespace.ID
+    let openNote: (NoteRoute) -> Void
+    let openInBook: (MarginaliaRoute) -> Void
+    let openPassage: (PassageItem) -> Void
+
+    /// Rows by default, and the key is the board's old one so a reader who already chose the
+    /// card grid keeps it. `AppStorage` takes its default only when the key is absent. Both
+    /// halves read the one key: a layout is how the reader likes to look at the room.
+    @AppStorage("diple_notes_layout") private var storedLayout = MarginaliaLayout.list.rawValue
 
     @State private var isSearchFieldShown = false
     @FocusState private var isSearchFocused: Bool
     @State private var isFilterSheetPresented = false
-    @State private var editingPassage: PassageItem?
     /// The passage being made into a card, if any.
     @State private var cardPassage: PassageItem?
     @State private var renameDraft = ""
@@ -116,15 +285,6 @@ public struct MarginaliaView: View {
     @State private var isAddingTagToSelection = false
     @State private var isConfirmingBulkDelete = false
     @State private var isFilingPassPresented = false
-    /// Where to go once the passage sheet has finished closing. A push raised from inside a
-    /// sheet is presented into a hierarchy that is still tearing that sheet down and is lost —
-    /// the same trap the reader's contents sheet already documents.
-    @State private var pendingPush: PendingPush?
-
-    private enum PendingPush {
-        case note(NoteRoute)
-        case reader(Book, String)
-    }
 
     enum MarginaliaLayout: String {
         case cards
@@ -149,85 +309,12 @@ public struct MarginaliaView: View {
     /// prints no words, and the word is what most readers came to press.
     private let visibleFacets = 8
 
-    public init(door: MarginaliaDoor = .notes, embedding: MarginaliaEmbedding? = nil) {
-        self.door = door
-        self.embedding = embedding
-        let model = MarginaliaViewModel(scope: door.scope)
-        if let tag = embedding?.initialTag { model.facets.tags = [tag] }
-        _model = StateObject(wrappedValue: model)
-    }
-
-    private var title: String { embedding?.title ?? door.title }
-
-    /// Every push the board makes, onto whichever stack it is standing in.
-    private func push<Route: Hashable>(_ route: Route) {
-        if let embedding {
-            embedding.path.wrappedValue.append(route)
-        } else {
-            path.append(route)
-        }
-    }
-
-    public var body: some View {
-        if embedding != nil {
-            board
-                // A pushed page keeps the system bar for its back button; the masthead below it
-                // still carries the page's name.
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(DipleColor.canvas, for: .navigationBar)
-        } else {
-            NavigationStack(path: $path) {
-                board
-                    // Set but hidden: it is what a pushed screen labels its own back button with.
-                    .navigationTitle(title)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar(.hidden, for: .navigationBar)
-                    .modifier(MarginaliaDestinations(host: self))
-            }
-        }
-    }
-
-    /// The routes the board resolves itself — only when it owns its stack. Embedded, the host
-    /// declares them; see `MarginaliaEmbedding`.
-    private struct MarginaliaDestinations: ViewModifier {
-        let host: MarginaliaView
-
-        func body(content: Content) -> some View {
-            content
-                .navigationDestination(for: NoteRoute.self) { route in
-                    host.noteDestination(for: route)
-                }
-                .navigationDestination(for: MarginaliaRoute.self) { route in
-                    switch route {
-                    case let .passage(book, locatorJSON):
-                        ReaderContainerView(
-                            book: book,
-                            startingLocator: Locator.from(jsonString: locatorJSON),
-                            onReadingUpdated: { host.model.load() }
-                        )
-                    }
-                }
-                .navigationDestination(for: Book.self) { book in
-                    ReaderContainerView(book: book, onReadingUpdated: { host.model.load() })
-                }
-        }
-    }
-
-    private var board: some View {
-            ZStack {
-                DipleColor.canvas.ignoresSafeArea()
-
-                // One stable root under the stack. Swapping empty/workspace while the first
-                // note autosaved invalidated the active destination and made the editor look
-                // as though it had vanished.
-                workspace
-            }
+    var body: some View {
+        // One stable root. Swapping empty/workspace while the first note autosaved invalidated
+        // the active destination and made the editor look as though it had vanished.
+        workspace
             .sheet(item: $cardPassage) { passage in
                 PassageCardSheet(passage: passage)
-            }
-            .sheet(item: $editingPassage, onDismiss: consumePendingPush) { passage in
-                passageEditor(for: passage)
             }
             .sheet(isPresented: $isFilingPassPresented) {
                 MarginaliaFilingView(model: model)
@@ -290,13 +377,25 @@ public struct MarginaliaView: View {
             } message: {
                 Text("The word is added to each chosen row. Nothing already there is replaced.")
             }
-            .alert("Delete \(model.selectedEntries.count) items?", isPresented: $isConfirmingBulkDelete) {
+            .alert(bulkDeleteTitle, isPresented: $isConfirmingBulkDelete) {
                 Button("Delete", role: .destructive) { model.deleteSelection() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Notes go to Recently deleted for thirty days. Passages and their comments are removed for good.")
+                Text(
+                    door == .notes
+                        ? "The chosen notes will be deleted."
+                        : "The chosen passages and their comments will be removed."
+                )
             }
             .refreshesOnTabActivation { model.load() }
+    }
+
+    private var bulkDeleteTitle: String {
+        let count = model.selectedEntries.count
+        switch door {
+        case .notes: return count == 1 ? "Delete 1 note?" : "Delete \(count) notes?"
+        case .highlights: return count == 1 ? "Delete 1 passage?" : "Delete \(count) passages?"
+        }
     }
 
     // MARK: - Frame
@@ -305,6 +404,10 @@ public struct MarginaliaView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: DipleSpace.l, pinnedViews: [.sectionHeaders]) {
                 masthead
+
+                if !model.isSelecting {
+                    rubric
+                }
 
                 dailyPassage
 
@@ -335,12 +438,27 @@ public struct MarginaliaView: View {
         .modifier(HidesTabBarWhileSelecting(isSelecting: model.isSelecting))
     }
 
-    /// The day's passage, at the head of the room it belongs to.
+    /// The two halves, under the room's name — set the way the library sets its queue.
+    ///
+    /// Gone while choosing: choosing is a mode with one way out, Done in the masthead, and a
+    /// rubric left live would be a second way to walk off a selection without saying so.
+    private var rubric: some View {
+        DipleRubric(
+            options: MarginaliaDoor.allCases,
+            selection: $room,
+            title: \.title,
+            count: { counts[$0] ?? 0 },
+            identifier: { "highlights.\($0.rawValue)" }
+        )
+        .padding(.horizontal, DipleSpace.xl)
+    }
+
+    /// The day's passage, at the head of the half it belongs to.
     ///
     /// It used to open the front page, where it was the largest thing on a screen about what to
     /// read next, and where it made Home a third place saved passages lived. Here it is the
-    /// first thing in the room that holds them — which is also where the daily notification and
-    /// the widget now land.
+    /// first thing in the half that holds them — which is also where the daily notification and
+    /// the widget land.
     @ViewBuilder
     private var dailyPassage: some View {
         if door.showsDailyPassage, !model.isNarrowed, !model.isSelecting {
@@ -354,16 +472,18 @@ public struct MarginaliaView: View {
     /// which is the nearest thing left to standing in front of it.
     private func openDaily(_ item: DailyResurfacingItem) {
         if let book = item.summary.book, item.quote.parsedLocator != nil {
-            push(MarginaliaRoute.passage(book: book, locatorJSON: item.quote.locator))
+            openInBook(.passage(book: book, locatorJSON: item.quote.locator))
         } else if let passage = model.entries
             .compactMap(\.passageItem)
             .first(where: { $0.id == item.quote.id }) {
-            editingPassage = passage
+            openPassage(passage)
         }
     }
 
+    /// The room's name, not the half's: the rubric right under it says which half is open, and
+    /// a title that changed with it would say the same thing twice, one line apart.
     private var masthead: some View {
-        DipleMasthead(title: title, strapline: strapline) {
+        DipleMasthead(title: "Highlights", strapline: strapline) {
             if model.isSelecting {
                 selectionMastheadActions
             } else {
@@ -402,6 +522,7 @@ public struct MarginaliaView: View {
     private var isEverythingSelected: Bool {
         !model.results.isEmpty && model.selectedEntries.count == model.results.count
     }
+
 
     @ViewBuilder
     private var browsingMastheadActions: some View {
@@ -450,28 +571,29 @@ public struct MarginaliaView: View {
                 isSearchFieldShown || !model.rawQuery.isEmpty
                     ? "Close search" : "Search everything you have made"
             )
-            // No `+` here any more. In the notes workshop the bar's own verb circle *is* the
-            // `+`, always under the thumb; a second one in the masthead would be two controls
-            // for one act on one screen.
+
+            // The notes half's own verb: a note that starts here, about no book yet. It files
+            // itself under one from its page — the properties line links a source and carries
+            // its name as a tag, exactly as a note written inside the book is born with.
+            if door.offersNewNote {
+                Button {
+                    HapticManager.shared.selection()
+                    openNote(.new)
+                } label: {
+                    MastheadGlyph(systemImage: "square.and.pencil")
+                }
+                .buttonStyle(.readerControl)
+                .accessibilityLabel("New note")
+                .accessibilityIdentifier("notes.new")
+            }
     }
 
-    /// What this room holds in total, not what it is currently showing — the narrowed count
-    /// belongs on the chips, where pressing one is what changes it.
-    ///
-    /// Its own kind and nothing else. Both counts were printed in both rooms while the scope
-    /// bar could walk between them; over a page of passages, "4 notes · 12 passages" now names
-    /// a collection this room does not contain.
+    /// Only while choosing. At rest the rubric under the name already prints what each half
+    /// holds, and a strapline counting the open half would say it a second time, one line up.
     private var strapline: String? {
-        if model.isSelecting {
-            let count = model.selectedEntries.count
-            return count == 0 ? "Choose what to collect" : "\(count) selected"
-        }
-        let total = model.totalInScope
-        guard total > 0 else { return nil }
-        switch door {
-        case .notes: return total == 1 ? "1 note" : "\(total) notes"
-        case .highlights: return total == 1 ? "1 passage" : "\(total) passages"
-        }
+        guard model.isSelecting else { return nil }
+        let count = model.selectedEntries.count
+        return count == 0 ? "Choose what to collect" : "\(count) selected"
     }
 
     private var layoutBinding: Binding<MarginaliaLayout> {
@@ -876,7 +998,7 @@ public struct MarginaliaView: View {
                 // opposite reason.
                 Button {
                     HapticManager.shared.selection()
-                    editingPassage = item
+                    openPassage(item)
                 } label: {
                     PassageRowView(passage: item, style: layout == .cards ? .card : .row)
                 }
@@ -932,11 +1054,10 @@ public struct MarginaliaView: View {
             Label("Copy text", systemImage: "doc.on.doc")
         }
 
-        // No question: a note goes to Recently deleted and can be brought back for thirty days.
-        // A passage, which cannot, is still asked about.
+        // Asked about, like a passage. There is no Recently deleted to bring it back from any
+        // more, and a passage can at least be marked again from its page; a thought cannot.
         Button(role: .destructive) {
-            HapticManager.shared.impact(.light)
-            model.delete(.note(item))
+            model.confirmDelete(.note(item))
         } label: {
             Label("Delete", systemImage: "trash")
         }
@@ -948,14 +1069,14 @@ public struct MarginaliaView: View {
 
         if let book = item.book, item.highlight.parsedLocator != nil {
             Button {
-                push(MarginaliaRoute.passage(book: book, locatorJSON: item.highlight.locator))
+                openInBook(.passage(book: book, locatorJSON: item.highlight.locator))
             } label: {
                 Label("Open in the book", systemImage: "book")
             }
         }
 
         Button {
-            push(NoteRoute.newFromPassage(item))
+            openNote(.newFromPassage(item))
         } label: {
             Label("Expand into a note", systemImage: "square.and.pencil")
         }
@@ -1073,70 +1194,7 @@ public struct MarginaliaView: View {
     private func collect() {
         guard let item = model.collect() else { return }
         HapticManager.shared.impact(.light)
-        push(NoteRoute.existing(item))
-    }
-
-    // MARK: - Destinations
-
-    @ViewBuilder
-    fileprivate func noteDestination(for route: NoteRoute) -> some View {
-        let page = NoteDetailView(
-            route: route,
-            books: model.books,
-            suggestedTags: model.noteTagVocabulary,
-            allNotes: model.entries.compactMap(\.noteItem),
-            passages: model.entries.compactMap(\.passageItem),
-            onSave: { note, tags in model.save(note, tags: tags) },
-            onDelete: { model.delete(.note($0)) },
-            onOpenNote: { push(NoteRoute.existing($0)) },
-            onOpenPassage: { editingPassage = $0 }
-        )
-
-        // A new note has no row on the board to expand out of, so it gets the standard push.
-        // `NavigationTransition` has no type eraser, so the cases branch here.
-        switch route {
-        case .existing(let item):
-            page.navigationTransition(.zoom(sourceID: item.id, in: cardNamespace))
-        case .new, .newFromSource, .newFromPassage, .newInSpace, .daily:
-            page
-        }
-    }
-
-    /// The passage editor is the reader's own, not a second one. A sheet that drifted from the
-    /// one in the reader would mean a passage edited from the board and the same passage edited
-    /// on its page were two different objects with two different rules.
-    private func passageEditor(for passage: PassageItem) -> some View {
-        HighlightEditorView(
-            quote: passage.highlight.text,
-            initialColorHex: passage.highlight.colorHex,
-            initialComment: passage.comment,
-            initialTags: passage.tags,
-            tagSuggestions: model.passageTagVocabulary,
-            isExisting: true,
-            sourceTitle: passage.book?.title ?? passage.highlight.bookTitle,
-            onSave: { colorHex, comment, tags in
-                model.savePassage(passage, colorHex: colorHex, comment: comment, tags: tags)
-            },
-            onDelete: { model.delete(.passage(passage)) },
-            onOpenInSource: openInSourceAction(for: passage),
-            onExpandIntoNote: { pendingPush = .note(.newFromPassage(passage)) }
-        )
-    }
-
-    private func openInSourceAction(for passage: PassageItem) -> (() -> Void)? {
-        guard let book = passage.book, passage.highlight.parsedLocator != nil else { return nil }
-        return { pendingPush = .reader(book, passage.highlight.locator) }
-    }
-
-    private func consumePendingPush() {
-        guard let pendingPush else { return }
-        self.pendingPush = nil
-        switch pendingPush {
-        case .note(let route):
-            push(route)
-        case let .reader(book, locatorJSON):
-            push(MarginaliaRoute.passage(book: book, locatorJSON: locatorJSON))
-        }
+        openNote(.existing(item))
     }
 
     // MARK: - Deletion
@@ -1145,13 +1203,12 @@ public struct MarginaliaView: View {
         model.entryToDelete?.kind == .saved ? "Delete passage?" : "Delete note?"
     }
 
-    /// A passage can be marked again from the same page; something written cannot. Both are
-    /// asked about here all the same, because on this board they are rows of one catalogue and
-    /// two different costs for the identical gesture is how a reader learns to distrust it.
+    /// Both are asked about. A passage can be marked again from the same page; something
+    /// written cannot, and since 2026-09-27 there is no Recently deleted to fetch it back from.
     private var deleteMessage: String {
         model.entryToDelete?.kind == .saved
             ? "This passage and its comment will be removed."
-            : "This note will be removed permanently."
+            : "This note will be deleted."
     }
 
     // MARK: - Empty
@@ -1189,9 +1246,8 @@ public struct MarginaliaView: View {
 
     private var emptyState: some View {
         VStack(spacing: DipleSpace.xl) {
-            // The room's own glyph, the one the tab bar already stands for. A page with
-            // writing on it over an empty passages room was the last place the two collections
-            // were still being drawn as one.
+            // Each half's own glyph. A page with writing on it over an empty passages half was
+            // the last place the two collections were still being drawn as one.
             Image(systemName: door == .notes ? "note.text" : "quote.opening")
                 .dipleIcon(30, weight: .thin)
                 .foregroundStyle(DipleColor.accentInk)
@@ -1203,7 +1259,7 @@ public struct MarginaliaView: View {
 
                 Text(
                     door == .notes
-                        ? "Everything you write collects here, by source and by tag. Passages you keep while reading are in Highlights."
+                        ? "A note written in a book lands here with the book’s name on it. One started with the pencil above can be linked to a book from its page."
                         : "Mark a passage while reading and it collects here, by source, by tag and by the colour you marked it with."
                 )
                 .dipleType(.callout)
@@ -1212,8 +1268,8 @@ public struct MarginaliaView: View {
                 .padding(.horizontal, DipleSpace.xxxl)
             }
 
-            // No button here: in the notes workshop the bar's `+` is already under the thumb,
-            // and an empty state that repeats it is two controls for one act on one screen.
+            // No button here: the pencil is already in the masthead above, and an empty state
+            // that repeats it is two controls for one act on one screen.
         }
         .frame(maxWidth: .infinity)
         .containerRelativeFrame(.vertical, alignment: .center) { length, _ in
