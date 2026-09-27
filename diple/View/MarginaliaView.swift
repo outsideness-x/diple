@@ -164,7 +164,7 @@ public struct MarginaliaView: View {
         if let embedding {
             embedding.path.wrappedValue.append(route)
         } else {
-            push(route)
+            path.append(route)
         }
     }
 
