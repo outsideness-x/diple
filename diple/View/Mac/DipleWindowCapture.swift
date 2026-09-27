@@ -49,18 +49,7 @@ enum DipleWindowCapture {
         #endif
     }
 
-    /// A place in the notes workshop to stand on: `inbox`, `today`, `tasks`, `journal`,
-    /// `allNotes`, `trash`, or `space:<name>`. Applied once the workshop has loaded, because a space is known by name
-    /// here and by id in the window.
-    static var requestedPlace: String? {
-        #if DEBUG
-        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_PLACE"]
-        #else
-        nil
-        #endif
-    }
-
-    /// The start of a note's title, to open that note in the editor column.
+    /// The start of a note's title, to open that note on the Notes shelf, in its editor column.
     static var requestedNote: String? {
         #if DEBUG
         ProcessInfo.processInfo.environment["DIPLE_CAPTURE_NOTE"]

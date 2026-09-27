@@ -31,6 +31,7 @@ public struct MacRootView: View {
         case reading
         case articles
         case highlights
+        case notes
         case search
 
         var id: Self { self }
@@ -42,6 +43,7 @@ public struct MacRootView: View {
             case .reading: return "Reading"
             case .articles: return "Articles"
             case .highlights: return "Highlights"
+            case .notes: return "Notes"
             case .search: return "Search"
             }
         }
@@ -53,6 +55,7 @@ public struct MacRootView: View {
             case .reading: return "bookmark"
             case .articles: return "doc.text"
             case .highlights: return "quote.opening"
+            case .notes: return "note.text"
             case .search: return "magnifyingglass"
             }
         }
@@ -66,6 +69,7 @@ public struct MacRootView: View {
             case .reading: return "3"
             case .articles: return "4"
             case .highlights: return "5"
+            case .notes: return "6"
             case .search: return "7"
             }
         }
@@ -79,7 +83,7 @@ public struct MacRootView: View {
             case .unread: return (.all, .unread)
             case .reading: return (.all, .reading)
             case .articles: return (.articles, .any)
-            case .highlights, .search: return nil
+            case .highlights, .notes, .search: return nil
             }
         }
 
@@ -90,6 +94,7 @@ public struct MacRootView: View {
             case .goReading: return .reading
             case .goArticles: return .articles
             case .goHighlights: return .highlights
+            case .goNotes: return .notes
             case .goSearch: return .search
             default: return nil
             }
@@ -126,40 +131,13 @@ public struct MacRootView: View {
     /// would have meant a tag written on a passage staying unreachable on this platform alone.
     @StateObject private var marginalia = MarginaliaViewModel(scope: .saved)
     @StateObject private var search = GlobalSearchViewModel()
-    /// The notes workshop's own model — the phone's, so the Inbox, the spaces and every count
-    /// mean on the desk exactly what they mean in the hand.
-    @StateObject private var notes = NotesWorkshopModel()
-    /// The All notes board: the same board the phone embeds as All notes, with its own instance
-    /// so its scope never fights Highlights' for one field.
+    /// The Notes shelf's board — the same board the phone keeps as the second half of
+    /// Highlights, with its own instance so its scope never fights Highlights' for one field.
     @StateObject private var notesBoard = MarginaliaViewModel(scope: .written)
 
-    /// Which workshop the window is. See `MacMode`.
-    @State private var mode: MacMode = MacRootView.openingMode
-    @State private var notesPlace: MacNotesPlace? = .inbox
-    /// The page in the editor column. It may be a draft the database has not seen yet — a new
-    /// note, or a day's page — which exists from its first word, as on the phone.
+    /// The page in the Notes shelf's editor column. It may be a draft the database has not seen
+    /// yet — a new note, which exists from its first word, as on the phone.
     @State private var notesDetail: NoteItem?
-    @State private var notesQuery = ""
-    /// A space being made, and what it is being made for.
-    @State private var spaceCreation: SpaceCreation?
-    @State private var spaceBeingEdited: NoteSpace?
-    @State private var isArrangingSpaces = false
-    @State private var spaceToDelete: NoteSpace?
-
-    /// Why a new space is being made: to stand in it, or to file a note into it on the spot —
-    /// from its row, where the writer stays at the list, or from its page, which the writer
-    /// follows. See `file(_:in:followingPage:)`.
-    private enum SpaceCreation: Identifiable {
-        case place
-        case filing(NoteItem, followingPage: Bool)
-
-        var id: String {
-            switch self {
-            case .place: return "place"
-            case .filing(let item, _): return "filing:\(item.id)"
-            }
-        }
-    }
 
     /// The shelf the window opens at. `DipleWindowCapture` can name a different one, so a
     /// screenshot of the board does not depend on a command arriving and two columns agreeing
@@ -170,16 +148,10 @@ public struct MacRootView: View {
     private static let openingSource: Source = DipleWindowCapture.requestedSource
         .flatMap(Source.init(rawValue:)) ?? .library
 
-    /// The mode the window opens in: the one it was left in, unless a capture asks for one.
-    private static var openingMode: MacMode {
-        if DipleWindowCapture.requestedSource == "notes" { return .notes }
-        if DipleWindowCapture.requestedSource != nil { return .reading }
-        return MacMode(rawValue: UserDefaults.standard.string(forKey: MacMode.storageKey) ?? "") ?? .reading
-    }
     @State private var detail: Detail = .welcome
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    /// Whether Reading shows its inspector — the book, passage or result the shelf has chosen.
-    /// A habit of this desk, like the mode: remembered here and not synced.
+    /// Whether the inspector is up — the book, passage or result the shelf has chosen. A habit
+    /// of this desk: remembered here and not synced.
     @AppStorage("diple_mac_inspector_shown") private var isInspectorShown = true
     @State private var readerRequest: MacReaderRequest?
     @State private var secondReadBook: Book?
@@ -257,61 +229,11 @@ public struct MacRootView: View {
             // The shelf sets what stands in the column and nothing else. Grouping and order
             // are the reader's, and re-clicking a sidebar row is not a request to undo them.
             if newSource == .highlights { marginalia.load() }
+            if newSource == .notes { notesBoard.load() }
             if newSource == .search { search.reloadContext() }
             detail = .welcome
         }
-        .onChange(of: mode) { _, newMode in
-            UserDefaults.standard.set(newMode.rawValue, forKey: MacMode.storageKey)
-            if newMode == .notes {
-                notes.load()
-                notesBoard.load()
-            }
-        }
-        .onChange(of: notesPlace) { _, newPlace in
-            notesQuery = ""
-            switch newPlace {
-            case .today:
-                openToday()
-            case .allNotes:
-                notesBoard.load()
-            default:
-                // A page standing in the place being left stays open only if it belongs to the
-                // one arrived at; otherwise the editor would describe a list no longer shown.
-                if let item = notesDetail, !stands(item, in: newPlace) {
-                    notesDetail = nil
-                }
-            }
-        }
-        .sheet(item: $spaceCreation) { purpose in
-            NoteSpaceEditor { name, symbol in
-                guard let space = notes.createSpace(named: name, symbol: symbol) else { return }
-                switch purpose {
-                case .place:
-                    notesPlace = .space(space.id)
-                case .filing(let item, let followingPage):
-                    file(item, in: space, followingPage: followingPage)
-                }
-            }
-            .dipleMacSheet(minWidth: 480, minHeight: 520)
-        }
-        .sheet(item: $spaceBeingEdited) { space in
-            NoteSpaceEditor(space: space) { name, symbol in
-                notes.update(space, name: name, symbol: symbol)
-            }
-            .dipleMacSheet(minWidth: 480, minHeight: 520)
-        }
-        .sheet(isPresented: $isArrangingSpaces) {
-            NotesSpacesEditor(model: notes)
-                .dipleMacSheet(minWidth: 480, minHeight: 520)
-        }
-        .spaceDeletionAlert(model: notes, space: $spaceToDelete) { deleted in
-            // The window leaves the space before it goes, as the phone's page does.
-            if case .space(let id) = notesPlace, id == deleted.id {
-                notesPlace = .inbox
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
-            mode = .reading
             source = .highlights
         }
         .onReceive(NotificationCenter.default.publisher(for: .dipleMacCommand)) { note in
@@ -327,7 +249,6 @@ public struct MacRootView: View {
         }
         .onAppear {
             if DailyResurfacingService.shared.consumeOpenRequest() {
-                mode = .reading
                 source = .highlights
             }
         }
@@ -355,34 +276,20 @@ public struct MacRootView: View {
         case .refresh:
             reloadAll()
 
-        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goSearch:
+        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes, .goSearch:
             guard !isReading, let destination = Source.forCommand(command) else { return }
-            mode = .reading
             source = destination
             if destination == .search { searchFocusRequest = .search }
-
-        case .goNotes:
-            guard !isReading else { return }
-            mode = .notes
-            notesPlace = .inbox
-
-        case .goToday:
-            guard !isReading else { return }
-            mode = .notes
-            if notesPlace == .today { openToday() } else { notesPlace = .today }
 
         case .findInColumn:
             // Narrow what is open, rather than going somewhere. Every shelf has a field of its
             // own, so this never has to fall back to the global index — and must not, because
             // that would throw away the filter the reader was already typing into.
             guard !isReading else { return }
-            if mode == .notes {
-                searchFocusRequest = .notes
-                return
-            }
             switch source {
             case .library, .unread, .reading, .articles: searchFocusRequest = .library
             case .highlights: searchFocusRequest = .highlights
+            case .notes: searchFocusRequest = .notes
             case .search, .none: searchFocusRequest = .search
             }
 
@@ -391,7 +298,8 @@ public struct MacRootView: View {
             break
 
         case .toggleInspector:
-            guard !isReading, mode == .reading else { return }
+            // The Notes shelf has no inspector: its third column is the page being written.
+            guard !isReading, source != .notes else { return }
             withAnimation(DipleMotion.snappy) { isInspectorShown.toggle() }
         }
     }
@@ -399,46 +307,41 @@ public struct MacRootView: View {
     // MARK: - Sidebar
 
     private var sidebar: some View {
-        Group {
-            switch mode {
-            case .reading: readingSidebar
-            case .notes:
-                MacNotesSidebar(
-                    model: notes,
-                    place: $notesPlace,
-                    onNewSpace: { spaceCreation = .place },
-                    onDrop: { ids, space in
-                        let dropped = ids.compactMap { id in notes.items.first { $0.id == id } }
-                        guard !dropped.isEmpty else { return false }
-                        fileFromList(dropped, in: space)
-                        return true
-                    },
-                    onEditSpace: { spaceBeingEdited = $0 },
-                    onArrangeSpaces: { isArrangingSpaces = true },
-                    onDeleteSpace: { spaceToDelete = $0 }
-                )
+        List(selection: $source) {
+            Section {
+                sourceRow(.library, badge: library.books.count)
+                sourceRow(.unread, badge: count(status: .unread))
+                sourceRow(.reading, badge: count(status: .reading))
+                sourceRow(.articles, badge: count(type: .articles))
+            } header: {
+                Text("Library")
+            }
+
+            Section {
+                sourceRow(.highlights, badge: marginalia.totalSaved)
+                sourceRow(.notes, badge: notesBoard.totalWritten)
+                sourceRow(.search)
+            } header: {
+                Text("Workspace")
             }
         }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
         .background(DipleColor.surface)
         .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: DipleSpace.m) {
-                HStack(spacing: DipleSpace.s) {
-                    DipleMark(size: 22)
-                    Text("diple.")
-                        .dipleType(.headline, weight: .semibold)
-                        .foregroundStyle(DipleColor.textPrimary)
-                    Spacer()
-                    MacIconButton(
-                        systemImage: "gearshape",
-                        help: "Settings (⌘,)",
-                        accessibilityLabel: "Settings"
-                    ) {
-                        NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
-                    }
+            HStack(spacing: DipleSpace.s) {
+                DipleMark(size: 22)
+                Text("diple.")
+                    .dipleType(.headline, weight: .semibold)
+                    .foregroundStyle(DipleColor.textPrimary)
+                Spacer()
+                MacIconButton(
+                    systemImage: "gearshape",
+                    help: "Settings (⌘,)",
+                    accessibilityLabel: "Settings"
+                ) {
+                    NotificationCenter.default.post(name: .dipleOpenSettings, object: nil)
                 }
-                // The phone's two workshops, at the head of the column they reshape. Above the
-                // lists rather than inside one: it is not a place, it is which set of places.
-                MacModeSwitch(mode: $mode)
             }
             .padding(.horizontal, DipleSpace.m)
             .padding(.vertical, DipleSpace.l)
@@ -446,26 +349,24 @@ public struct MacRootView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // The one action a reader arrives wanting to perform, kept where it can be reached
-            // from any place: a publication in Reading, a page in Notes.
+            // from any shelf: a publication, and on the Notes shelf a page.
+            let isNotes = source == .notes
             VStack(spacing: 0) {
                 Rectangle()
                     .fill(DipleColor.separator)
                     .frame(height: DipleStroke.hairline)
 
                 Button {
-                    switch mode {
-                    case .reading: isImportingFile = true
-                    case .notes: createNote()
-                    }
+                    if isNotes { createNote() } else { isImportingFile = true }
                 } label: {
                     HStack(spacing: DipleSpace.s) {
-                        Image(systemName: mode == .reading ? "plus" : "square.and.pencil")
+                        Image(systemName: isNotes ? "square.and.pencil" : "plus")
                             .dipleIcon(12, weight: .semibold)
-                        Text(mode == .reading ? "Import" : "New note")
+                        Text(isNotes ? "New note" : "Import")
                             .dipleType(.footnote, weight: .medium)
                             .lineLimit(1)
                         Spacer(minLength: DipleSpace.s)
-                        Text(mode == .reading ? "⌘O" : "⌘N")
+                        Text(isNotes ? "⌘N" : "⌘O")
                             .dipleType(.nano)
                             .foregroundStyle(DipleColor.textQuaternary)
                     }
@@ -479,28 +380,6 @@ public struct MacRootView: View {
             }
             .background(DipleColor.surface)
         }
-    }
-
-    private var readingSidebar: some View {
-        List(selection: $source) {
-            Section {
-                sourceRow(.library, badge: library.books.count)
-                sourceRow(.unread, badge: count(status: .unread))
-                sourceRow(.reading, badge: count(status: .reading))
-                sourceRow(.articles, badge: count(type: .articles))
-            } header: {
-                Text("Library")
-            }
-
-            Section {
-                sourceRow(.highlights, badge: marginalia.totalSaved)
-                sourceRow(.search)
-            } header: {
-                Text("Workspace")
-            }
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
     }
 
     private func sourceRow(_ item: Source, badge: Int? = nil) -> some View {
@@ -525,18 +404,29 @@ public struct MacRootView: View {
 
     // MARK: - Columns
 
-    /// Reading is two columns and an inspector that folds away; Notes is Bear's three.
+    /// Two columns and an inspector that folds away; the Notes shelf is Bear's three.
     ///
     /// The inspector used to be the split view's third column, and `NavigationSplitView` cannot
     /// hide its detail column — only the columns before it — so the book, passage or result it
     /// described stood on the desk whether the reader needed it or not, and took its 330 points
     /// from the shelf. As `.inspector` it is a trailing column the reader can close (⌥⌘I or the
-    /// button in the column header), and the shelf takes the room. In Notes the third column is
-    /// the page being written, which is the point of the room, so it stays a column.
+    /// button in the column header), and the shelf takes the room. On the Notes shelf the third
+    /// column is the page being written, which is the point of the shelf, so it stays a column —
+    /// and a wide one: a note is written at a measure an inspector cannot give it.
     @ViewBuilder
     private var splitView: some View {
-        switch mode {
-        case .reading:
+        if source == .notes {
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                sidebar
+                    .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
+            } content: {
+                notesCollection
+                    .navigationSplitViewColumnWidth(min: 300, ideal: 380, max: 520)
+            } detail: {
+                notesEditor
+                    .navigationSplitViewColumnWidth(min: 420, ideal: 680)
+            }
+        } else {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 sidebar
                     .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
@@ -552,18 +442,6 @@ public struct MacRootView: View {
                     // allowed 460 pt left the cover grid two tiles wide under a header that had
                     // to fold.
                     .inspectorColumnWidth(min: 288, ideal: 330, max: 400)
-            }
-        case .notes:
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                sidebar
-                    .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
-            } content: {
-                // Bear's proportions: the list is a list, and the page takes the room.
-                notesCollection
-                    .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 460)
-            } detail: {
-                notesEditor
-                    .navigationSplitViewColumnWidth(min: 420, ideal: 680)
             }
         }
     }
@@ -624,8 +502,8 @@ public struct MacRootView: View {
             }
 
         case .highlights:
-            // The saved half of the board. Notes are no longer a shelf here: they are the other
-            // workshop, one switch away, and a note gathered from passages opens there.
+            // The saved half of the board. A note gathered from passages is a note, so it opens
+            // on the Notes shelf, where notes are written.
             MacMarginaliaCollection(
                 title: "Highlights",
                 model: marginalia,
@@ -642,6 +520,10 @@ public struct MacRootView: View {
                 onOpenPassage: { openPassage($0) },
                 onCollected: { note in openInNotes(note) }
             )
+
+        case .notes:
+            // Drawn by the three-column layout (`splitView`), which puts the page beside it.
+            notesCollection
 
         case .search:
             MacSearchCollection(
@@ -704,246 +586,83 @@ public struct MacRootView: View {
             MacSearchInspector(
                 result: result,
                 book: search.book(for: result),
-                note: notes.items.first { $0.id == result.entityID },
+                note: notesBoard.entries.compactMap(\.noteItem).first { $0.id == result.entityID },
                 onRead: { book in readerRequest = MacReaderRequest(book: book) },
                 onOpenNote: { note in openInNotes(note) }
             )
         }
     }
 
-    // MARK: - Notes workshop
+    // MARK: - Notes
 
-    @ViewBuilder
+    /// The Notes shelf's middle column: the board of notes, the phone's second half of
+    /// Highlights on the desk.
     private var notesCollection: some View {
-        switch notesPlace ?? .inbox {
-        case .allNotes:
-            MacMarginaliaCollection(
-                title: "All notes",
-                model: notesBoard,
-                searchFocusRequest: $searchFocusRequest,
-                focusTarget: .notes,
-                selectedID: notesDetail.map { "note:\($0.id)" },
-                onSelect: { entry in
-                    if case .note(let item) = entry { notesDetail = item }
-                },
-                onCreate: createNote,
-                onOpenPassage: { openPassage($0) },
-                onCollected: { note in notesDetail = note }
-            )
-
-        case .tasks:
-            MacTasksList(model: notes, selectedID: notesDetail?.id) { notesDetail = $0 }
-
-        case .trash:
-            MacTrashList(model: notes)
-
-        case let place:
-            MacNotesList(
-                title: title(of: place),
-                notes: notesInPlace(place),
-                selectedID: notesDetail?.id,
-                empty: emptyState(of: place),
-                query: $notesQuery,
-                searchFocusRequest: $searchFocusRequest,
-                spaces: notes.spaces,
-                onSelect: { notesDetail = $0 },
-                onCreate: createNote,
-                onSetPinned: { item, pinned in notes.setPinned(pinned, item) },
-                onMove: { item, space in fileFromList([item], in: space) },
-                onMoveToNewSpace: { spaceCreation = .filing($0, followingPage: false) },
-                onTrash: { item in
-                    notes.trash([item])
-                    if notesDetail?.id == item.id { notesDetail = nil }
-                }
-            )
-        }
+        MacMarginaliaCollection(
+            title: "Notes",
+            model: notesBoard,
+            searchFocusRequest: $searchFocusRequest,
+            focusTarget: .notes,
+            selectedID: notesDetail.map { "note:\($0.id)" },
+            onSelect: { entry in
+                if case .note(let item) = entry { notesDetail = item }
+            },
+            onCreate: createNote,
+            onOpenPassage: { openPassage($0) },
+            onCollected: { note in notesDetail = note }
+        )
     }
 
+    /// The page beside the board. A draft — a new note — exists from its first word, as on the
+    /// phone; until then it is in no list.
     @ViewBuilder
     private var notesEditor: some View {
         if let draft = notesDetail {
-            let current = notes.current(draft)
+            let current = currentNote(matching: draft)
             MacNoteInspector(
                 item: current ?? draft,
                 isDraft: current == nil,
-                books: notes.books,
-                suggestedTags: notes.tagVocabulary,
-                allNotes: notes.items,
-                spaces: notes.spaces,
+                books: notesBoard.books,
+                suggestedTags: notesBoard.noteTagVocabulary,
+                allNotes: notesBoard.entries.compactMap(\.noteItem),
                 onOpenNote: { notesDetail = $0 },
-                onMove: { space in file(current ?? draft, in: space, followingPage: true) },
-                onMoveToNewSpace: { spaceCreation = .filing(current ?? draft, followingPage: true) },
-                onSetPinned: { pinned in
-                    if let current { notes.setPinned(pinned, current) }
-                },
-                onSave: { note, tags in
-                    let saved = notes.save(note, tags: tags)
-                    if notesPlace == .allNotes { notesBoard.load() }
-                    return saved
-                },
+                onSave: { note, tags in notesBoard.save(note, tags: tags) },
                 onDelete: {
-                    if let current { notes.trash([current]) }
+                    if let current { notesBoard.delete(.note(current)) }
                     notesDetail = nil
-                    if notesPlace == .allNotes { notesBoard.load() }
                 }
             )
             .id(draft.id)
         } else {
-            MacNotesPlaceholder(inTrash: notesPlace == .trash)
+            MacNotesPlaceholder()
         }
     }
 
-    private func notesInPlace(_ place: MacNotesPlace?) -> [NoteItem] {
-        switch place ?? .inbox {
-        case .inbox: return notes.inbox
-        case .today, .journal: return notes.journal
-        case .space(let id):
-            guard let space = notes.space(id: id) else { return notes.inbox }
-            return NotesDesk.notes(in: space, from: notes.items)
-        case .source(let id): return NotesDesk.notes(about: id, from: notes.items)
-        case .allNotes: return NotesDesk.ordered(notes.items)
-        case .tasks: return NotesDesk.openTasks(notes.items).map(\.item)
-        case .trash: return []
-        }
-    }
-
-    /// Notes filed from the list — dragged onto a place, or moved from a row's menu. The writer
-    /// stays at the list they are sorting, so a page that has just left it closes rather than
-    /// describe a note the list no longer shows.
-    private func fileFromList(_ items: [NoteItem], in space: NoteSpace?) {
-        let moving = items.filter { $0.note.spaceId != space?.id }
-        guard !moving.isEmpty else { return }
-        notes.move(moving, to: space)
-        if let page = notesDetail, !stands(page, in: notesPlace) {
-            notesDetail = nil
-        }
-    }
-
-    /// A note filed from its own page, which the writer follows to where it went: the page is
-    /// what they are looking at, and a list that no longer holds it would leave it standing
-    /// beside nothing. A draft is not written by filing — it only learns where its first word
-    /// will put it.
-    private func file(_ item: NoteItem, in space: NoteSpace?, followingPage: Bool) {
-        guard followingPage else {
-            fileFromList([item], in: space)
-            return
-        }
-        if let current = notes.current(item) {
-            if current.note.spaceId != space?.id { notes.move([current], to: space) }
-            if let moved = notes.current(current) { openInNotes(moved) }
-        } else {
-            var note = item.note
-            note.spaceId = space?.id
-            notesDetail = NoteItem(note: note, tags: item.tags, book: item.book)
-            // Out of a space, a page about a book stands under that book, as a written one would.
-            notesPlace = space.map { .space($0.id) } ?? note.bookId.map { .source($0) } ?? .inbox
-        }
-    }
-
-    /// Whether the page in the editor belongs to the list beside it. A draft is in no list yet —
-    /// it stands where its first word will file it — and asking the lists about it would close the
-    /// page ⌘N opened from Reading in the same update that moved the window to its place.
-    private func stands(_ item: NoteItem, in place: MacNotesPlace?) -> Bool {
-        guard notes.current(item) == nil else {
-            return notesInPlace(place).contains { $0.id == item.id }
-        }
-        let note = item.note
-        switch place ?? .inbox {
-        case .space(let id): return note.spaceId == id
-        case .source(let id): return note.bookId == id
-        case .today, .journal: return note.dailyDate != nil
-        case .inbox, .allNotes: return note.spaceId == nil && note.bookId == nil && note.dailyDate == nil
-        case .tasks, .trash: return false
-        }
-    }
-
-    private func title(of place: MacNotesPlace) -> String {
-        switch place {
-        case .inbox: return "Inbox"
-        case .today: return "Today"
-        case .journal: return "Journal"
-        case .allNotes: return "All notes"
-        case .tasks: return "Tasks"
-        case .trash: return "Recently deleted"
-        case .space(let id): return notes.space(id: id)?.name ?? "Inbox"
-        case .source(let id): return notes.book(id: id)?.title ?? "Notes"
-        }
-    }
-
-    private func emptyState(of place: MacNotesPlace) -> (symbol: String, title: String, message: String) {
-        switch place {
-        case .inbox:
-            return ("tray", "Inbox is clear", "A new note waits here until it has a place.")
-        case .today, .journal:
-            return ("sun.max", "No days written yet", "Today’s page stands on the right. It begins with its first word.")
-        case .space(let id):
-            let space = notes.space(id: id)
-            return (space?.symbol ?? "folder", "Nothing here yet", "Press ⌘N to write a note in \(space?.name ?? "this space").")
-        case .source:
-            return ("book.closed", "No notes about this source", "A note written inside the book stands here.")
-        case .allNotes:
-            return ("rectangle.stack", "No notes yet", "Press ⌘N to write the first one.")
-        case .tasks:
-            return ("checklist", "Nothing to do", "A line that begins with - [ ] in any note is a task, and it collects here.")
-        case .trash:
-            return ("trash", "Nothing deleted", "Deleted notes stay here for thirty days, then go for good.")
-        }
-    }
-
-    /// A new page where the writer stands — the phone's contextual `+`, because the sidebar shows
-    /// the desk exactly where that is: in a space it is filed there, on a source's notes it is
-    /// written about that source with its name as a tag, on Today or the Journal it is today's
-    /// page, and anywhere else it waits in the Inbox. From Reading it is an Inbox note.
-    ///
-    /// A draft, not a row: it exists from its first word, like every new page on the phone. The
-    /// desktop used to save an empty note the moment ⌘N was pressed, and every abandoned one
-    /// stayed behind as an Untitled row.
+    /// A new page on the Notes shelf, about no book yet — the phone's pencil. A draft, not a
+    /// row: the desktop used to save an empty note the moment ⌘N was pressed, and every
+    /// abandoned one stayed behind as an Untitled row.
     private func createNote() {
-        guard mode == .notes else {
-            mode = .notes
-            notesPlace = .inbox
-            notesDetail = NoteItem(note: Note(body: ""), tags: [], book: nil)
-            return
-        }
-        switch notesPlace ?? .inbox {
-        case .space(let id):
-            notesDetail = NoteItem(note: Note(body: "", spaceId: id), tags: [], book: nil)
-        case .source(let id):
-            let book = notes.book(id: id)
-            let tags = book.flatMap { TagName.forSource(titled: $0.title) }.map { [$0] } ?? []
-            notesDetail = NoteItem(note: Note(body: "", bookId: id), tags: tags, book: book)
-        case .today, .journal:
-            openToday()
-        case .inbox, .allNotes:
-            notesDetail = NoteItem(note: Note(body: ""), tags: [], book: nil)
-        case .tasks, .trash:
-            // Neither is a place a page is written in: the new one waits in the Inbox, and the
-            // window goes there with it rather than open it beside a list it is not in.
-            notesPlace = .inbox
-            notesDetail = NoteItem(note: Note(body: ""), tags: [], book: nil)
-        }
+        source = .notes
+        notesDetail = NoteItem(note: Note(body: ""), tags: [], book: nil)
     }
 
-    /// Today's page: the one begun, or a page for today that exists from its first word.
-    private func openToday() {
-        if let page = notes.todayPage() {
-            notesDetail = page
-            return
-        }
-        let key = Note.dailyKey(for: Date())
-        notesDetail = NoteItem(
-            note: Note(title: Note.dailyTitle(forKey: key), body: "", dailyDate: key),
-            tags: [],
-            book: nil
-        )
+    /// A note reached from outside the Notes shelf — search, a gathered set of passages, a
+    /// passage grown into a note — opened on it.
+    private func openInNotes(_ item: NoteItem) {
+        notesBoard.load()
+        source = .notes
+        notesDetail = currentNote(matching: item) ?? item
     }
 
-    /// The place and note `DipleWindowCapture` names, for a photograph of one screen. Nothing at
+    private func currentNote(matching item: NoteItem) -> NoteItem? {
+        notesBoard.entries.compactMap(\.noteItem).first { $0.id == item.id }
+    }
+
+    /// The shelf and item `DipleWindowCapture` names, for a photograph of one screen. Nothing at
     /// all in a run that is not a capture.
     private func standWhereTheCaptureAsks() {
         if let start = DipleWindowCapture.requestedBook,
            let book = library.books.first(where: { $0.title.hasPrefix(start) }) {
-            mode = .reading
             detail = .book(book)
             if DipleWindowCapture.requestsReader {
                 readerRequest = MacReaderRequest(book: book)
@@ -952,48 +671,15 @@ public struct MacRootView: View {
         if let start = DipleWindowCapture.requestedPassage,
            let item = marginalia.entries.compactMap(\.passageItem)
                .first(where: { $0.highlight.text.hasPrefix(start) }) {
-            mode = .reading
             source = .highlights
             detail = .passage(item)
         }
-        guard let requested = DipleWindowCapture.requestedPlace else { return }
-        notes.load()
-        mode = .notes
-        switch requested {
-        case "today": notesPlace = .today
-        case "journal": notesPlace = .journal
-        case "tasks": notesPlace = .tasks
-        case "trash": notesPlace = .trash
-        case "allNotes": notesPlace = .allNotes
-        default:
-            if requested.hasPrefix("space:"),
-               let space = notes.spaces.first(where: { $0.name == String(requested.dropFirst(6)) }) {
-                notesPlace = .space(space.id)
-            } else {
-                notesPlace = .inbox
-            }
+        if let start = DipleWindowCapture.requestedNote,
+           let item = notesBoard.entries.compactMap(\.noteItem)
+               .first(where: { $0.displayTitle.hasPrefix(start) }) {
+            source = .notes
+            notesDetail = item
         }
-        if let start = DipleWindowCapture.requestedNote {
-            notesDetail = notes.items.first { $0.displayTitle.hasPrefix(start) }
-        }
-    }
-
-    /// A note reached from outside the workshop — search, a gathered set of passages, a passage
-    /// grown into a note — opened in it, in the place it lives.
-    private func openInNotes(_ item: NoteItem) {
-        notes.load()
-        let current = notes.current(item) ?? item
-        mode = .notes
-        if let space = current.note.spaceId, notes.space(id: space) != nil {
-            notesPlace = .space(space)
-        } else if let book = current.note.bookId {
-            notesPlace = .source(book)
-        } else if current.note.dailyDate != nil {
-            notesPlace = .journal
-        } else {
-            notesPlace = .inbox
-        }
-        notesDetail = current
     }
 
     /// A note grown out of a passage. The seed is `NoteRoute.newFromPassage`'s, not a second
@@ -1002,8 +688,8 @@ public struct MacRootView: View {
     private func expandIntoNote(_ passage: PassageItem) {
         let route = NoteRoute.newFromPassage(passage)
         let note = Note(body: route.initialBody, bookId: route.initialBookId)
-        guard notes.save(note, tags: route.initialTags) else { return }
-        guard let item = notes.items.first(where: { $0.id == note.id }) else { return }
+        guard notesBoard.save(note, tags: route.initialTags) else { return }
+        guard let item = notesBoard.entries.compactMap(\.noteItem).first(where: { $0.id == note.id }) else { return }
         openInNotes(item)
     }
 
@@ -1036,7 +722,6 @@ public struct MacRootView: View {
         library.loadBooks()
         marginalia.load()
         search.reloadContext()
-        notes.load()
         notesBoard.load()
     }
 }
@@ -1917,7 +1602,11 @@ struct MacMarginaliaCollection: View {
                     }
                 }
 
-                MacPrimaryButton(title: "New note", shortcutHint: "⌘N", action: onCreate)
+                // Only over notes: nothing writes a passage but reading one. ⌘N still starts a
+                // note from any shelf, and it opens on the Notes shelf.
+                if model.scope == .written {
+                    MacPrimaryButton(title: "New note", shortcutHint: "⌘N", action: onCreate)
+                }
             }
 
             ZStack {
@@ -1938,7 +1627,7 @@ struct MacMarginaliaCollection: View {
                         MacEmptyCollection(
                             icon: "square.and.pencil",
                             title: "Start with a thought",
-                            message: "Everything you write collects here, by source and by tag. Passages you keep while reading are in Highlights.",
+                            message: "A note written in a book lands here with the book’s name on it. One started here can be linked to a book from its page.",
                             actionTitle: "New note",
                             actionIcon: "plus",
                             action: onCreate
@@ -1984,7 +1673,7 @@ struct MacMarginaliaCollection: View {
             Text(
                 model.entryToDelete?.kind == .saved
                     ? "This passage and its comment will be removed."
-                    : "It stays in Recently deleted for thirty days, where it can be restored from diple on iPhone."
+                    : "This note will be deleted."
             )
         }
         .alert(
@@ -2770,20 +2459,14 @@ private struct MacPassageInspector: View {
 
 struct MacNoteInspector: View {
     let item: NoteItem
-    /// A page the database has not seen yet — a new note, or a day's page. It is written from its
-    /// first word, never on opening, so a page opened and left leaves nothing behind.
+    /// A page the database has not seen yet — a new note. It is written from its first word,
+    /// never on opening, so a page opened and left leaves nothing behind.
     let isDraft: Bool
     let books: [Book]
     let suggestedTags: [String]
     /// Wiki links resolve against these, exactly as they do on the phone.
     let allNotes: [NoteItem]
-    /// Where the page can be filed from its properties line.
-    let spaces: [NoteSpace]
     let onOpenNote: (NoteItem) -> Void
-    /// The page filed into a space, or back out of one (`nil`).
-    let onMove: (NoteSpace?) -> Void
-    let onMoveToNewSpace: () -> Void
-    let onSetPinned: (Bool) -> Void
     let onSave: (Note, [String]) -> Bool
     let onDelete: () -> Void
     /// What `[[` completes to, settled once: the menu is asked on every keystroke inside a link.
@@ -2802,6 +2485,7 @@ struct MacNoteInspector: View {
     @State private var saveTask: Task<Void, Never>?
     @State private var isBookPickerPresented = false
     @State private var isDeleting = false
+    @State private var isConfirmingDelete = false
     @State private var isClosing = false
     @State private var selection = NoteSelectionBox()
     @State private var isBodyFocused = false
@@ -2847,11 +2531,7 @@ struct MacNoteInspector: View {
         books: [Book],
         suggestedTags: [String],
         allNotes: [NoteItem],
-        spaces: [NoteSpace],
         onOpenNote: @escaping (NoteItem) -> Void,
-        onMove: @escaping (NoteSpace?) -> Void,
-        onMoveToNewSpace: @escaping () -> Void,
-        onSetPinned: @escaping (Bool) -> Void,
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping () -> Void
     ) {
@@ -2860,11 +2540,7 @@ struct MacNoteInspector: View {
         self.books = books
         self.suggestedTags = suggestedTags
         self.allNotes = allNotes
-        self.spaces = spaces
         self.onOpenNote = onOpenNote
-        self.onMove = onMove
-        self.onMoveToNewSpace = onMoveToNewSpace
-        self.onSetPinned = onSetPinned
         self.onSave = onSave
         self.onDelete = onDelete
         self.linkTitles = allNotes.filter { $0.id != item.id }.map(\.displayTitle)
@@ -2904,22 +2580,6 @@ struct MacNoteInspector: View {
 
                 Spacer()
 
-                // A page that is not written yet has no row to pin. It gains the control with its
-                // first word rather than offering one that would do nothing.
-                if !isUnwritten {
-                    let isPinned = item.note.pinnedAt != nil
-                    Button {
-                        onSetPinned(!isPinned)
-                    } label: {
-                        Image(systemName: isPinned ? "pin.fill" : "pin")
-                            .dipleIcon(14)
-                            .foregroundStyle(isPinned ? DipleColor.accentInk : DipleColor.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(isPinned ? "Unpin" : "Pin to the top of its place")
-                    .accessibilityLabel(isPinned ? "Unpin" : "Pin")
-                }
-
                 Menu {
                     ShareLink(item: exportMarkdown) {
                         Label("Share Markdown", systemImage: "square.and.arrow.up")
@@ -2930,15 +2590,12 @@ struct MacNoteInspector: View {
                         Label("Copy Markdown", systemImage: "doc.on.doc")
                     }
                     Divider()
-                    // No question first: the note waits thirty days in Recently deleted, a place
-                    // in this sidebar, and a question in front of an act that can be undone is
-                    // only a delay. The same rule as the phone's.
+                    // Asked first, as on the phone: there is no Recently deleted to bring a note
+                    // back from any more.
                     Button(role: .destructive) {
-                        isDeleting = true
-                        saveTask?.cancel()
-                        onDelete()
+                        isConfirmingDelete = true
                     } label: {
-                        Label("Delete note", systemImage: "trash")
+                        Label("Delete note…", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -3061,15 +2718,20 @@ struct MacNoteInspector: View {
         }
         .background(DipleColor.surface)
         .task {
-            // A new page opens ready to write: on its title, or — a day's page, whose title is
-            // already the date — in its text.
+            // A new page opens ready to write, on its title.
             guard isDraft, !hasBeenWritten else { return }
             try? await Task.sleep(for: .milliseconds(150))
-            if item.note.dailyDate != nil {
-                isBodyFocused = true
-            } else {
-                isTitleFocused = true
+            isTitleFocused = true
+        }
+        .alert("Delete note?", isPresented: $isConfirmingDelete) {
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                saveTask?.cancel()
+                onDelete()
             }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This note will be deleted.")
         }
         .onChange(of: title) { _, _ in scheduleSave() }
         .onChange(of: bodyText) { _, _ in scheduleSave() }
@@ -3094,9 +2756,9 @@ struct MacNoteInspector: View {
             .id(formulaSessionID)
             .dipleMacSheet(minWidth: 620, minHeight: 680)
         }
-        // A task ticked in the Tasks column beside this page rewrote the note under it, and so
-        // can iCloud. A page with nothing of its own left to save takes the new text; one with
-        // words still pending keeps them, and its save wins, as the later edit always does.
+        // iCloud can rewrite the note under this page. A page with nothing of its own left to
+        // save takes the new text; one with words still pending keeps them, and its save wins,
+        // as the later edit always does.
         .onChange(of: item.note.body) { _, stored in
             guard stored != lastSavedBody, bodyText == lastSavedBody else { return }
             bodyText = stored
@@ -3104,22 +2766,13 @@ struct MacNoteInspector: View {
         }
     }
 
-    /// A page nothing has been written on yet.
-    private var isUnwritten: Bool { isDraft && !hasBeenWritten }
-
-    /// Where the page lives, its tags and its source, as one quiet line under the title — the
-    /// phone's properties row, with the space the desk can also file it into.
+    /// Its tags and its source, as one quiet line under the title — the phone's properties row.
     ///
     /// It replaced a boxed form of labelled fields that stood between the title and the first
     /// line of the page and was taller than most notes: on a page that is always open for writing
     /// the properties are consulted, not filled in, and the words should start near the title.
     private var propertiesLine: some View {
         FlowLayout(spacing: DipleSpace.s) {
-            // A day's page is filed by its date, and has no space to show or change.
-            if item.note.dailyDate == nil {
-                spaceChip
-            }
-
             ForEach(tags, id: \.self) { tag in
                 Button {
                     tags.removeAll { $0 == tag }
@@ -3165,56 +2818,6 @@ struct MacNoteInspector: View {
                 addMenu
             }
         }
-    }
-
-    /// The page's place, named, with the places it can go under it.
-    private var spaceChip: some View {
-        let current = item.note.spaceId.flatMap { id in spaces.first { $0.id == id } }
-        return Menu {
-            Button {
-                onMove(nil)
-            } label: {
-                Label("Inbox", systemImage: current == nil ? "checkmark" : "tray")
-            }
-            .disabled(current == nil)
-            ForEach(spaces) { space in
-                Button {
-                    onMove(space)
-                } label: {
-                    Label(space.name, systemImage: current?.id == space.id ? "checkmark" : space.symbol)
-                }
-                .disabled(current?.id == space.id)
-            }
-            Divider()
-            Button {
-                onMoveToNewSpace()
-            } label: {
-                Label("New space…", systemImage: "plus")
-            }
-        } label: {
-            HStack(spacing: DipleSpace.xs) {
-                Image(systemName: current?.symbol ?? "tray")
-                    .dipleIcon(10, weight: .medium)
-                // A note about a book and in no space stands under the book, not in the Inbox:
-                // the chip names the space, and no space is said as "No space" there.
-                Text(current?.name ?? (selectedBookId == nil ? "Inbox" : "No space"))
-                    .dipleType(.caption, weight: .medium)
-                    .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .dipleIcon(8, weight: .semibold)
-            }
-            .foregroundStyle(DipleColor.textSecondary)
-            .diplePadding(.chip)
-            .overlay(Capsule().stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline))
-        }
-        // `.borderlessButton` on Catalyst redraws the label as a system pull-down — its own
-        // chevron and grey plate, the glyph dropped — so the chip would stop matching the tag
-        // chips beside it. A plain button style keeps the label as drawn.
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Move to a space")
     }
 
     private var addMenu: some View {
@@ -3418,11 +3021,10 @@ struct MacNoteInspector: View {
             || selectedBookId != lastSavedBookId
         guard changed else { return false }
         guard isDraft, !hasBeenWritten else { return true }
-        // A draft becomes a note with its first word. A day's page arrives with its date already
-        // for a title, so for it the first word has to be in the text.
+        // A draft becomes a note with its first word, in the title or the text.
         let hasBody = !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return item.note.dailyDate != nil ? hasBody : (hasBody || hasTitle)
+        return hasBody || hasTitle
     }
 
     private func commitTagDraft() {
@@ -3464,8 +3066,8 @@ struct MacNoteInspector: View {
         }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Where the note lives travels on its first write only; for a row that exists already
-        // `saveNote` keeps the stored place, so a page left open never undoes a move.
+        // A note filed into a space or begun as a day's page while the app had a notes workshop
+        // keeps those columns: `saveNote` keeps the stored row's place on every write.
         let note = Note(
             id: item.note.id,
             title: trimmedTitle.isEmpty ? nil : trimmedTitle,
@@ -3534,6 +3136,45 @@ private struct MacSearchInspector: View {
             }
             .padding(DipleSpace.xxl)
         }
+        .background(DipleColor.surface)
+    }
+}
+
+/// What stands where the page will be before one is chosen on the Notes shelf.
+private struct MacNotesPlaceholder: View {
+    private static let shortcuts: [(key: String, label: String)] = [
+        ("⌘N", "New note"),
+        ("⌘F", "Find in this list"),
+        ("⌘5", "Highlights"),
+        ("⌘1", "Back to the library")
+    ]
+
+    var body: some View {
+        VStack(spacing: DipleSpace.l) {
+            Image(systemName: "note.text")
+                .dipleIcon(28, weight: .light)
+                .foregroundStyle(DipleColor.textQuaternary)
+
+            Text("Choose a note")
+                .dipleType(.title, weight: .semibold)
+                .foregroundStyle(DipleColor.textSecondary)
+
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
+                ForEach(Self.shortcuts, id: \.key) { shortcut in
+                    HStack(spacing: DipleSpace.m) {
+                        Text(shortcut.key)
+                            .dipleType(.micro, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
+                            .frame(width: 32, alignment: .trailing)
+                        Text(shortcut.label)
+                            .dipleType(.footnote)
+                            .foregroundStyle(DipleColor.textTertiary)
+                    }
+                }
+            }
+        }
+        .padding(DipleSpace.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DipleColor.surface)
     }
 }
