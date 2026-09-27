@@ -18,6 +18,7 @@ public struct HighlightEditorView: View {
     /// The book this passage came from, named only when the sheet was opened somewhere that is
     /// not that book. Inside the reader it stays `nil`: the source is the page underneath, and
     /// printing its title over it would be the app telling the reader where they are standing.
+    /// The passage itself is left out there for the same reason — see `showsPassage`.
     public let sourceTitle: String?
     /// Opening the passage where it was written. `nil` when there is nowhere to go — the book
     /// has been deleted, or the passage was imported for one that was never here.
@@ -75,7 +76,9 @@ public struct HighlightEditorView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: DipleSpace.xxl) {
-                        quoteCard
+                        if showsPassage {
+                            quoteCard
+                        }
                         sourceStrip
                         colorPicker
                         commentEditor
@@ -115,6 +118,15 @@ public struct HighlightEditorView: View {
         .presentationBackground(.regularMaterial)
         .interactiveDismissDisabled(isSaving)
     }
+
+    /// Whether the sheet prints the passage it is about.
+    ///
+    /// Not over the reader's page (`sourceTitle == nil`). There the words were printed twice: in
+    /// the book, marked a moment ago and still showing above the sheet, and again in a card at
+    /// the top of the sheet — which at the medium detent pushed the comment field, the reason
+    /// the sheet was opened, down to its bottom edge and the tags out of sight. Opened from
+    /// Highlights there is no page behind it, and the card is the only place the passage is.
+    private var showsPassage: Bool { sourceTitle != nil }
 
     private var quoteCard: some View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
@@ -293,6 +305,8 @@ public struct HighlightEditorView: View {
                 .foregroundStyle(DipleColor.textPrimary)
                 .textInputAutocapitalization(.sentences)
                 .focused($isCommentFocused)
+                // Without the card, VoiceOver still has to be told which words the comment is on.
+                .accessibilityHint(showsPassage ? "" : "On the passage “\(quote)”")
                 .padding(DipleSpace.m)
                 .frame(minHeight: 92, alignment: .topLeading)
                 .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
