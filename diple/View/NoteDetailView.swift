@@ -112,6 +112,9 @@ public struct NoteDetailView: View {
     /// Opening one of those passages. Same arrangement as `onOpenNote`: what happens next
     /// belongs to the screen this page was opened in, not to this page.
     public let onOpenPassage: ((PassageItem) -> Void)?
+    /// Starting another note beside this one — offered only where a run of notes is written
+    /// together, which is the reader's notebook of one book. `nil` draws no control.
+    public let onNewNote: (() -> Void)?
 
     /// The notes a wiki-link can point at. `allNotes` and `route` never change while this
     /// screen is on screen, so this is settled once in `init` — computing it inside `body`
@@ -165,7 +168,8 @@ public struct NoteDetailView: View {
         onSave: @escaping (Note, [String]) -> Bool,
         onDelete: @escaping (NoteItem) -> Void = { _ in },
         onOpenNote: ((NoteItem) -> Void)? = nil,
-        onOpenPassage: ((PassageItem) -> Void)? = nil
+        onOpenPassage: ((PassageItem) -> Void)? = nil,
+        onNewNote: (() -> Void)? = nil
     ) {
         self.route = route
         self.books = books
@@ -176,6 +180,7 @@ public struct NoteDetailView: View {
         self.onDelete = onDelete
         self.onOpenNote = onOpenNote
         self.onOpenPassage = onOpenPassage
+        self.onNewNote = onNewNote
         self.linkableNotes = Array(allNotes.filter { $0.id != route.item?.id }.prefix(30))
         self.linkTitles = allNotes.filter { $0.id != route.item?.id }.map(\.displayTitle)
 
@@ -412,6 +417,24 @@ public struct NoteDetailView: View {
                     .foregroundStyle(DipleColor.accentInk)
             }
         } else {
+            if let onNewNote {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    // The next thought about the same book, on a page of its own. The page being
+                    // left is written on its way out, as any page that is left.
+                    Button {
+                        HapticManager.shared.selection()
+                        onNewNote()
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                            .dipleIcon(16)
+                            .foregroundStyle(DipleColor.textSecondary)
+                    }
+                    .buttonStyle(.readerControl)
+                    .accessibilityLabel("New note")
+                    .accessibilityIdentifier("note.new")
+                }
+            }
+
             ToolbarItem(placement: .navigationBarTrailing) {
                 // The page as it will read: formulas set, callouts drawn, the outline listed.
                 // Not the old Read half of a Read/Edit pair — nothing here is switched off by
@@ -552,7 +575,7 @@ public struct NoteDetailView: View {
     private var connectionsSection: some View {
         let backlinks = NoteKnowledge.backlinks(to: currentNoteForConnections, among: allNotes)
         let outgoing = NoteKnowledge.outgoing(from: settledBody, among: allNotes)
-            .filter { $0.id != route.item?.id }
+            .filter { $0.id != ownID }
         let related = relatedNotes(excluding: Set((backlinks + outgoing).map(\.id)))
 
         let saved = relatedPassages()
@@ -692,6 +715,11 @@ public struct NoteDetailView: View {
         }
     }
 
+    /// This page's own row: the stored note's, or — for a new note — the id its autosave writes
+    /// under. A new note is in `allNotes` from its first save onwards, and asked only about
+    /// `route.item` it listed itself among its own related notes.
+    private var ownID: String { route.item?.id ?? draftID }
+
     private var currentNoteForConnections: NoteItem {
         if let item = route.item { return item }
         let note = Note(id: draftID, title: title, body: settledBody, bookId: selectedBookId)
@@ -700,7 +728,7 @@ public struct NoteDetailView: View {
 
     private func relatedNotes(excluding excluded: Set<String>) -> [NoteItem] {
         allNotes.filter { candidate in
-            guard candidate.id != route.item?.id, !excluded.contains(candidate.id) else { return false }
+            guard candidate.id != ownID, !excluded.contains(candidate.id) else { return false }
             let sharesBook = selectedBookId != nil && candidate.note.bookId == selectedBookId
             let sharesTag = !Set(tags).isDisjoint(with: candidate.tags)
             return sharesBook || sharesTag
@@ -970,9 +998,12 @@ public struct NoteDetailView: View {
                 formatButton(systemImage: "link", accessibility: "Link") {
                     apply(prefix: "[", suffix: "](https://)", placeholder: "link title")
                 }
-                if !linkableNotes.isEmpty {
+                // Settled in `init`, where a new note's own id cannot be read yet; a written one
+                // has joined `allNotes` since, so it is taken out here.
+                let otherNotes = linkableNotes.filter { $0.id != ownID }
+                if !otherNotes.isEmpty {
                     Menu {
-                        ForEach(linkableNotes) { note in
+                        ForEach(otherNotes) { note in
                             Button(note.displayTitle) {
                                 apply(prefix: "[[", suffix: "]]", placeholder: note.displayTitle)
                             }
@@ -1063,7 +1094,7 @@ public struct NoteDetailView: View {
     private func note(titled title: String) -> NoteItem? {
         let target = title.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         return allNotes.first { candidate in
-            candidate.id != route.item?.id
+            candidate.id != ownID
                 && candidate.displayTitle
                     .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == target
         }

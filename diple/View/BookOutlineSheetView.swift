@@ -274,9 +274,10 @@ public struct BookOutlineSheetView: View {
         count > 0 ? "\(name) \(count)" : name
     }
 
-    /// What has been written about this book — the same rows the notes tab holds, not a
-    /// reader-local copy of them. Selecting one hands it back to the reader, which closes this
-    /// sheet and opens the note; that is what every other row here does with what it points at.
+    /// What has been written about this book — the same rows the notes half of Highlights holds,
+    /// not a reader-local copy of them. Selecting one hands it back to the reader, which closes
+    /// this sheet and opens the note in the book's notebook, on top of the list of its notes;
+    /// that is what every other row here does with what it points at.
     @ViewBuilder
     private var notesSection: some View {
         if notes.isEmpty {
@@ -288,7 +289,7 @@ public struct BookOutlineSheetView: View {
                 Text("No notes yet")
                     .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.textPrimary)
-                Text("A note written here is filed under this book and tagged with its name, and it waits for you in Notes with everything else you have written.")
+                Text("A note written here is filed under this book and tagged with its name, and it waits in Highlights, under Notes, with everything else you have written.")
                     .dipleType(.footnote, weight: .regular)
                     .foregroundStyle(DipleColor.textTertiary)
                     .multilineTextAlignment(.center)

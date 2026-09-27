@@ -41,19 +41,21 @@ public struct ReaderContainerView: View {
     /// Readium, which recolouring a highlight has no business doing; and it travels through the
     /// CloudKit settings payload, where a per-device marker preference is not worth a field.
     @AppStorage("diple_last_highlight_color") private var lastHighlightColorHex = DipleColor.Highlight.yellow
-    /// The note currently open over the page, if any.
+    /// Whether the book's notebook is open over the page — the list of this book's notes, with
+    /// whichever note was asked for standing on top of it (`notePath`).
     ///
     /// A sheet rather than a push: the reader hides the navigation bar and owns the whole
     /// screen, and a note is something you step aside to write and then come back from — the
     /// page has to still be there underneath, at the same place, when it closes.
-    @State private var noteRoute: NoteRoute?
+    @State private var isNotebookPresented = false
     /// A note chosen inside the outline sheet, held until that sheet is actually gone.
     ///
     /// Raising the second sheet from the row's own action presents it into a hierarchy that is
     /// still dismissing the first, and it is dropped. `onDismiss` is the moment the screen is
     /// free again.
     @State private var pendingNoteRoute: NoteRoute?
-    /// Where a wiki link followed from inside the open note pushes to.
+    /// The notebook's stack: the note pages standing on the list, and whatever a wiki link
+    /// followed from one of them pushed.
     @State private var notePath = NavigationPath()
     public let onReadingUpdated: () -> Void
 
@@ -288,13 +290,12 @@ public struct ReaderContainerView: View {
                                 // It belongs in this cluster and not with the settings at the
                                 // bottom: search, bookmark and contents are all about the text
                                 // and what has been made from it, which is what a note is. It
-                                // always writes rather than showing a list first — having a
-                                // thought and wanting to keep it is one intention, and the
-                                // notes already written are one segment away in the sheet
-                                // beside it.
+                                // opens a blank page — having a thought and wanting to keep it
+                                // is one intention — but the page stands on the book's notebook,
+                                // so every note already written about it is one Back away.
                                 Button {
                                     HapticManager.shared.selection()
-                                    noteRoute = .newFromSource(viewModel.book)
+                                    openNotebook(at: .newFromSource(viewModel.book))
                                 } label: {
                                     Image(systemName: "square.and.pencil")
                                         .dipleIcon(16, weight: .regular)
@@ -602,7 +603,7 @@ public struct ReaderContainerView: View {
         .sheet(isPresented: $viewModel.isOutlinePresented, onDismiss: {
             if let pending = pendingNoteRoute {
                 pendingNoteRoute = nil
-                noteRoute = pending
+                openNotebook(at: pending)
             }
         }) {
             BookOutlineSheetView(
@@ -667,22 +668,38 @@ public struct ReaderContainerView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        // The one note editor in the app, raised over the page.
+        // The book's notebook, raised over the page: its notes as a list, and the one note
+        // editor in the app standing on it.
         //
         // `NoteDetailView` itself rather than a reader-sized version of it: two note editors
         // drift, and a rule fixed in one stays broken in the other. Everything it needs —
         // the whole library's notes for wiki links, every source for the picker, every tag
         // for suggestions — comes from `viewModel.notes`, so the note written here is the
-        // same note, written the same way, as one started on the board.
-        .sheet(item: $noteRoute, onDismiss: {
+        // same note, written the same way, as one started in Highlights.
+        .sheet(isPresented: $isNotebookPresented, onDismiss: {
             notePath = NavigationPath()
             viewModel.announceSavedNote()
-        }) { route in
+        }) {
             NavigationStack(path: $notePath) {
-                notePage(for: route)
-                    .navigationDestination(for: NoteRoute.self) { pushed in
-                        notePage(for: pushed)
-                    }
+                BookNotebookView(
+                    book: viewModel.book,
+                    notes: viewModel.notes.forThisBook,
+                    onOpen: { item in notePath.append(BookNotebookPage(route: .existing(item))) },
+                    onNewNote: { notePath.append(BookNotebookPage(route: .newFromSource(viewModel.book))) },
+                    onDelete: { item in viewModel.deleteNote(item) }
+                )
+                .navigationDestination(for: BookNotebookPage.self) { page in
+                    // Identity from the page, not from its place in the stack. A new note
+                    // replaces the page on top in one update, and at the same position
+                    // SwiftUI kept the old page and its `@State` — the words on screen, and the
+                    // id the next autosave writes to, were still the previous note's.
+                    notePage(for: page.route)
+                        .id(page.token)
+                }
+                // A note's Connections and its wiki links push plain routes.
+                .navigationDestination(for: NoteRoute.self) { pushed in
+                    notePage(for: pushed)
+                }
             }
         }
         .sheet(item: $highlightEditorTarget, onDismiss: {
@@ -708,8 +725,18 @@ public struct ReaderContainerView: View {
         }
     }
 
-    /// A note page wired to this book, wherever it is reached from — raised from the page,
-    /// opened out of the outline sheet, or followed through a `[[Wiki link]]` from either.
+    /// Opens the book's notebook with one page standing on its list: a new note from the pencil,
+    /// or the note chosen in the contents sheet. Set before the sheet comes up, so the page is
+    /// simply there rather than sliding in over the list.
+    private func openNotebook(at route: NoteRoute) {
+        var path = NavigationPath()
+        path.append(BookNotebookPage(route: route))
+        notePath = path
+        isNotebookPresented = true
+    }
+
+    /// A note page wired to this book, wherever it is reached from — the notebook's list, the
+    /// pencil over the page, the outline sheet, or a `[[Wiki link]]` from any of them.
     @ViewBuilder
     private func notePage(for route: NoteRoute) -> some View {
         NoteDetailView(
@@ -719,7 +746,14 @@ public struct ReaderContainerView: View {
             allNotes: viewModel.notes.all,
             onSave: { note, tags in viewModel.saveNote(note, tags: tags) },
             onDelete: { item in viewModel.deleteNote(item) },
-            onOpenNote: { notePath.append(NoteRoute.existing($0)) }
+            onOpenNote: { notePath.append(NoteRoute.existing($0)) },
+            // The next note replaces the page rather than stacking on it: the list stays one
+            // Back away however many thoughts were written in a row.
+            onNewNote: {
+                var path = NavigationPath()
+                path.append(BookNotebookPage(route: .newFromSource(viewModel.book)))
+                notePath = path
+            }
         )
     }
 
