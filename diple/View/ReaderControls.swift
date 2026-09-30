@@ -225,27 +225,98 @@ public struct ReadingProgressSlider: View {
 /// has four sides. The shadow is the one place in the app depth comes from a blur rather than an
 /// edge, and it earns it: the card sits on an unpredictable background — paper, sepia or night,
 /// with text of any darkness behind it — where a stroke alone can vanish.
+///
+/// **On iOS 26 the card is the system's glass** (see `DipleGlass`), in the page's colour scheme
+/// rather than the app's — a night page under a light interface still gets night glass — with no
+/// tint, stroke or shadow: the glass bends the page it lies on, which is what the tint was
+/// imitating, and carries its own rim and depth. Only the bottom bar still uses this card there;
+/// the top bar comes apart into a glass button and a glass cluster, because it has nothing in it
+/// that needs a surface wider than its controls.
 public struct ReaderBarBackground: ViewModifier {
     let chrome: ReaderChrome
     /// Which screen edge the bar sits nearest. Only the direction of its inset depends on it now.
     let edge: VerticalEdge
 
     public func body(content: Content) -> some View {
-        content
-            .background {
-                let shape = RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
-                ZStack {
-                    shape.fill(.regularMaterial)
-                    shape.fill(chrome.tint)
-                }
+        if #available(iOS 26.0, *) {
+            content
+                // Rounder than the frosted card: a glass panel this close to the bezel follows
+                // the display's own corners, and 16 pt against them read as a box.
+                .glassEffect(
+                    .regular,
+                    in: RoundedRectangle(cornerRadius: DipleRadius.xl, style: .continuous)
+                )
                 .environment(\.colorScheme, chrome.colorScheme)
-                .overlay {
-                    shape.strokeBorder(chrome.separator, lineWidth: DipleStroke.hairline)
+                .padding(.horizontal, DipleSpace.m)
+                .padding(edge == .top ? .top : .bottom, DipleSpace.s)
+        } else {
+            content
+                .background {
+                    let shape = RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
+                    ZStack {
+                        shape.fill(.regularMaterial)
+                        shape.fill(chrome.tint)
+                    }
+                    .environment(\.colorScheme, chrome.colorScheme)
+                    .overlay {
+                        shape.strokeBorder(chrome.separator, lineWidth: DipleStroke.hairline)
+                    }
+                    .shadow(color: Color.black.opacity(0.18), radius: 12, y: edge == .top ? 4 : -4)
                 }
-                .shadow(color: Color.black.opacity(0.18), radius: 12, y: edge == .top ? 4 : -4)
-            }
-            .padding(.horizontal, DipleSpace.m)
-            .padding(edge == .top ? .top : .bottom, DipleSpace.s)
+                .padding(.horizontal, DipleSpace.m)
+                .padding(edge == .top ? .top : .bottom, DipleSpace.s)
+        }
+    }
+}
+
+/// The drop shadow a pre-26 floating surface carries. Kept outside `ReaderGlassSurface`, which
+/// is generic over its shape and so cannot hold a stored static.
+public struct ReaderSurfaceShadow {
+    let opacity: Double
+    let radius: CGFloat
+    let y: CGFloat
+
+    public static let none = ReaderSurfaceShadow(opacity: 0, radius: 0, y: 0)
+
+    public init(opacity: Double, radius: CGFloat, y: CGFloat) {
+        self.opacity = opacity
+        self.radius = radius
+        self.y = y
+    }
+}
+
+/// A small surface floating over the page — the highlight bar, a toast, the way back, a figure's
+/// close button.
+///
+/// On iOS 26 it is system glass in the page's colour scheme. Before 26 it is the frosted recipe
+/// each of these drew on its own: a material, the page's tint, a hairline and, where the surface
+/// interrupts the page, a shadow. The shadow is a parameter because the call sites never agreed
+/// on one, and this modifier exists to change nothing an older system draws.
+public struct ReaderGlassSurface<S: InsettableShape>: ViewModifier {
+    let chrome: ReaderChrome
+    let shape: S
+    var glass: DipleGlass = .regular
+    /// What the frosted recipe blurs with. Each surface chose its own thickness.
+    let material: Material
+    var shadow: ReaderSurfaceShadow = .none
+
+    public func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .glassEffect(glass.system, in: shape)
+                .environment(\.colorScheme, chrome.colorScheme)
+        } else {
+            content
+                .background {
+                    ZStack {
+                        shape.fill(material)
+                        shape.fill(chrome.tint)
+                    }
+                    .environment(\.colorScheme, chrome.colorScheme)
+                }
+                .overlay { shape.stroke(chrome.separator, lineWidth: DipleStroke.hairline) }
+                .shadow(color: Color.black.opacity(shadow.opacity), radius: shadow.radius, y: shadow.y)
+        }
     }
 }
 
@@ -277,15 +348,12 @@ public struct ReaderToastView: View {
             .foregroundStyle(chrome.control)
             .padding(.horizontal, 18)
             .padding(.vertical, DipleSpace.m)
-            .background {
-                ZStack {
-                    Capsule().fill(.thinMaterial)
-                    Capsule().fill(chrome.tint)
-                }
-                .environment(\.colorScheme, chrome.colorScheme)
-            }
-            .overlay(Capsule().stroke(chrome.separator, lineWidth: DipleStroke.hairline))
-            .shadow(color: Color.black.opacity(0.35), radius: 10, y: 4)
+            .modifier(ReaderGlassSurface(
+                chrome: chrome,
+                shape: Capsule(),
+                material: .thinMaterial,
+                shadow: .init(opacity: 0.35, radius: 10, y: 4)
+            ))
     }
 }
 
@@ -401,21 +469,16 @@ public struct ReadingTrailPill: View {
             .foregroundStyle(destination == nil ? chrome.secondary : chrome.control)
             .diplePadding(.button)
             .frame(minWidth: Self.minimumTouchTarget, minHeight: Self.minimumTouchTarget)
-            .background {
-                ZStack {
-                    Capsule().fill(.thinMaterial)
-                    Capsule().fill(chrome.tint)
-                }
-                .environment(\.colorScheme, chrome.colorScheme)
-            }
-            .overlay(Capsule().stroke(chrome.separator, lineWidth: DipleStroke.hairline))
             // Depth while it is speaking, none once it is not: a shadow is what separates a
             // control from the page it interrupts, and the contracted form is not interrupting.
-            .shadow(
-                color: Color.black.opacity(destination == nil ? 0 : 0.35),
-                radius: 10,
-                y: 4
-            )
+            // That shadow is the pre-26 recipe only; on 26 the pill is glass, which has its own.
+            .modifier(ReaderGlassSurface(
+                chrome: chrome,
+                shape: Capsule(),
+                glass: .interactive,
+                material: .thinMaterial,
+                shadow: .init(opacity: destination == nil ? 0 : 0.35, radius: 10, y: 4)
+            ))
         }
         // Touch-down, not tap-end: see `ReaderControlButtonStyle`.
         .buttonStyle(.readerControl)

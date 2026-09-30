@@ -41,15 +41,12 @@ struct ReaderFigureView: View {
                     .dipleIcon(15, weight: .semibold)
                     .foregroundStyle(chrome.control)
                     .frame(width: 44, height: 44)
-                    .background {
-                        Circle()
-                            .fill(chrome.tint)
-                            .background(.regularMaterial, in: Circle())
-                            .environment(\.colorScheme, chrome.colorScheme)
-                    }
-                    .overlay {
-                        Circle().stroke(chrome.separator, lineWidth: DipleStroke.hairline)
-                    }
+                    .modifier(ReaderGlassSurface(
+                        chrome: chrome,
+                        shape: Circle(),
+                        glass: .interactive,
+                        material: .regularMaterial
+                    ))
                     .contentShape(Circle())
             }
             .buttonStyle(.readerControl)

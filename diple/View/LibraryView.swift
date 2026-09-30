@@ -573,9 +573,7 @@ public struct LibraryView: View {
         .disabled(chosen == 0)
         .opacity(chosen == 0 ? 0.5 : 1)
         .animation(DipleMotion.standard, value: chosen == 0)
-        .padding(.horizontal, DipleSpace.xl)
-        .padding(.vertical, DipleSpace.m)
-        .background(.ultraThinMaterial)
+        .dipleBottomBar()
     }
 
     private func selectionAction(

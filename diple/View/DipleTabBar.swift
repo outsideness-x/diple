@@ -79,6 +79,9 @@ public struct DipleTabBar: View {
             pill
             searchButton
         }
+        // One group, so the pill and the circle sample the shelf behind them together. The
+        // melting distance is a hair, well under the gap between them: two objects at rest.
+        .dipleGlassGroup(spacing: DipleSpace.hair)
         .padding(.horizontal, DipleSpace.l)
     }
 
@@ -114,7 +117,11 @@ public struct DipleTabBar: View {
         }
         .background(alignment: .leading) { lens }
         .padding(DipleSpace.xs)
-        .background { glass(Capsule(style: .continuous)) }
+        .dipleGlass(
+            .interactive,
+            in: Capsule(style: .continuous),
+            fallback: FrostedTabGlass(shape: Capsule(style: .continuous))
+        )
         .onChange(of: selection, initial: true) { _, tab in
             if places.contains(tab) { lastPlace = tab }
         }
@@ -194,13 +201,11 @@ public struct DipleTabBar: View {
                 .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
                 .frame(width: circle, height: circle)
                 .background {
-                    ZStack {
-                        glass(Circle())
-                        Circle()
-                            .fill(DipleColor.accentSoft)
-                            .opacity(isSelected ? 1 : 0)
-                    }
+                    Circle()
+                        .fill(DipleColor.accentSoft)
+                        .opacity(isSelected ? 1 : 0)
                 }
+                .dipleGlass(.interactive, in: Circle(), fallback: FrostedTabGlass(shape: Circle()))
                 .contentShape(Circle())
         }
         .buttonStyle(.dipleTabItem)
@@ -209,30 +214,37 @@ public struct DipleTabBar: View {
         .accessibilityIdentifier("shell.search")
     }
 
-    // MARK: - Material
-
-    /// Real glass, not a tinted plate. The bar sits *over* the shelf, so what is behind it has
-    /// to stay visible and blurred rather than be covered — that is the whole reason the label
-    /// stopped landing on a book cover. The hairline is what keeps the capsule's edge findable
-    /// once the material has taken the tone of whatever is under it.
-    private func glass<S: InsettableShape>(_ shape: S) -> some View {
-        shape
-            .fill(.ultraThinMaterial)
-            .overlay {
-                shape.fill(DipleColor.canvas.opacity(0.35))
-            }
-            .overlay {
-                shape.strokeBorder(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-            }
-            .clipShape(shape)
-            .shadow(color: Color.black.opacity(0.22), radius: 14, y: 4)
-    }
-
     private func select(_ tab: RootTabView.Tab) {
         guard selection != tab else { return }
         HapticManager.shared.selection()
         withAnimation(reduceMotion ? nil : DipleMotion.standard) {
             selection = tab
+        }
+    }
+}
+
+/// The bar's surface before iOS 26, where there is no system glass to stand on.
+///
+/// Material rather than a tinted plate: the bar sits *over* the shelf, so what is behind it has
+/// to stay visible and blurred rather than be covered — that is the whole reason the label
+/// stopped landing on a book cover. The hairline is what keeps the capsule's edge findable once
+/// the material has taken the tone of whatever is under it. On 26 the pill and the circle are
+/// the system's glass instead (see `DipleGlass`), with no shadow: that glass has its own depth.
+private struct FrostedTabGlass<S: InsettableShape>: ViewModifier {
+    let shape: S
+
+    func body(content: Content) -> some View {
+        content.background {
+            shape
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    shape.fill(DipleColor.canvas.opacity(0.35))
+                }
+                .overlay {
+                    shape.strokeBorder(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+                }
+                .clipShape(shape)
+                .shadow(color: Color.black.opacity(0.22), radius: 14, y: 4)
         }
     }
 }

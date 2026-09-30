@@ -160,16 +160,13 @@ public struct HighlightActionsBar: View {
             }
         }
         .padding(.horizontal, DipleSpace.s)
-        .background {
-            Capsule(style: .continuous)
-                .fill(chrome.tint)
-                .background(.regularMaterial, in: Capsule(style: .continuous))
-                .environment(\.colorScheme, chrome.colorScheme)
-        }
-        .overlay {
-            Capsule(style: .continuous).stroke(chrome.separator, lineWidth: DipleStroke.hairline)
-        }
-        .shadow(color: Color.black.opacity(0.28), radius: 16, y: 6)
+        // System glass on 26, the frosted capsule before it — see `ReaderGlassSurface`.
+        .modifier(ReaderGlassSurface(
+            chrome: chrome,
+            shape: Capsule(style: .continuous),
+            material: .regularMaterial,
+            shadow: .init(opacity: 0.28, radius: 16, y: 6)
+        ))
         .scaleEffect(appeared || reduceMotion ? 1 : 0.92)
         .opacity(appeared || reduceMotion ? 1 : 0)
         .onAppear {

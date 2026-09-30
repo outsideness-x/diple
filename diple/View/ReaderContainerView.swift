@@ -79,6 +79,153 @@ public struct ReaderContainerView: View {
         return chapter.isEmpty ? viewModel.book.title : chapter
     }
 
+    /// The square each glass control stands in on iOS 26. It grows with the reader's text size
+    /// and stops before the cluster of four stops fitting beside the way out.
+    @ScaledMetric(relativeTo: .body) private var scaledGlassSeat: CGFloat = 44
+    private var glassSeat: CGFloat { min(scaledGlassSeat, 56) }
+
+    /// The top of the page's chrome: the way out, and the tools that work on the text.
+    ///
+    /// **On iOS 26 it comes apart.** The frosted version is one card across the page because a
+    /// card was the only way to give four glyphs a surface; system glass can give each group its
+    /// own — a glass circle for the way out, a glass capsule for the tools — and nothing wider
+    /// than the controls is laid over the book. The two are one glass group, so they sample the
+    /// page together and flow as one when the chrome comes and goes.
+    @ViewBuilder
+    private var readerTopBar: some View {
+        if #available(iOS 26.0, *) {
+            HStack(spacing: DipleSpace.l) {
+                closeButton(seat: glassSeat)
+                    .glassEffect(.regular.interactive(), in: Circle())
+
+                Spacer()
+
+                toolCluster(seat: glassSeat)
+                    .padding(.horizontal, DipleSpace.xs)
+                    .glassEffect(.regular.interactive(), in: Capsule())
+            }
+            .dipleGlassGroup(spacing: DipleSpace.hair)
+            // The page's scheme, not the app's: a night page under a light interface still
+            // gets night glass, and the glyphs on it were always the page's ink.
+            .environment(\.colorScheme, chrome.colorScheme)
+            .padding(.horizontal, DipleSpace.l)
+            .padding(.top, DipleSpace.s)
+        } else {
+            HStack(spacing: DipleSpace.l) {
+                closeButton(seat: nil)
+
+                // No title here. It was printed twice on one screen — at the top of this bar
+                // and again, truncated, at the end of the bottom one — and this is the copy that
+                // says least: the reader opened the book a moment ago and knows which one it is.
+                // What they can lose track of is where they are inside it, and that is what the
+                // bottom bar reports. Dropping it also gives the four tools their room back.
+                Spacer()
+
+                toolCluster(seat: nil)
+            }
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.vertical, DipleSpace.m)
+            .readerBarBackground(chrome, edge: .top)
+        }
+    }
+
+    /// The way out of the book. `seat` is the square the glyph gets on glass; the frosted card
+    /// passes `nil` and its own padding is the target, as it always was.
+    private func closeButton(seat: CGFloat?) -> some View {
+        Button {
+            HapticManager.shared.impact(.light)
+            dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .dipleIcon(16)
+                .foregroundStyle(chrome.control)
+                .frame(width: seat, height: seat)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.readerControl)
+        .accessibilityLabel("Close book")
+    }
+
+    /// Search, bookmark, a note and the contents — the tools that work on the text.
+    ///
+    /// Tighter than the outer bar's spacing on the frosted card: the four read as one cluster,
+    /// and the extra room is what keeps them from crowding each other at large Dynamic Type
+    /// sizes. On glass each tool has its own square instead, and the squares touch.
+    private func toolCluster(seat: CGFloat?) -> some View {
+        HStack(spacing: seat == nil ? DipleSpace.m : 0) {
+            Button {
+                HapticManager.shared.selection()
+                viewModel.isSearchPresented = true
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .dipleIcon(16, weight: .regular)
+                    .foregroundStyle(chrome.control)
+                    .frame(width: seat, height: seat)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Search in book")
+
+            Button {
+                HapticManager.shared.selection()
+                viewModel.isAddBookmarkPresented = true
+            } label: {
+                Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
+                    .dipleIcon(16, weight: .regular)
+                    .foregroundStyle(
+                        viewModel.isCurrentPositionBookmarked
+                            ? DipleColor.accent
+                            : chrome.control
+                    )
+                    .frame(width: seat, height: seat)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel(
+                viewModel.isCurrentPositionBookmarked
+                    ? "This page is bookmarked"
+                    : "Bookmark this page"
+            )
+            .disabled(!viewModel.canAddBookmark)
+            .opacity(viewModel.canAddBookmark ? 1 : 0.35)
+            .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
+
+            // A thought about the book, written in the book.
+            //
+            // It belongs in this cluster and not with the settings at the bottom: search,
+            // bookmark and contents are all about the text and what has been made from it,
+            // which is what a note is. It opens a blank page — having a thought and wanting to
+            // keep it is one intention — but the page stands on the book's notebook, so every
+            // note already written about it is one Back away.
+            Button {
+                HapticManager.shared.selection()
+                openNotebook(at: .newFromSource(viewModel.book))
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .dipleIcon(16, weight: .regular)
+                    .foregroundStyle(chrome.control)
+                    .frame(width: seat, height: seat)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Write a note in this book")
+            .accessibilityIdentifier("reader.newNote")
+
+            Button {
+                HapticManager.shared.selection()
+                viewModel.isOutlinePresented = true
+            } label: {
+                Image(systemName: "list.bullet")
+                    .dipleIcon(16, weight: .regular)
+                    .foregroundStyle(chrome.control)
+                    .frame(width: seat, height: seat)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityLabel("Contents, highlights, notes and bookmarks")
+        }
+    }
+
     public var body: some View {
         ZStack {
             // The page stops at the safe area, so the bands the status bar and the resting
@@ -226,101 +373,8 @@ public struct ReaderContainerView: View {
                 // Overlay Controls (Top & Bottom bars)
                 if viewModel.isOverlayVisible {
                     VStack {
-                        // Top Bar Overlay
-                        HStack(spacing: DipleSpace.l) {
-                            Button {
-                                HapticManager.shared.impact(.light)
-                                dismiss()
-                            } label: {
-                                Image(systemName: "chevron.left")
-                                    .dipleIcon(16)
-                                    .foregroundStyle(chrome.control)
-                            }
-                            .buttonStyle(.readerControl)
-                            .accessibilityLabel("Close book")
-
-                            // No title here. It was printed twice on one screen — at the top
-                            // of this bar and again, truncated, at the end of the bottom one —
-                            // and this is the copy that says least: the reader opened the book
-                            // a moment ago and knows which one it is. What they can lose track
-                            // of is where they are inside it, and that is what the bottom bar
-                            // reports. Dropping it also gives the four tools their room back.
-                            Spacer()
-
-                            // Tighter than the outer bar's spacing on purpose: this trio reads
-                            // as one tool cluster, and the extra room is what keeps a fourth
-                            // control (search) from crowding the title out at large Dynamic
-                            // Type sizes.
-                            HStack(spacing: DipleSpace.m) {
-                                Button {
-                                    HapticManager.shared.selection()
-                                    viewModel.isSearchPresented = true
-                                } label: {
-                                    Image(systemName: "magnifyingglass")
-                                        .dipleIcon(16, weight: .regular)
-                                        .foregroundStyle(chrome.control)
-                                }
-                                .buttonStyle(.readerControl)
-                                .accessibilityLabel("Search in book")
-
-                                Button {
-                                    HapticManager.shared.selection()
-                                    viewModel.isAddBookmarkPresented = true
-                                } label: {
-                                    Image(systemName: viewModel.isCurrentPositionBookmarked ? "bookmark.fill" : "bookmark")
-                                        .dipleIcon(16, weight: .regular)
-                                        .foregroundStyle(
-                                            viewModel.isCurrentPositionBookmarked
-                                                ? DipleColor.accent
-                                                : chrome.control
-                                        )
-                                }
-                                .buttonStyle(.readerControl)
-                                .accessibilityLabel(
-                                    viewModel.isCurrentPositionBookmarked
-                                        ? "This page is bookmarked"
-                                        : "Bookmark this page"
-                                )
-                                .disabled(!viewModel.canAddBookmark)
-                                .opacity(viewModel.canAddBookmark ? 1 : 0.35)
-                                .animation(DipleMotion.standard, value: viewModel.isCurrentPositionBookmarked)
-
-                                // A thought about the book, written in the book.
-                                //
-                                // It belongs in this cluster and not with the settings at the
-                                // bottom: search, bookmark and contents are all about the text
-                                // and what has been made from it, which is what a note is. It
-                                // opens a blank page — having a thought and wanting to keep it
-                                // is one intention — but the page stands on the book's notebook,
-                                // so every note already written about it is one Back away.
-                                Button {
-                                    HapticManager.shared.selection()
-                                    openNotebook(at: .newFromSource(viewModel.book))
-                                } label: {
-                                    Image(systemName: "square.and.pencil")
-                                        .dipleIcon(16, weight: .regular)
-                                        .foregroundStyle(chrome.control)
-                                }
-                                .buttonStyle(.readerControl)
-                                .accessibilityLabel("Write a note in this book")
-                                .accessibilityIdentifier("reader.newNote")
-
-                                Button {
-                                    HapticManager.shared.selection()
-                                    viewModel.isOutlinePresented = true
-                                } label: {
-                                    Image(systemName: "list.bullet")
-                                        .dipleIcon(16, weight: .regular)
-                                        .foregroundStyle(chrome.control)
-                                }
-                                .buttonStyle(.readerControl)
-                                .accessibilityLabel("Contents, highlights, notes and bookmarks")
-                            }
-                        }
-                        .padding(.horizontal, DipleSpace.xl)
-                        .padding(.vertical, DipleSpace.m)
-                        .readerBarBackground(chrome, edge: .top)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        readerTopBar
+                            .transition(.move(edge: .top).combined(with: .opacity))
 
                         Spacer()
 

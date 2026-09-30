@@ -263,9 +263,7 @@ public struct MarginaliaFilingView: View {
             }
             .buttonStyle(.readerControl)
         }
-        .padding(.horizontal, DipleSpace.xl)
-        .padding(.vertical, DipleSpace.m)
-        .background(.ultraThinMaterial)
+        .dipleBottomBar()
     }
 
     private var advanceTitle: String {
