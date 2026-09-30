@@ -130,7 +130,7 @@ public struct LibraryRowView: View {
             ZStack(alignment: .leading) {
                 Rectangle().fill(DipleColor.hairline)
                 Rectangle()
-                    .fill(DipleColor.accent)
+                    .fill(DipleColor.accentInk)
                     .frame(width: geo.size.width * clampedProgress)
             }
         }

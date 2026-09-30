@@ -174,7 +174,7 @@ public struct ReaderContainerView: View {
                     .dipleIcon(16, weight: .regular)
                     .foregroundStyle(
                         viewModel.isCurrentPositionBookmarked
-                            ? DipleColor.accent
+                            ? chrome.mark
                             : chrome.control
                     )
                     .frame(width: seat, height: seat)
@@ -239,7 +239,7 @@ public struct ReaderContainerView: View {
             if viewModel.isLoading {
                 VStack(spacing: DipleSpace.m) {
                     ProgressView()
-                        .tint(DipleColor.accent)
+                        .tint(DipleColor.accentInk)
                     Text("Loading book…")
                         .dipleType(.callout, weight: .medium)
                         .foregroundStyle(DipleColor.textSecondary)
@@ -306,6 +306,7 @@ public struct ReaderContainerView: View {
                         targetLocator: viewModel.targetLocator,
                         highlights: viewModel.highlights,
                         freshHighlightID: viewModel.freshHighlightID,
+                        markGround: viewModel.settings.theme.markGround,
                         livingMarginAnnotations: livingMarginAnnotationsForCurrentPlatform,
                         tableOfContents: viewModel.tableOfContents,
                         preferences: viewModel.epubPreferences,
@@ -973,7 +974,7 @@ public struct ReaderContainerView: View {
                         Rectangle()
                             .fill(chrome.track)
                         Rectangle()
-                            .fill(DipleColor.accent)
+                            .fill(chrome.mark)
                             .frame(width: geo.size.width * min(max(viewModel.currentProgress, 0), 1))
                     }
                 }

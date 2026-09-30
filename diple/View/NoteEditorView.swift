@@ -194,7 +194,7 @@ public struct NoteEditorView: UIViewRepresentable {
         view.answersMarkdownTaps = !usesMonospacedFont
         view.backgroundColor = .clear
         view.textColor = UIColor(DipleColor.textPrimary)
-        view.tintColor = UIColor(DipleColor.accent)
+        view.tintColor = UIColor(DipleColor.accentInk)
         let baseFont = usesMonospacedFont
             ? UIFont.monospacedSystemFont(ofSize: 16, weight: .regular)
             : UIFont.systemFont(ofSize: 17, weight: .regular)

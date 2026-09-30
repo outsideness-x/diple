@@ -511,7 +511,7 @@ private struct SecondReadPalette {
         tertiaryInk = ink.opacity(increasedContrast ? 0.76 : 0.56)
         quaternaryInk = ink.opacity(increasedContrast ? 0.62 : 0.38)
         noteInk = ink.opacity(increasedContrast ? 1 : 0.88)
-        marker = DipleColor.accent
+        marker = ReaderChrome.forTheme(theme).mark
         colorScheme = (theme == .carbon || theme == .ink) ? .dark : .light
     }
 }

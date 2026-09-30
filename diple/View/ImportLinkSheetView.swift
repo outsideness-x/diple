@@ -80,7 +80,7 @@ public struct ImportLinkSheetView: View {
                 TextField("https://", text: $viewModel.urlText)
                     .dipleType(.body)
                     .foregroundStyle(DipleColor.textPrimary)
-                    .tint(DipleColor.accent)
+                    .tint(DipleColor.accentInk)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
@@ -142,7 +142,7 @@ public struct ImportLinkSheetView: View {
         if let stage = viewModel.stage {
             HStack(spacing: DipleSpace.m) {
                 ProgressView()
-                    .tint(DipleColor.accent)
+                    .tint(DipleColor.accentInk)
 
                 Text(stage.label)
                     .dipleType(.footnote, weight: .medium)

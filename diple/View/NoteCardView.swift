@@ -153,7 +153,7 @@ public struct NoteCardView: View {
                 if let taskProgress, taskProgress.total > 0 {
                     let isDone = taskProgress.completed == taskProgress.total
                     Rectangle()
-                        .fill(isDone ? DipleColor.success : DipleColor.accent)
+                        .fill(isDone ? DipleColor.success : DipleColor.accentInk)
                         .frame(
                             width: geo.size.width
                                 * (Double(taskProgress.completed) / Double(taskProgress.total))
@@ -218,7 +218,7 @@ public struct NoteCardView: View {
                             Capsule()
                                 .fill(DipleColor.surfaceOverlay)
                             Capsule()
-                                .fill(isDone ? DipleColor.success : DipleColor.accent)
+                                .fill(isDone ? DipleColor.success : DipleColor.accentInk)
                                 .frame(
                                     width: geo.size.width
                                         * (Double(taskProgress.completed) / Double(max(taskProgress.total, 1)))

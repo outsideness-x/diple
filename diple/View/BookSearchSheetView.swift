@@ -155,7 +155,7 @@ public struct BookSearchSheetView: View {
         VStack(spacing: DipleSpace.m) {
             Spacer()
             ProgressView()
-                .tint(DipleColor.accent)
+                .tint(DipleColor.accentInk)
             Text("Preparing search…")
                 .dipleType(.headline)
                 .foregroundStyle(DipleColor.textPrimary)

@@ -74,7 +74,7 @@ public struct RootTabView: View {
             withAnimation(DipleMotion.gentle) { isBarHidden = hidden }
         }
         .environment(\.dipleTabBarState, tabBarState)
-        .tint(DipleColor.accent)
+        .tint(DipleColor.accentInk)
         .onChange(of: selection) { _, _ in
             tabBarState.reset()
         }

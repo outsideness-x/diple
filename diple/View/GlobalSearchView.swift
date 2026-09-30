@@ -46,7 +46,7 @@ public struct GlobalSearchView: View {
                 if viewModel.isIndexingArticles || viewModel.isIndexingBookContent {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         ProgressView()
-                            .tint(DipleColor.accent)
+                            .tint(DipleColor.accentInk)
                             .accessibilityLabel("Indexing your library")
                     }
                 }

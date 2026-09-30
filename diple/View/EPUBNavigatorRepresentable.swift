@@ -13,6 +13,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let highlights: [Highlight]
     /// The one passage marked a moment ago, whose ink is still wet. See `InkHighlight`.
     public let freshHighlightID: String?
+    /// Which strength of each mark's pigment this page takes (`MarkPigment`). A change of page
+    /// theme redraws the marks, because a night page takes the lighter one.
+    public let markGround: MarkPigment.Ground
     public let livingMarginAnnotations: [LivingMarginAnnotation]
     public let tableOfContents: [ReadiumShared.Link]
     public let preferences: EPUBPreferences
@@ -54,6 +57,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         targetLocator: Locator? = nil,
         highlights: [Highlight] = [],
         freshHighlightID: String? = nil,
+        markGround: MarkPigment.Ground = .paper,
         livingMarginAnnotations: [LivingMarginAnnotation] = [],
         tableOfContents: [ReadiumShared.Link] = [],
         preferences: EPUBPreferences,
@@ -79,6 +83,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.targetLocator = targetLocator
         self.highlights = highlights
         self.freshHighlightID = freshHighlightID
+        self.markGround = markGround
         self.livingMarginAnnotations = livingMarginAnnotations
         self.tableOfContents = tableOfContents
         self.preferences = preferences
@@ -185,6 +190,12 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
         if context.coordinator.lastHighlights != highlights {
             context.coordinator.lastHighlights = highlights
+            context.coordinator.lastMarkGround = markGround
+            applyDecorations(highlights: highlights, to: uiViewController)
+        } else if context.coordinator.lastMarkGround != markGround {
+            // The page went from paper to night or back. Every mark is the same passage in the
+            // same colour; what changed is the strength that colour is drawn at.
+            context.coordinator.lastMarkGround = markGround
             applyDecorations(highlights: highlights, to: uiViewController)
         } else if context.coordinator.lastFreshHighlightID != freshHighlightID {
             // The ink dried. Nothing about the passage changed, but what is being drawn did.
@@ -201,8 +212,11 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     private func applyDecorations(highlights: [Highlight], to navigator: EPUBNavigatorViewController) {
         let decorations = highlights.compactMap { h -> Decoration? in
             guard let locator = h.parsedLocator else { return nil }
+            // The stored hex is the mark's identity; the page draws its pigment (`MarkPigment`).
             let uiColor: UIColor
-            if let readiumColor = ReadiumNavigator.Color(hex: h.colorHex) {
+            if let readiumColor = ReadiumNavigator.Color(
+                hex: MarkPigment.hex(forStored: h.colorHex, on: markGround)
+            ) {
                 uiColor = readiumColor.uiColor
             } else {
                 uiColor = .yellow
@@ -238,6 +252,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         /// Catalyst only — see `bindKeyboardPageTurns`.
         private var directionalNavigation: DirectionalNavigationAdapter?
         var lastFreshHighlightID: String? = nil
+        var lastMarkGround: MarkPigment.Ground = .paper
         var lastHref: AnyURL? = nil
         var lastPreferences: EPUBPreferences? = nil
         var lastHighlights: [Highlight]? = nil

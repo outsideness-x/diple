@@ -548,7 +548,7 @@ final class NoteTextView: UITextView {
 
         while rules.count < blocks.count {
             let rule = UIView()
-            rule.backgroundColor = UIColor(DipleColor.accent).withAlphaComponent(0.5)
+            rule.backgroundColor = UIColor(DipleColor.accentInk).withAlphaComponent(0.5)
             rule.layer.cornerRadius = 1
             rule.isUserInteractionEnabled = false
             rule.isAccessibilityElement = false

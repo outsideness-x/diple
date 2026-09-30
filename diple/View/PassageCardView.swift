@@ -24,7 +24,9 @@ struct PassageCardView: View {
 
     private var ground: Color { Color(hex: theme.backgroundHex) }
     private var ink: Color { Color(hex: theme.inkHex) }
-    private var markColor: Color { Color(hex: passage.highlight.colorHex) }
+    private var markColor: Color {
+        DipleColor.Highlight.color(forHex: passage.highlight.colorHex, on: theme.markGround)
+    }
 
     private var sourceTitle: String? {
         let title = passage.book?.title ?? passage.highlight.bookTitle
@@ -165,7 +167,7 @@ struct PassageCardSheet: View {
                                 .overlay {
                                     RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
                                         .stroke(
-                                            isSelected ? DipleColor.accent : Color.clear,
+                                            isSelected ? DipleColor.accentInk : Color.clear,
                                             lineWidth: DipleStroke.selection
                                         )
                                 }

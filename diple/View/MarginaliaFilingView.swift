@@ -112,7 +112,7 @@ public struct MarginaliaFilingView: View {
                 ZStack(alignment: .leading) {
                     Rectangle().fill(DipleColor.separator)
                     Rectangle()
-                        .fill(DipleColor.accent)
+                        .fill(DipleColor.accentInk)
                         .frame(width: geo.size.width * (Double(index) / Double(max(queue.count, 1))))
                 }
             }
@@ -134,7 +134,7 @@ public struct MarginaliaFilingView: View {
         case .passage(let passage):
             HStack(alignment: .top, spacing: DipleSpace.m) {
                 Capsule()
-                    .fill(Color(hex: passage.highlight.colorHex))
+                    .fill(DipleColor.Highlight.color(forHex: passage.highlight.colorHex))
                     .frame(width: 4)
 
                 VStack(alignment: .leading, spacing: DipleSpace.s) {

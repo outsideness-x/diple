@@ -313,7 +313,7 @@ public struct HighlightEditorView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: DipleRadius.m)
                         .stroke(
-                            isCommentFocused ? DipleColor.accent.opacity(0.65) : DipleColor.hairline,
+                            isCommentFocused ? DipleColor.accentInk.opacity(0.65) : DipleColor.hairline,
                             lineWidth: DipleStroke.hairline
                         )
                 }

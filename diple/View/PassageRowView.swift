@@ -32,7 +32,7 @@ public struct PassageRowView: View {
     }
 
     private var markColor: Color {
-        Color(hex: passage.highlight.colorHex)
+        DipleColor.Highlight.color(forHex: passage.highlight.colorHex)
     }
 
     private var formattedDate: String {

@@ -263,7 +263,7 @@ public struct HomeView: View {
         ZStack {
             DipleColor.canvas.opacity(0.78).ignoresSafeArea()
             VStack(spacing: DipleSpace.m) {
-                ProgressView().tint(DipleColor.accent)
+                ProgressView().tint(DipleColor.accentInk)
                 Text("Adding to your library…")
                     .dipleType(.callout, weight: .medium)
                     .foregroundStyle(DipleColor.textPrimary)

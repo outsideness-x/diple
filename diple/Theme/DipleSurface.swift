@@ -56,7 +56,7 @@ public extension View {
         background(isSelected ? DipleColor.accentSoft : resting, in: shape)
             .overlay {
                 shape.strokeBorder(
-                    isSelected ? DipleColor.accent : Color.clear,
+                    isSelected ? DipleColor.accentInk : Color.clear,
                     lineWidth: DipleStroke.selection
                 )
             }

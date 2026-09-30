@@ -382,7 +382,7 @@ public struct NoteFormulaComposer: View {
                         .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
                         .overlay {
                             RoundedRectangle(cornerRadius: DipleRadius.m)
-                                .stroke(isEditorFocused ? DipleColor.accent.opacity(0.55) : DipleColor.hairline,
+                                .stroke(isEditorFocused ? DipleColor.accentInk.opacity(0.55) : DipleColor.hairline,
                                         lineWidth: isEditorFocused ? DipleStroke.regular : DipleStroke.hairline)
                         }
                     }

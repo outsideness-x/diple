@@ -109,7 +109,7 @@ public struct BookOutlineSheetView: View {
                     Text(label("Bookmarks", bookmarks.count)).tag(Section.bookmarks)
                 }
                 .pickerStyle(.segmented)
-                .tint(DipleColor.accent)
+                .tint(DipleColor.accentInk)
                 .onChange(of: selectedTab) { _, _ in
                     HapticManager.shared.selection()
                 }
@@ -472,7 +472,7 @@ public struct BookmarkRowView: View {
                 HStack(spacing: DipleSpace.m) {
                     // Color Tag Circle
                     Circle()
-                        .fill(Color(hex: bookmark.colorHex))
+                        .fill(DipleColor.Highlight.color(forHex: bookmark.colorHex))
                         .frame(width: 12, height: 12)
 
                     VStack(alignment: .leading, spacing: DipleSpace.xs) {

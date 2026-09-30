@@ -102,7 +102,7 @@ public struct MarginaliaChip: View {
                     // light one; a ring in the same ink as every other edge in the app gives
                     // the dot a border on both instead of a shape that changes with the theme.
                     Circle()
-                        .fill(Color(hex: hex))
+                        .fill(DipleColor.Highlight.color(forHex: hex))
                         .overlay(Circle().strokeBorder(DipleColor.hairlineStrong, lineWidth: DipleStroke.hairline))
                         .frame(width: 12, height: 12)
                 } else {
@@ -557,7 +557,7 @@ public struct MarginaliaFilterSheet: View {
 
                 if case .color(let hex) = option.kind {
                     Circle()
-                        .fill(Color(hex: hex))
+                        .fill(DipleColor.Highlight.color(forHex: hex))
                         .overlay(Circle().strokeBorder(DipleColor.hairlineStrong, lineWidth: DipleStroke.hairline))
                         .frame(width: 13, height: 13)
                 }

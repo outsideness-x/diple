@@ -24,7 +24,7 @@ public struct QuoteCardView: View {
     }
 
     private var accentColor: Color {
-        Color(hex: quote.colorHex)
+        DipleColor.Highlight.color(forHex: quote.colorHex)
     }
 
     private var formattedDate: String {

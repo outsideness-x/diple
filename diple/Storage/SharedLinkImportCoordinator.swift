@@ -153,7 +153,7 @@ public struct SharedLinkImportBanner: View {
             case .importing(_, let host):
                 banner(icon: "arrow.down.doc", title: "Saving shared link", detail: host) {
                     ProgressView()
-                        .tint(DipleColor.accent)
+                        .tint(DipleColor.accentInk)
                 }
 
             case .saved(let title):
@@ -167,7 +167,7 @@ public struct SharedLinkImportBanner: View {
                         Button("Discard") { coordinator.discard(id: id) }
                             .foregroundStyle(DipleColor.textTertiary)
                         Button("Retry") { coordinator.retry(id: id) }
-                            .foregroundStyle(DipleColor.accent)
+                            .foregroundStyle(DipleColor.accentInk)
                     }
                     .dipleType(.footnote, weight: .semibold)
                 }

@@ -9,13 +9,15 @@ public struct AddBookmarkSheetView: View {
     @State private var bookmarkName: String
     @State private var selectedColorHex: String = "#DF9BE1"
 
+    /// Stored values, not drawn ones: each is kept in `Bookmark.colorHex` as written here and
+    /// drawn through `MarkPigment` like a passage's mark, so the names are the pigments'.
     public static let availableColors: [(name: String, hex: String)] = [
-        ("Lilac", "#DF9BE1"),
-        ("Yellow", "#FFE066"),
-        ("Blue", "#4D96FF"),
-        ("Green", "#6BCB77"),
-        ("Orange", "#FFB03A"),
-        ("Red", "#FF6B6B")
+        ("Lavender", "#DF9BE1"),
+        ("Ochre", "#FFE066"),
+        ("Azure", "#4D96FF"),
+        ("Sage", "#6BCB77"),
+        ("Saffron", "#FFB03A"),
+        ("Cinnabar", "#FF6B6B")
     ]
 
     public init(defaultName: String, onAdd: @escaping (String, String) -> Void) {
@@ -63,7 +65,7 @@ public struct AddBookmarkSheetView: View {
                                     selectedColorHex = colorOption.hex
                                 } label: {
                                     Circle()
-                                        .fill(Color(hex: colorOption.hex))
+                                        .fill(DipleColor.Highlight.color(forHex: colorOption.hex))
                                         .frame(width: 32, height: 32)
                                         .overlay(
                                             Circle()

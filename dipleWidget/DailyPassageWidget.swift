@@ -107,6 +107,8 @@ private struct HomeScreenPassage: View {
     let passage: DailyQuoteSnapshot.Entry
     let family: WidgetFamily
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var quoteSize: CGFloat {
         switch family {
         case .systemSmall: return 13
@@ -126,7 +128,7 @@ private struct HomeScreenPassage: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Capsule()
-                .fill(Color(widgetHex: passage.colorHex))
+                .fill(Color(widgetHex: MarkPigment.hex(forStored: passage.colorHex, on: colorScheme == .dark ? .night : .paper)))
                 .frame(width: 3)
 
             VStack(alignment: .leading, spacing: 8) {

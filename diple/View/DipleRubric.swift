@@ -54,7 +54,7 @@ struct DipleRubric<Option: Hashable>: View {
             .padding(.bottom, DipleSpace.s)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(isSelected ? DipleColor.accent : Color.clear)
+                    .fill(isSelected ? DipleColor.accentInk : Color.clear)
                     .frame(height: DipleStroke.selection)
             }
             .contentShape(Rectangle())

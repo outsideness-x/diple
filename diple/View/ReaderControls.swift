@@ -42,6 +42,23 @@ public struct ReaderChrome: Equatable {
     /// pulling a material towards the page — put a paler one there instead.
     public let page: SwiftUI.Color
 
+    /// The strength a mark is drawn at over this page — the palette in the highlight bar has to
+    /// be the colour the passage will actually turn.
+    public var markGround: MarkPigment.Ground {
+        colorScheme == .dark ? .night : .paper
+    }
+
+    /// The accent as a *mark* over this page: the progress line, a bookmarked page's glyph.
+    ///
+    /// Fixed to the page like everything else here. Over paper and sepia it is the accent's
+    /// ink — Vellum as a 3 pt line on `#FBF8F1` measures 1.3:1 and is simply not there — and
+    /// over a night page it is the accent itself, which is what it was made to be read on.
+    public var mark: SwiftUI.Color {
+        colorScheme == .dark
+            ? DipleAccent.current.color
+            : SwiftUI.Color(hex: DipleAccent.current.inkHex)
+    }
+
     public static func forTheme(_ theme: ReaderPageTheme) -> ReaderChrome {
         switch theme {
         case .carbon:
@@ -139,11 +156,11 @@ public struct ReadingProgressSlider: View {
                     .frame(height: height)
 
                 Capsule()
-                    .fill(DipleColor.accent)
+                    .fill(chrome.mark)
                     .frame(width: filled, height: height)
 
                 Circle()
-                    .fill(DipleColor.accent)
+                    .fill(chrome.mark)
                     .frame(width: Self.handleSize, height: Self.handleSize)
                     .shadow(color: Color.black.opacity(0.5), radius: 4, y: 1)
                     .offset(x: filled - Self.handleSize / 2)

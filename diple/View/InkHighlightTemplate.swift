@@ -30,9 +30,15 @@ enum InkHighlight {
         )
     }
 
-    /// A highlight's colour at the opacity Readium's own template uses, so a mark drawn by this
-    /// template and one drawn before it are the same colour on the page.
-    private static func rgba(_ color: UIColor, alpha: Double = 0.3) -> String {
+    /// A mark's pigment at the strength it lies on the page with.
+    ///
+    /// 0.42, not the 0.3 Readium's own template uses (and diple used until 2026-09-30). The
+    /// system colours the marks used to be were neon, and a third of neon was a clearly visible
+    /// highlighter. The pigments that replaced them (`MarkPigment`) are quieter by design, and at
+    /// 0.3 the sage and the lavender measured barely a shade off the paper: a mark has to be
+    /// seen at a glance, or it has stopped being a mark. The same strength over a night page
+    /// keeps the text on it above 4.4:1, because the box lies over the words, not under them.
+    private static func rgba(_ color: UIColor, alpha: Double = 0.42) -> String {
         var red: CGFloat = 0
         var green: CGFloat = 0
         var blue: CGFloat = 0

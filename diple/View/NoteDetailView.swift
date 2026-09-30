@@ -215,7 +215,7 @@ public struct NoteDetailView: View {
         var color: Color {
             switch self {
             case .saved: return DipleColor.textQuaternary
-            case .saving: return DipleColor.accent
+            case .saving: return DipleColor.accentInk
             case .failed: return DipleColor.destructive
             }
         }
@@ -642,7 +642,7 @@ public struct NoteDetailView: View {
                         // in a stack of connection cards there is no entry to close, so the
                         // stain goes where a margin would put it.
                         Capsule()
-                            .fill(Color(hex: passage.highlight.colorHex))
+                            .fill(DipleColor.Highlight.color(forHex: passage.highlight.colorHex))
                             .frame(width: 3)
 
                         VStack(alignment: .leading, spacing: DipleSpace.xs) {

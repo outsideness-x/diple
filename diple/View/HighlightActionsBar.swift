@@ -251,7 +251,7 @@ public struct HighlightActionsBar: View {
     /// swatches, while a ring reads at a glance against page, sepia and night alike.
     private func swatch(hex: String) -> some View {
         Circle()
-            .fill(DipleColor.Highlight.color(forHex: hex))
+            .fill(DipleColor.Highlight.color(forHex: hex, on: chrome.markGround))
             .frame(width: 26, height: 26)
             .overlay {
                 Circle().stroke(chrome.separator, lineWidth: DipleStroke.hairline)

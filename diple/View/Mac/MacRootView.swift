@@ -180,7 +180,7 @@ public struct MacRootView: View {
         splitView
         .controlSize(.large)
         .background(DipleColor.canvas)
-        .tint(DipleColor.accent)
+        .tint(DipleColor.accentInk)
         // No SwiftUI `toolbar` here at all. Catalyst renders a toolbar group unreliably beside
         // a search field (see CLAUDE.md), and every action it used to hold now has two homes
         // that are always drawn: the column header, and the menu bar.
@@ -1325,7 +1325,7 @@ private struct MacLibraryCollection: View {
                 if isImporting {
                     VStack(spacing: DipleSpace.m) {
                         ProgressView()
-                            .tint(DipleColor.accent)
+                            .tint(DipleColor.accentInk)
                         Text("Importing publication…")
                             .dipleType(.callout, weight: .medium)
                             .foregroundStyle(DipleColor.textSecondary)
@@ -2276,7 +2276,7 @@ private struct MacPassageInspector: View {
     private var quote: some View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Capsule()
-                .fill(Color(hex: colorHex))
+                .fill(DipleColor.Highlight.color(forHex: colorHex))
                 .frame(width: 4)
                 .animation(DipleMotion.snappy, value: colorHex)
 

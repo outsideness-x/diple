@@ -41,7 +41,7 @@ public struct ReviewHero: View {
                         .background(isComplete ? DipleColor.accent : DipleColor.surfaceOverlay, in: Circle())
 
                     Capsule()
-                        .fill(DipleColor.accent)
+                        .fill(DipleColor.accentInk)
                         .frame(width: 28, height: 2)
                 }
             }

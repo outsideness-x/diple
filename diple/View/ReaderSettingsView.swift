@@ -261,7 +261,7 @@ public struct ReaderSettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
-                    .stroke(isSelected ? DipleColor.accent : Color.clear, lineWidth: DipleStroke.selection)
+                    .stroke(isSelected ? DipleColor.accentInk : Color.clear, lineWidth: DipleStroke.selection)
             }
         }
         .buttonStyle(.readerControl)
@@ -318,7 +318,7 @@ public struct ReaderSettingsView: View {
                 .overlay {
                     RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
                         .stroke(
-                            isSelected ? DipleColor.accent : Color.clear,
+                            isSelected ? DipleColor.accentInk : Color.clear,
                             lineWidth: DipleStroke.selection
                         )
                 }

@@ -8,10 +8,7 @@ public struct HighlightRowView: View {
     public let onDelete: () -> Void
 
     private var displayColor: SwiftUI.Color {
-        if let readiumColor = ReadiumNavigator.Color(hex: highlight.colorHex) {
-            return SwiftUI.Color(uiColor: readiumColor.uiColor)
-        }
-        return SwiftUI.Color.yellow
+        DipleColor.Highlight.color(forHex: highlight.colorHex)
     }
 
     private var formattedDate: String {

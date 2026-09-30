@@ -176,7 +176,7 @@ public struct LibraryView: View {
                         DipleColor.canvas.opacity(0.75).ignoresSafeArea()
                         VStack(spacing: DipleSpace.m) {
                             ProgressView()
-                                .tint(DipleColor.accent)
+                                .tint(DipleColor.accentInk)
                             Text("Adding to your library…")
                                 .dipleType(.callout, weight: .medium)
                                 .foregroundStyle(DipleColor.textPrimary)
@@ -444,7 +444,7 @@ public struct LibraryView: View {
                     } label: {
                         Label(destination.title, systemImage: destination.systemImage)
                     }
-                    .tint(destination == .archive ? DipleColor.textTertiary : DipleColor.accent)
+                    .tint(destination == .archive ? DipleColor.textTertiary : DipleColor.accentDeep)
                 }
             }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {

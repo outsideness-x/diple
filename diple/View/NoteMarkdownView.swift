@@ -567,7 +567,7 @@ public struct NoteMarkdownView: View {
         case .quote(let text):
             HStack(alignment: .top, spacing: DipleSpace.m) {
                 Capsule()
-                    .fill(DipleColor.accent.opacity(0.5))
+                    .fill(DipleColor.accentInk.opacity(0.5))
                     .frame(width: 2)
 
                 NoteInlineMathText(text, style: .noteBody)
@@ -599,10 +599,10 @@ public struct NoteMarkdownView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(DipleSpace.m)
-            .background(DipleColor.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: DipleRadius.m))
+            .background(DipleColor.accentInk.opacity(0.08), in: RoundedRectangle(cornerRadius: DipleRadius.m))
             .overlay(alignment: .leading) {
                 RoundedRectangle(cornerRadius: DipleRadius.m)
-                    .fill(DipleColor.accent.opacity(0.55))
+                    .fill(DipleColor.accentInk.opacity(0.55))
                     .frame(width: 2)
             }
 

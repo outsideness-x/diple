@@ -38,7 +38,7 @@ public struct BookItemView: View {
                             .frame(height: 2)
 
                         Capsule()
-                            .fill(DipleColor.accent)
+                            .fill(DipleColor.accentInk)
                             .frame(width: geo.size.width * clampedProgress, height: 2)
                     }
                     .frame(maxHeight: .infinity, alignment: .center)

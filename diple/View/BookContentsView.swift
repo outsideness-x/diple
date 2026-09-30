@@ -163,7 +163,7 @@ private struct ContentsRowView: View {
             .overlay(alignment: .leading) {
                 if isCurrent {
                     Capsule(style: .continuous)
-                        .fill(DipleColor.accent)
+                        .fill(DipleColor.accentInk)
                         .frame(width: 3)
                         .padding(.vertical, DipleSpace.s)
                 }
@@ -227,7 +227,7 @@ private struct ContentsRowView: View {
         HStack(spacing: 3) {
             ForEach(colours.prefix(3), id: \.self) { hex in
                 Circle()
-                    .fill(Color(hex: hex))
+                    .fill(DipleColor.Highlight.color(forHex: hex))
                     .frame(width: 4, height: 4)
             }
         }
@@ -245,7 +245,7 @@ private struct ContentsRowView: View {
                     Capsule(style: .continuous)
                         .fill(DipleColor.hairlineStrong)
                     Capsule(style: .continuous)
-                        .fill(DipleColor.accent)
+                        .fill(DipleColor.accentInk)
                         .frame(width: max(2, geo.size.width * progression))
                 }
             }

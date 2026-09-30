@@ -211,7 +211,7 @@ public struct SourceOverviewView: View {
                 }
                 if viewModel.book.progress > 0.001 {
                     ProgressView(value: min(max(viewModel.book.progress, 0), 1))
-                        .tint(DipleColor.accent)
+                        .tint(DipleColor.accentInk)
                 }
                 // The whole length rather than what is left: this screen is about what the
                 // source *is*, and the reader's position through it is one line above.

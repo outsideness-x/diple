@@ -147,6 +147,12 @@ public enum DipleColor {
 
     /// Accent as **text**. The only accent token allowed in a `foregroundStyle`.
     ///
+    /// **And as every mark thin enough to be read as ink** (2026-09-30): progress rules, the
+    /// ring of a chosen option, the rubric's underline, the tint of switches, spinners and
+    /// menus. On the light canvas Vellum measures 1.34:1 — as a hairline it is simply not there,
+    /// and a switch tinted with it looks switched off. Fills stay `accent`, because what makes a
+    /// filled capsule legible is the dark `textOnAccent` printed on it, not the fill's edge.
+    ///
     /// `accent` is a fill colour: it is read through `textOnAccent`, which is dark ink, and it
     /// is chosen to be light enough for that to work. Printing it *as* ink on the light canvas
     /// inverts the arrangement and drops every accent below 3:1 — see `DipleAccent.inkHex`. So
@@ -161,6 +167,10 @@ public enum DipleColor {
             dark: UIColor(DipleAccent.current.color)
         )
     }
+
+    /// The accent's ink in **both** appearances, for the one kind of fill the system prints
+    /// white on — a swipe action. White type on Vellum measures 1.4:1; on its ink, 6:1.
+    public static var accentDeep: Color { Color(hex: DipleAccent.current.inkHex) }
 
     // MARK: - Status
 
@@ -179,6 +189,8 @@ public enum DipleColor {
 
     /// The colours a reader can mark a passage with. Hex is the stored value — `Highlight`
     /// persists `colorHex`, so these must stay in sync with what is already in the database.
+    /// It is the *identity* of a mark, not what is drawn: every surface draws it through
+    /// `MarkPigment` (`color(forHex:)`), so these bytes never reach the screen as themselves.
     public enum Highlight {
         public static let lilac = "#DF9BE1"
         public static let yellow = "#FFD60A"
@@ -194,11 +206,11 @@ public enum DipleColor {
         /// the whole of it.
         ///
         /// Nothing anywhere matches a stored colour against the palette, which is what makes
-        /// that split safe. The reader (`ReadiumNavigator.Color(hex:)`), the quote list and
-        /// the hub (`Color(hex:)`) and the portable export (the raw string) all resolve
-        /// `Highlight.colorHex` as six bytes with no notion of membership, and there is
-        /// deliberately no `switch` over the palette in the app — one would need a case for
-        /// every colour ever retired, and would trap on the first old row it met.
+        /// that split safe. The reader, the lists and the widget draw `Highlight.colorHex`
+        /// through `MarkPigment`, a lookup that passes any value it does not know straight
+        /// through, and the portable export writes the raw string. There is deliberately no
+        /// `switch` over the palette in the app — one would need a case for every colour ever
+        /// retired, and would trap on the first old row it met. Blue draws as azure.
         public static let blue = "#64D2FF"
 
         /// What a passage may be marked *with*, in bar order.
@@ -206,14 +218,32 @@ public enum DipleColor {
         /// Four, not five. The bar has to carry the palette, translate, note, copy and delete
         /// in a single row at 375 pt with 44 pt hit targets, and that budget is 8 controls
         /// wide; blue was also the swatch that read closest to the accent it sat beside.
+        ///
+        /// Named for the pigment each one draws as (`MarkPigment`), not for the system colour
+        /// its stored hex happens to be: the reader sees ochre, and a label saying "Yellow"
+        /// under an ochre swatch describes a colour that is not on the screen.
         public static let selectable: [(name: String, hex: String)] = [
-            ("Lilac", lilac),
-            ("Yellow", yellow),
-            ("Green", green),
-            ("Pink", pink)
+            ("Lavender", lilac),
+            ("Ochre", yellow),
+            ("Sage", green),
+            ("Rose", pink)
         ]
 
-        public static func color(forHex hex: String) -> Color { Color(hex: hex) }
+        /// A stored mark colour as the interface draws it: the pigment at paper strength in the
+        /// light appearance and at night strength in the dark one. See `MarkPigment` for why
+        /// the stored value and the drawn one are no longer the same bytes.
+        public static func color(forHex hex: String) -> Color {
+            adaptive(
+                light: UIColor(Color(hex: MarkPigment.hex(forStored: hex, on: .paper))),
+                dark: UIColor(Color(hex: MarkPigment.hex(forStored: hex, on: .night)))
+            )
+        }
+
+        /// The same colour on a ground the caller already knows — a reader page, a share card —
+        /// whose tone is its own choice rather than the interface's appearance.
+        public static func color(forHex hex: String, on ground: MarkPigment.Ground) -> Color {
+            Color(hex: MarkPigment.hex(forStored: hex, on: ground))
+        }
     }
 
     // MARK: - Reader page themes

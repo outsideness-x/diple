@@ -172,6 +172,15 @@ public enum ReaderPageTheme: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    /// Which strength a mark is drawn at on this page (`MarkPigment`). The night pages take the
+    /// lighter one, because the paper strength sinks into a dark ground.
+    public var markGround: MarkPigment.Ground {
+        switch self {
+        case .paper, .sepia: return .paper
+        case .carbon, .ink: return .night
+        }
+    }
+
     /// The page's own ground and ink, to the byte. `DipleColor.Page` in `Theme/DipleColor.swift`
     /// is the one place these bytes are written down; this reads them rather than repeating
     /// them, which is what the "must stay byte-exact" comment there is guarding against.

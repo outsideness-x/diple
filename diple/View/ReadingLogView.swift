@@ -87,7 +87,7 @@ struct ReadingLogView: View {
                         RoundedRectangle(cornerRadius: 1, style: .continuous)
                             // The accent, filling to a measured share — the one role the budget
                             // allows it here, the same one the progress line spends it on.
-                            .fill(share > 0 ? DipleColor.accent : DipleColor.separator)
+                            .fill(share > 0 ? DipleColor.accentInk : DipleColor.separator)
                             .frame(height: max(2, 44 * share))
                     }
                 }

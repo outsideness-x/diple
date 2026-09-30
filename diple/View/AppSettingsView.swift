@@ -137,7 +137,7 @@ public struct AppSettingsView: View {
                             .background(DipleColor.surfaceRaised)
 
                             HStack(spacing: DipleSpace.xl) {
-                                ForEach(DipleAccent.allCases, id: \.rawValue) { accent in
+                                ForEach(DipleAccent.pickerChoices(current: settingsManager.settings.accent), id: \.rawValue) { accent in
                                     AccentSwatchButton(
                                         accent: accent,
                                         isSelected: settingsManager.settings.accent == accent
@@ -184,7 +184,7 @@ public struct AppSettingsView: View {
                                         }
                                     }
                                 ))
-                                .tint(DipleColor.accent)
+                                .tint(DipleColor.accentInk)
                             }
                             .padding(.horizontal, DipleSpace.l)
                             .padding(.vertical, DipleSpace.m)
@@ -241,7 +241,7 @@ public struct AppSettingsView: View {
                                             HapticManager.shared.selection()
                                         }
                                     ))
-                                    .tint(DipleColor.accent)
+                                    .tint(DipleColor.accentInk)
                                 }
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
@@ -277,7 +277,7 @@ public struct AppSettingsView: View {
                                         HapticManager.shared.selection()
                                     }
                                 ))
-                                .tint(DipleColor.accent)
+                                .tint(DipleColor.accentInk)
                             }
                             .padding(.horizontal, DipleSpace.l)
                             .padding(.vertical, DipleSpace.m)
@@ -300,7 +300,7 @@ public struct AppSettingsView: View {
                                         HapticManager.shared.selection()
                                     }
                                 ))
-                                .tint(DipleColor.accent)
+                                .tint(DipleColor.accentInk)
                             }
                             .padding(.horizontal, DipleSpace.l)
                             .padding(.vertical, DipleSpace.m)
@@ -342,7 +342,7 @@ public struct AppSettingsView: View {
                                         }
                                     }
                                 ))
-                                .tint(DipleColor.accent)
+                                .tint(DipleColor.accentInk)
                             }
                             .padding(.horizontal, DipleSpace.l)
                             .padding(.vertical, DipleSpace.m)
@@ -365,7 +365,7 @@ public struct AppSettingsView: View {
                                         displayedComponents: .hourAndMinute
                                     )
                                     .labelsHidden()
-                                    .tint(DipleColor.accent)
+                                    .tint(DipleColor.accentInk)
                                 }
                                 .padding(.horizontal, DipleSpace.l)
                                 .padding(.vertical, DipleSpace.m)
@@ -409,7 +409,7 @@ public struct AppSettingsView: View {
                                         }
                                     }
                                 ))
-                                .tint(DipleColor.accent)
+                                .tint(DipleColor.accentInk)
                             }
                             .padding(.horizontal, DipleSpace.l)
                             .padding(.vertical, DipleSpace.m)
@@ -648,7 +648,7 @@ public struct AppSettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 if showsProgress {
-                    ProgressView().tint(DipleColor.accent)
+                    ProgressView().tint(DipleColor.accentInk)
                 } else {
                     Image(systemName: "chevron.right")
                         .dipleIcon(11, weight: .semibold)
@@ -668,7 +668,7 @@ public struct AppSettingsView: View {
             Group {
                 if snapshot.phase == .checking || snapshot.phase == .syncing {
                     ProgressView()
-                        .tint(DipleColor.accent)
+                        .tint(DipleColor.accentInk)
                 } else {
                     Image(systemName: syncStatusIcon(snapshot.phase))
                         .dipleIcon(14, weight: .semibold)

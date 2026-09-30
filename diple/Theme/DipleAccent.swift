@@ -39,6 +39,20 @@ public enum DipleAccent: String, CaseIterable, Codable, Sendable, Hashable {
     case mint
     case clay
 
+    /// What Settings offers, since 2026-09-30: the house colour and one deep ink.
+    ///
+    /// A publisher has one colour, and five swatches with five icons read as personalisation
+    /// rather than as a house style. Lilac, mint and clay are **retired, not removed**: their
+    /// raw values must keep decoding (an unknown value fails `AppSettings` wholesale), and a
+    /// reader who chose one keeps it — `pickerChoices` still shows it while it is in force.
+    public static let offered: [DipleAccent] = [.vellum, .ink]
+
+    /// The swatches Settings draws: the offered two, plus the current colour when it is one of
+    /// the retired three, so the ring always has something to stand on.
+    public static func pickerChoices(current: DipleAccent) -> [DipleAccent] {
+        offered.contains(current) ? offered : offered + [current]
+    }
+
     /// What the picker shows. Kept apart from `rawValue` for the same reason as `ReaderFont`:
     /// the label can change without invalidating what is already stored on readers' devices.
     public var title: String {
