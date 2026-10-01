@@ -108,10 +108,19 @@ public struct DipleTextStyle: Sendable {
     public static let footnote = DipleTextStyle(size: 13, weight: .medium, metrics: .footnote, trackingRatio: 0.005)
     /// 12 — authors, secondary metadata.
     public static let caption = DipleTextStyle(size: 12, weight: .regular, metrics: .caption, trackingRatio: 0.01)
-    /// 11 — chips, counters, dates.
-    public static let micro = DipleTextStyle(size: 11, weight: .medium, metrics: .caption2, trackingRatio: 0.02)
-    /// 10 — the smallest readable label: percentages, timestamps on a card.
-    public static let nano = DipleTextStyle(size: 10, weight: .semibold, metrics: .caption2, trackingRatio: 0.03)
+    /// 12 — chips, counters, dates.
+    ///
+    /// **12, not 11 (2026-09-30), and so is `nano`.** Nothing that is a line of text is set below
+    /// 12 any more. The app's metadata ran at 10 and 11 — a shelf's datelines, a chip's count, a
+    /// card's timestamp — and fine print at that size reads as small print rather than as care:
+    /// next to Matter and Reader, whose second lines sit around 13, it was the single most visible
+    /// reason the app looked cramped rather than calm. The three small roles now share one size
+    /// and differ by weight — `caption` regular, `micro` medium, `nano` semibold — which is how
+    /// a printed page sets its small type: one size, three weights. Only `tag`, a superscript
+    /// count set against a glyph, stays smaller.
+    public static let micro = DipleTextStyle(size: 12, weight: .medium, metrics: .caption2, trackingRatio: 0.015)
+    /// 12 — the smallest label: percentages, timestamps on a card. See `micro` for the floor.
+    public static let nano = DipleTextStyle(size: 12, weight: .semibold, metrics: .caption2, trackingRatio: 0.02)
     /// 9 — glyph-adjacent labels inside a chip. Never on its own line.
     public static let tag = DipleTextStyle(size: 9, weight: .semibold, metrics: .caption2, trackingRatio: 0.03)
 
@@ -133,8 +142,22 @@ public struct DipleTextStyle: Sendable {
 
     // MARK: - Editorial roles (Literata)
     //
-    // The complete list. A fifth one is a decision, not a convenience — see the note on
+    // The complete list. A new one is a decision, not a convenience — see the note on
     // `DipleFontFamily` above about why this stays enumerated.
+    //
+    // **The list is now a rule (2026-09-30): the work's words are Literata, the interface's are
+    // San Francisco.** A title of a work — on the shelf, under a cover, at the head of a source,
+    // down a book's own contents — and a place's name at the head of its page are set in the
+    // editorial face; labels, controls and metadata stay in the system one. Before this, the
+    // same kind of thing was set in two faces on one screen: "Frankenstein" in Literata as the
+    // front page's lead and "Dracula" in San Francisco one line below it, "diple." in Literata
+    // and "Library" in SF Bold in the same masthead slot one tab over. A publication sets every
+    // title the same way; that is most of what makes it read as one.
+    //
+    // Hangul still falls back per glyph (see `DipleFontFamily`), and a Korean title now comes
+    // out entirely in the system face. That is a whole title in one face, the case this list
+    // always allowed; the one it forbids — a mixed line down a column of interface labels —
+    // still cannot occur, because labels are not on it.
     //
     // **The sizes here are not the sizes they replace, and the reason is set width rather than
     // taste.** Measured with CoreText at 26 pt on "Artificial Rosetta Stone": SF semibold sets
@@ -184,6 +207,46 @@ public struct DipleTextStyle: Sendable {
         size: 20, weight: .medium, family: .editorial,
         metrics: .title3, trackingRatio: -0.01
     )
+
+    /// 34 — a place's name at the head of its page: Library, Highlights.
+    ///
+    /// The wordmark's size and weight, because the two stand in the same slot one tab apart and
+    /// the reader should see one masthead with different words in it — not diple's name in a
+    /// publisher's face and the shelf's name in the system's bold, which is what they were.
+    public static let masthead = DipleTextStyle(
+        size: 34, weight: .regular, family: .editorial,
+        metrics: .largeTitle, trackingRatio: -0.02
+    )
+
+    /// 17 — the title of a work as an entry: a row on the shelf, a card under a cover, a hit
+    /// in search. Medium rather than semibold: Literata's medium already carries the weight a
+    /// title needs, and its semibold beside 12 pt metadata read as shouting.
+    ///
+    /// 17, two points over the 15 it replaces, on purpose: the row's title is the thing the row
+    /// is for, and at 15 beside a cover it read as a caption to the picture.
+    public static let editorialItem = DipleTextStyle(
+        size: 17, weight: .medium, family: .editorial,
+        metrics: .headline, trackingRatio: -0.01
+    )
+
+    /// 15 — a few lines of a work quoted inside a list: a search hit inside a book, a passage
+    /// standing under the title it came from. A step below `editorialQuote`, because here the
+    /// excerpt is evidence for an entry rather than the thing the screen is about.
+    public static let editorialExcerpt = DipleTextStyle(
+        size: 15, weight: .regular, family: .editorial,
+        metrics: .subheadline, trackingRatio: 0
+    )
+
+    /// 16 / 15 / 14 — a book's own contents, by depth: a part, a chapter in it, anything deeper.
+    /// The divisions of a work are named in the work's words, so the list that names them is set
+    /// like the contents page it stands in for rather than like a settings list.
+    public static func editorialContents(depth: Int) -> DipleTextStyle {
+        DipleTextStyle(
+            size: depth <= 0 ? 16 : (depth == 1 ? 15 : 14),
+            weight: .regular, family: .editorial,
+            metrics: .body, trackingRatio: 0
+        )
+    }
 
     // MARK: - Note roles (system sans)
     //
@@ -341,7 +404,8 @@ private struct DipleTypeSpecimen: View {
     ]
     private let editorial: [(String, DipleTextStyle)] = [
         ("wordmark", .wordmark), ("editorialLead", .editorialLead),
-        ("editorialQuote", .editorialQuote), ("editorialTitle", .editorialTitle)
+        ("editorialQuote", .editorialQuote), ("editorialTitle", .editorialTitle),
+        ("masthead", .masthead), ("editorialItem", .editorialItem)
     ]
 
     var body: some View {

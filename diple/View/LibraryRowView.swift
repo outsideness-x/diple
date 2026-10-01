@@ -92,13 +92,13 @@ public struct LibraryRowView: View {
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(book.title)
-                    .dipleType(.body, weight: .semibold)
+                    .dipleType(.editorialItem)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 Text(dateline)
-                    .dipleType(.nano, weight: .medium)
+                    .dipleType(.caption)
                     .foregroundStyle(DipleColor.textTertiary)
                     // Tabular figures, so durations line up down a column instead of shifting
                     // by a digit's width from one row to the next.

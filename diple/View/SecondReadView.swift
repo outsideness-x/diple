@@ -186,11 +186,11 @@ public struct SecondReadView: View {
 
     private var headerIdentity: some View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
-            Text("SECOND READ")
+            Text("Second Read")
                 .dipleType(.nano, weight: .semibold)
                 .foregroundStyle(palette.tertiaryInk)
             Text(model.book.title)
-                .dipleType(.readingTitle)
+                .dipleType(.editorialLead)
                 .foregroundStyle(palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
             if let author = model.book.author,
@@ -208,7 +208,7 @@ public struct SecondReadView: View {
 
     private func chapterMarker(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text("CHAPTER")
+            Text("Chapter")
                 .dipleType(.nano, weight: .semibold)
                 .foregroundStyle(palette.tertiaryInk)
             Text(title)
@@ -360,7 +360,7 @@ private struct SecondReadItemView: View {
 
     private func personalNote(_ note: String) -> some View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
-            Text("YOUR NOTE")
+            Text("Your note")
                 .dipleType(.nano, weight: .semibold)
                 .foregroundStyle(palette.tertiaryInk)
             Text(note)

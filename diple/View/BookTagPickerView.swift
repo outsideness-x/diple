@@ -86,7 +86,7 @@ public struct BookTagPickerView: View {
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(book.title)
-                    .dipleType(.callout, weight: .medium)
+                    .dipleType(.editorialItem)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)

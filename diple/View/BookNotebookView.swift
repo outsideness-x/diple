@@ -96,7 +96,7 @@ struct BookNotebookView: View {
     /// is everywhere else in the app; the count under it is what the list below is about to say.
     private var header: some View {
         VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text("NOTES ON")
+            Text("Notes on")
                 .dipleType(.nano)
                 .foregroundStyle(DipleColor.accentInk)
             Text(book.title)

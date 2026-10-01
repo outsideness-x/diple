@@ -155,7 +155,7 @@ public struct DailyResurfacingCard: View {
                     .padding(.bottom, DipleSpace.xs)
 
                 HStack(spacing: DipleSpace.xs) {
-                    Text("ELSEWHERE")
+                    Text("Elsewhere")
                         .dipleType(.nano, weight: .semibold)
                         .foregroundStyle(DipleColor.textQuaternary)
                     Text(echo.sharedTerms.joined(separator: " · "))

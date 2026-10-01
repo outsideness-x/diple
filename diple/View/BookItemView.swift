@@ -21,7 +21,7 @@ public struct BookItemView: View {
 
             // Title (1-2 lines, more once the type is large enough that two would cut it)
             Text(book.title)
-                .dipleType(.callout, weight: .semibold)
+                .dipleType(.editorialItem)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
                 .multilineTextAlignment(.leading)

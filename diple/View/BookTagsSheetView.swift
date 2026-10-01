@@ -34,7 +34,7 @@ public struct BookTagsSheetView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: DipleSpace.xl) {
                         Text(book.title)
-                            .dipleType(.headline)
+                            .dipleType(.editorialItem)
                             .foregroundStyle(DipleColor.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
 

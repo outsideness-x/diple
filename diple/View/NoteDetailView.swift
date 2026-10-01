@@ -588,7 +588,7 @@ public struct NoteDetailView: View {
 
             VStack(alignment: .leading, spacing: DipleSpace.l) {
                 VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                    Text("CONNECTIONS")
+                    Text("Connections")
                         .dipleType(.nano)
                         .foregroundStyle(DipleColor.accentInk)
                     Text("Part of a larger thought")

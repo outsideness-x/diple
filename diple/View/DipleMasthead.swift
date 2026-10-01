@@ -21,8 +21,10 @@ public struct DipleMasthead<Trailing: View>: View {
     /// The line under the name: the date on Home, a count elsewhere. `nil` prints nothing and
     /// reserves no height — an empty `Text` is not nothing, it is a blank line.
     let strapline: String?
-    /// Whether this is the wordmark. Only Home passes `true`, and it is what selects the
-    /// editorial face; every other place is a label, not a masthead.
+    /// Whether this is the wordmark. Only Home passes `true`. Since 2026-09-30 every place's
+    /// name is set in the editorial face at the wordmark's size (`DipleTextStyle.masthead`) —
+    /// one masthead with different words in it — so the flag now only says which words are the
+    /// publication's name.
     let isWordmark: Bool
     @ViewBuilder let trailing: () -> Trailing
 
@@ -42,7 +44,7 @@ public struct DipleMasthead<Trailing: View>: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(title)
-                    .dipleType(isWordmark ? .wordmark : .hero)
+                    .dipleType(isWordmark ? .wordmark : .masthead)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)

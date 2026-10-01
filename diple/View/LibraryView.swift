@@ -736,7 +736,7 @@ public struct LibraryView: View {
 
     private var shelfHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            sectionHeading(isDefaultBrowse ? location.title.uppercased() : "RESULTS")
+            sectionHeading(isDefaultBrowse ? location.title : "Results")
 
             Spacer()
 
@@ -806,8 +806,7 @@ public struct LibraryView: View {
 
     private func sectionHeading(_ title: String) -> some View {
         Text(title)
-            .dipleType(.micro, weight: .semibold)
-            .foregroundStyle(DipleColor.textTertiary)
+            .dipleSectionHeading()
     }
 
     @ViewBuilder

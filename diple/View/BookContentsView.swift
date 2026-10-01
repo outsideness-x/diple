@@ -178,20 +178,20 @@ private struct ContentsRowView: View {
     private var indent: CGFloat { CGFloat(min(chapter.depth, 3)) * step }
 
     /// Depth as type, so the shape of the book is legible without reading a single title: a part
-    /// is set at the interface's own body size, a section under it a step down and a step
-    /// lighter. Below the third level everything is one voice — a book that nests deeper than
-    /// that is not saying anything more with the extra level.
+    /// is set largest, a section under it a step down. Below the third level everything is one
+    /// voice — a book that nests deeper than that is not saying anything more with the extra
+    /// level.
+    ///
+    /// In the book's face, Literata, since 2026-09-30: these are the work's own words for its
+    /// divisions, and the list is the contents page, not a settings list (see `editorialContents`).
     private var style: DipleTextStyle {
-        switch chapter.depth {
-        case 0: return .body
-        case 1: return .callout
-        default: return .footnote
-        }
+        .editorialContents(depth: chapter.depth)
     }
 
+    /// Regular throughout and medium for the chapter being read. Literata's semibold down a
+    /// column of titles read as a list of headings, which a contents page is not.
     private var weight: Font.Weight {
-        if isCurrent { return .semibold }
-        return chapter.depth == 0 ? .medium : .regular
+        isCurrent ? .medium : .regular
     }
 
     private var ink: Color {
@@ -203,13 +203,13 @@ private struct ContentsRowView: View {
         }
     }
 
-    /// The right-hand column: `READING` on the chapter being read, and where a chapter begins on
+    /// The right-hand column: `Reading` on the chapter being read, and where a chapter begins on
     /// every other one — the nearest thing an EPUB has to a page number, in the unit the reader
     /// already sees at the bottom of the page.
     @ViewBuilder
     private var trailing: some View {
         if isCurrent {
-            Text("READING")
+            Text("Reading")
                 .dipleType(.nano, weight: .semibold)
                 .foregroundStyle(DipleColor.accentInk)
         } else if isMeasured {

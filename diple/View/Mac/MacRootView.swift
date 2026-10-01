@@ -866,9 +866,9 @@ struct MacColumnHeader<Actions: View>: View {
     private var titleBlock: some View {
         HStack(alignment: .firstTextBaseline, spacing: DipleSpace.s) {
             Text(title)
-                // A bare screen title standing alone at the top of its column, sharing the
-                // line with nothing but its own count. That is what `hero` is for.
-                .dipleType(.hero)
+                // A place's name at the head of its column, set like the phone's mastheads:
+                // the editorial face at the wordmark's size (`masthead`).
+                .dipleType(.masthead)
                 .foregroundStyle(DipleColor.textPrimary)
                 .lineLimit(1)
                 .fixedSize()
@@ -1410,7 +1410,7 @@ private struct MacBookTile: View {
                 }
 
                 Text(book.title)
-                    .dipleType(.footnote, weight: .semibold)
+                    .dipleType(.editorialItem)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -1489,7 +1489,7 @@ private struct MacContinueReadingCard: View {
                         .dipleType(.nano)
                         .foregroundStyle(DipleColor.accentInk)
                     Text(book.title)
-                        .dipleType(.headline)
+                        .dipleType(.editorialItem)
                         .foregroundStyle(DipleColor.textPrimary)
                         .lineLimit(2)
                     Text(book.subtitle)
@@ -2079,7 +2079,7 @@ private struct MacBookInspector: View {
 
                 VStack(alignment: .leading, spacing: DipleSpace.s) {
                     Text(book.title)
-                        .dipleType(.readingTitle)
+                        .dipleType(.editorialLead)
                         .foregroundStyle(DipleColor.textPrimary)
                         .textSelection(.enabled)
                     Text(book.subtitle)

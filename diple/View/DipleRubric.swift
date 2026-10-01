@@ -65,3 +65,19 @@ struct DipleRubric<Option: Hashable>: View {
         .accessibilityIdentifier(identifier(option))
     }
 }
+
+public extension View {
+    /// A section's heading on a page of content — "Recently opened", "Highlights", a month.
+    ///
+    /// Sentence case at 14 semibold, not tracked capitals at 11 (2026-09-30). Spaced-out caps
+    /// down a page of books read as the labels of a form; a reading app's pages are not forms.
+    /// Capitals stay where the page *is* a form — Settings, the editors' field labels, review
+    /// sheets — and a heading here is a phrase, so it is set as one.
+    ///
+    /// Callers pass the words in sentence case; nothing here changes the case of what it is
+    /// given, so a title with a proper noun in it keeps its capital.
+    func dipleSectionHeading() -> some View {
+        dipleType(.callout, weight: .semibold)
+            .foregroundStyle(DipleColor.textTertiary)
+    }
+}

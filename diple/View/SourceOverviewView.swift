@@ -75,7 +75,7 @@ public struct SourceOverviewView: View {
                         actions
 
                         if !viewModel.highlights.isEmpty {
-                            section("HIGHLIGHTS", count: viewModel.highlights.count) {
+                            section("Highlights", count: viewModel.highlights.count) {
                                 ForEach(viewModel.highlights.prefix(3)) { highlight in
                                     QuoteCardView(
                                         quote: highlight,
@@ -95,7 +95,7 @@ public struct SourceOverviewView: View {
                         }
 
                         if !viewModel.notes.isEmpty {
-                            section("NOTES", count: viewModel.notes.count) {
+                            section("Notes", count: viewModel.notes.count) {
                                 ForEach(viewModel.notes.prefix(3)) { item in
                                     NavigationLink(value: NoteRoute.existing(item)) {
                                         SourceNoteRow(item: item)
@@ -196,7 +196,7 @@ public struct SourceOverviewView: View {
                     .dipleType(.nano, weight: .semibold)
                     .foregroundStyle(DipleColor.accentInk)
                 Text(viewModel.book.title)
-                    .dipleType(.title)
+                    .dipleType(.editorialLead)
                     .foregroundStyle(DipleColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 BookSubtitleView(book: viewModel.book)
@@ -262,8 +262,7 @@ public struct SourceOverviewView: View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
             HStack {
                 Text(title)
-                    .dipleType(.micro, weight: .semibold)
-                    .foregroundStyle(DipleColor.textTertiary)
+                    .dipleSectionHeading()
                 Spacer()
                 Text("\(count)")
                     .dipleType(.micro)

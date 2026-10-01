@@ -173,9 +173,9 @@ public struct FinishedColophonView: View {
               let month = components.month,
               let year = components.year,
               months.indices.contains(month - 1)
-        else { return "FINISHED" }
+        else { return "Finished" }
 
-        return "FINISHED · \(day) \(months[month - 1].uppercased()) \(year)"
+        return "Finished \(day) \(months[month - 1]) \(year)"
     }
 }
 

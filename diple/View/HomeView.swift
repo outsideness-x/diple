@@ -80,7 +80,7 @@ public struct HomeView: View {
                         }
 
                         if !recentlyOpened.isEmpty {
-                            section("RECENTLY OPENED") {
+                            section("Recently opened") {
                                 VStack(spacing: 0) {
                                     ForEach(recentlyOpened) { book in
                                         NavigationLink(value: book) {
@@ -198,8 +198,7 @@ public struct HomeView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
             Text(title)
-                .dipleType(.micro, weight: .semibold)
-                .foregroundStyle(DipleColor.textTertiary)
+                .dipleSectionHeading()
             content()
         }
     }

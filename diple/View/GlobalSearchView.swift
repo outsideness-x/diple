@@ -166,9 +166,8 @@ public struct GlobalSearchView: View {
                             // heading repeating it is a label for a group of one group.
                             if scope == nil {
                                 HStack(alignment: .firstTextBaseline) {
-                                    Text(kind.title.uppercased())
-                                        .dipleType(.micro, weight: .semibold)
-                                        .foregroundStyle(DipleColor.textTertiary)
+                                    Text(kind.title)
+                                        .dipleSectionHeading()
 
                                     Spacer()
 
@@ -310,6 +309,16 @@ private struct GlobalSearchResultRow: View {
         return result.kind == .note ? NoteMarkdown.plainText(text) : text
     }
 
+    /// The line under the title: a byline for a source, the reader's own words for a note, and
+    /// for a passage or a match inside a book the work's own words — set in its face.
+    private var detailStyle: DipleTextStyle {
+        switch result.kind {
+        case .book, .article: return .caption
+        case .note: return .readingCaption
+        case .highlight, .bookContent: return .editorialExcerpt
+        }
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Image(systemName: result.kind.systemImage)
@@ -318,15 +327,18 @@ private struct GlobalSearchResultRow: View {
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                // A note's title is what the reader wrote, so it stays in the interface face;
+                // every other hit is titled by a work, and a work's title is set in Literata.
                 Text(result.title)
-                    .dipleType(.body, weight: .semibold)
+                    .dipleType(result.kind == .note ? .body : .editorialItem,
+                               weight: result.kind == .note ? .semibold : nil)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 if !detail.isEmpty {
                     Text(detail)
-                        .dipleType(result.kind == .book ? .caption : .readingCaption)
+                        .dipleType(detailStyle)
                         .readingLineSpacing(for: detail)
                         .foregroundStyle(DipleColor.textSecondary)
                         .lineLimit(3)

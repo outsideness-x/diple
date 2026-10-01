@@ -76,9 +76,11 @@ public struct BookSearchSheetView: View {
                 ForEach(viewModel.groupedResults) { group in
                     VStack(alignment: .leading, spacing: DipleSpace.s) {
                         HStack(alignment: .firstTextBaseline) {
-                            Text(group.title.uppercased())
-                                .dipleType(.micro, weight: .semibold)
-                                .foregroundStyle(DipleColor.textTertiary)
+                            // A chapter's own title, so it is set in the book's face like the
+                            // contents list, not shouted in tracked capitals.
+                            Text(group.title)
+                                .dipleType(.editorialContents(depth: 0), weight: .medium)
+                                .foregroundStyle(DipleColor.textSecondary)
                                 .lineLimit(1)
 
                             Spacer()

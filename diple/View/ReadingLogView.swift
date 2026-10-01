@@ -77,7 +77,7 @@ struct ReadingLogView: View {
     @ViewBuilder
     private var hours: some View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
-            sectionHeading("WHEN YOU READ")
+            sectionHeading("When you read")
 
             let peak = log.hoursOfDay.max() ?? 0
             if peak > 0 {
@@ -141,7 +141,7 @@ struct ReadingLogView: View {
         VStack(alignment: .leading, spacing: DipleSpace.xxl) {
             ForEach(log.months) { month in
                 VStack(alignment: .leading, spacing: DipleSpace.m) {
-                    sectionHeading(monthTitle(month.date).uppercased())
+                    sectionHeading(monthTitle(month.date))
 
                     Text(monthLine(month))
                         .dipleType(.caption)
@@ -232,9 +232,7 @@ struct ReadingLogView: View {
 
     private func sectionHeading(_ title: String) -> some View {
         Text(title)
-            .dipleType(.nano, weight: .semibold)
-            .tracking(1.2)
-            .foregroundStyle(DipleColor.textQuaternary)
+            .dipleSectionHeading()
     }
 
     /// The log begins the day it begins: nothing before it was recorded, and inventing a
