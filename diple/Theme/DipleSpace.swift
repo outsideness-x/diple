@@ -37,7 +37,8 @@ public enum DipleSpace {
 public enum DipleRadius {
     /// 4 — progress tracks, tiny indicators.
     public static let xs: CGFloat = 4
-    /// 8 — book covers, thumbnails, inline controls.
+    /// 8 — thumbnails, inline controls. Not book covers: a cover takes a book's own, almost square
+    /// corner (`BookCoverView.cornerRadius(forWidth:)`).
     public static let s: CGFloat = 8
     /// 12 — cards and rows.
     public static let m: CGFloat = 12

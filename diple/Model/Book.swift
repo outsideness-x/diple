@@ -168,6 +168,21 @@ public struct Book: Codable, FetchableRecord, PersistableRecord, Identifiable, E
         return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
 
+    /// The name of the place the saved position stands in — "Chapter X", «Глава вторая.
+    /// Чернила» — read from the locator the reader last saved, or `nil` when the publication
+    /// named nothing there.
+    ///
+    /// Parsed with Foundation rather than through Readium's `Locator`: the front page reads one
+    /// string out of it, and the model does not need the navigator's types for that.
+    public var placeTitle: String? {
+        guard let data = locator?.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let title = (object["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty
+        else { return nil }
+        return title
+    }
+
     /// The single line of metadata printed under a title in the library and the hub.
     ///
     /// For an article the site is part of the identity — two saved links with similar
