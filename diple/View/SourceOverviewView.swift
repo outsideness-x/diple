@@ -56,15 +56,6 @@ public struct SourceOverviewView: View {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
 
-                // The source's own page, coloured by its own cover (`CoverWash`).
-                CoverWash(
-                    tone: CoverTone.tone(
-                        coverPath: viewModel.book.coverPath,
-                        title: viewModel.book.title
-                    ),
-                    reach: 0.45
-                )
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: DipleSpace.xxl) {
                         identity

@@ -53,13 +53,6 @@ public struct HomeView: View {
         )
     }
 
-    /// The colour of the lead's cover, measured once per cover (`CoverTone`).
-    private var leadTone: CoverTone.Tone? {
-        library.continueReadingBook.flatMap {
-            CoverTone.tone(coverPath: $0.coverPath, title: $0.title)
-        }
-    }
-
     private var dayTitle: String {
         Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
@@ -68,9 +61,6 @@ public struct HomeView: View {
         NavigationStack(path: $path) {
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
-
-                // The book being read lends the top of the front page its colour (`CoverWash`).
-                CoverWash(tone: leadTone)
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: DipleSpace.xxxl) {
