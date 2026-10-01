@@ -13,16 +13,37 @@ import SwiftUI
 /// The count rides as a superior figure rather than in the label, because "Inbox 2" reads as a
 /// name containing a number and `Inbox²` reads as a name with a count attached. A place with
 /// nothing in it prints no figure: the name already says it is empty once it is opened.
+///
+/// A third user since 2026-10-01: the reader's contents sheet (Contents, Highlights, Notes,
+/// Bookmarks), which was the last system segmented control in the app. Four places do not fit a
+/// phone at the size a room's two or three do, so a sheet sets them a size down
+/// (`Size.sheet`); and when even that does not fit — the largest Dynamic Type sizes, a narrow
+/// window — the row scrolls sideways rather than wrapping or truncating a place's name.
 struct DipleRubric<Option: Hashable>: View {
+    /// How large the places are set: a room's own, or a size down for a sheet holding four.
+    enum Size {
+        case room
+        case sheet
+    }
+
     let options: [Option]
     @Binding var selection: Option
     let title: (Option) -> String
     let count: (Option) -> Int
     /// The accessibility identifier of one place, for the UI tests.
     let identifier: (Option) -> String
+    var size: Size = .room
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: DipleSpace.xl) {
+        ViewThatFits(in: .horizontal) {
+            places
+            ScrollView(.horizontal) { places }
+                .scrollIndicators(.hidden)
+        }
+    }
+
+    private var places: some View {
+        HStack(alignment: .bottom, spacing: size == .room ? DipleSpace.xl : DipleSpace.l) {
             ForEach(options, id: \.self) { option in
                 segment(option)
             }
@@ -41,13 +62,14 @@ struct DipleRubric<Option: Hashable>: View {
         } label: {
             HStack(alignment: .top, spacing: DipleSpace.hair) {
                 Text(name)
-                    .dipleType(.headline, weight: isSelected ? .semibold : .regular)
+                    .dipleType(size == .room ? .headline : .callout, weight: isSelected ? .semibold : .regular)
+                    .lineLimit(1)
 
                 if figure > 0 {
                     Text("\(figure)")
                         .dipleType(.tag)
                         .monospacedDigit()
-                        .baselineOffset(7)
+                        .baselineOffset(size == .room ? 7 : 5)
                 }
             }
             .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textQuaternary)

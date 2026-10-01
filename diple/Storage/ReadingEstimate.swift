@@ -32,7 +32,7 @@ public enum ReadingEstimate {
         guard let minutes = minutes(characters: Int(left), charactersPerMinute: charactersPerMinute) else {
             return nil
         }
-        return "\(format(minutes: minutes)) left"
+        return "\(approximate(minutes: minutes)) left"
     }
 
     /// The whole length, for a source the reader has not started.
@@ -40,16 +40,31 @@ public enum ReadingEstimate {
         guard let characters,
               let minutes = minutes(characters: characters, charactersPerMinute: charactersPerMinute)
         else { return nil }
-        return format(minutes: minutes)
+        return approximate(minutes: minutes)
     }
 
     /// `14 min`, `2 h 20 min`, `3 h`. Hours appear only once there are any, and the minute part
     /// is dropped when it is zero rather than printed as `3 h 0 min`.
+    ///
+    /// Exact, for time that was measured — the reading log's sittings and totals. A guess about
+    /// time still to come goes through `approximate(minutes:)` instead.
     public static func format(minutes: Int) -> String {
         guard minutes >= 60 else { return "\(minutes) min" }
         let hours = minutes / 60
         let rest = minutes % 60
         return rest == 0 ? "\(hours) h" : "\(hours) h \(rest) min"
+    }
+
+    /// An estimate, printed to the precision an estimate has (2026-10-01): `4 h 5 min`, `25 h`.
+    ///
+    /// `25 h 26 min left` claimed to know a pace to the minute across a day's worth of reading
+    /// — nobody reads that evenly — and the false digits were what made the line long. Under an
+    /// hour the minute stands; from one hour to ten the minutes go to the nearest five; past ten
+    /// hours, to the nearest hour.
+    public static func approximate(minutes: Int) -> String {
+        guard minutes >= 60 else { return format(minutes: minutes) }
+        let step = minutes >= 600 ? 60 : 5
+        return format(minutes: Int((Double(minutes) / Double(step)).rounded()) * step)
     }
 }
 

@@ -86,7 +86,7 @@ public struct DipleRestoreReviewView: View {
             title: phase.isComplete ? "Your library is restored" : "Bring your work back",
             detail: phase.isComplete
                 ? "The backup was merged without deleting anything already on this device."
-                : "Exported \(candidate.payload.exportedAt.formatted(date: .abbreviated, time: .shortened)). Review the merge before anything changes."
+                : "Exported \(DipleDate.dayAndTime(candidate.payload.exportedAt)). Review the merge before anything changes."
         )
     }
 

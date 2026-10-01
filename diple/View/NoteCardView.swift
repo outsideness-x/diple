@@ -56,10 +56,14 @@ public struct NoteCardView: View {
 
     public let item: NoteItem
     public let style: Style
+    /// Whether the row's dateline names the book. Off on a page that belongs to one book — its
+    /// overview — where every row would print the title at the head of the page again.
+    public let showsSource: Bool
 
-    public init(item: NoteItem, style: Style = .card) {
+    public init(item: NoteItem, style: Style = .card, showsSource: Bool = true) {
         self.item = item
         self.style = style
+        self.showsSource = showsSource
     }
 
     private var formattedDate: String {
@@ -139,7 +143,7 @@ public struct NoteCardView: View {
     /// The comment above was already right; only the order was wrong.
     private var dateline: String {
         var parts: [String] = []
-        if let book = item.book { parts.append(book.title) }
+        if showsSource, let book = item.book { parts.append(book.title) }
         parts.append(formattedDate)
         parts.append(contentsOf: item.tags.map { "#\($0)" })
         return parts.joined(separator: " · ")

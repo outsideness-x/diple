@@ -42,11 +42,20 @@ public struct BookOutlineSheetView: View {
 
     /// Named rather than numbered. A fourth pane went in between two existing ones, and with
     /// integer tags that is a silent renumbering of every branch below.
-    private enum Section: Hashable {
+    private enum Section: Hashable, CaseIterable {
         case contents
         case quotes
         case notes
         case bookmarks
+
+        var title: String {
+            switch self {
+            case .contents: return "Contents"
+            case .quotes: return "Highlights"
+            case .notes: return "Notes"
+            case .bookmarks: return "Bookmarks"
+            }
+        }
     }
 
     public init(
@@ -85,7 +94,8 @@ public struct BookOutlineSheetView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Header & Tab Segmented Control
+            // Done, then the sections — whose rule for the open one rests on the hairline
+            // under them, the way a tab sits on the page it opens.
             VStack(spacing: DipleSpace.m) {
                 HStack {
                     Spacer()
@@ -97,26 +107,22 @@ public struct BookOutlineSheetView: View {
                     .foregroundStyle(DipleColor.textPrimary)
                 }
 
-                // Counts without brackets, which is two characters a segment and the
-                // difference between four labels that fit on the narrowest phone and four
-                // that truncate. An empty section drops its count entirely rather than
-                // printing a zero: "Notes" already says there are none once it is opened,
-                // and "Notes 0" spends width saying it twice.
-                Picker("Section", selection: $selectedTab) {
-                    Text("Contents").tag(Section.contents)
-                    Text(label("Highlights", highlights.count)).tag(Section.quotes)
-                    Text(label("Notes", notes.count)).tag(Section.notes)
-                    Text(label("Bookmarks", bookmarks.count)).tag(Section.bookmarks)
-                }
-                .pickerStyle(.segmented)
-                .tint(DipleColor.accentInk)
-                .onChange(of: selectedTab) { _, _ in
-                    HapticManager.shared.selection()
-                }
+                // The library's rubric, not a system segmented control — the last one in the
+                // app, and inside a book it read as a settings widget over the book's own
+                // contents. The counts ride as superior figures, and an empty section prints
+                // none: "Notes" already says there are none once it is opened.
+                DipleRubric(
+                    options: Section.allCases,
+                    selection: $selectedTab,
+                    title: \.title,
+                    count: count(in:),
+                    identifier: { "outline.\($0)" },
+                    size: .sheet
+                )
+                .accessibilityLabel("Section")
             }
             .padding(.horizontal, DipleSpace.xl)
             .padding(.top, DipleSpace.l)
-            .padding(.bottom, DipleSpace.m)
 
             Divider()
                 .background(DipleColor.surfaceOverlay)
@@ -269,9 +275,15 @@ public struct BookOutlineSheetView: View {
         }
     }
 
-    /// `Quotes 3`, and plain `Quotes` when there are none.
-    private func label(_ name: String, _ count: Int) -> String {
-        count > 0 ? "\(name) \(count)" : name
+    /// What each section holds. The contents are not counted: a figure over them would be the
+    /// number of chapters, which is not something a reader opens this sheet to learn.
+    private func count(in section: Section) -> Int {
+        switch section {
+        case .contents: return 0
+        case .quotes: return highlights.count
+        case .notes: return notes.count
+        case .bookmarks: return bookmarks.count
+        }
     }
 
     /// What has been written about this book — the same rows the notes half of Highlights holds,

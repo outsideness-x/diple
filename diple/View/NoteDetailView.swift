@@ -738,7 +738,7 @@ public struct NoteDetailView: View {
     private var metadataLine: some View {
         FlowLayout(spacing: DipleSpace.s) {
             if let item = route.item {
-                Text(item.note.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                Text(DipleDate.dayAndTime(item.note.updatedAt))
                     .dipleType(.micro)
                     .foregroundStyle(DipleColor.textQuaternary)
 

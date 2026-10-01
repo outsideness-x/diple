@@ -1962,18 +1962,23 @@ private struct MacSearchCollection: View {
 
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
-                if model.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    MacEmptyCollection(
-                        icon: "magnifyingglass",
+                let query = model.query.trimmingCharacters(in: .whitespacesAndNewlines)
+                if query.isEmpty {
+                    DipleEmptyText(
                         title: "Search your reading",
                         message: "Find books, article text, saved passages and your own notes."
                     )
+                    .frame(maxWidth: 360)
+                    .padding(DipleSpace.xxxl)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.results.isEmpty {
-                    MacEmptyCollection(
-                        icon: "text.magnifyingglass",
-                        title: "No matches",
+                    DipleEmptyText(
+                        title: "Nothing for “\(query)”",
                         message: "Try fewer words or a different phrase."
                     )
+                    .frame(maxWidth: 360)
+                    .padding(DipleSpace.xxxl)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: DipleSpace.xxl) {
@@ -2138,11 +2143,11 @@ private struct MacBookInspector: View {
                         }
                     }
                     MacMetadataRow(label: "Added") {
-                        Text(book.addedAt.formatted(date: .abbreviated, time: .omitted))
+                        Text(DipleDate.day(book.addedAt))
                     }
                     if let lastOpenedAt = book.lastOpenedAt {
                         MacMetadataRow(label: "Last read") {
-                            Text(lastOpenedAt.formatted(date: .abbreviated, time: .shortened))
+                            Text(DipleDate.dayAndTime(lastOpenedAt))
                         }
                     }
                     if let source = book.sourceHost {
@@ -2311,7 +2316,7 @@ private struct MacPassageInspector: View {
                         .dipleType(.caption, weight: .medium)
                         .foregroundStyle(DipleColor.textSecondary)
                         .lineLimit(2)
-                    Text(passage.highlight.createdAt.formatted(date: .abbreviated, time: .omitted))
+                    Text(DipleDate.day(passage.highlight.createdAt))
                         .dipleType(.nano)
                         .foregroundStyle(DipleColor.textQuaternary)
                 }
@@ -2629,7 +2634,7 @@ struct MacNoteInspector: View {
                     .focused($isTitleFocused)
 
                 HStack(spacing: DipleSpace.s) {
-                    Text(item.note.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                    Text(DipleDate.dayAndTime(item.note.updatedAt))
                     Text("·")
                     Text(wordCountLabel)
                 }

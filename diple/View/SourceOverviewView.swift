@@ -74,12 +74,20 @@ public struct SourceOverviewView: View {
 
                         actions
 
+                        // The same rows Highlights sets its two halves in. These were cards —
+                        // `QuoteCardView` for passages, a boxed row with an icon for notes —
+                        // so a passage was one object on this page and another one tab away.
+                        // The rows leave out the book's name: the whole page is that book.
                         if !viewModel.highlights.isEmpty {
                             section("Highlights", count: viewModel.highlights.count) {
                                 ForEach(viewModel.highlights.prefix(3)) { highlight in
-                                    QuoteCardView(
-                                        quote: highlight,
-                                        tags: viewModel.highlightTags[highlight.id] ?? []
+                                    PassageRowView(
+                                        passage: PassageItem(
+                                            highlight: highlight,
+                                            tags: viewModel.highlightTags[highlight.id] ?? [],
+                                            book: viewModel.book
+                                        ),
+                                        showsSource: false
                                     )
                                 }
 
@@ -87,9 +95,9 @@ public struct SourceOverviewView: View {
                                     NavigationLink {
                                         BookQuotesView(summary: summary)
                                     } label: {
-                                        collectionLink("See all highlights")
+                                        collectionLink("All \(viewModel.highlights.count) highlights")
                                     }
-                                    .buttonStyle(.bookCard)
+                                    .buttonStyle(.readerControl)
                                 }
                             }
                         }
@@ -98,7 +106,7 @@ public struct SourceOverviewView: View {
                             section("Notes", count: viewModel.notes.count) {
                                 ForEach(viewModel.notes.prefix(3)) { item in
                                     NavigationLink(value: NoteRoute.existing(item)) {
-                                        SourceNoteRow(item: item)
+                                        NoteCardView(item: item, style: .row, showsSource: false)
                                     }
                                     .buttonStyle(.bookCard)
                                 }
@@ -192,9 +200,14 @@ public struct SourceOverviewView: View {
             .frame(width: 74, height: 111)
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
-                Text(viewModel.book.sourceKind.title)
-                    .dipleType(.nano, weight: .semibold)
-                    .foregroundStyle(DipleColor.accentInk)
+                // The kind only when it is the exception — the rule the library and the front
+                // page follow. "BOOK" in the accent over every book's title was a label on the
+                // one fact the cover beside it already states.
+                if viewModel.book.sourceKind != .epub {
+                    Text(viewModel.book.sourceKind.title)
+                        .dipleType(.nano, weight: .semibold)
+                        .foregroundStyle(DipleColor.accentInk)
+                }
                 Text(viewModel.book.title)
                     .dipleType(.editorialLead)
                     .foregroundStyle(DipleColor.textPrimary)
@@ -209,19 +222,15 @@ public struct SourceOverviewView: View {
                         }
                     }
                 }
-                if viewModel.book.progress > 0.001 {
-                    ProgressView(value: min(max(viewModel.book.progress, 0), 1))
-                        .tint(DipleColor.accentInk)
+                if isStarted {
+                    progressRule
+                        .padding(.top, DipleSpace.xs)
                 }
-                // The whole length rather than what is left: this screen is about what the
-                // source *is*, and the reader's position through it is one line above.
-                if let total = ReadingEstimate.total(
-                    characters: viewModel.characters,
-                    script: viewModel.book.script
-                ) {
-                    Text(total)
+                if let readingLine {
+                    Text(readingLine)
                         .dipleType(.caption)
                         .foregroundStyle(DipleColor.textTertiary)
+                        .monospacedDigit()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,18 +282,63 @@ public struct SourceOverviewView: View {
         }
     }
 
+    /// The way on to the rest, set as a line of type at the foot of the rows rather than as a
+    /// card under them — a card at the end of a column of rows reads as one more entry.
     private func collectionLink(_ title: String) -> some View {
-        HStack {
+        HStack(spacing: DipleSpace.xs) {
             Text(title)
                 .dipleType(.footnote, weight: .semibold)
-                .foregroundStyle(DipleColor.textSecondary)
-            Spacer()
+                .monospacedDigit()
             Image(systemName: "chevron.right")
-                .dipleIcon(10, weight: .semibold)
-                .foregroundStyle(DipleColor.textQuaternary)
+                .dipleIcon(9, weight: .semibold)
         }
-        .padding(DipleSpace.m)
-        .craftSurface()
+        .foregroundStyle(DipleColor.accentInk)
+        .padding(.vertical, DipleSpace.s)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var isStarted: Bool {
+        viewModel.book.progress > 0.001
+    }
+
+    /// The figure under the rule, and what it is a figure of.
+    ///
+    /// This used to print the whole length on its own — `8 h 20 min` — under a bar half
+    /// full, one screen after the front page had said `4 h 5 min left` about the same book.
+    /// Two numbers for one book, and nothing saying which was which. Now it is the library
+    /// row's rule: what is left once started, the length before that; and it says so —
+    /// `43% · 4 h 5 min left`, `8 h 20 min to read`.
+    private var readingLine: String? {
+        let progress = min(max(viewModel.book.progress, 0), 1)
+        if isStarted {
+            let percent = "\(Int((progress * 100).rounded()))%"
+            guard let left = ReadingEstimate.remaining(
+                characters: viewModel.characters,
+                progress: progress,
+                script: viewModel.book.script
+            ) else { return percent }
+            return "\(percent) · \(left)"
+        }
+        return ReadingEstimate.total(
+            characters: viewModel.characters,
+            script: viewModel.book.script
+        ).map { "\($0) to read" }
+    }
+
+    /// The library row's rule — hairline and accent ink — in place of a system progress bar,
+    /// which was the one stock control on the page.
+    private var progressRule: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(DipleColor.hairline)
+                Rectangle()
+                    .fill(DipleColor.accentInk)
+                    .frame(width: geometry.size.width * min(max(viewModel.book.progress, 0), 1))
+            }
+        }
+        .frame(height: DipleStroke.regular)
+        .accessibilityHidden(true)
     }
 
     private var summary: BookQuoteSummary {
@@ -295,36 +349,5 @@ public struct SourceOverviewView: View {
             book: viewModel.book,
             quoteCount: viewModel.highlights.count
         )
-    }
-}
-
-private struct SourceNoteRow: View {
-    let item: NoteItem
-
-    var body: some View {
-        HStack(alignment: .top, spacing: DipleSpace.m) {
-            Image(systemName: "note.text")
-                .dipleIcon(13, weight: .semibold)
-                .foregroundStyle(DipleColor.accentInk)
-            VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                Text(item.displayTitle)
-                    .dipleType(.body, weight: .semibold)
-                    .foregroundStyle(DipleColor.textPrimary)
-                let preview = NoteMarkdown.plainText(item.note.body)
-                if !preview.isEmpty {
-                    Text(preview)
-                        .dipleType(.caption)
-                        .foregroundStyle(DipleColor.textTertiary)
-                        .lineLimit(2)
-                }
-            }
-            Spacer(minLength: DipleSpace.s)
-            Image(systemName: "chevron.right")
-                .dipleIcon(10, weight: .semibold)
-                .foregroundStyle(DipleColor.textQuaternary)
-        }
-        .padding(DipleSpace.m)
-        .craftSurface()
-        .accessibilityElement(children: .combine)
     }
 }

@@ -11,10 +11,9 @@ public struct HighlightRowView: View {
         DipleColor.Highlight.color(forHex: highlight.colorHex)
     }
 
+    /// Day and month, and the year only when it is not this one — see `DipleDate`.
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: highlight.createdAt)
+        DipleDate.day(highlight.createdAt)
     }
 
     public var body: some View {

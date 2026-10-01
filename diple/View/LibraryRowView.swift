@@ -35,20 +35,27 @@ public struct LibraryRowView: View {
         CGFloat(min(max(book.progress, 0), 1))
     }
 
-    /// `BOOK · СЮЗАННА КЛАРК · 3 H 20 MIN · #FICTION`.
+    /// `Сюзанна Кларк · 3 h 20 min · #fiction`, and `Article · aeon.co · 12 min` for the
+    /// exception.
     ///
-    /// Ordered by how much each part narrows down which source this is. The kind reads as a
-    /// section label the way a newspaper's does; the byline or the site is the identity — for an
-    /// article the site especially, since two saved headlines are told apart by where they came
-    /// from. Length decides whether there is time for this now. Tags come last because they are
-    /// the one part also visible in the filter row above, which makes them the right thing to
-    /// lose to truncation.
+    /// Ordered by how much each part narrows down which source this is. The kind is printed only
+    /// when the source is not a book (2026-10-01): `Book ·` opened every row of a reading app's
+    /// shelf with a word that told nobody anything, and the cover beside it already said it. An
+    /// article or a PDF keeps it, because there it is the fact worth reading first. The byline or
+    /// the site is the identity — for an article the site especially, since two saved headlines
+    /// are told apart by where they came from. Length decides whether there is time for this
+    /// now. Tags come last because they are the one part also visible in the filter row above,
+    /// which makes them the right thing to lose to truncation.
+    ///
     /// Sentence case, not small caps. Caps mark section headings in this app; a dateline
     /// wearing them too means neither is marked, and a shelf of seven rows was printing seven
     /// lines of capitals under seven titles — the loudest thing on screen was the part meant to
     /// be read second.
     private var dateline: String {
-        var parts: [String] = [book.sourceKind.title]
+        var parts: [String] = []
+        if book.sourceKind != .epub {
+            parts.append(book.sourceKind.title)
+        }
         if let identity = book.sourceHost ?? book.author, !identity.isEmpty {
             parts.append(identity)
         }

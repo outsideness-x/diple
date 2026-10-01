@@ -25,10 +25,14 @@ public struct PassageRowView: View {
 
     public let passage: PassageItem
     public let style: Style
+    /// Whether the dateline names the book. Off on a page that belongs to one book — its
+    /// overview — where every row would print the title at the head of the page again.
+    public let showsSource: Bool
 
-    public init(passage: PassageItem, style: Style = .row) {
+    public init(passage: PassageItem, style: Style = .row, showsSource: Bool = true) {
         self.passage = passage
         self.style = style
+        self.showsSource = showsSource
     }
 
     private var markColor: Color {
@@ -54,7 +58,7 @@ public struct PassageRowView: View {
     /// they are now two runs at two sizes — see `tagline`.
     private var dateline: String {
         var parts: [String] = []
-        if let title = sourceTitle {
+        if showsSource, let title = sourceTitle {
             // Cut at a word, the way the filter row's shelf chips are.
             //
             // `Sapiens: A Brief History of Humankind` is 37 characters and eats the whole line
@@ -196,8 +200,8 @@ public struct PassageRowView: View {
     }
 
     /// The board's other register. `QuoteCardView` already draws exactly this and is used by
-    /// the source overview and the per-book list, so the grid borrows it rather than growing a
-    /// second passage card that would drift from it at the first edit to either.
+    /// the per-book list, so the grid borrows it rather than growing a second passage card that
+    /// would drift from it at the first edit to either.
     private var card: some View {
         QuoteCardView(quote: passage.highlight, tags: passage.tags)
     }

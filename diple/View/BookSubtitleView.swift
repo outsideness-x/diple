@@ -2,9 +2,11 @@ import SwiftUI
 
 /// The metadata line under a title, in the library grid and in the hub.
 ///
-/// Every source carries one quiet glyph. The glyph answers “what did I save?” at a glance,
-/// while identical typography keeps EPUB, PDF and article at the same level — they all open
-/// in the same reader and feed the same thinking workflow.
+/// An article or a PDF carries one quiet glyph, which answers “what did I save?” at a glance,
+/// while identical typography keeps the three at the same level — they all open in the same
+/// reader and feed the same thinking workflow. A book carries none (2026-10-01): in a reading
+/// app a book is what a source is unless it says otherwise, and a closed-book glyph under every
+/// cover on the shelf said the one thing the cover above it already does.
 public struct BookSubtitleView: View {
     public let book: Book
 
@@ -16,9 +18,11 @@ public struct BookSubtitleView: View {
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: DipleSpace.xs) {
-            Image(systemName: book.sourceKind.systemImage)
-                .dipleIcon(9, weight: .semibold)
-                .foregroundStyle(DipleColor.textQuaternary)
+            if book.sourceKind != .epub {
+                Image(systemName: book.sourceKind.systemImage)
+                    .dipleIcon(9, weight: .semibold)
+                    .foregroundStyle(DipleColor.textQuaternary)
+            }
 
             Text(book.subtitle)
                 .dipleType(.caption)
@@ -31,7 +35,7 @@ public struct BookSubtitleView: View {
                 .truncationMode(.tail)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(book.sourceKind.title), \(book.subtitle)")
+        .accessibilityLabel(book.sourceKind == .epub ? book.subtitle : "\(book.sourceKind.title), \(book.subtitle)")
     }
 }
 

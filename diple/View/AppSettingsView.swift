@@ -566,7 +566,7 @@ public struct AppSettingsView: View {
 
             VStack(spacing: 1) {
                 dataAction(
-                    title: "Export Diple Data",
+                    title: "Export Backup",
                     detail: "Reading positions, highlights and notes in versioned JSON. Original EPUB and PDF files stay where they are.",
                     systemImage: "square.and.arrow.up"
                 ) {
@@ -582,8 +582,8 @@ public struct AppSettingsView: View {
                 .accessibilityHint("Creates a versioned JSON backup you can save or share")
 
                 dataAction(
-                    title: "Restore Diple Data",
-                    detail: "Review and safely merge a Diple JSON backup. Nothing already on this device is deleted.",
+                    title: "Restore Backup",
+                    detail: "Review and safely merge a diple backup. Nothing already on this device is deleted.",
                     systemImage: "arrow.counterclockwise",
                     showsProgress: isReadingRestore
                 ) {
@@ -591,7 +591,7 @@ public struct AppSettingsView: View {
                 }
                 .disabled(isReadingRestore)
                 .accessibilityIdentifier("settings.data.restore")
-                .accessibilityHint("Choose a Diple JSON backup and review it before restoring")
+                .accessibilityHint("Choose a diple backup and review it before restoring")
 
                 dataAction(
                     title: "Export as Markdown",

@@ -781,6 +781,41 @@ final class DipleTests: XCTestCase {
         )
     }
 
+    /// `25 h 26 min left` claimed a precision no estimate of a reading pace has. A guess is
+    /// rounded to what it can know — five minutes inside ten hours, the hour past that — while
+    /// time that was measured, the reading log's, stays exact.
+    func testAnEstimateIsRoundedToWhatItCanKnow() {
+        XCTAssertEqual(ReadingEstimate.approximate(minutes: 59), "59 min")
+        XCTAssertEqual(ReadingEstimate.approximate(minutes: 243), "4 h 5 min")
+        XCTAssertEqual(ReadingEstimate.approximate(minutes: 178), "3 h", "rounding up carries into the hour")
+        XCTAssertEqual(ReadingEstimate.approximate(minutes: 597), "9 h 55 min")
+        XCTAssertEqual(ReadingEstimate.approximate(minutes: 598), "10 h")
+        XCTAssertEqual(ReadingEstimate.approximate(minutes: 1526), "25 h")
+        XCTAssertEqual(
+            ReadingEstimate.remaining(
+                characters: 1_831_200, progress: 0, charactersPerMinute: ReadingSpeed.latinDefault
+            ),
+            "25 h left"
+        )
+
+        XCTAssertEqual(ReadingEstimate.format(minutes: 1526), "25 h 26 min", "measured time stays exact")
+    }
+
+    /// The year is the news only when it is not this one. Checked by the digits rather than the
+    /// whole string, because the day and month are set in the reader's locale.
+    func testADateThisYearLeavesTheYearOut() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 12))!
+        let thisYear = calendar.date(from: DateComponents(year: 2026, month: 9, day: 28, hour: 12))!
+        let lastYear = calendar.date(from: DateComponents(year: 2025, month: 12, day: 30, hour: 12))!
+
+        XCTAssertFalse(DipleDate.day(thisYear, now: now, calendar: calendar).contains("2026"))
+        XCTAssertTrue(DipleDate.day(lastYear, now: now, calendar: calendar).contains("2025"))
+        XCTAssertFalse(DipleDate.dayAndTime(thisYear, now: now, calendar: calendar).contains("2026"))
+        XCTAssertTrue(DipleDate.dayAndTime(lastYear, now: now, calendar: calendar).contains("2025"))
+    }
+
     // MARK: - Measured reading speed
 
     /// The whole point: a reader who is faster than the shipped constant must end up being told

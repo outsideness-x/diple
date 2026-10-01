@@ -202,43 +202,31 @@ public struct GlobalSearchView: View {
     }
 
     private var searchInvitation: some View {
-        VStack(spacing: DipleSpace.xl) {
+        VStack {
             Spacer()
-
-            Image(systemName: "magnifyingglass")
-                .dipleIcon(30, weight: .light)
-                .foregroundStyle(DipleColor.accentInk)
-
-            VStack(spacing: DipleSpace.s) {
-                Text("Search everything")
-                    .dipleType(.title)
-                    .foregroundStyle(DipleColor.textPrimary)
-
-                Text("Find your notes, saved highlights, books and the text of imported articles in one place.")
-                    .dipleType(.callout)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DipleSpace.xxxl)
-            }
-
+            DipleEmptyText(
+                title: "Search everything",
+                message: "Your notes, saved highlights, books and the text of imported articles, in one place."
+            )
+            .padding(.horizontal, DipleSpace.xxxl)
             Spacer()
         }
+        // Centred over the page the tab bar leaves, the way Highlights' empty state is.
+        .padding(.bottom, DipleSpace.scrollBottom)
     }
 
     private var noResults: some View {
-        VStack(spacing: DipleSpace.m) {
+        VStack {
             Spacer()
-            Image(systemName: "text.magnifyingglass")
-                .dipleIcon(28, weight: .light)
-                .foregroundStyle(DipleColor.textQuaternary)
-            Text("Nothing found")
-                .dipleType(.headline)
-                .foregroundStyle(DipleColor.textPrimary)
-            Text("Try fewer words or a different spelling.")
-                .dipleType(.callout)
-                .foregroundStyle(DipleColor.textTertiary)
+            DipleEmptyText(
+                title: "Nothing for “\(trimmedQuery)”",
+                message: "Try fewer words or a different spelling."
+            )
+            .padding(.horizontal, DipleSpace.xxxl)
             Spacer()
         }
+        // Centred over the page the tab bar leaves, the way Highlights' empty state is.
+        .padding(.bottom, DipleSpace.scrollBottom)
     }
 
     @ViewBuilder

@@ -27,10 +27,9 @@ public struct QuoteCardView: View {
         DipleColor.Highlight.color(forHex: quote.colorHex)
     }
 
+    /// Day and month, and the year only when it is not this one — see `DipleDate`.
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: quote.createdAt)
+        DipleDate.day(quote.createdAt)
     }
 
     private var comment: String? {

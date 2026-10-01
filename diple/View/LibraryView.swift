@@ -734,16 +734,21 @@ public struct LibraryView: View {
         }
     }
 
+    /// The shelf's tools, and — only once a search or a filter is narrowing it — what is left.
+    ///
+    /// It used to open with the place's name and its count: `Inbox  1`, forty points under a
+    /// rubric that had just said `Inbox¹`. The rubric already says where the reader is and how
+    /// much is there; a heading only has something to add once the shelf has stopped being the
+    /// whole of that place, and what it adds then is how much of it the narrowing kept. With
+    /// nothing kept it says nothing, because the empty shelf under it says so in a sentence.
     private var shelfHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            sectionHeading(isDefaultBrowse ? location.title : "Results")
+            if !isDefaultBrowse, !visibleBooks.isEmpty {
+                sectionHeading(visibleBooks.count == 1 ? "1 result" : "\(visibleBooks.count) results")
+                    .monospacedDigit()
+            }
 
             Spacer()
-
-            Text("\(visibleBooks.count)")
-                .dipleType(.micro)
-                .foregroundStyle(DipleColor.textQuaternary)
-                .monospacedDigit()
 
             searchToggle
             layoutToggle
@@ -962,20 +967,19 @@ public struct LibraryView: View {
         return active.count == 1 ? first : "\(first) +\(active.count - 1)"
     }
 
+    /// The query echoed back when there is one: "Nothing for “ahab”" says what was looked for,
+    /// which is the first thing a reader checks when a search comes back empty.
+    private var noResultsTitle: String {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? "Nothing on this shelf matches" : "Nothing for “\(query)”"
+    }
+
     private var noResults: some View {
         VStack(spacing: DipleSpace.m) {
-            Image(systemName: "magnifyingglass")
-                .dipleIcon(24, weight: .light)
-                .foregroundStyle(DipleColor.textQuaternary)
-
-            Text("Nothing found")
-                .dipleType(.headline)
-                .foregroundStyle(DipleColor.textPrimary)
-
-            Text("Try another title, author, source or reading status.")
-                .dipleType(.callout)
-                .foregroundStyle(DipleColor.textTertiary)
-                .multilineTextAlignment(.center)
+            DipleEmptyText(
+                title: noResultsTitle,
+                message: "Try another title, author, source or reading status."
+            )
 
             Button("Clear search and filters") {
                 searchText = ""

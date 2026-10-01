@@ -354,8 +354,8 @@ final class dipleUITests: XCTestCase {
         XCTAssertTrue(counter.waitForExistence(timeout: 5))
         let before = counter.label
 
-        // Empty page, well clear of the three actions at the top.
-        let pageBeneath = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        // Empty page above the colophon's text, well clear of the three actions at its foot.
+        let pageBeneath = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15))
         for _ in 0..<3 {
             pageBeneath.tap()
         }

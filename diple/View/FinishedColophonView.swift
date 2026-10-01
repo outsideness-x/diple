@@ -1,6 +1,14 @@
 import SwiftUI
 
 /// The publication's own final page: a quiet question, not a completion ceremony.
+///
+/// Set the way a printed colophon is (2026-10-01): centred, at the optical middle of the page,
+/// with the three ways on at the foot where the thumb is. It used to stand at the top with the
+/// three actions in a row under it — which left the lower two thirds of the screen bare and
+/// gave each action a third of the width, so "Second Read" and "Keep reading" came out as
+/// "Second R…" and "Keep read…" on the one page in the app whose whole job is to be well set.
+/// Stacked, each has the full measure, and the order down the page is the order of weight: the
+/// reread, closing the book, and — set as plain words — going back into it.
 public struct FinishedColophonView: View {
     public let colophon: FinishedColophon
     public let chrome: ReaderChrome
@@ -9,7 +17,6 @@ public struct FinishedColophonView: View {
     public let onKeepReading: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var appeared = false
 
     public init(
@@ -31,23 +38,42 @@ public struct FinishedColophonView: View {
             chrome.page
                 .ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: DipleSpace.xxl) {
-                    identity
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: DipleSpace.xxxl)
 
-                    Rectangle()
-                        .fill(chrome.separator)
-                        .frame(height: DipleStroke.hairline)
-                        .accessibilityHidden(true)
+                        VStack(spacing: DipleSpace.xl) {
+                            identity
 
-                    facts
-                    actions
+                            Rectangle()
+                                .fill(chrome.separator)
+                                .frame(width: DipleSpace.xxxl, height: DipleStroke.hairline)
+                                .accessibilityHidden(true)
+
+                            facts
+                        }
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                        // A little more room under the text than over it, which is what puts
+                        // a centred block at the optical middle rather than the measured one.
+                        Spacer(minLength: DipleSpace.xxxl)
+                        Spacer(minLength: 0)
+                            .frame(maxHeight: DipleSpace.xxxl)
+
+                        actions
+                    }
+                    .padding(.horizontal, DipleSpace.xl)
+                    .padding(.vertical, DipleSpace.xl)
+                    // At least the height of the page, so the spacers have room to place the
+                    // text in the middle and the actions at the foot; a longer title at a large
+                    // type size simply scrolls.
+                    .frame(minHeight: geometry.size.height)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DipleSpace.xl)
-                .padding(.vertical, DipleSpace.xxxl)
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .scrollIndicators(.hidden)
             .opacity(appeared ? 1 : 0)
             .offset(y: reduceMotion || appeared ? 0 : DipleSpace.m)
         }
@@ -62,7 +88,7 @@ public struct FinishedColophonView: View {
     }
 
     private var identity: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.s) {
+        VStack(spacing: DipleSpace.s) {
             Text(colophon.title)
                 .dipleType(.editorialLead)
                 .foregroundStyle(chrome.control)
@@ -76,15 +102,15 @@ public struct FinishedColophonView: View {
     }
 
     private var facts: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
+        VStack(spacing: DipleSpace.s) {
             Text(dateLine)
-                .dipleType(.micro)
+                .dipleType(.footnote, weight: .regular)
                 .foregroundStyle(chrome.secondary)
                 .monospacedDigit()
 
             if colophon.quoteCount > 0 {
                 Text(passageLine)
-                    .dipleType(.footnote)
+                    .dipleType(.footnote, weight: .regular)
                     .foregroundStyle(chrome.control)
                     .monospacedDigit()
             }
@@ -95,66 +121,52 @@ public struct FinishedColophonView: View {
                 // most free EPUBs — a licence. The reader is owed the one fact that holds in
                 // all of them, which is that the story is over.
                 Text("The rest is back matter.")
-                    .dipleType(.callout)
+                    .dipleType(.footnote, weight: .regular)
                     .foregroundStyle(chrome.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    @ViewBuilder
     private var actions: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: DipleSpace.m) {
-                actionButtons
+        VStack(spacing: DipleSpace.s) {
+            if colophon.quoteCount > 0 {
+                Button(action: onOpenSecondRead) {
+                    Text("Second Read")
+                        .dipleType(.body, weight: .semibold)
+                        .foregroundStyle(DipleColor.textOnAccent)
+                        .frame(maxWidth: .infinity)
+                        .diplePadding(.buttonLarge)
+                        .background(DipleColor.accent, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.readerControl)
             }
-        } else {
-            HStack(spacing: DipleSpace.m) {
-                actionButtons
+
+            Button(action: onFinish) {
+                Text("Close")
+                    .dipleType(.body, weight: .semibold)
+                    .foregroundStyle(chrome.control)
+                    .frame(maxWidth: .infinity)
+                    .diplePadding(.buttonLarge)
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(chrome.separator, lineWidth: DipleStroke.hairline)
+                    }
+                    .contentShape(Capsule())
             }
+            .buttonStyle(.readerControl)
+
+            Button(action: onKeepReading) {
+                Text("Keep reading")
+                    .dipleType(.callout, weight: .medium)
+                    .foregroundStyle(chrome.secondary)
+                    .frame(maxWidth: .infinity)
+                    .diplePadding(.buttonLarge)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.readerControl)
         }
-    }
-
-    /// One line each, shrinking a little before they wrap.
-    ///
-    /// The three share the row equally, and at `buttonLarge` padding "Second Read" and
-    /// "Keep reading" each lost their last word to a second line — which stood three pills at
-    /// two different heights on the one page in the app whose whole job is to be well set.
-    @ViewBuilder
-    private var actionButtons: some View {
-        if colophon.quoteCount > 0 {
-            Button("Second Read", action: onOpenSecondRead)
-                .dipleType(.footnote, weight: .semibold)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .foregroundStyle(DipleColor.textOnAccent)
-                .frame(maxWidth: .infinity)
-                .diplePadding(.buttonLarge)
-                .background(DipleColor.accent, in: Capsule())
-                .buttonStyle(.plain)
-        }
-
-        Button("Close", action: onFinish)
-            .dipleType(.footnote, weight: .semibold)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .foregroundStyle(chrome.control)
-            .frame(maxWidth: .infinity)
-            .diplePadding(.buttonLarge)
-            .overlay {
-                Capsule()
-                    .stroke(chrome.separator, lineWidth: DipleStroke.hairline)
-            }
-            .buttonStyle(.plain)
-
-        Button("Keep reading", action: onKeepReading)
-            .dipleType(.footnote, weight: .semibold)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .foregroundStyle(chrome.secondary)
-            .frame(maxWidth: .infinity)
-            .diplePadding(.buttonLarge)
-            .buttonStyle(.plain)
     }
 
     private var passageLine: String {

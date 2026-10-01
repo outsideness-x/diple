@@ -57,11 +57,26 @@ public struct ReaderContainerView: View {
     /// The notebook's stack: the note pages standing on the list, and whatever a wiki link
     /// followed from one of them pushed.
     @State private var notePath = NavigationPath()
+    /// Whether the navigator has put its first page on screen.
+    ///
+    /// Opening the publication is quick; laying out its first spread is not — Readium's web view
+    /// takes a second or two more, and shows a system spinner of its own while it does. The
+    /// title page stays over the page until the navigator reports where it stands, which it
+    /// does only once that spread is there.
+    @State private var isFirstPageShown = false
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
         self._viewModel = StateObject(wrappedValue: ReaderViewModel(book: book, startingLocator: startingLocator))
         self.onReadingUpdated = onReadingUpdated
+    }
+
+    /// Whether the book is still opening — the publication, then its first page. A PDF counts
+    /// as open once its publication is: PDFKit draws the first page as it is handed the file.
+    private var isOpening: Bool {
+        guard viewModel.errorMessage == nil else { return false }
+        if viewModel.isLoading { return true }
+        return viewModel.publication != nil && !viewModel.book.isPDF && !isFirstPageShown
     }
 
     /// The chrome follows the page: changing the reader theme re-tints the bars and flips the
@@ -230,20 +245,16 @@ public struct ReaderContainerView: View {
         ZStack {
             // The page stops at the safe area, so the bands the status bar and the resting
             // progress line occupy are painted here instead — in the page's own ground, so the
-            // sheet still runs bezel to bezel and the reader sees one surface. Before a book is
-            // open there is no page to match, and the app canvas is the right backdrop for a
-            // spinner or an error.
-            (viewModel.publication == nil ? DipleColor.canvas : chrome.page)
+            // sheet still runs bezel to bezel and the reader sees one surface. That ground is
+            // known before the book is: it is the reader's theme, so the title page the book
+            // opens on is already the colour of the page that replaces it. Only a book that
+            // failed to open falls back to the app's canvas, which is what its error is set on.
+            (viewModel.errorMessage == nil ? chrome.page : DipleColor.canvas)
                 .ignoresSafeArea()
 
             if viewModel.isLoading {
-                VStack(spacing: DipleSpace.m) {
-                    ProgressView()
-                        .tint(DipleColor.accentInk)
-                    Text("Loading book…")
-                        .dipleType(.callout, weight: .medium)
-                        .foregroundStyle(DipleColor.textSecondary)
-                }
+                // Nothing of its own: the title page below is up for the whole of the open.
+                Color.clear
             } else if let errorMessage = viewModel.errorMessage {
                 VStack(spacing: DipleSpace.l) {
                     Image(systemName: "exclamationmark.triangle")
@@ -315,6 +326,15 @@ public struct ReaderContainerView: View {
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
                             ReaderIdleTimerKeeper.shared.poke()
+                            if !isFirstPageShown {
+                                // The navigator reports where it stands a moment before its web
+                                // view stops its own spinner and fades the page in — about 0.3 s,
+                                // measured frame by frame — so the title page holds on through it.
+                                Task { @MainActor in
+                                    try? await Task.sleep(for: .milliseconds(450))
+                                    withAnimation(DipleMotion.gentle) { isFirstPageShown = true }
+                                }
+                            }
                         },
                         onSelectionChanged: { selection in
                             beginPendingSelection(selection)
@@ -528,6 +548,24 @@ public struct ReaderContainerView: View {
 
             }
 
+            // The book's title page, from the moment the reader opens until the first page is
+            // on screen. One view for both halves of the wait — the publication opening, then
+            // its first spread being laid out — so it does not fade out and back in between
+            // them. It takes no touches: if a page never arrives, the controls under it still
+            // work, and it gives way on its own after a few seconds.
+            if isOpening {
+                ReaderTitlePage(
+                    title: viewModel.book.title,
+                    author: viewModel.book.author,
+                    font: viewModel.settings.font,
+                    chrome: chrome
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(chrome.page.ignoresSafeArea())
+                .allowsHitTesting(false)
+                .transition(.opacity)
+            }
+
             if let colophon = viewModel.finishedColophon {
                 FinishedColophonView(
                     colophon: colophon,
@@ -538,6 +576,14 @@ public struct ReaderContainerView: View {
                 )
                 .transition(.opacity)
             }
+        }
+        .task(id: viewModel.isLoading) {
+            // The fallback for a first spread that never reports in: the title page must not
+            // become the screen. Four seconds is twice the longest open measured here.
+            guard !viewModel.isLoading, !isFirstPageShown else { return }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled, !isFirstPageShown else { return }
+            withAnimation(DipleMotion.gentle) { isFirstPageShown = true }
         }
         // The bar hangs in an overlay rather than as another child of the ZStack above. A
         // ZStack takes the width of its widest child, and this bar has a floor: five 40pt
@@ -1339,6 +1385,67 @@ private enum HighlightEditorTarget: Identifiable {
     var id: String {
         switch self {
         case .existing(let highlight): return "existing:\(highlight.id)"
+        }
+    }
+}
+
+/// The book's title page, while the book opens.
+///
+/// This was the app's canvas with a system spinner and "Loading book…" on it, followed by a
+/// second spinner — Readium's own, while its web view laid out the first spread — a progress
+/// indicator from a settings screen twice over, on the way into a book. A printed book opens on
+/// its title page, and so does this one: the title and the author in the face the reader chose
+/// for the page, on the page's own colour, so when the text arrives nothing about the screen
+/// changes but the words on it.
+///
+/// A fast open should not flash a title page for a tenth of a second, so it fades in only after
+/// a beat. While it is up the short rule between title and author breathes — the one sign that
+/// something is still happening, and too small to be mistaken for an alarm.
+private struct ReaderTitlePage: View {
+    let title: String
+    let author: String?
+    let font: ReaderFont
+    let chrome: ReaderChrome
+
+    @ScaledMetric(relativeTo: .title) private var titleSize: CGFloat = 28
+    @ScaledMetric(relativeTo: .body) private var authorSize: CGFloat = 17
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isShown = false
+    @State private var isBreathing = false
+
+    var body: some View {
+        VStack(spacing: DipleSpace.l) {
+            Text(title)
+                .font(font.proseFont(size: titleSize))
+                .foregroundStyle(chrome.control)
+                .lineLimit(5)
+
+            Rectangle()
+                .fill(chrome.secondary)
+                .frame(width: DipleSpace.xxl, height: DipleStroke.regular)
+                .opacity(isBreathing ? 0.2 : 0.7)
+                .accessibilityHidden(true)
+
+            if let author, !author.isEmpty {
+                Text(author)
+                    .font(font.proseFont(size: authorSize))
+                    .foregroundStyle(chrome.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, DipleSpace.xxxl)
+        // A little above the middle: a title page's text sits at the optical centre.
+        .padding(.bottom, DipleSpace.xxxl * 2)
+        .opacity(isShown ? 1 : 0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Opening \(title)")
+        .onAppear {
+            withAnimation(DipleMotion.gentle.delay(0.25)) { isShown = true }
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true).delay(0.25)) {
+                isBreathing = true
+            }
         }
     }
 }
