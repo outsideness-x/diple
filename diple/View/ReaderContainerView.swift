@@ -67,6 +67,8 @@ public struct ReaderContainerView: View {
     /// Where the finger is on the progress bar, while it is there. The bar's figures print this
     /// instead of the reader's position, so a drag says where it is going before it goes.
     @State private var scrubPreview: Double?
+    /// Set by the way out the moment it is pressed, before the book has gone. See `closeButton`.
+    @State private var isLeaving = false
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
@@ -180,7 +182,7 @@ public struct ReaderContainerView: View {
     private func closeButton(seat: CGFloat?) -> some View {
         Button {
             HapticManager.shared.impact(.light)
-            dismiss()
+            leave()
         } label: {
             Image(systemName: "chevron.left")
                 .dipleIcon(16)
@@ -190,6 +192,24 @@ public struct ReaderContainerView: View {
         }
         .buttonStyle(.readerControl)
         .accessibilityLabel("Close book")
+    }
+
+    /// Closes the book the way it opened: as a page going back into its cover.
+    ///
+    /// The zoom shrinks whatever is on screen, so the bars went with it — glass buttons and the
+    /// progress bar shrinking into a row on the front page (recorded frame by frame on
+    /// 2026-10-15). They go first, at once and unanimated, so it is the page that is carried
+    /// back. And the tab bar is told now rather than when the reader has gone: it used to rise
+    /// most of a second after the book had landed, as a separate event; now it comes up with the
+    /// zoom, as part of the same return.
+    private func leave() {
+        var instantly = Transaction()
+        instantly.disablesAnimations = true
+        withTransaction(instantly) {
+            viewModel.isOverlayVisible = false
+        }
+        isLeaving = true
+        dismiss()
     }
 
     /// Search, bookmark, a note and the contents — the tools that work on the text.
@@ -725,7 +745,7 @@ public struct ReaderContainerView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         // The app draws its own tab bar now, and a bar the app draws has to be told.
-        .hidesDipleTabBar()
+        .hidesDipleTabBar(!isLeaving)
         .navigationBarBackButtonHidden(true)
         .navigationDestination(isPresented: $viewModel.isSecondReadPresented) {
             SecondReadView(book: viewModel.book, onReadingUpdated: onReadingUpdated)
@@ -1088,6 +1108,9 @@ public struct ReaderContainerView: View {
         guard viewModel.publication != nil,
               viewModel.finishedColophon == nil,
               !viewModel.isOverlayVisible,
+              // The bars going down on the way out would otherwise raise it, in time to be
+              // carried into the cover with the page.
+              !isLeaving,
               highlightActionsSubject == nil,
               viewModel.activeFootnote == nil,
               viewModel.activeLivingMargin == nil
@@ -1437,9 +1460,12 @@ private enum HighlightEditorTarget: Identifiable {
 /// for the page, on the page's own colour, so when the text arrives nothing about the screen
 /// changes but the words on it.
 ///
-/// A fast open should not flash a title page for a tenth of a second, so it fades in only after
-/// a beat. While it is up the short rule between title and author breathes — the one sign that
-/// something is still happening, and too small to be mistaken for an alarm.
+/// It is there from the first frame (2026-10-15). It used to fade in after a beat, so that a fast
+/// open would not flash it — but the book opens out of its cover, and the zoom showed an empty
+/// panel of page colour growing out of the cover, the title arriving only after the zoom had
+/// ended. Now the cover grows into the title page: what the reader sees the book become is its
+/// first page. While it is up the short rule between title and author breathes — the one sign
+/// that something is still happening, and too small to be mistaken for an alarm.
 private struct ReaderTitlePage: View {
     let title: String
     let author: String?
@@ -1449,7 +1475,6 @@ private struct ReaderTitlePage: View {
     @ScaledMetric(relativeTo: .title) private var titleSize: CGFloat = 28
     @ScaledMetric(relativeTo: .body) private var authorSize: CGFloat = 17
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isShown = false
     @State private var isBreathing = false
 
     var body: some View {
@@ -1476,11 +1501,9 @@ private struct ReaderTitlePage: View {
         .padding(.horizontal, DipleSpace.xxxl)
         // A little above the middle: a title page's text sits at the optical centre.
         .padding(.bottom, DipleSpace.xxxl * 2)
-        .opacity(isShown ? 1 : 0)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Opening \(title)")
         .onAppear {
-            withAnimation(DipleMotion.gentle.delay(0.25)) { isShown = true }
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true).delay(0.25)) {
                 isBreathing = true

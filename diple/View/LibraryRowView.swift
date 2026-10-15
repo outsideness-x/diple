@@ -128,7 +128,13 @@ public struct LibraryRowView: View {
         // The rule separates this row from the next *and* says how far into the source the
         // reader has got: one line doing both jobs, instead of a capsule track plus a
         // percentage that repeat what the accent segment already shows.
-        .overlay(alignment: .bottom) { progressRule }
+        .overlay(alignment: .bottom) {
+            progressRule
+                // Drawn on, not redrawn: a book closed back onto this page reports where the
+                // reader got to, and the line runs on to there where it can be seen — the
+                // part of the sitting that the page can show.
+                .animation(DipleMotion.gentle, value: clampedProgress)
+        }
         // The whole row is the target, not just the glyphs in it.
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

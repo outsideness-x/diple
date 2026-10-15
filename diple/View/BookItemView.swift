@@ -2,11 +2,14 @@ import SwiftUI
 
 public struct BookItemView: View {
     public let book: Book
+    /// Set where tapping the tile opens the book; the cover is then what it opens out of.
+    public let opening: BookOpening?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    public init(book: Book) {
+    public init(book: Book, opening: BookOpening? = nil) {
         self.book = book
+        self.opening = opening
     }
 
     // Where the saved position sits — the same number the reader's own bar prints, and the
@@ -17,7 +20,12 @@ public struct BookItemView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DipleSpace.s) {
-            BookCoverView(coverPath: book.coverPath, title: book.title, author: book.author)
+            BookCoverView(
+                coverPath: book.coverPath,
+                title: book.title,
+                author: book.author,
+                opening: opening
+            )
 
             // Title (1-2 lines, more once the type is large enough that two would cut it)
             Text(book.title)

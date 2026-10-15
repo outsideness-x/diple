@@ -282,19 +282,22 @@ private struct HidesDipleTabBarKey: PreferenceKey {
 }
 
 private struct HidesDipleTabBarModifier: ViewModifier {
+    let hides: Bool
     @Environment(\.dipleTabIsActive) private var isActive
 
     func body(content: Content) -> some View {
         // A pushed destination remains mounted when its whole tab root is hidden. Its
         // preference must not hide the bar of whichever root is visible now.
-        content.preference(key: HidesDipleTabBarKey.self, value: isActive)
+        content.preference(key: HidesDipleTabBarKey.self, value: isActive && hides)
     }
 }
 
 public extension View {
-    /// Takes the tab bar down for as long as this view is on screen.
-    func hidesDipleTabBar() -> some View {
-        modifier(HidesDipleTabBarModifier())
+    /// Takes the tab bar down for as long as this view is on screen — or, given `false`, lets
+    /// it come back while the view is still there: a screen that knows it is leaving can return
+    /// the bar during its own exit instead of after it.
+    func hidesDipleTabBar(_ hides: Bool = true) -> some View {
+        modifier(HidesDipleTabBarModifier(hides: hides))
     }
 
     /// Watches for any descendant asking for the bar to be hidden.

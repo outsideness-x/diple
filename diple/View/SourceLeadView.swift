@@ -24,6 +24,8 @@ public struct SourceLeadView: View {
     public let book: Book
     /// Prose length, when the indexer has reached this source. `nil` prints nothing at all.
     public let characters: Int?
+    /// Set where tapping the lead opens the book; its cover is then what it opens out of.
+    public let opening: BookOpening?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -34,9 +36,10 @@ public struct SourceLeadView: View {
     @ScaledMetric(relativeTo: .title3) private var coverWidth: CGFloat = 72
 
 
-    public init(book: Book, characters: Int? = nil) {
+    public init(book: Book, characters: Int? = nil, opening: BookOpening? = nil) {
         self.book = book
         self.characters = characters
+        self.opening = opening
     }
 
     /// Where the reader will land, which is the only position this block can honestly report:
@@ -102,7 +105,8 @@ public struct SourceLeadView: View {
                 coverPath: book.coverPath,
                 title: book.title,
                 author: book.author,
-                isCompact: true
+                isCompact: true,
+                opening: opening
             )
             .frame(width: min(coverWidth, 108), height: min(coverWidth, 108) * 1.5)
 
@@ -159,7 +163,13 @@ public struct SourceLeadView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, DipleSpace.m)
-        .overlay(alignment: .bottom) { progressRule }
+        .overlay(alignment: .bottom) {
+            progressRule
+                // Drawn on, not redrawn: a book closed back onto this page reports where the
+                // reader got to, and the line runs on to there where it can be seen — the
+                // part of the sitting that the page can show.
+                .animation(DipleMotion.gentle, value: clampedProgress)
+        }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(book.title). \(identity). \(status)")

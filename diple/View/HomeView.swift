@@ -73,10 +73,17 @@ public struct HomeView: View {
                         // *collections*, where they say which collection.
                         if let book = library.continueReadingBook {
                             NavigationLink(value: book) {
-                                SourceLeadView(book: book, characters: library.charactersByBook[book.id])
+                                SourceLeadView(
+                                    book: book,
+                                    characters: library.charactersByBook[book.id],
+                                    opening: BookOpening(id: book.id, in: readingNamespace)
+                                )
                             }
                             .buttonStyle(.bookCard)
-                            .matchedTransitionSource(id: book.id, in: readingNamespace)
+                            // A different book in the lead is a different lead, not this one
+                            // redrawn: its rule must not animate from the last book's progress,
+                            // and its words must not cross-fade through the last book's.
+                            .id(book.id)
                         }
 
                         if !recentlyOpened.isEmpty {
@@ -144,8 +151,12 @@ public struct HomeView: View {
             } message: {
                 Text(library.errorMessage ?? "An unknown error occurred.")
             }
-            .refreshesOnTabActivation(reload)
         }
+        // On the stack, not on its root. On the root it also fired when a closing book popped
+        // back to it — at the start of the zoom, so the front page re-sorted under the page
+        // still shrinking into it and the book landed in a row that now held another one. A
+        // closing book says so itself, through `onReadingUpdated`, once it has landed.
+        .refreshesOnTabActivation(reload)
     }
 
     /// The masthead.

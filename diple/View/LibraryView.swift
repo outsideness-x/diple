@@ -283,9 +283,6 @@ public struct LibraryView: View {
                 Text("The files and your reading positions are removed. Saved passages stay in Highlights.")
             }
             .onAppear(perform: selectInitialLocationIfNeeded)
-            // The shelf has to re-read the library every time the reader comes back to it: a
-            // book imported from Home, or finished in the reader, changes what belongs here.
-            .refreshesOnTabActivation { viewModel.loadBooks() }
             .onReceive(NotificationCenter.default.publisher(for: .dipleSourceDidImport)) { note in
                 guard let book = note.dipleImportedBook else { return }
                 reveal(book)
@@ -296,6 +293,11 @@ public struct LibraryView: View {
                 selectInitialLocationIfNeeded()
             }
         }
+        // The shelf has to re-read the library every time the reader comes back to it: a
+        // book imported from Home, or finished in the reader, changes what belongs here. On
+        // the stack rather than its root, so a book closing back onto the shelf is not
+        // re-sorted under it mid-zoom — it reports itself once it has landed.
+        .refreshesOnTabActivation { viewModel.loadBooks() }
     }
 
     // MARK: - Browsers
@@ -412,7 +414,8 @@ public struct LibraryView: View {
                 LibraryRowView(
                     book: book,
                     tags: viewModel.tagsByBook[book.id] ?? [],
-                    characters: viewModel.charactersByBook[book.id]
+                    characters: viewModel.charactersByBook[book.id],
+                    opening: BookOpening(id: route.sourceID, in: bookNamespace)
                 )
                 // The same menu the grid carries, on the same gesture. A row that answered
                 // a long press with three of the seven actions was the layout switch
@@ -432,7 +435,6 @@ public struct LibraryView: View {
                 )
             }
             .buttonStyle(.bookCard)
-            .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
             // The swipes belong to the browsing row and not to the chosen one: while choosing,
             // the bar below already carries move, tag and delete for the whole stack, and a
             // thumb shortcut that reached one book in the middle of that would be a second
@@ -494,7 +496,7 @@ public struct LibraryView: View {
             Button {
                 path.append(route)
             } label: {
-                BookItemView(book: book)
+                BookItemView(book: book, opening: BookOpening(id: route.sourceID, in: bookNamespace))
                     .bookActionsMenu(
                         for: book,
                         onSelect: { beginSelecting(with: book) },
@@ -508,7 +510,6 @@ public struct LibraryView: View {
                     )
             }
             .buttonStyle(.bookCard)
-            .matchedTransitionSource(id: route.sourceID, in: bookNamespace)
         }
     }
 
@@ -817,7 +818,12 @@ public struct LibraryView: View {
     @ViewBuilder
     private func readerDestination(for route: BookRoute) -> some View {
         let reader = ReaderContainerView(book: route.book, onReadingUpdated: {
-            viewModel.loadBooks()
+            // Once the book has landed back in its cover. A shelf sorted by Recent moves it to
+            // the front, and the covers trade places rather than the shelf being redrawn with
+            // them already swapped.
+            withAnimation(reduceMotion ? nil : DipleMotion.gentle) {
+                viewModel.loadBooks()
+            }
         })
 
         if reduceMotion {
