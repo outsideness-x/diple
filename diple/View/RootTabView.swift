@@ -92,8 +92,8 @@ public struct RootTabView: View {
 
     /// Every root stays in the tree. Hiding by opacity rather than rebuilding is what keeps a
     /// half-written note, a scrolled shelf and a pushed detail screen where the reader left
-    /// them; `allowsHitTesting` stops the hidden roots from swallowing touches, and
-    /// `accessibilityHidden` stops VoiceOver from reading four screens at once.
+    /// them; `allowsHitTesting` stops the hidden roots from swallowing touches, and switching
+    /// accessibility off in their environment stops VoiceOver from reading four screens at once.
     private var tabContent: some View {
         ZStack {
             tabRoot(.home) { HomeView() }
@@ -111,13 +111,26 @@ public struct RootTabView: View {
         let isActive = selection == tab
         content()
             .environment(\.dipleTabIsActive, isActive)
+            // Not `accessibilityHidden`, which stood here and did nothing: it stops at the first
+            // UIKit boundary, and every root begins with one — a `NavigationStack` is a
+            // navigation controller with a hosting controller per screen, and the shelf's list
+            // hosts each row on its own. The hidden roots stayed in the accessibility tree whole:
+            // VoiceOver could walk into all four screens, and XCUITest found the shelf's Settings
+            // gear under Home's. The environment is what SwiftUI does carry across those
+            // boundaries, and a subtree told that accessibility is off builds no elements at
+            // all — down to the search root's navigation bar and a reader left open in a hidden
+            // tab. The root on screen keeps the system's value untouched. Kept beside this,
+            // `accessibilityHidden` left an empty, unlabelled element the size of the screen for
+            // every hidden root.
+            .transformEnvironment(\.accessibilityEnabled) { enabled in
+                if !isActive { enabled = false }
+            }
             // Instantly, even though the tab bar changes the selection inside an animation for
             // its lens. Animated, the two roots cross-faded through each other for a tenth of a
             // second — "diple." over "Library", one shelf over another (seen frame by frame on
             // 2026-10-15). The lens travels; the page cuts, as the system's own tab bar does.
             .animation(nil) { $0.opacity(isActive ? 1 : 0) }
             .allowsHitTesting(isActive)
-            .accessibilityHidden(!isActive)
             .zIndex(isActive ? 1 : 0)
     }
 }
