@@ -54,7 +54,7 @@ public struct BookActionsMenu: ViewModifier {
             // to finish it again is the honest entry.
             if book.progress < 0.995 {
                 Button {
-                    onMarkAsFinished()
+                    afterTheMenuCloses(onMarkAsFinished)
                 } label: {
                     Label("Mark as Finished", systemImage: "checkmark.circle")
                 }
@@ -64,7 +64,7 @@ public struct BookActionsMenu: ViewModifier {
             // is one more thing to read past every time the menu opens.
             ForEach(BookLocation.allCases.filter { $0 != book.location }, id: \.self) { destination in
                 Button {
-                    onMove(destination)
+                    afterTheMenuCloses { onMove(destination) }
                 } label: {
                     Label("Move to \(destination.title)", systemImage: destination.systemImage)
                 }
@@ -89,6 +89,26 @@ public struct BookActionsMenu: ViewModifier {
             }
         }
     }
+
+    /// Changes the shelf once the menu has gone, and as a change of its own.
+    ///
+    /// The menu lifts a live copy of the row as its preview, so a change made from inside it
+    /// lands while that copy is still on screen. Moving a source to another shelf emptied the
+    /// lifted row into a blank card, which then shrank out of the gap it left, and the counts on
+    /// the rubric jumped under it — seen frame by frame on 2026-10-15. SwiftUI says nothing when
+    /// the menu has finished closing, so the change waits out the menu's own exit and then plays
+    /// animated: the row is back on the shelf for a beat, and leaves it in plain sight. Finishing
+    /// a book waits the same way, so the line under it fills where it can be seen.
+    private func afterTheMenuCloses(_ change: @escaping () -> Void) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(Self.menuExit))
+            withAnimation(DipleMotion.gentle) { change() }
+        }
+    }
+
+    /// The length of the menu's exit — the lifted copy settling back into the row — measured
+    /// from a recording at about 250 ms, with room for a busy frame.
+    private static let menuExit = 380
 }
 
 public extension View {
