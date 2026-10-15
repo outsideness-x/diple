@@ -16,6 +16,8 @@ public struct LibraryRowView: View {
     public let tags: [String]
     /// Prose length, when the indexer has reached this source. `nil` prints nothing at all.
     public let characters: Int?
+    /// Set where tapping the row opens the book; the thumbnail is then what it opens out of.
+    public let opening: BookOpening?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -23,10 +25,11 @@ public struct LibraryRowView: View {
     /// Type instead of leaving a stamp next to giant titles — as the hub's book row already did.
     @ScaledMetric(relativeTo: .subheadline) private var coverWidth: CGFloat = 44
 
-    public init(book: Book, tags: [String] = [], characters: Int? = nil) {
+    public init(book: Book, tags: [String] = [], characters: Int? = nil, opening: BookOpening? = nil) {
         self.book = book
         self.tags = tags
         self.characters = characters
+        self.opening = opening
     }
 
     /// Where the saved position sits, not the furthest point ever reached: the row prints the
@@ -93,7 +96,8 @@ public struct LibraryRowView: View {
                 coverPath: book.coverPath,
                 title: book.title,
                 author: book.author,
-                isCompact: true
+                isCompact: true,
+                opening: opening
             )
             .frame(width: coverWidth, height: coverWidth * 1.5)
 

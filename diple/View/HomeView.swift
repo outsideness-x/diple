@@ -87,7 +87,10 @@ public struct HomeView: View {
                                             LibraryRowView(
                                                 book: book,
                                                 tags: library.tagsByBook[book.id] ?? [],
-                                                characters: library.charactersByBook[book.id]
+                                                characters: library.charactersByBook[book.id],
+                                                // The lead is left out of this list, so the
+                                                // book's own id is unambiguous here.
+                                                opening: BookOpening(id: book.id, in: readingNamespace)
                                             )
                                         }
                                         .buttonStyle(.bookCard)

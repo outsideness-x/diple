@@ -28,6 +28,41 @@ private struct CoverParallax: ViewModifier {
     }
 }
 
+/// The cover a book opens out of, and closes back into.
+///
+/// The reader arrives through `navigationTransition(.zoom)`, which grows the destination out of
+/// its source and shrinks it back on the way out — so the source is what the reader sees the
+/// book *become*. A source that is a whole row or card grew a wide rounded panel out of the
+/// middle of a list; a cover grows into a page, which is the one thing opening a book looks
+/// like. A row without a source at all zoomed out of the centre of the screen.
+public struct BookOpening {
+    public let id: AnyHashable
+    public let namespace: Namespace.ID
+
+    public init(id: AnyHashable, in namespace: Namespace.ID) {
+        self.id = id
+        self.namespace = namespace
+    }
+}
+
+/// Registers the cover as the zoom's source, clipped to the cover's own corner so the page
+/// leaves and lands with a book's edge rather than the rounded rectangle of a card. The zoom
+/// takes no other clip than a `RoundedRectangle`, which the cover's shape already is.
+private struct BookOpeningSource: ViewModifier {
+    let opening: BookOpening?
+    let shape: RoundedRectangle
+
+    func body(content: Content) -> some View {
+        if let opening {
+            content.matchedTransitionSource(id: opening.id, in: opening.namespace) { source in
+                source.clipShape(shape)
+            }
+        } else {
+            content
+        }
+    }
+}
+
 public struct BookCoverView: View {
     public let coverPath: String?
     public let title: String
@@ -38,11 +73,21 @@ public struct BookCoverView: View {
     /// glyph alone.
     public let isCompact: Bool
 
-    public init(coverPath: String?, title: String, author: String?, isCompact: Bool = false) {
+    /// Set where tapping the cover's row opens the book. See `BookOpening`.
+    public let opening: BookOpening?
+
+    public init(
+        coverPath: String?,
+        title: String,
+        author: String?,
+        isCompact: Bool = false,
+        opening: BookOpening? = nil
+    ) {
         self.coverPath = coverPath
         self.title = title
         self.author = author
         self.isCompact = isCompact
+        self.opening = opening
     }
 
     private var loadedImage: UIImage? {
@@ -93,6 +138,7 @@ public struct BookCoverView: View {
                         lineWidth: DipleStroke.hairline
                     )
                 )
+                .modifier(BookOpeningSource(opening: opening, shape: shape))
         }
         .aspectRatio(1 / 1.5, contentMode: .fit)
     }
