@@ -115,15 +115,28 @@ public struct ReaderChrome: Equatable {
 /// so the control reads as decoration until it is touched. Dragging previews the target
 /// position locally and only jumps once the finger lifts, which keeps the navigator from
 /// churning through intermediate locations.
+///
+/// **The drag is not blind.** Every point the finger passes through goes out through `onScrub`,
+/// so the bar's own figures — the percentage, the time left, the chapter — follow the thumb, and
+/// `nil` goes out when it lifts. Where a chapter begins (`notches`) the drag lands a firmer tick
+/// than the fine one every 2%: the reader feels the chapter boundary pass under the thumb at the
+/// same moment its name changes beside it.
 public struct ReadingProgressSlider: View {
     public let progress: Double
     public let isEnabled: Bool
     public let chrome: ReaderChrome
+    /// Fractions of the book where a chapter begins, rising. Empty when the book cannot say.
+    public let notches: [Double]
+    public let onScrub: (Double?) -> Void
     public let onSeek: (Double) -> Void
 
     @State private var isScrubbing = false
     @State private var scrubProgress: Double = 0
     @State private var lastTickStep: Int = -1
+    @State private var lastNotch: Int = 0
+    /// True for exactly as long as a finger is on the bar. A gesture the system takes away
+    /// mid-drag never reaches `onEnded`, and this is how the bar finds out — see `body`.
+    @GestureState private var isTouching = false
 
     private static let trackHeight: CGFloat = 3
     private static let activeTrackHeight: CGFloat = 6
@@ -133,12 +146,21 @@ public struct ReadingProgressSlider: View {
         progress: Double,
         isEnabled: Bool,
         chrome: ReaderChrome,
+        notches: [Double] = [],
+        onScrub: @escaping (Double?) -> Void = { _ in },
         onSeek: @escaping (Double) -> Void
     ) {
         self.progress = progress
         self.isEnabled = isEnabled
         self.chrome = chrome
+        self.notches = notches
+        self.onScrub = onScrub
         self.onSeek = onSeek
+    }
+
+    /// How many chapter starts lie at or before a fraction — which chapter the thumb is in.
+    private func notchIndex(for value: Double) -> Int {
+        notches.reduce(0) { $1 <= value ? $0 + 1 : $0 }
     }
 
     private var displayedProgress: Double {
@@ -159,31 +181,46 @@ public struct ReadingProgressSlider: View {
                     .fill(chrome.mark)
                     .frame(width: filled, height: height)
 
+                // Scaled before it is moved. The other way round the scale also shrank the
+                // offset, so the handle flew in from the left on touch-down and ran back toward
+                // the start of the bar as it faded on release — a second, smaller snap-back.
                 Circle()
                     .fill(chrome.mark)
                     .frame(width: Self.handleSize, height: Self.handleSize)
                     .shadow(color: Color.black.opacity(0.5), radius: 4, y: 1)
-                    .offset(x: filled - Self.handleSize / 2)
-                    .opacity(isScrubbing ? 1 : 0)
                     .scaleEffect(isScrubbing ? 1 : 0.4)
+                    .opacity(isScrubbing ? 1 : 0)
+                    .offset(x: filled - Self.handleSize / 2)
             }
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .animation(DipleMotion.snappy, value: isScrubbing)
             .gesture(
                 DragGesture(minimumDistance: 0)
+                    .updating($isTouching) { _, touching, _ in touching = true }
                     .onChanged { value in
                         guard isEnabled, geo.size.width > 0 else { return }
+                        let position = min(max(value.location.x / geo.size.width, 0), 1)
                         if !isScrubbing {
                             isScrubbing = true
-                            lastTickStep = -1
+                            // Counted from where the finger lands, so touching down is the one
+                            // tap it is — not a tap and a tick in the same instant.
+                            lastTickStep = Int(position * 50)
+                            lastNotch = notchIndex(for: position)
                             HapticManager.shared.impact(.light)
                         }
-                        scrubProgress = min(max(value.location.x / geo.size.width, 0), 1)
+                        scrubProgress = position
+                        onScrub(position)
 
-                        // A tick every 2% turns the drag into something you can feel.
-                        let step = Int(scrubProgress * 50)
-                        if step != lastTickStep {
+                        // A tick every 2% turns the drag into something you can feel, and a
+                        // chapter boundary is a firmer one in its place rather than beside it.
+                        let step = Int(position * 50)
+                        let notch = notchIndex(for: position)
+                        if notch != lastNotch {
+                            lastNotch = notch
+                            lastTickStep = step
+                            HapticManager.shared.impact(.medium)
+                        } else if step != lastTickStep {
                             lastTickStep = step
                             HapticManager.shared.selection()
                         }
@@ -192,11 +229,24 @@ public struct ReadingProgressSlider: View {
                         guard isEnabled, isScrubbing else { return }
                         isScrubbing = false
                         HapticManager.shared.impact(.medium)
+                        // The jump first, then the preview lets go: the reader's held position
+                        // is already the place the thumb named when the live one stops.
                         onSeek(scrubProgress)
+                        onScrub(nil)
                     }
             )
         }
         .frame(height: 26)
+        // A drag the system cancelled — a pull from the top of the screen, a call — ends with
+        // no jump and must not leave the bar's figures printing where the thumb was.
+        .onChange(of: isTouching) { _, touching in
+            guard !touching, isScrubbing else { return }
+            isScrubbing = false
+            onScrub(nil)
+        }
+        .onDisappear {
+            if isScrubbing { onScrub(nil) }
+        }
         .opacity(isEnabled ? 1 : 0.6)
         // A drag gesture on a `GeometryReader` is invisible to VoiceOver: without this the
         // only control that moves through the whole book could be read but never operated.

@@ -64,6 +64,9 @@ public struct ReaderContainerView: View {
     /// title page stays over the page until the navigator reports where it stands, which it
     /// does only once that spread is there.
     @State private var isFirstPageShown = false
+    /// Where the finger is on the progress bar, while it is there. The bar's figures print this
+    /// instead of the reader's position, so a drag says where it is going before it goes.
+    @State private var scrubPreview: Double?
     public let onReadingUpdated: () -> Void
 
     public init(book: Book, startingLocator: Locator? = nil, onReadingUpdated: @escaping () -> Void) {
@@ -92,6 +95,34 @@ public struct ReaderContainerView: View {
         let chapter = viewModel.currentLocator?.title?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return chapter.isEmpty ? viewModel.book.title : chapter
+    }
+
+    /// The position the bottom bar prints: under a dragging finger the finger's, while a jump is
+    /// in flight the place it was sent to, otherwise the reader's own.
+    private var shownProgress: Double {
+        scrubPreview ?? viewModel.displayedProgress
+    }
+
+    /// `placeLine` for a position the reader is not at yet — the chapter under the thumb, or the
+    /// one a jump is on its way to. Falls back to the place the reader is in when the book
+    /// cannot name a chapter there.
+    private var shownPlaceLine: String {
+        guard scrubPreview != nil || viewModel.pendingSeekProgress != nil,
+              let chapter = viewModel.chapterTitle(atProgress: shownProgress)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines),
+              !chapter.isEmpty
+        else { return placeLine }
+        return chapter
+    }
+
+    /// Where the bar has a notch the thumb can feel: the start of each top-level chapter, in a
+    /// book that measured where its chapters begin and has few enough of them for a notch to
+    /// mean a chapter rather than a buzz.
+    private var chapterNotches: [Double] {
+        let contents = viewModel.contents
+        guard contents.isMeasured else { return [] }
+        let starts = contents.chapters.filter { $0.depth == 0 && $0.start > 0 }.map(\.start)
+        return starts.count <= 60 ? starts : []
     }
 
     /// The square each glass control stands in on iOS 26. It grows with the reader's text size
@@ -402,14 +433,16 @@ public struct ReaderContainerView: View {
                         // Bottom Bar Overlay
                         VStack(spacing: DipleSpace.m) {
                             ReadingProgressSlider(
-                                progress: viewModel.currentProgress,
+                                progress: viewModel.displayedProgress,
                                 isEnabled: viewModel.canSeek,
                                 chrome: chrome,
+                                notches: chapterNotches,
+                                onScrub: { scrubPreview = $0 },
                                 onSeek: { viewModel.seek(toProgress: $0) }
                             )
 
                             HStack(spacing: DipleSpace.m) {
-                                let percentage = Int((viewModel.currentProgress * 100).rounded())
+                                let percentage = Int((shownProgress * 100).rounded())
                                 Text("\(percentage)%")
                                     .dipleType(.footnote, weight: .semibold)
                                     // Chrome ink, not accent. A number is a fact, not an
@@ -418,14 +451,17 @@ public struct ReaderContainerView: View {
                                     .foregroundStyle(chrome.control)
                                     .monospacedDigit()
                                     .contentTransition(.numericText())
-                                    .animation(DipleMotion.standard, value: percentage)
+                                    // Rolled when the book moves, set straight under a finger:
+                                    // a counter that is still rolling the last value is behind
+                                    // the thumb by exactly the length of the roll.
+                                    .animation(scrubPreview == nil ? DipleMotion.standard : nil, value: percentage)
 
                                 // Time left sits next to the percentage — the same fact, in the
                                 // unit a reader actually plans around — and before the chapter
                                 // title, which is the one thing here allowed to truncate.
                                 if let remaining = ReadingEstimate.remaining(
                                     characters: viewModel.contentCharacters,
-                                    progress: viewModel.currentProgress,
+                                    progress: shownProgress,
                                     // `book.script`, not the publication's own — the bar and
                                     // the shelf must not disagree about the same book. See
                                     // `Book.script`.
@@ -441,7 +477,7 @@ public struct ReaderContainerView: View {
                                 // Where in the book, in one place: the chapter when the
                                 // publication names one, the book itself when it does not — so
                                 // the line is always there and never doubles the top bar.
-                                Text(placeLine)
+                                Text(shownPlaceLine)
                                     .dipleType(.footnote, weight: .regular)
                                     .foregroundStyle(chrome.secondary)
                                     .lineLimit(1)
@@ -1024,7 +1060,7 @@ public struct ReaderContainerView: View {
                             .fill(chrome.track)
                         Rectangle()
                             .fill(chrome.mark)
-                            .frame(width: geo.size.width * min(max(viewModel.currentProgress, 0), 1))
+                            .frame(width: geo.size.width * min(max(viewModel.displayedProgress, 0), 1))
                     }
                 }
                 .frame(height: DipleStroke.progressLine)

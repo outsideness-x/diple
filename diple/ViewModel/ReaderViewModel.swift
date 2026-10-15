@@ -267,6 +267,26 @@ public final class ReaderViewModel: ObservableObject {
     /// Flat position list, used to turn a progress-bar drag into a real location.
     @Published public private(set) var positions: [Locator] = []
 
+    /// Where the progress bar sent the reader, held until the book has arrived there.
+    ///
+    /// A jump through the book takes Readium the better part of a second — a new resource is
+    /// loaded and laid out — and for that second `currentProgress` still says where the reader
+    /// *was*. The bar used to draw exactly that: let go at 78% and the fill slid back to 44%,
+    /// then leapt forward to 78% when the page arrived, with the figure beside it later still.
+    /// Everything that prints a position while a jump is in flight prints this instead
+    /// (`displayedProgress`), so the bar stays where the finger left it. It clears on the first
+    /// report from the place it named, and after three seconds if that report never comes — a
+    /// jump that lands somewhere else must not leave the bar lying about it.
+    @Published public private(set) var pendingSeekProgress: Double?
+    private var pendingSeekTask: Task<Void, Never>?
+    /// How close a report has to come to the held position to count as having arrived. A
+    /// position is a page or so of text, and a jump lands where its page begins.
+    private static let seekArrivalTolerance = 0.02
+
+    /// The position the interface prints: the held one while a jump is in flight, the book's
+    /// own otherwise. See `pendingSeekProgress`.
+    public var displayedProgress: Double { pendingSeekProgress ?? currentProgress }
+
     /// Whether the note editor has written anything since it was raised. Read and cleared by
     /// `announceSavedNote` when the editor leaves.
     private var hasSavedNoteWhileEditing = false
@@ -774,6 +794,12 @@ public final class ReaderViewModel: ObservableObject {
         self.latestLocator = locator
         self.latestProgress = progress(for: locator)
         publishLocationIfWorthAFrame()
+        // After the publish, so the book's own figure is already the arrived one when the held
+        // figure lets go — the two meet in the same frame instead of crossing.
+        if let pending = pendingSeekProgress,
+           abs(latestProgress - pending) <= Self.seekArrivalTolerance {
+            releaseSeekProgress()
+        }
         if latestProgress < readingEnd.progression {
             canOfferColophonAfterCrossing = true
         }
@@ -1224,11 +1250,8 @@ public final class ReaderViewModel: ObservableObject {
     public func seek(toProgress target: Double) {
         let clamped = min(max(target, 0), 1)
 
-        let nearest = positions.min { lhs, rhs in
-            abs((lhs.locations.totalProgression ?? 0) - clamped)
-                < abs((rhs.locations.totalProgression ?? 0) - clamped)
-        }
-        if let nearest {
+        if let nearest = nearestPosition(to: clamped) {
+            holdSeekProgress(nearest.locations.totalProgression ?? clamped)
             navigateToLocator(nearest)
             return
         }
@@ -1236,7 +1259,62 @@ public final class ReaderViewModel: ObservableObject {
         // No position list: fall back to the resource containing that fraction.
         guard let pub = publication, !pub.readingOrder.isEmpty else { return }
         let index = min(Int(clamped * Double(pub.readingOrder.count)), pub.readingOrder.count - 1)
+        holdSeekProgress(clamped)
         navigateToLink(pub.readingOrder[index])
+    }
+
+    /// The chapter a fraction of the book falls in — what the bar prints under a dragging finger.
+    ///
+    /// Asked the way the contents sheet asks it (`BookContents.current`), through the same
+    /// position the jump itself would land on: the resource outranks the arithmetic, and the
+    /// name under the thumb is then the chapter the reader arrives in rather than a neighbour of
+    /// it. `nil` until the contents are laid out, and for a publication without a contents list.
+    public func chapterTitle(atProgress progress: Double) -> String? {
+        guard !contents.isEmpty else { return nil }
+        let clamped = min(max(progress, 0), 1)
+        return contents.current(at: clamped, resource: nearestPosition(to: clamped)?.href)?.title
+    }
+
+    /// The position nearest a fraction of the book.
+    ///
+    /// The list is in reading order, so its progressions only rise and a binary search finds
+    /// the pair either side — the drag asks this once per reported point, on lists of thousands.
+    /// Ties go to the earlier position, as the linear search this replaced did.
+    private func nearestPosition(to progress: Double) -> Locator? {
+        guard !positions.isEmpty else { return nil }
+        func value(_ index: Int) -> Double { positions[index].locations.totalProgression ?? 0 }
+        var low = 0
+        var high = positions.count - 1
+        while low < high {
+            let middle = (low + high) / 2
+            if value(middle) < progress {
+                low = middle + 1
+            } else {
+                high = middle
+            }
+        }
+        if low > 0, abs(value(low - 1) - progress) <= abs(value(low) - progress) {
+            return positions[low - 1]
+        }
+        return positions[low]
+    }
+
+    /// Holds the bar at a jump's destination until the book arrives there. Internal rather than
+    /// private only so a test can hold a position without a publication to seek through.
+    func holdSeekProgress(_ progress: Double) {
+        pendingSeekProgress = progress
+        pendingSeekTask?.cancel()
+        pendingSeekTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self?.pendingSeekProgress = nil
+        }
+    }
+
+    private func releaseSeekProgress() {
+        pendingSeekTask?.cancel()
+        pendingSeekTask = nil
+        pendingSeekProgress = nil
     }
 
     public func showToast(_ message: String) {

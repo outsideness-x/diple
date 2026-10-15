@@ -73,6 +73,33 @@ final class ReaderLocationPublishingTests: XCTestCase {
         XCTAssertEqual(saved.progress, 0.4000051, accuracy: 1e-9)
     }
 
+    /// The bar used to fall back to where the reader *was* the moment the finger lifted, and
+    /// leap forward a second later. A held jump outlasts the reports that are still coming from
+    /// the old place.
+    func testAJumpIsHeldAgainstReportsFromWhereTheReaderWas() throws {
+        let viewModel = try makeReader()
+        viewModel.saveLocation(locator(at: 0.44))
+
+        viewModel.holdSeekProgress(0.78)
+        viewModel.saveLocation(locator(at: 0.4401))
+
+        XCTAssertEqual(viewModel.pendingSeekProgress, 0.78)
+        XCTAssertEqual(viewModel.displayedProgress, 0.78, accuracy: 1e-9)
+    }
+
+    /// And it lets go on the first report from where it was sent, with the book's own figure
+    /// already in place — the two meet rather than cross.
+    func testAJumpLetsGoWhenTheBookArrives() throws {
+        let viewModel = try makeReader()
+        viewModel.saveLocation(locator(at: 0.44))
+
+        viewModel.holdSeekProgress(0.78)
+        viewModel.saveLocation(locator(at: 0.775, href: "chapter-21.xhtml"))
+
+        XCTAssertNil(viewModel.pendingSeekProgress)
+        XCTAssertEqual(viewModel.displayedProgress, 0.775, accuracy: 1e-9)
+    }
+
     private func makeReader() throws -> ReaderViewModel {
         let database = try AppDatabase(DatabaseQueue())
         let book = Book(id: "publish-book", title: "Source", filePath: "Books/publish/book.epub")
