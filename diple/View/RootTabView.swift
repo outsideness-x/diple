@@ -111,7 +111,11 @@ public struct RootTabView: View {
         let isActive = selection == tab
         content()
             .environment(\.dipleTabIsActive, isActive)
-            .opacity(isActive ? 1 : 0)
+            // Instantly, even though the tab bar changes the selection inside an animation for
+            // its lens. Animated, the two roots cross-faded through each other for a tenth of a
+            // second — "diple." over "Library", one shelf over another (seen frame by frame on
+            // 2026-10-15). The lens travels; the page cuts, as the system's own tab bar does.
+            .animation(nil) { $0.opacity(isActive ? 1 : 0) }
             .allowsHitTesting(isActive)
             .accessibilityHidden(!isActive)
             .zIndex(isActive ? 1 : 0)

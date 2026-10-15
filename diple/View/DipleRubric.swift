@@ -42,12 +42,40 @@ struct DipleRubric<Option: Hashable>: View {
         }
     }
 
+    /// The places, and one rule under whichever is chosen.
+    ///
+    /// **One rule that travels, not one per place (2026-10-15).** Each place drew its own rule
+    /// and the chosen one faded in while the last faded out — on the recording the two stood
+    /// under two words at once, and the eye saw a flicker where it was owed a movement. The rule
+    /// is drawn once, behind the row, where the chosen place says its bounds are, and it slides
+    /// and stretches to the next word the way the tab bar's lens travels.
+    ///
+    /// **Choosing changes the place instantly; only the rule and the type move.** The choice was
+    /// made inside `withAnimation`, and that animation reached everything the choice changed:
+    /// the shelf under the rubric cross-faded from Inbox to Later, the two halves of Highlights
+    /// cross-faded through each other, and for a quarter of a second the reader saw two pages
+    /// at once ("Frankensteineights"). Content cuts and the indicator moves — the system's own
+    /// segmented places behave the same way.
     private var places: some View {
         HStack(alignment: .bottom, spacing: size == .room ? DipleSpace.xl : DipleSpace.l) {
             ForEach(options, id: \.self) { option in
                 segment(option)
             }
             Spacer(minLength: 0)
+        }
+        .backgroundPreferenceValue(ChosenPlaceBounds.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor {
+                    let bounds = proxy[anchor]
+                    Rectangle()
+                        .fill(DipleColor.accentInk)
+                        .frame(width: bounds.width, height: DipleStroke.selection)
+                        .offset(x: bounds.minX, y: bounds.maxY - DipleStroke.selection)
+                        // Keyed on where it stands, not on the choice alone: a count appearing
+                        // beside the chosen place widens it, and the rule follows that too.
+                        .animation(DipleMotion.standard, value: bounds)
+                }
+            }
         }
     }
 
@@ -58,33 +86,56 @@ struct DipleRubric<Option: Hashable>: View {
         return Button {
             guard !isSelected else { return }
             HapticManager.shared.selection()
-            withAnimation(DipleMotion.standard) { selection = option }
+            selection = option
         } label: {
             HStack(alignment: .top, spacing: DipleSpace.hair) {
-                Text(name)
-                    .dipleType(size == .room ? .headline : .callout, weight: isSelected ? .semibold : .regular)
-                    .lineLimit(1)
+                // Set at the chosen weight underneath, invisibly, so every place is always as
+                // wide as it is when chosen. The weight used to change the width, and choosing
+                // Later nudged Archive a point or two along the row under the thumb.
+                ZStack(alignment: .leading) {
+                    nameText(name, weight: .semibold)
+                        .hidden()
+                    nameText(name, weight: isSelected ? .semibold : .regular)
+                        .contentTransition(.interpolate)
+                }
 
                 if figure > 0 {
                     Text("\(figure)")
                         .dipleType(.tag)
                         .monospacedDigit()
                         .baselineOffset(size == .room ? 7 : 5)
+                        // The count turns over when a source moves between places, rather
+                        // than being swapped for another number.
+                        .contentTransition(.numericText(value: Double(figure)))
+                        .transition(.opacity)
                 }
             }
             .foregroundStyle(isSelected ? DipleColor.textPrimary : DipleColor.textQuaternary)
             .padding(.bottom, DipleSpace.s)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(isSelected ? DipleColor.accentInk : Color.clear)
-                    .frame(height: DipleStroke.selection)
-            }
+            .anchorPreference(key: ChosenPlaceBounds.self, value: .bounds) { isSelected ? $0 : nil }
             .contentShape(Rectangle())
+            .animation(DipleMotion.standard, value: isSelected)
+            .animation(DipleMotion.standard, value: figure)
         }
         .buttonStyle(.readerControl)
         .accessibilityLabel(figure > 0 ? "\(name), \(figure)" : name)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityIdentifier(identifier(option))
+    }
+
+    private func nameText(_ name: String, weight: Font.Weight) -> some View {
+        Text(name)
+            .dipleType(size == .room ? .headline : .callout, weight: weight)
+            .lineLimit(1)
+    }
+}
+
+/// Where the chosen place is, for the one rule under the rubric to stand beneath.
+private struct ChosenPlaceBounds: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? { nil }
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
     }
 }
 
