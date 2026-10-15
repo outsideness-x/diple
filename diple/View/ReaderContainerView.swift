@@ -469,6 +469,7 @@ public struct ReaderContainerView: View {
                                         Image(systemName: "arrow.uturn.backward")
                                             .dipleIcon(16, weight: .regular)
                                             .foregroundStyle(chrome.control)
+                                            .readerGlyphTarget()
                                     }
                                     .buttonStyle(.readerControl)
                                     .accessibilityLabel("Go back to where you were reading")
@@ -482,6 +483,7 @@ public struct ReaderContainerView: View {
                                         Image(systemName: "arrow.uturn.forward")
                                             .dipleIcon(16, weight: .regular)
                                             .foregroundStyle(chrome.control)
+                                            .readerGlyphTarget()
                                     }
                                     .buttonStyle(.readerControl)
                                     .accessibilityLabel("Go forward to where you jumped from")
@@ -496,6 +498,7 @@ public struct ReaderContainerView: View {
                                     Image(systemName: "gearshape")
                                         .dipleIcon(16, weight: .regular)
                                         .foregroundStyle(chrome.control)
+                                        .readerGlyphTarget()
                                 }
                                 .buttonStyle(.readerControl)
                                 .accessibilityLabel("Reading settings")

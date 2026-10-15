@@ -263,6 +263,9 @@ public struct ReaderBarBackground: ViewModifier {
                     .regular,
                     in: RoundedRectangle(cornerRadius: DipleRadius.xl, style: .continuous)
                 )
+                .keepsTouchesOffThePage(
+                    in: RoundedRectangle(cornerRadius: DipleRadius.xl, style: .continuous)
+                )
                 .environment(\.colorScheme, chrome.colorScheme)
                 .padding(.horizontal, DipleSpace.m)
                 .padding(edge == .top ? .top : .bottom, DipleSpace.s)
@@ -321,6 +324,7 @@ public struct ReaderGlassSurface<S: InsettableShape>: ViewModifier {
         if #available(iOS 26.0, *) {
             content
                 .glassEffect(glass.system, in: shape)
+                .keepsTouchesOffThePage(in: shape)
                 .environment(\.colorScheme, chrome.colorScheme)
         } else {
             content
@@ -340,6 +344,47 @@ public struct ReaderGlassSurface<S: InsettableShape>: ViewModifier {
 public extension View {
     func readerBarBackground(_ chrome: ReaderChrome, edge: VerticalEdge) -> some View {
         modifier(ReaderBarBackground(chrome: chrome, edge: edge))
+    }
+
+    /// A glyph in a line of type, aimed at across more than the glyph.
+    ///
+    /// The bottom bar's row is set at the size of its text — a percentage, the time left, the
+    /// chapter — and its glyphs were the size of the text with it: a 17 pt square for a thumb,
+    /// where this project's floor is 44. Seats as tall as the top bar's would have doubled the
+    /// bar for the sake of three glyphs, so the target grows and the layout does not: the label
+    /// is padded out, takes its content shape at that size, and is pulled back in by the same
+    /// amount. The overflow still takes touches — the same fact `DipleTabBar` records about its
+    /// collapsed seats. Upward and downward it reaches 44 pt; across, half the row's spacing each
+    /// way, so neighbouring targets meet instead of overlapping.
+    func readerGlyphTarget() -> some View {
+        padding(.horizontal, DipleSpace.m / 2)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+            .padding(.horizontal, -DipleSpace.m / 2)
+            .padding(.vertical, -14)
+    }
+}
+
+private extension View {
+    /// Glass that keeps the touches landing on it.
+    ///
+    /// On iOS 26 `glassEffect` draws its content inside a platform view that does not keep a
+    /// real touch: it goes on down the hierarchy. Over SwiftUI that costs nothing — what lies
+    /// beneath is SwiftUI too, and it still finds the control on top. Over the reader what lies
+    /// beneath is Readium's web view, and the web view takes the touch outright: the gear on the
+    /// bottom bar turned the page instead of opening the reader's settings, and every control
+    /// beside it was in the same place (found frame by frame on 2026-10-15; the touch's view was
+    /// WebKit's content view, not the hosting view). The top bar, glass per control and
+    /// `.interactive()`, never showed it — but making the bottom panel interactive did not cure
+    /// the panel when it was tried, so interactivity is not the fix.
+    ///
+    /// A fill in the SwiftUI tree, under the glass and in its shape, is what the touch lands on
+    /// instead, and SwiftUI hands it to the control above. Its opacity is the smallest SwiftUI
+    /// still hit-tests, so nothing of it is drawn.
+    func keepsTouchesOffThePage<S: Shape>(in shape: S) -> some View {
+        background {
+            shape.fill(Color.black.opacity(0.001))
+        }
     }
 }
 
