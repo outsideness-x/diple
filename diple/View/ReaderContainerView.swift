@@ -31,8 +31,6 @@ public struct ReaderContainerView: View {
     /// what makes the sheet survive the selection it was raised from.
     @State private var translationText = ""
     @State private var isTranslationPresented = false
-    /// The term whose definition panel is up, if any.
-    @State private var definitionTerm: DictionaryTerm?
     /// The colour the next selection will be marked in — whichever one was chosen last.
     ///
     /// A working habit, not navigation state, so it lives in `@AppStorage` beside the library
@@ -818,16 +816,6 @@ public struct ReaderContainerView: View {
         // would be torn out of the hierarchy in the same update that raised it, and the sheet
         // would come up and collapse again. This container outlives all of that.
         .translationTarget(isPresented: $isTranslationPresented, text: translationText)
-        // And the dictionary, raised from here for exactly the same reason.
-        //
-        // Two detents rather than a full screen: a definition is a glance, and the page it was
-        // asked from should still be visible behind it. The panel brings its own bar, its own
-        // Done and its own Manage screen, so nothing is drawn around it.
-        .sheet(item: $definitionTerm) { term in
-            DictionaryDefinitionView(term: term.text)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
         // The book's notebook, raised over the page: its notes as a list, and the one note
         // editor in the app standing on it.
         //
@@ -1208,7 +1196,6 @@ public struct ReaderContainerView: View {
                         canTranslate: !subject.quote.isEmpty,
                         onPickColor: { hex in pickColor(hex, for: subject) },
                         onTranslate: translateAction(for: subject),
-                        onDefine: defineAction(for: subject),
                         onAddNote: { addNote(to: subject) },
                         onCopy: { UIPasteboard.general.string = subject.quote },
                         onDelete: subject.highlight.map { highlight in
@@ -1320,15 +1307,6 @@ public struct ReaderContainerView: View {
             isTranslationPresented = true
         }
 #endif
-    }
-
-    /// Hands the passage to the system dictionary, when the passage is a word rather than
-    /// prose. `nil` decides the lookup slot: see `HighlightActionsBar.lookupSlot` for what the
-    /// slot then offers instead, and `DictionaryLookup.term` for why the rule is the shape of
-    /// the passage and not whether a dictionary happens to be installed.
-    private func defineAction(for subject: HighlightActionsSubject) -> (() -> Void)? {
-        guard let term = DictionaryLookup.term(in: subject.quote) else { return nil }
-        return { definitionTerm = DictionaryTerm(text: term) }
     }
 
     /// Whether the selection sits in the lower half of the page, which sends the bar to the
