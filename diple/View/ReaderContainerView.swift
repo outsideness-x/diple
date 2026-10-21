@@ -1476,7 +1476,7 @@ private enum HighlightEditorTarget: Identifiable {
 /// ended. Now the cover grows into the title page: what the reader sees the book become is its
 /// first page. While it is up the short rule between title and author breathes — the one sign
 /// that something is still happening, and too small to be mistaken for an alarm.
-private struct ReaderTitlePage: View {
+struct ReaderTitlePage: View {
     let title: String
     let author: String?
     let font: ReaderFont

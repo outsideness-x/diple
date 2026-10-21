@@ -5,7 +5,7 @@ import Combine
 /// inside it, and both collapsing out of the way while the reader is scrolling.
 ///
 /// ```
-/// (  ⌂    ▥    ❝  )  ( ⌕ )
+/// (  ⌂    ▥    ❝    ▤  )  ( ⌕ )
 /// ```
 ///
 /// Glyphs only, at every width and on every device. There is no label, no branch that can
@@ -18,7 +18,8 @@ import Combine
 ///
 /// There was a circle on the left for two weeks — the way into a second workshop for notes
 /// (2026-09-11 to 2026-09-27). It went with that workshop: notes are the second half of
-/// Highlights again, and the row is back to three places and one verb.
+/// Highlights again. The fourth seat since 2026-10-21 is the feed — a place, like the others,
+/// holding what the sources the reader follows have published lately.
 ///
 /// Collapsing is the part that matters most. While a page of covers or rows is moving under the
 /// thumb, the bar has nothing to say, so it shrinks to the icon of wherever you already are and
@@ -34,9 +35,10 @@ public struct DipleTabBar: View {
     /// while it is selected the lens stays over the place it came from and fades out there.
     @State private var lastPlace: RootTabView.Tab = .home
 
-    /// The three places. Search is deliberately not among them, and neither is Notes: a note is
-    /// kept in Highlights, beside the passages it was written about.
-    private var places: [RootTabView.Tab] { [.home, .library, .highlights] }
+    /// The four places. Search is deliberately not among them, and neither is Notes: a note is
+    /// kept in Highlights, beside the passages it was written about. The feed stands last, so the
+    /// three seats learnt before it did not move.
+    private var places: [RootTabView.Tab] { [.home, .library, .highlights, .feed] }
 
     /// One seat: a glyph and its tap target, square.
     ///
@@ -44,10 +46,10 @@ public struct DipleTabBar: View {
     /// nothing else, and 44 pt around an 18 pt glyph read as a row that had lost something
     /// rather than one that had been simplified.
     ///
-    /// It grows with the reader's text size and then stops. Three seats and the search circle
-    /// have to stand on a 393 pt phone at every setting — capped, that is 58 × 4 plus the pill's
-    /// padding and the gutters, well inside it; unclamped, one seat alone is past 60 pt by the
-    /// first accessibility size. Capping the seat is the honest end of that — the alternative is
+    /// It grows with the reader's text size and then stops. Four seats and the search circle
+    /// have to stand on a 393 pt phone at every setting — capped, that is 60 × 4 for the seats,
+    /// 66 for the circle, and the pill's padding and the gutters: 358 pt, inside it; unclamped,
+    /// one seat alone is past 60 pt by the first accessibility size. Capping the seat is the honest end of that — the alternative is
     /// a seat that stops growing under a glyph that does not, which is a clipped icon rather
     /// than a small one.
     @ScaledMetric(relativeTo: .body) private var scaledSeat: CGFloat = 50

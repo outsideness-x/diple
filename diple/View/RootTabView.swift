@@ -1,10 +1,15 @@
 import SwiftUI
 
-/// Top-level shell of the app: three places and one verb.
+/// Top-level shell of the app: four places and one verb.
 ///
 /// Home, the library and Highlights are where things are; search is what the reader does to
 /// them. Notes are kept in Highlights, as its second half: a note is what the reader made of a
 /// book, the same as a passage is, and it stands beside the passages it was written about.
+///
+/// The feed (2026-10-21) is the fourth place: what the writers and journals the reader follows
+/// have published lately, three pieces each and nothing counted. It stands last, after the
+/// places that hold what the reader has kept and made — it is the door to what has not been
+/// kept yet — and so that the three seats already learnt by thumb did not move.
 ///
 /// For two weeks (2026-09-11 to 2026-09-27) notes were a second workshop, reached by a circle at
 /// the left of the bar — a desk of spaces, an Inbox, Today and Tasks, in the manner of Things and
@@ -23,6 +28,7 @@ public struct RootTabView: View {
         case home
         case library
         case highlights
+        case feed
         case search
 
         var title: String {
@@ -30,6 +36,7 @@ public struct RootTabView: View {
             case .home: return "Home"
             case .library: return "Library"
             case .highlights: return "Highlights"
+            case .feed: return "Feed"
             case .search: return "Search"
             }
         }
@@ -40,6 +47,7 @@ public struct RootTabView: View {
             case .home: return "house"
             case .library: return "books.vertical"
             case .highlights: return "quote.opening"
+            case .feed: return "newspaper"
             case .search: return "magnifyingglass"
             }
         }
@@ -49,6 +57,7 @@ public struct RootTabView: View {
             case .home: return "house.fill"
             case .library: return "books.vertical.fill"
             case .highlights: return "quote.opening"
+            case .feed: return "newspaper.fill"
             case .search: return "magnifyingglass"
             }
         }
@@ -99,6 +108,7 @@ public struct RootTabView: View {
             tabRoot(.home) { HomeView() }
             tabRoot(.library) { LibraryView() }
             tabRoot(.highlights) { MarginaliaView() }
+            tabRoot(.feed) { FeedView() }
             tabRoot(.search) { GlobalSearchView() }
         }
     }
