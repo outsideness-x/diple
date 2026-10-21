@@ -33,6 +33,7 @@ public struct MacRootView: View {
         case highlights
         case notes
         case search
+        case feed
 
         var id: Self { self }
 
@@ -45,6 +46,7 @@ public struct MacRootView: View {
             case .highlights: return "Highlights"
             case .notes: return "Notes"
             case .search: return "Search"
+            case .feed: return "Feed"
             }
         }
 
@@ -57,6 +59,7 @@ public struct MacRootView: View {
             case .highlights: return "quote.opening"
             case .notes: return "note.text"
             case .search: return "magnifyingglass"
+            case .feed: return "newspaper"
             }
         }
 
@@ -71,6 +74,7 @@ public struct MacRootView: View {
             case .highlights: return "5"
             case .notes: return "6"
             case .search: return "7"
+            case .feed: return "8"
             }
         }
 
@@ -83,7 +87,7 @@ public struct MacRootView: View {
             case .unread: return (.all, .unread)
             case .reading: return (.all, .reading)
             case .articles: return (.articles, .any)
-            case .highlights, .notes, .search: return nil
+            case .highlights, .notes, .search, .feed: return nil
             }
         }
 
@@ -96,6 +100,7 @@ public struct MacRootView: View {
             case .goHighlights: return .highlights
             case .goNotes: return .notes
             case .goSearch: return .search
+            case .goFeed: return .feed
             default: return nil
             }
         }
@@ -106,6 +111,8 @@ public struct MacRootView: View {
         case book(Book)
         case passage(PassageItem)
         case search(GlobalSearchResult)
+        /// A piece of the feed, by id: the store replaces the value on every check.
+        case feedItem(String)
 
         /// What the collection has to draw a ring around. Every model behind a detail carries
         /// a `String` id, so one property answers for all four rather than each collection
@@ -120,6 +127,7 @@ public struct MacRootView: View {
             case .book(let book): return book.id
             case .passage(let item): return "passage:\(item.id)"
             case .search(let result): return result.id
+            case .feedItem(let id): return "feed:\(id)"
             }
         }
     }
@@ -134,6 +142,12 @@ public struct MacRootView: View {
     /// The Notes shelf's board — the same board the phone keeps as the second half of
     /// Highlights, with its own instance so its scope never fights Highlights' for one field.
     @StateObject private var notesBoard = MarginaliaViewModel(scope: .written)
+    /// The feed. Observed here because the inspector prints the piece the column has chosen,
+    /// and a check can rewrite it.
+    @ObservedObject private var feed = FeedStore.shared
+    /// A piece of the feed being fetched into the library on its way to the reader, and what
+    /// the fetch is doing — printed on the inspector's button while it runs.
+    @State private var feedOpening: (itemID: String, stage: String)?
 
     /// The page in the Notes shelf's editor column. It may be a draft the database has not seen
     /// yet — a new note, which exists from its first word, as on the phone.
@@ -254,6 +268,7 @@ public struct MacRootView: View {
             if newSource == .highlights { marginalia.load() }
             if newSource == .notes { notesBoard.load() }
             if newSource == .search { search.reloadContext() }
+            if newSource == .feed { Task { await feed.checkIfStale() } }
             detail = .welcome
         }
         .onReceive(NotificationCenter.default.publisher(for: .dipleOpenDailyResurfacing)) { _ in
@@ -299,7 +314,7 @@ public struct MacRootView: View {
         case .refresh:
             reloadAll()
 
-        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes, .goSearch:
+        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes, .goSearch, .goFeed:
             guard !isReading, let destination = Source.forCommand(command) else { return }
             source = destination
             if destination == .search { searchFocusRequest = .search }
@@ -314,6 +329,8 @@ public struct MacRootView: View {
             case .highlights: searchFocusRequest = .highlights
             case .notes: searchFocusRequest = .notes
             case .search, .none: searchFocusRequest = .search
+            // The feed has no field: it is short enough to be read, not searched.
+            case .feed: break
             }
 
         case .findInBook:
@@ -369,6 +386,9 @@ public struct MacRootView: View {
                 sourceRow(.highlights, badge: marginalia.totalSaved)
                 sourceRow(.notes, badge: notesBoard.totalWritten)
                 sourceRow(.search)
+                // No count, here as on the phone: the feed is the one shelf that never says
+                // how much is waiting in it.
+                sourceRow(.feed)
             } header: {
                 Text("Workspace")
             }
@@ -580,6 +600,14 @@ public struct MacRootView: View {
                 selectedID: detail.selectionID,
                 onSelect: { detail = .search($0) }
             )
+
+        case .feed:
+            MacFeedCollection(
+                library: library.books,
+                selectedID: detail.selectionID,
+                onSelect: { detail = .feedItem($0.id) },
+                onOpen: { openFeedItem($0, format: .best) }
+            )
         }
     }
 
@@ -638,6 +666,47 @@ public struct MacRootView: View {
                 onRead: { book in readerRequest = MacReaderRequest(book: book) },
                 onOpenNote: { note in openInNotes(note) }
             )
+
+        case .feedItem(let id):
+            if let item = feed.item(id: id) {
+                // The phone's sheet, standing in the inspector: the same opening, abstract and
+                // ways in. Its presentation modifiers mean nothing outside a sheet.
+                FeedItemSheet(
+                    item: item,
+                    source: feed.source(id: item.sourceID),
+                    book: FeedLibraryIndex(library.books).book(for: item),
+                    isKeeping: feed.keeping.contains(item.id),
+                    openingStage: feedOpening?.itemID == item.id ? feedOpening?.stage : nil,
+                    onRead: { format in openFeedItem(item, format: format) },
+                    onKeep: { feed.keep(item, library: library.books) }
+                )
+                .id(item.id)
+            } else {
+                MacInspectorPlaceholder(sourceTitle: "Feed")
+            }
+        }
+    }
+
+    /// A piece of the feed into the reader: fetched and filed in the library first, as on the
+    /// phone, with the inspector's button saying how far the fetch has got.
+    private func openFeedItem(_ item: FeedItem, format: FeedReading.Format) {
+        guard feedOpening == nil, !isReading else { return }
+        feedOpening = (item.id, String(localized: "Fetching…"))
+        Task {
+            do {
+                let book = try await FeedReading.book(for: item, format: format, in: library.books) { stage in
+                    Task { @MainActor in
+                        if feedOpening?.itemID == item.id { feedOpening?.stage = stage.label }
+                    }
+                }
+                feedOpening = nil
+                library.loadBooks()
+                readerRequest = MacReaderRequest(book: book)
+            } catch {
+                feedOpening = nil
+                library.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                library.showErrorAlert = true
+            }
         }
     }
 
@@ -2081,6 +2150,131 @@ private struct MacSearchCollection: View {
     }
 }
 
+/// The feed on the desk: the phone's page in the middle column, and the piece it has chosen in
+/// the inspector beside it — its opening, or a paper's abstract, with the ways in.
+///
+/// One click chooses, as everywhere on this desk; a double click reads. No count in the header,
+/// no badge in the sidebar: the feed is the one shelf that never says how much is waiting.
+private struct MacFeedCollection: View {
+    let library: [Book]
+    let selectedID: String?
+    let onSelect: (FeedItem) -> Void
+    let onOpen: (FeedItem) -> Void
+
+    @ObservedObject private var store = FeedStore.shared
+    @State private var isManagingSources = false
+
+    private var index: FeedLibraryIndex { FeedLibraryIndex(library) }
+
+    private var context: String? { store.statusLine }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MacColumnHeader(title: "Feed", context: context) {
+                if !store.sources.isEmpty {
+                    MacIconButton(systemImage: "arrow.clockwise", help: "Look for new pieces") {
+                        Task { await store.check() }
+                    }
+                }
+                MacSecondaryButton(title: "Sources", systemImage: "plus") {
+                    isManagingSources = true
+                }
+            }
+
+            ZStack {
+                DipleColor.canvas.ignoresSafeArea()
+
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        if store.sources.isEmpty {
+                            welcome
+                        } else {
+                            days
+                            foot
+                        }
+                    }
+                    .padding(.horizontal, DipleSpace.xxl)
+                    .padding(.bottom, DipleSpace.xxxl)
+                    .frame(maxWidth: 720, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .sheet(isPresented: $isManagingSources) {
+            FeedSourcesSheet()
+                .dipleMacSheet(minWidth: 560, minHeight: 680)
+        }
+    }
+
+    @ViewBuilder
+    private var days: some View {
+        ForEach(Array(FeedRack.days(store.items).enumerated()), id: \.element.id) { offset, day in
+            Text(day.title())
+                .dipleSectionHeading()
+                .padding(.top, offset == 0 ? DipleSpace.xl : DipleSpace.xxxl)
+                .padding(.bottom, DipleSpace.xs)
+                .padding(.horizontal, DipleSpace.m)
+                .accessibilityAddTraits(.isHeader)
+
+            ForEach(day.items) { item in
+                MacSelectableRow(isSelected: selectedID == "feed:\(item.id)", isBordered: false) {
+                    onSelect(item)
+                } content: {
+                    FeedItemRow(
+                        item: item,
+                        source: store.source(id: item.sourceID),
+                        book: index.book(for: item),
+                        isKeeping: store.keeping.contains(item.id)
+                    )
+                    .padding(.horizontal, DipleSpace.m)
+                }
+                .simultaneousGesture(TapGesture(count: 2).onEnded { onOpen(item) })
+                .accessibilityHint("Double-click to read")
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var welcome: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
+                Text("A quiet feed")
+                    .dipleType(.editorialTitle)
+                    .foregroundStyle(DipleColor.textPrimary)
+                Text("Follow a few writers and journals. Each keeps its three newest pieces here; older ones leave on their own, and nothing is ever counted.")
+                    .dipleType(.callout)
+                    .foregroundStyle(DipleColor.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, DipleSpace.xl)
+            .padding(.bottom, DipleSpace.xl)
+
+            ForEach(FeedRecommendation.all) { recommendation in
+                FeedRecommendationRow(recommendation: recommendation)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var foot: some View {
+        let suggested = store.unfollowedRecommendations
+        Text("Each source keeps its three newest pieces. Older ones leave on their own.")
+            .dipleType(.micro, weight: .regular)
+            .foregroundStyle(DipleColor.textQuaternary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, DipleSpace.xxxl)
+        if !suggested.isEmpty {
+            Text("Worth following")
+                .dipleSectionHeading()
+                .padding(.top, DipleSpace.xxxl)
+                .padding(.bottom, DipleSpace.xs)
+            ForEach(suggested) { recommendation in
+                FeedRecommendationRow(recommendation: recommendation)
+            }
+        }
+    }
+}
+
 private struct MacSearchResultRow: View {
     let result: GlobalSearchResult
 
@@ -3284,7 +3478,7 @@ private struct MacInspectorPlaceholder: View {
         ("⌘O", "Import a publication"),
         ("⌘N", "New note"),
         ("⌘F", "Search this column"),
-        ("⌘1…7", "Move between shelves"),
+        ("⌘1…8", "Move between shelves"),
         ("⌘↩", "Open the selected book")
     ]
 
