@@ -2007,6 +2007,39 @@ final class DipleTests: XCTestCase {
         XCTAssertFalse(body.contains("Меню сайта"))
     }
 
+    /// Quanta's article header, trimmed: the headline inside a block that the whitelist turns
+    /// into a paragraph, a "Home" written for screen readers beside the logo, and a hover tooltip
+    /// under the bookmark button. The reading copy opened as "Home See Inside Cells … Read
+    /// Later • Read Later" before this.
+    func testArticleExtractorLeavesOutScreenReaderTextTooltipsAndTheHeadline() throws {
+        let prose = String(repeating: "Winning entries reveal the hidden interactions that govern everyday life. ", count: 6)
+        let html = """
+        <html><head><meta property="og:title" content="See Inside Cells Like Never Before"></head><body>
+        <article>
+          <div class="logo"><a href="/"><span class="screen-reader-text">Home</span></a></div>
+          <div class="post__title">
+            <h1 class="post__title__title">See Inside Cells Like Never Before</h1>
+            <div class="actions"><button>Save</button>
+              <div class="q-tooltip hidden"><div class="q-tooltip-inner" role="tooltip"><span>Read Later</span></div></div>
+            </div>
+          </div>
+          <p>\(prose)</p>
+          <p>\(prose)</p>
+        </article>
+        </body></html>
+        """
+        let extractor = try ArticleExtractor(
+            html: html,
+            url: try XCTUnwrap(URL(string: "https://www.quantamagazine.org/cells"))
+        )
+        XCTAssertEqual(extractor.metadata.title, "See Inside Cells Like Never Before")
+        let body = try extractor.bodyXHTML(resolvedImages: [:])
+        XCTAssertFalse(body.contains("Read Later"))
+        XCTAssertFalse(body.contains("Home"))
+        XCTAssertFalse(body.contains("See Inside Cells"), "the EPUB prints the title in its own header block")
+        XCTAssertTrue(body.contains("Winning entries reveal"))
+    }
+
     // MARK: - Formulas, tables and figures on a scientific page
 
     /// A LaTeX-to-HTML page carries every formula twice: once as MathML that draws it, and once

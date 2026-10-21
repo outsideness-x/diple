@@ -200,6 +200,13 @@ public nonisolated final class ArticleExtractor {
         }
         self.root = candidate
 
+        // The page's own headline, removed while it is still a heading. After the whitelist
+        // pass a headline inside a promoted `div` can be one paragraph with the words beside it,
+        // and it would no longer be found — the title then printed twice, once in the EPUB's
+        // header block and once at the top of the text.
+        let headline = head.title.isEmpty ? try candidate.select("h1").first()?.text() ?? "" : head.title
+        try Self.removeLeadingTitleHeading(in: candidate, matching: headline)
+
         self.images = try Self.normalizeImages(in: candidate, leadImageURL: head.leadImageURL)
         try Self.pruneToWhitelist(in: candidate)
         try Self.unwrapEquationTables(in: candidate)
@@ -212,14 +219,14 @@ public nonisolated final class ArticleExtractor {
 
         var metadata = head
         if metadata.title.isEmpty {
-            metadata.title = try candidate.select("h1").first()?.text() ?? url.absoluteString
+            metadata.title = headline.isEmpty ? url.absoluteString : headline
         }
         metadata.wordCount = text.split(whereSeparator: { $0 == " " || $0.isNewline }).count
         self.metadata = metadata
 
-        // The page usually opens with its own headline. The EPUB prints the title in a header
-        // block of its own, so leaving that one in place would show the title twice.
-        try Self.removeLeadingTitleHeading(in: candidate, matching: metadata.title)
+        // The page's own headline went before the whitelist pass (see above), once: a second
+        // look here would take the next heading for it, and a later section named after the
+        // piece is a real section.
         self.sections = try Self.markSections(in: candidate)
         try Self.removeDeadFragmentLinks(in: candidate)
         self.searchableText = try candidate.text()
@@ -394,6 +401,18 @@ public nonisolated final class ArticleExtractor {
 
         for element in try body.select("[aria-hidden=true], [hidden], [role=navigation], [role=banner], [role=complementary]")
         where element.parent() != nil {
+            try element.remove()
+        }
+
+        // Text a sighted reader of the page never sees: the words written for a screen reader
+        // beside an icon (WordPress's `screen-reader-text`, `sr-only`, `visually-hidden`) and
+        // the tooltips a button shows on hover. Kept, they surface in the reading copy as
+        // stray words around the headline — Quanta's opened as "Home … Read Later • Read
+        // Later". Any tag, not only blocks: these classes and the role describe visibility, not
+        // a region of the page, so they mean the same on a `span`.
+        for element in try body.select(
+            "[role=tooltip], .screen-reader-text, .sr-only, .visually-hidden, .visuallyhidden"
+        ) where element.parent() != nil {
             try element.remove()
         }
 
