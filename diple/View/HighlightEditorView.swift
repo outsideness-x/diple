@@ -26,6 +26,8 @@ public struct HighlightEditorView: View {
     /// Growing a note out of this passage, for the moment a thought outruns the comment field.
     public let onExpandIntoNote: (() -> Void)?
 
+    public var trayPassage: PassageItem?
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedColorHex: String
@@ -50,6 +52,7 @@ public struct HighlightEditorView: View {
         tagSuggestions: [String] = [],
         isExisting: Bool,
         sourceTitle: String? = nil,
+        trayPassage: PassageItem? = nil,
         onSave: @escaping (String, String?, [String]) -> Void,
         onDelete: (() -> Void)? = nil,
         onOpenInSource: (() -> Void)? = nil,
@@ -61,6 +64,7 @@ public struct HighlightEditorView: View {
         self.onSave = onSave
         self.onDelete = onDelete
         self.sourceTitle = sourceTitle
+        self.trayPassage = trayPassage
         self.onOpenInSource = onOpenInSource
         self.onExpandIntoNote = onExpandIntoNote
         _selectedColorHex = State(initialValue: initialColorHex)
@@ -80,6 +84,7 @@ public struct HighlightEditorView: View {
                             quoteCard
                         }
                         sourceStrip
+                        if let trayPassage { QuoteTrayToggleButton(passage: trayPassage) }
                         colorPicker
                         commentEditor
                         tagEditor

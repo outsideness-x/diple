@@ -220,6 +220,7 @@ public struct MarginaliaView: View {
             tagSuggestions: passages.passageTagVocabulary,
             isExisting: true,
             sourceTitle: passage.book?.title ?? passage.highlight.bookTitle,
+            trayPassage: passage,
             onSave: { colorHex, comment, tags in
                 passages.savePassage(passage, colorHex: colorHex, comment: comment, tags: tags)
                 // A note's Connections read passages out of the notes half's copy.
@@ -408,6 +409,12 @@ private struct MarginaliaBoardPage: View {
 
                 if !model.isSelecting {
                     rubric
+                        .padding(.bottom, DipleSpace.l)
+                }
+
+                if !model.isSelecting {
+                    QuoteTrayLauncher { openNote(.new) }
+                        .padding(.horizontal, DipleSpace.xl)
                         .padding(.bottom, DipleSpace.l)
                 }
 
@@ -1006,6 +1013,11 @@ private struct MarginaliaBoardPage: View {
                 // comment is the thing they came for; the way back into the page is one row
                 // inside the sheet. Home's resurfacing card keeps the opposite rule for the
                 // opposite reason.
+                //
+                // The way into the quote tray is the long press, the selection bar and the
+                // passage's own sheet — not a glyph on every row. A control repeated down a
+                // catalogue is read as part of each entry, and the column it takes is taken
+                // from the passage's words.
                 Button {
                     HapticManager.shared.selection()
                     openPassage(item)
@@ -1014,6 +1026,7 @@ private struct MarginaliaBoardPage: View {
                 }
                 .buttonStyle(.bookCard)
                 .contextMenu { passageMenu(item) }
+                .accessibilityIdentifier("passage.row.\(item.id)")
             }
         }
     }
@@ -1076,6 +1089,7 @@ private struct MarginaliaBoardPage: View {
     @ViewBuilder
     private func passageMenu(_ item: PassageItem) -> some View {
         selectButton(.passage(item))
+        QuoteTrayToggleButton(passage: item)
 
         if let book = item.book, item.highlight.parsedLocator != nil {
             Button {
@@ -1135,12 +1149,24 @@ private struct MarginaliaBoardPage: View {
     private var selectionBar: some View {
         let chosen = model.selectedEntries.count
 
-        return HStack(spacing: DipleSpace.s) {
-            Button(action: collect) {
+        return VStack(spacing: DipleSpace.s) {
+            Button {
+                if door == .highlights {
+                    QuoteTray.shared.collect(model.selectedEntries.compactMap { entry in
+                        if case .passage(let passage) = entry { return passage }
+                        return nil
+                    })
+                    model.endSelecting()
+                    HapticManager.shared.impact(.light)
+                    openNote(.new)
+                } else {
+                    collect()
+                }
+            } label: {
                 HStack(spacing: DipleSpace.s) {
                     Image(systemName: "square.and.pencil")
                         .dipleIcon(14, weight: .semibold)
-                    Text("Collect into a note")
+                    Text(door == .highlights ? "Write with quotes" : "Collect into a note")
                         .dipleType(.footnote, weight: .semibold)
                 }
                 .foregroundStyle(DipleColor.textOnAccent)
@@ -1149,29 +1175,42 @@ private struct MarginaliaBoardPage: View {
             }
             .buttonStyle(.readerControl)
 
-            selectionAction("number", label: "Add a tag to all") {
-                tagDraft = ""
-                isAddingTagToSelection = true
-            }
+            HStack(spacing: DipleSpace.m) {
+                if door == .highlights {
+                    selectionAction("rectangle.stack.badge.plus", label: "Add to quote tray") {
+                        QuoteTray.shared.collect(model.selectedEntries.compactMap { entry in
+                            if case .passage(let passage) = entry { return passage }
+                            return nil
+                        })
+                        model.endSelecting()
+                        HapticManager.shared.impact(.light)
+                    }
+                }
 
-            // Share rather than a bare Copy. The system sheet carries Copy inside it, and
-            // adds the destinations a compilation is actually for — a vault, a draft, a
-            // colleague — for the same one control the bar can afford.
-            ShareLink(
-                item: model.selectedDocument,
-                preview: SharePreview(model.selectedDocument.name)
-            ) {
-                Image(systemName: "square.and.arrow.up")
-                    .dipleIcon(15, weight: .semibold)
-                    .foregroundStyle(DipleColor.textSecondary)
-                    .frame(width: 46, height: 46)
-                    .background(DipleColor.surfaceOverlay, in: Circle())
-            }
-            .buttonStyle(.readerControl)
-            .accessibilityLabel("Share all")
+                selectionAction("number", label: "Add a tag to all") {
+                    tagDraft = ""
+                    isAddingTagToSelection = true
+                }
 
-            selectionAction("trash", label: "Delete all", isDestructive: true) {
-                isConfirmingBulkDelete = true
+                // Share rather than a bare Copy. The system sheet carries Copy inside it, and
+                // adds the destinations a compilation is actually for — a vault, a draft, a
+                // colleague — for the same one control the bar can afford.
+                ShareLink(
+                    item: model.selectedDocument,
+                    preview: SharePreview(model.selectedDocument.name)
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                        .dipleIcon(15, weight: .semibold)
+                        .foregroundStyle(DipleColor.textSecondary)
+                        .frame(width: 46, height: 46)
+                        .background(DipleColor.surfaceOverlay, in: Circle())
+                }
+                .buttonStyle(.readerControl)
+                .accessibilityLabel("Share all")
+
+                selectionAction("trash", label: "Delete all", isDestructive: true) {
+                    isConfirmingBulkDelete = true
+                }
             }
         }
         .disabled(chosen == 0)

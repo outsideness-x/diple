@@ -1649,7 +1649,13 @@ struct MacMarginaliaCollection: View {
                         title: "Collect \(model.results.count)",
                         systemImage: "square.and.pencil"
                     ) {
-                        if let note = model.collectAllVisible() { onCollected(note) }
+                        if model.scope == .saved {
+                            QuoteTray.shared.collect(model.results.compactMap { entry in
+                                if case .passage(let passage) = entry { return passage }
+                                return nil
+                            })
+                            onCreate()
+                        } else if let note = model.collectAllVisible() { onCollected(note) }
                     }
                 }
 
@@ -1659,6 +1665,9 @@ struct MacMarginaliaCollection: View {
                     MacPrimaryButton(title: "New note", shortcutHint: "⌘N", action: onCreate)
                 }
             }
+
+            QuoteTrayLauncher(onWrite: onCreate)
+                .padding(.horizontal, DipleSpace.l)
 
             ZStack {
                 DipleColor.canvas.ignoresSafeArea()
@@ -1943,6 +1952,9 @@ struct MacMarginaliaCollection: View {
         .padding(.top, DipleSpace.s)
     }
 
+    /// A passage reaches the quote tray from its menu and from the inspector beside the board,
+    /// not from a button under every card: a control repeated down the board reads as part of
+    /// each passage.
     @ViewBuilder
     private func card(for entry: MarginaliaEntry) -> some View {
         MacSelectableCard(isSelected: selectedID == entry.id) {
@@ -1958,6 +1970,7 @@ struct MacMarginaliaCollection: View {
 
     @ViewBuilder
     private func entryMenu(_ entry: MarginaliaEntry) -> some View {
+        if case .passage(let passage) = entry { QuoteTrayToggleButton(passage: passage) }
         Button("Open") { onSelect(entry) }
 
         if case .passage(let item) = entry {
@@ -2460,6 +2473,8 @@ private struct MacPassageInspector: View {
                 .fill(DipleColor.separator)
                 .frame(height: DipleStroke.hairline)
 
+            QuoteTrayToggleButton(passage: passage)
+
             HStack(spacing: DipleSpace.s) {
                 MacSecondaryButton(
                     title: "Expand into a note",
@@ -2529,6 +2544,7 @@ struct MacNoteInspector: View {
     private let linkTitles: [String]
 
     @State private var title: String
+    @State private var pendingQuoteIDs: Set<String> = []
     @State private var bodyText: String
     @State private var tags: [String]
     @State private var tagDraft = ""
@@ -2636,6 +2652,8 @@ struct MacNoteInspector: View {
 
                 Spacer()
 
+                QuoteTrayLibraryButton()
+
                 Menu {
                     ShareLink(item: exportMarkdown) {
                         Label("Share Markdown", systemImage: "square.and.arrow.up")
@@ -2729,6 +2747,7 @@ struct MacNoteInspector: View {
                             text: $bodyText,
                             selection: selection,
                             isFocused: $isBodyFocused,
+                            scrollsInternally: true,
                             onSlashChanged: { slashContext = $0 },
                             onOpenLink: { title in
                                 guard let target = note(titled: title) else { return }
@@ -2773,6 +2792,7 @@ struct MacNoteInspector: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(DipleColor.surface)
+        .quoteWorkbench(noteID: item.id, isPreviewing: isPreviewing, onInsert: insertQuote)
         .task {
             // A new page opens ready to write, on its title.
             guard isDraft, !hasBeenWritten else { return }
@@ -3107,6 +3127,24 @@ struct MacNoteInspector: View {
         }
     }
 
+    private func insertQuote(_ clip: QuoteClip) {
+        guard !pendingQuoteIDs.contains(clip.id) else {
+            saveImmediately()
+            return
+        }
+        pendingQuoteIDs.insert(clip.id)
+        bodyText = selection.insertingQuote(clip, into: bodyText)
+        isTitleFocused = false
+        isBodyFocused = true
+        slashContext = nil
+        completionContext = nil
+        saveTask?.cancel()
+        saveImmediately()
+        if saveState == .saved {
+            HapticManager.shared.impact(.light)
+        }
+    }
+
     private func saveImmediately(includingPendingTag: Bool = false) {
         var finalTags = tags
         if includingPendingTag,
@@ -3135,6 +3173,8 @@ struct MacNoteInspector: View {
         )
 
         if onSave(note, finalTags) {
+            for id in pendingQuoteIDs { QuoteTray.shared.markUsed(id, in: item.id) }
+            pendingQuoteIDs.removeAll()
             hasBeenWritten = true
             lastSavedTitle = title
             lastSavedBody = bodyText

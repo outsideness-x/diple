@@ -155,6 +155,7 @@ public struct NoteDetailView: View {
     @State private var draftID: String
     @State private var lastSavedSnapshot: String
     @State private var isFormulaComposerPresented = false
+    @State private var pendingQuoteIDs: Set<String> = []
     @State private var formulaSeed = ""
     @State private var formulaMode: NoteFormulaMode = .inline
     @State private var formulaSessionID = UUID()
@@ -280,6 +281,7 @@ public struct NoteDetailView: View {
                 }
             }
         }
+        .quoteWorkbench(noteID: draftID, isPreviewing: isPreviewing, onInsert: insertQuote)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
@@ -407,6 +409,8 @@ public struct NoteDetailView: View {
                 .animation(DipleMotion.snappy, value: saveState)
             }
         }
+
+        ToolbarItem(placement: .navigationBarTrailing) { QuoteTrayLibraryButton() }
 
         if isWriting {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -1175,6 +1179,8 @@ public struct NoteDetailView: View {
 
         let didSave = onSave(note, finalTags)
         if didSave {
+            for id in pendingQuoteIDs { QuoteTray.shared.markUsed(id, in: draftID) }
+            pendingQuoteIDs.removeAll()
             lastSavedSnapshot = currentSnapshot
             saveState = .saved
             if feedback { HapticManager.shared.impact(.medium) }
@@ -1220,6 +1226,24 @@ public struct NoteDetailView: View {
             isLineCommand: isLineCommand
         )
         isBodyFocused = true
+    }
+
+    private func insertQuote(_ clip: QuoteClip) {
+        // If storage failed, retry saving the insertion already on the page, never duplicate it.
+        guard !pendingQuoteIDs.contains(clip.id) else {
+            _ = save(feedback: true)
+            return
+        }
+        pendingQuoteIDs.insert(clip.id)
+        body_ = selection.insertingQuote(clip, into: body_)
+        isTitleFocused = false
+        isBodyFocused = true
+        slashContext = nil
+        completionContext = nil
+        saveTask?.cancel()
+        if save(feedback: false) {
+            HapticManager.shared.impact(.light)
+        }
     }
 
     private func presentFormulaComposer() {

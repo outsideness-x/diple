@@ -1190,22 +1190,54 @@ public struct ReaderContainerView: View {
                     // taken where it lands instead: by WebKit, which dismisses the selection
                     // and tells the app through `ReaderSelectionScript`, and by the navigator's
                     // own tap for a bar with no selection under it (`onDismissActions`).
-                    HighlightActionsBar(
-                        chrome: chrome,
-                        mode: subject.barMode,
-                        canTranslate: !subject.quote.isEmpty,
-                        onPickColor: { hex in pickColor(hex, for: subject) },
-                        onTranslate: translateAction(for: subject),
-                        onAddNote: { addNote(to: subject) },
-                        onCopy: { UIPasteboard.general.string = subject.quote },
-                        onDelete: subject.highlight.map { highlight in
-                            {
-                                viewModel.deleteHighlight(highlight)
-                                viewModel.dismissHighlightActions()
+                    VStack(spacing: DipleSpace.s) {
+                        HighlightActionsBar(
+                            chrome: chrome,
+                            mode: subject.barMode,
+                            canTranslate: !subject.quote.isEmpty,
+                            onPickColor: { hex in pickColor(hex, for: subject) },
+                            onTranslate: translateAction(for: subject),
+                            onAddNote: { addNote(to: subject) },
+                            onCopy: { UIPasteboard.general.string = subject.quote },
+                            onDelete: subject.highlight.map { highlight in
+                                {
+                                    viewModel.deleteHighlight(highlight)
+                                    viewModel.dismissHighlightActions()
+                                }
                             }
+                        )
+                        .fixedSize()
+                        // The tray's two moves for a saved passage, on the same glass and in the
+                        // same ink as the bar above: both lie on the page, not on the app.
+                        if let highlight = subject.highlight {
+                            let passage = PassageItem(
+                                highlight: highlight,
+                                tags: viewModel.highlightTags[highlight.id] ?? [],
+                                book: viewModel.book
+                            )
+                            HStack(spacing: DipleSpace.l) {
+                                QuoteTrayToggleButton(passage: passage, ink: chrome.control)
+                                Button {
+                                    QuoteTray.shared.collect([passage])
+                                    dismissHighlightActions()
+                                    openNotebook(at: .newFromSource(viewModel.book))
+                                } label: {
+                                    Label("Write", systemImage: "square.and.pencil")
+                                        .dipleType(.caption, weight: .semibold)
+                                        .foregroundStyle(chrome.control)
+                                        .frame(minHeight: 44)
+                                }
+                                .buttonStyle(.readerControl)
+                            }
+                            .padding(.horizontal, DipleSpace.l)
+                            .modifier(ReaderGlassSurface(
+                                chrome: chrome,
+                                shape: Capsule(style: .continuous),
+                                material: .regularMaterial,
+                                shadow: .init(opacity: 0.28, radius: 16, y: 6)
+                            ))
                         }
-                    )
-                    .fixedSize()
+                    }
                     .padding(.vertical, DipleSpace.xl)
                     .frame(
                         width: geo.size.width,

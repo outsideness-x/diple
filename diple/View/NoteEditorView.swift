@@ -16,6 +16,8 @@ import UIKit
 public final class NoteSelectionBox {
     public var range: NSRange
     fileprivate var pending: NSRange?
+    fileprivate weak var textView: UITextView?
+    fileprivate var followsQuoteCaret = false
 
     public init(range: NSRange = NSRange(location: 0, length: 0)) {
         self.range = range
@@ -25,6 +27,30 @@ public final class NoteSelectionBox {
     public func move(to range: NSRange) {
         self.range = range
         pending = range
+    }
+
+    /// Use UIKit's edit transaction when the editor is mounted: Cmd-Z and the keyboard's
+    /// Undo restore the replaced selection, rather than losing history to `view.text = ...`.
+    public func insertingQuote(_ clip: QuoteClip, into text: String) -> String {
+        followsQuoteCaret = true
+        textView?.unmarkText()
+        var updated = textView?.text ?? text
+        let original = updated
+        var caret = range
+        QuoteInsertion.insert(clip, in: &updated, selection: &caret)
+        if let textView, textView.text == original {
+            let source = original as NSString
+            let start = min(max(0, range.location), source.length)
+            let target = NSRange(location: start, length: min(max(0, range.length), source.length - start))
+            let replacement = (updated as NSString).substring(with: NSRange(location: start, length: caret.location - start))
+            textView.selectedRange = target
+            textView.undoManager?.beginUndoGrouping()
+            textView.insertText(replacement)
+            textView.undoManager?.endUndoGrouping()
+            textView.undoManager?.setActionName(String(localized: "Insert quotation"))
+        }
+        move(to: caret)
+        return updated
     }
 }
 
@@ -133,6 +159,7 @@ public struct NoteEditorView: UIViewRepresentable {
     public let selection: NoteSelectionBox
     @Binding public var isFocused: Bool
     public let minimumHeight: CGFloat
+    public let scrollsInternally: Bool
     public let usesMonospacedFont: Bool
     public let editorAccessibilityLabel: String
     public let editorAccessibilityIdentifier: String
@@ -160,6 +187,7 @@ public struct NoteEditorView: UIViewRepresentable {
         selection: NoteSelectionBox,
         isFocused: Binding<Bool>,
         minimumHeight: CGFloat = 280,
+        scrollsInternally: Bool = false,
         usesMonospacedFont: Bool = false,
         accessibilityLabel: String = "Note body",
         accessibilityIdentifier: String = "note.body",
@@ -172,6 +200,7 @@ public struct NoteEditorView: UIViewRepresentable {
         self.selection = selection
         _isFocused = isFocused
         self.minimumHeight = minimumHeight
+        self.scrollsInternally = scrollsInternally
         self.usesMonospacedFont = usesMonospacedFont
         self.editorAccessibilityLabel = accessibilityLabel
         self.editorAccessibilityIdentifier = accessibilityIdentifier
@@ -185,6 +214,7 @@ public struct NoteEditorView: UIViewRepresentable {
 
     public func makeUIView(context: Context) -> UITextView {
         let view = NoteTextView()
+        selection.textView = view
         view.delegate = context.coordinator
         // Through the coordinator rather than captured here: `parent` is replaced on every update,
         // and a closure taken at creation would call the page as it was when the note opened.
@@ -200,7 +230,7 @@ public struct NoteEditorView: UIViewRepresentable {
             : UIFont.systemFont(ofSize: 17, weight: .regular)
         view.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: baseFont)
         view.adjustsFontForContentSizeCategory = true
-        view.isScrollEnabled = false
+        view.isScrollEnabled = scrollsInternally
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0
         view.keyboardDismissMode = .interactive
@@ -251,12 +281,14 @@ public struct NoteEditorView: UIViewRepresentable {
         } else if !isFocused && view.isFirstResponder {
             view.resignFirstResponder()
         }
+        if selection.followsQuoteCaret { context.coordinator.revealCaret(in: view) }
     }
 
     /// Measuring a text view is a full layout of every line it holds, and SwiftUI asks for the
     /// size far more often than the text changes. The answer is cached against the only two
     /// inputs that can change it.
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        if scrollsInternally { return nil }
         guard let width = proposal.width else { return nil }
         let cache = context.coordinator
         if cache.measuredWidth == width, cache.measuredText == uiView.text, let height = cache.measuredHeight {
@@ -465,6 +497,36 @@ public struct NoteEditorView: UIViewRepresentable {
             parent.selection.range = textView.selectedRange
             parent.text = textView.text
             publishSlashContext(in: textView)
+            if parent.selection.followsQuoteCaret { revealCaret(in: textView) }
+        }
+
+        /// Wait for SwiftUI to measure the longer page, then scroll only as far as the caret
+        /// needs. The outer scroll view's adjusted inset includes both tray and keyboard.
+        private var isCaretRevealScheduled = false
+
+        func revealCaret(in textView: UITextView) {
+            guard !isCaretRevealScheduled else { return }
+            isCaretRevealScheduled = true
+            DispatchQueue.main.async { [weak self, weak textView] in
+                guard let self else { return }
+                defer { self.isCaretRevealScheduled = false }
+                guard let textView, textView.isFirstResponder,
+                      let position = textView.selectedTextRange?.end else { return }
+                textView.window?.layoutIfNeeded()
+                let caret = textView.caretRect(for: position).insetBy(dx: 0, dy: -DipleSpace.m)
+                if textView.isScrollEnabled {
+                    textView.scrollRectToVisible(caret, animated: false)
+                    return
+                }
+                var ancestor = textView.superview
+                while let view = ancestor {
+                    if let scroll = view as? UIScrollView, scroll.isScrollEnabled {
+                        scroll.scrollRectToVisible(textView.convert(caret, to: scroll), animated: false)
+                        break
+                    }
+                    ancestor = view.superview
+                }
+            }
         }
 
         public func textViewDidChangeSelection(_ textView: UITextView) {
