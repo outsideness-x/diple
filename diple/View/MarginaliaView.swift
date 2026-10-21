@@ -402,14 +402,17 @@ private struct MarginaliaBoardPage: View {
 
     private var workspace: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: DipleSpace.l, pinnedViews: [.sectionHeaders]) {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 masthead
+                    .padding(.bottom, DipleSpace.l)
 
                 if !model.isSelecting {
                     rubric
+                        .padding(.bottom, DipleSpace.l)
                 }
 
                 dailyPassage
+                    .padding(.bottom, DipleSpace.l)
 
                 if model.totalInScope == 0 {
                     emptyState
@@ -422,11 +425,13 @@ private struct MarginaliaBoardPage: View {
                         }
                     } header: {
                         controls
+                            .padding(.bottom, DipleSpace.l)
                     }
                 }
             }
             .padding(.bottom, DipleSpace.scrollBottom)
         }
+        .accessibilityIdentifier(door == .highlights ? "highlights.catalogue" : "notes.catalogue")
         .scrollDismissesKeyboard(.interactively)
         .tracksTabBarCollapse()
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -876,19 +881,23 @@ private struct MarginaliaBoardPage: View {
 
     @ViewBuilder
     private var content: some View {
-        LazyVStack(alignment: .leading, spacing: DipleSpace.l) {
-            if model.lenses.contains(.unsorted), model.results.count > 1, !model.isSelecting {
-                filingInvitation
-            }
-
-            ForEach(model.groups) { group in
-                if model.grouping != .none {
-                    groupHeader(group)
-                }
-                entries(of: group)
-            }
+        // Rows must be direct children of the scroll's lazy stack. Wrapping each group
+        // in another lazy stack makes the parent estimate the height of an entire group,
+        // then correct that estimate as its children appear during a scroll.
+        if model.lenses.contains(.unsorted), model.results.count > 1, !model.isSelecting {
+            filingInvitation
+                .padding(.horizontal, DipleSpace.xl)
+                .padding(.bottom, DipleSpace.l)
         }
-        .padding(.horizontal, DipleSpace.xl)
+
+        ForEach(model.groups) { group in
+            if model.grouping != .none {
+                groupHeader(group)
+                    .padding(.horizontal, DipleSpace.xl)
+                    .padding(.vertical, DipleSpace.s)
+            }
+            entries(of: group)
+        }
     }
 
     /// The way into the filing pass, and it appears only where it makes sense: standing in
@@ -967,11 +976,12 @@ private struct MarginaliaBoardPage: View {
                     row(for: entry)
                 }
             }
+            .padding(.horizontal, DipleSpace.xl)
+            .padding(.bottom, DipleSpace.l)
         } else {
-            LazyVStack(spacing: 0) {
-                ForEach(group.entries) { entry in
-                    row(for: entry)
-                }
+            ForEach(group.entries) { entry in
+                row(for: entry)
+                    .padding(.horizontal, DipleSpace.xl)
             }
         }
     }

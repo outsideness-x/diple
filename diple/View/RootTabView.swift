@@ -56,7 +56,7 @@ public struct RootTabView: View {
 
     @State private var selection: Tab = .home
     @State private var isBarHidden = false
-    @StateObject private var tabBarState = DipleTabBarState()
+    @State private var tabBarState = DipleTabBarState()
 
     public init() {}
 
@@ -65,7 +65,7 @@ public struct RootTabView: View {
             tabContent
 
             if !isBarHidden {
-                DipleTabBar(selection: $selection, isCollapsed: tabBarState.isCollapsed)
+                CollapsingTabBar(selection: $selection, state: tabBarState)
                     .padding(.bottom, DipleSpace.s)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -132,5 +132,16 @@ public struct RootTabView: View {
             .animation(nil) { $0.opacity(isActive ? 1 : 0) }
             .allowsHitTesting(isActive)
             .zIndex(isActive ? 1 : 0)
+    }
+}
+
+/// Only the overlay observes collapse changes. Observing them at the shell would rebuild
+/// all four mounted roots (including both Highlights boards) in the middle of a scroll.
+private struct CollapsingTabBar: View {
+    @Binding var selection: RootTabView.Tab
+    @ObservedObject var state: DipleTabBarState
+
+    var body: some View {
+        DipleTabBar(selection: $selection, isCollapsed: state.isCollapsed)
     }
 }
