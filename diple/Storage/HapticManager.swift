@@ -12,29 +12,19 @@ public final class HapticManager {
         case heavy
     }
 
+    /// The system's own strengths, one for one (2026-10-01). There used to be a Light / Medium /
+    /// Heavy choice in Settings that shifted every level up or down a step; a reading app that
+    /// asks how hard it should tap is asking the reader to tune it, and the levels UIKit ships
+    /// are already the ones every other app on the device answers with.
     public func impact(_ level: ImpactLevel = .medium) {
         let settings = AppSettingsManager.shared.settings
         guard settings.isHapticsEnabled else { return }
 
         let style: UIImpactFeedbackGenerator.FeedbackStyle
-        switch settings.hapticIntensity {
-        case .light:
-            switch level {
-            case .light, .medium: style = .light
-            case .heavy: style = .medium
-            }
-        case .medium:
-            switch level {
-            case .light: style = .light
-            case .medium: style = .medium
-            case .heavy: style = .heavy
-            }
-        case .heavy:
-            switch level {
-            case .light: style = .medium
-            case .medium: style = .heavy
-            case .heavy: style = .rigid
-            }
+        switch level {
+        case .light: style = .light
+        case .medium: style = .medium
+        case .heavy: style = .heavy
         }
 
         let generator = UIImpactFeedbackGenerator(style: style)
@@ -60,13 +50,15 @@ public final class HapticManager {
         generator.notificationOccurred(type)
     }
 
+    /// A soft tick as the reader crosses into a new chapter — the feel of a page edge, not an
+    /// alert. It follows the one haptics switch; it had a switch of its own until 2026-10-01,
+    /// and a medium impact on every chapter of a long novel was the reason anyone needed it.
     public func chapterChanged() {
         let settings = AppSettingsManager.shared.settings
-        guard settings.isHapticsEnabled && settings.chapterHapticsEnabled else { return }
+        guard settings.isHapticsEnabled else { return }
 
-        let style: UIImpactFeedbackGenerator.FeedbackStyle = (settings.hapticIntensity == .heavy) ? .heavy : .medium
-        let generator = UIImpactFeedbackGenerator(style: style)
+        let generator = UIImpactFeedbackGenerator(style: .soft)
         generator.prepare()
-        generator.impactOccurred()
+        generator.impactOccurred(intensity: 0.7)
     }
 }

@@ -10,7 +10,12 @@ public enum HapticIntensity: String, CaseIterable, Identifiable, Codable {
 
 public struct AppSettings: Codable, Equatable {
     public var isHapticsEnabled: Bool
+    /// No longer read, and no longer offered (2026-10-01): haptics are one switch, at the
+    /// strengths the system designed them at. Kept so payloads written by older builds — and
+    /// the records they sync — still decode and merge field by field.
     public var hapticIntensity: HapticIntensity
+    /// No longer read, and no longer offered (2026-10-01): the tick on a new chapter is part
+    /// of haptics as a whole. Kept for the same reason as `hapticIntensity`.
     public var chapterHapticsEnabled: Bool
     public var defaultScrollReadingMode: Bool
     public var readerSettings: ReaderSettings

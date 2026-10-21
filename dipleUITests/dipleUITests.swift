@@ -91,9 +91,10 @@ final class dipleUITests: XCTestCase {
 
         XCTAssertTrue(colophon.isHittable)
         XCTAssertLessThanOrEqual(colophon.frame.maxY, comfortableBottomEdge)
-        XCTAssertEqual(
-            colophon.label,
-            "designed and created by chemical pink. diple. version 1.0"
+        // The version is the bundle's own and moves with every release; the signature does not.
+        XCTAssertTrue(
+            colophon.label.hasPrefix("designed and created by chemical pink. diple. version "),
+            colophon.label
         )
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -123,7 +124,7 @@ final class dipleUITests: XCTestCase {
 
         XCTAssertTrue(export.isHittable)
         XCTAssertTrue(restore.isHittable)
-        XCTAssertTrue(app.staticTexts["iCloud sync"].exists)
+        XCTAssertTrue(app.switches["iCloud sync"].exists)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Data restore controls"
