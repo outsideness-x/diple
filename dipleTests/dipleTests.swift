@@ -816,6 +816,47 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(DipleDate.dayAndTime(lastYear, now: now, calendar: calendar).contains("2025"))
     }
 
+    // MARK: - ⌘K
+
+    /// The go-to panel answers "take me to the thing I mean": a title before a byline, a word
+    /// of a title before a fragment of one, accents and case ignored, and passages only where
+    /// they will not bury a matching book.
+    func testQuickOpenFindsTheBookMeantBeforeAnythingElse() {
+        let now = Date()
+        let frankenstein = Book(
+            id: "f", title: "Frankenstein", author: "Mary Shelley", filePath: "Books/f/a.epub",
+            lastOpenedAt: now.addingTimeInterval(-60)
+        )
+        let dorian = Book(
+            id: "d", title: "The Picture of Dorian Gray", author: "Oscar Wilde", filePath: "Books/d/a.epub",
+            lastOpenedAt: now.addingTimeInterval(-3_600)
+        )
+        let heights = Book(
+            id: "w", title: "Wuthering Heights", author: "Emily Brontë", filePath: "Books/w/a.epub"
+        )
+        let books = [dorian, heights, frankenstein]
+        let souls = PassageItem(
+            highlight: Highlight(
+                id: "p", bookId: "w", locator: "{}",
+                text: "Whatever our souls are made of, his and mine are the same"
+            ),
+            tags: [],
+            book: heights
+        )
+
+        func ids(_ query: String) -> [String] {
+            QuickOpen.results(for: query, books: books, passages: [souls]).map(\.id)
+        }
+
+        XCTAssertEqual(ids("frank"), ["book:f"], "a title that starts with the query")
+        XCTAssertEqual(ids("dorian"), ["book:d"], "a word of the title")
+        XCTAssertEqual(ids("bronte"), ["book:w"], "the byline, without its diaeresis")
+        XCTAssertEqual(ids("GRAY picture"), ["book:d"], "any order, any case")
+        XCTAssertEqual(ids("souls"), ["passage:p"], "a passage when no title fits")
+        XCTAssertEqual(ids("zzqx"), [])
+        XCTAssertEqual(ids(""), ["book:f", "book:d"], "nothing typed: what was opened, newest first")
+    }
+
     // MARK: - Measured reading speed
 
     /// The whole point: a reader who is faster than the shipped constant must end up being told

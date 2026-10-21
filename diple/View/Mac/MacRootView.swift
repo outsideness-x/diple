@@ -168,6 +168,9 @@ public struct MacRootView: View {
     /// rather than `@FocusState`, because the field itself is two views down inside
     /// `DipleSearchField` and only the view that owns a `TextField` can own its focus.
     @State private var searchFocusRequest: MacSearchTarget?
+    /// The ⌘K panel, and the text it opens with: `nil` while it is closed. Empty is the usual
+    /// way in; `DipleWindowCapture` can open it holding a query, to photograph it with results.
+    @State private var quickOpenQuery: String?
 
     /// True while a book is open over the whole window. Navigation commands are ignored then:
     /// moving the shelf underneath the reader changes what closing the book returns to without
@@ -181,6 +184,23 @@ public struct MacRootView: View {
         .controlSize(.large)
         .background(DipleColor.canvas)
         .tint(DipleColor.accentInk)
+        .overlay {
+            if let query = quickOpenQuery {
+                MacQuickOpen(
+                    books: library.books,
+                    passages: marginalia.entries.compactMap(\.passageItem),
+                    initialQuery: query,
+                    onOpen: { item in
+                        quickOpenQuery = nil
+                        open(item)
+                    },
+                    onDismiss: {
+                        withAnimation(DipleMotion.snappy) { quickOpenQuery = nil }
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
         // No SwiftUI `toolbar` here at all. Catalyst renders a toolbar group unreliably beside
         // a search field (see CLAUDE.md), and every action it used to hold now has two homes
         // that are always drawn: the column header, and the menu bar.
@@ -225,6 +245,9 @@ public struct MacRootView: View {
             Text(library.errorMessage ?? "An unknown error occurred.")
         }
         .onChange(of: source) { _, newSource in
+            // A shelf chosen from the keyboard while the go-to panel is up is a place chosen
+            // instead of it.
+            quickOpenQuery = nil
             guard let newSource else { return }
             // The shelf sets what stands in the column and nothing else. Grouping and order
             // are the reader's, and re-clicking a sidebar row is not a request to undo them.
@@ -301,6 +324,31 @@ public struct MacRootView: View {
             // The Notes shelf has no inspector: its third column is the page being written.
             guard !isReading, source != .notes else { return }
             withAnimation(DipleMotion.snappy) { isInspectorShown.toggle() }
+
+        case .quickOpen:
+            // A second ⌘K closes it, as it does in every panel that opens on one.
+            guard !isReading else { return }
+            withAnimation(DipleMotion.snappy) {
+                quickOpenQuery = quickOpenQuery == nil ? "" : nil
+            }
+        }
+    }
+
+    /// Where ⌘K's chosen line goes: a book to the reader at its saved place, a passage to its
+    /// book at the passage — or, when that book is gone, to the passage itself on Highlights.
+    private func open(_ item: QuickOpenItem) {
+        switch item {
+        case .book(let book):
+            readerRequest = MacReaderRequest(book: currentBook(matching: book) ?? book)
+        case .passage(let passage):
+            if destination(of: passage) != nil {
+                openPassage(passage)
+            } else {
+                source = .highlights
+                // After the shelf has changed, not with it: choosing a shelf clears the
+                // inspector (`onChange(of: source)`), and that runs after this function returns.
+                Task { @MainActor in detail = .passage(passage) }
+            }
         }
     }
 
@@ -673,6 +721,9 @@ public struct MacRootView: View {
                .first(where: { $0.highlight.text.hasPrefix(start) }) {
             source = .highlights
             detail = .passage(item)
+        }
+        if let query = DipleWindowCapture.requestedQuickOpen {
+            quickOpenQuery = query
         }
         if let start = DipleWindowCapture.requestedNote,
            let item = notesBoard.entries.compactMap(\.noteItem)

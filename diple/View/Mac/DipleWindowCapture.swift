@@ -85,6 +85,15 @@ enum DipleWindowCapture {
         #endif
     }
 
+    /// A query to open the ⌘K panel with, so the panel can be photographed with results in it.
+    static var requestedQuickOpen: String? {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["DIPLE_CAPTURE_QUICK_OPEN"]
+        #else
+        nil
+        #endif
+    }
+
     /// The window's content size in points, as `1280x800`. macOS restores whatever size the window
     /// last had, so a set of photographs taken on different days would otherwise not share a frame.
     /// App Store frames are 16:10; at @2x, 1440x900 is exactly 2880x1800.

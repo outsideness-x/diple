@@ -38,6 +38,8 @@ enum MacCommand: String, Sendable, CaseIterable {
     case findInBook
     /// Open or close Reading's inspector.
     case toggleInspector
+    /// ⌘K: the go-to panel over the window — a book or a passage by a few of its letters.
+    case quickOpen
 }
 
 extension Notification.Name {
@@ -123,6 +125,13 @@ struct DipleMacCommands: Commands {
         }
 
         CommandMenu("Go") {
+            // ⌘K is the key desktop tools have settled on for "go to anything", and it was free
+            // here. It goes to a book or a passage; the shelves below go to a place.
+            Button("Go to Book or Passage…") { MacCommand.quickOpen.post() }
+                .keyboardShortcut("k", modifiers: .command)
+
+            Divider()
+
             Button("Library") { MacCommand.goLibrary.post() }
                 .keyboardShortcut("1", modifiers: .command)
             Button("Unread") { MacCommand.goUnread.post() }
