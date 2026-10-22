@@ -62,6 +62,13 @@ has no management token on this Mac; the schema was read through Console exports
 **The next schema change starts from `cloudkit-schema-1.1.ckdb`**: add to that file, import it into
 Development, deploy, and diff the Production export against it.
 
+**1a. `DipleFeedSource` — added to the schema file 2026-10-22, not yet in Production.** The Feed
+tab's followed sources sync as a new record type (`feedURL`, `siteURL`, `title`, `summary`, `seal`,
+`arxivFields` STRING; `addedAt`, `updatedAt`, `modifiedAt` TIMESTAMP). It is an addition only. Until
+it is deployed a distribution build parks feed subscriptions in the outbox — nothing else is
+affected. Same procedure: import `cloudkit-schema-1.1.ckdb` into Development, deploy, diff the
+Production export.
+
 **2. No Apple Distribution certificate** in this keychain. Xcode's Distribute flow creates it; it
 is why both archives above are unsigned / development-signed.
 

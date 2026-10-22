@@ -62,6 +62,27 @@ DEFINE SCHEMA
         GRANT READ TO "_world"
     );
 
+    RECORD TYPE DipleFeedSource (
+        "___createTime" TIMESTAMP,
+        "___createdBy"  REFERENCE,
+        "___etag"       STRING,
+        "___modTime"    TIMESTAMP,
+        "___modifiedBy" REFERENCE,
+        "___recordID"   REFERENCE,
+        addedAt         TIMESTAMP QUERYABLE SORTABLE,
+        arxivFields     STRING QUERYABLE SEARCHABLE SORTABLE,
+        feedURL         STRING QUERYABLE SEARCHABLE SORTABLE,
+        modifiedAt      TIMESTAMP QUERYABLE SORTABLE,
+        seal            STRING QUERYABLE SEARCHABLE SORTABLE,
+        siteURL         STRING QUERYABLE SEARCHABLE SORTABLE,
+        summary         STRING QUERYABLE SEARCHABLE SORTABLE,
+        title           STRING QUERYABLE SEARCHABLE SORTABLE,
+        updatedAt       TIMESTAMP QUERYABLE SORTABLE,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
+
     RECORD TYPE DipleHighlight (
         "___createTime" TIMESTAMP,
         "___createdBy"  REFERENCE,
