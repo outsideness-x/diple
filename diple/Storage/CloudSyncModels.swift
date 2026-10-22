@@ -13,6 +13,10 @@ public nonisolated enum SyncEntityType: String, CaseIterable, Sendable {
     /// name and skips the record, which is exactly the right thing for it to do.
     case space
     case settings
+    /// A source the feed follows (`DipleFeedSource`, 2026-10-22). Its pieces never travel —
+    /// each device fetches them from the source itself. A device that predates the feed cannot
+    /// parse the record name and skips it, as with `space`.
+    case feedSource
 }
 
 public nonisolated enum SyncOperation: String, Sendable {

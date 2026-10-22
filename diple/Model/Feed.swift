@@ -2,9 +2,10 @@ import Foundation
 
 /// A source the reader follows: a blog, a journal, a newsletter, or a few fields of arXiv.
 ///
-/// Kept on this device only, in `FeedStore`'s file, not in SQLite and not in CloudKit — see
-/// "Лента" in CLAUDE.md. A source is a subscription, not something the reader wrote, and what it
-/// brings is by design gone in a few days.
+/// Two halves under one roof. What the source *is* — its address, its name, arXiv's fields — is
+/// the library's (`FeedSubscription`) and syncs to the reader's other devices. How this device
+/// last fared asking it — the validators, when it answered, why it did not — is this device's
+/// alone and stays in `FeedStore`'s file. See "Лента" in CLAUDE.md.
 public nonisolated struct FeedSource: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     /// Where the feed itself is read from. For arXiv this is a query of the arXiv API, built
@@ -52,6 +53,26 @@ public nonisolated struct FeedSource: Codable, Identifiable, Hashable, Sendable 
 
     public var isArxiv: Bool { arxivFields != nil }
 
+    /// The same source under another id, with everything this device knows about it.
+    public func renamed(to newID: String) -> FeedSource {
+        guard newID != id else { return self }
+        var copy = FeedSource(
+            id: newID,
+            feedURL: feedURL,
+            siteURL: siteURL,
+            title: title,
+            summary: summary,
+            seal: seal,
+            arxivFields: arxivFields,
+            addedAt: addedAt
+        )
+        copy.checkedAt = checkedAt
+        copy.etag = etag
+        copy.lastModified = lastModified
+        copy.failure = failure
+        return copy
+    }
+
     /// `quantamagazine.org` — how the source is told apart from a namesake.
     public var host: String? {
         (siteURL ?? feedURL).host.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
@@ -95,6 +116,27 @@ public nonisolated struct FeedItem: Codable, Identifiable, Hashable, Sendable {
     /// published early) would otherwise sit at the head of the feed for days.
     public var filedAt: Date {
         min(publishedAt ?? firstSeenAt, firstSeenAt)
+    }
+
+    /// The same piece filed under a source's new id; its own part of the id stays.
+    public func moved(to newSourceID: String) -> FeedItem {
+        let own = id.split(separator: "|", maxSplits: 1).dropFirst().first.map(String.init) ?? id
+        return FeedItem(
+            id: "\(newSourceID)|\(own)",
+            sourceID: newSourceID,
+            title: title,
+            link: link,
+            publishedAt: publishedAt,
+            authors: authors,
+            summary: summary,
+            characterCount: characterCount,
+            categories: categories,
+            arxivID: arxivID,
+            pdfURL: pdfURL,
+            firstSeenAt: firstSeenAt,
+            rank: rank,
+            keptBookID: keptBookID
+        )
     }
 
     /// The arXiv number without its version: `2610.28632`.

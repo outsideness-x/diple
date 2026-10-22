@@ -448,6 +448,26 @@ public nonisolated final class AppDatabase: Sendable {
             try db.create(index: "note_on_dailyDate", on: "note", columns: ["dailyDate"])
         }
 
+        // The sources the feed follows (2026-10-22), so that following on the phone is following
+        // on the Mac: they sync as `DipleFeedSource`. Only what a source *is* lives here. How this
+        // device last fared asking it, and the pieces it brought, stay in `feed.json` — each
+        // device asks for itself, and a few days of other people's headlines are not the
+        // reader's to keep. No backfill: the sources followed before this were in that file, and
+        // `FeedStore` moves them in itself on its first load.
+        migrator.registerMigration("v21_createFeedSources") { db in
+            try db.create(table: "feedSource") { t in
+                t.column("id", .text).primaryKey()
+                t.column("feedURL", .text).notNull()
+                t.column("siteURL", .text)
+                t.column("title", .text).notNull()
+                t.column("summary", .text)
+                t.column("seal", .text)
+                t.column("arxivFields", .text)
+                t.column("addedAt", .datetime).notNull()
+                t.column("updatedAt", .datetime).notNull()
+            }
+        }
+
         return migrator
     }
 
@@ -1312,6 +1332,33 @@ public nonisolated final class AppDatabase: Sendable {
         return moved
     }
 
+    // MARK: - The feed's sources
+
+    /// Every followed source, in the order it was followed.
+    public func fetchFeedSubscriptions() throws -> [FeedSubscription] {
+        try writer.read { db in
+            try FeedSubscription.order(Column("addedAt"), Column("id")).fetchAll(db)
+        }
+    }
+
+    /// Follows a source, or changes one already followed — its arXiv fields, its site.
+    public func saveFeedSubscription(_ subscription: FeedSubscription) throws {
+        try writer.write { db in
+            try subscription.save(db)
+            try markLocalSave(.feedSource, id: subscription.id, at: subscription.updatedAt, in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
+    /// Unfollows a source. Nothing the reader kept from it is touched: what was read is a book.
+    public func deleteFeedSubscription(id: String, at date: Date = Date()) throws {
+        try writer.write { db in
+            _ = try FeedSubscription.deleteOne(db, key: id)
+            try markLocalDelete(.feedSource, id: id, at: date, in: db)
+        }
+        signalSyncIfNeeded()
+    }
+
     // MARK: - Portable Backup Restore
 
     /// Describes exactly what a merge would change without touching the library. Settings uses
@@ -2070,6 +2117,9 @@ public nonisolated final class AppDatabase: Sendable {
             for space in try NoteSpace.fetchAll(db) {
                 try markLocalSave(.space, id: space.id, at: space.updatedAt, in: db)
             }
+            for subscription in try FeedSubscription.fetchAll(db) {
+                try markLocalSave(.feedSource, id: subscription.id, at: subscription.updatedAt, in: db)
+            }
             // A fresh device's defaults must lose to any real settings already in iCloud.
             try markLocalSave(.settings, id: "current", at: Date(timeIntervalSince1970: 0), in: db)
             try db.execute(
@@ -2097,6 +2147,9 @@ public nonisolated final class AppDatabase: Sendable {
             }
             for space in try NoteSpace.fetchAll(db) {
                 try markLocalSave(.space, id: space.id, at: space.updatedAt, in: db)
+            }
+            for subscription in try FeedSubscription.fetchAll(db) {
+                try markLocalSave(.feedSource, id: subscription.id, at: subscription.updatedAt, in: db)
             }
             try markLocalSave(.settings, id: "current", at: Date(), in: db)
         }
@@ -2175,6 +2228,12 @@ public nonisolated final class AppDatabase: Sendable {
     public func fetchSpaceForSync(id: String) throws -> NoteSpace? {
         try writer.read { db in
             try NoteSpace.fetchOne(db, key: id)
+        }
+    }
+
+    public func fetchFeedSubscriptionForSync(id: String) throws -> FeedSubscription? {
+        try writer.read { db in
+            try FeedSubscription.fetchOne(db, key: id)
         }
     }
 
@@ -2298,6 +2357,24 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// A source followed (or changed) on another device. Its pieces are not in the record:
+    /// `FeedStore` notices the new source when the batch lands and asks it here.
+    @discardableResult
+    public func applyRemoteFeedSubscription(
+        _ subscription: FeedSubscription,
+        modifiedAt: Date,
+        systemFields: Data
+    ) throws -> Bool {
+        try writer.write { db in
+            guard try shouldAcceptRemote(.feedSource, id: subscription.id, modifiedAt: modifiedAt, in: db) else {
+                return false
+            }
+            try subscription.save(db)
+            try storeRemoteMetadata(.feedSource, id: subscription.id, modifiedAt: modifiedAt, systemFields: systemFields, in: db)
+            return true
+        }
+    }
+
     /// Assets have their own record, so progress updates never upload a multi-megabyte EPUB.
     @discardableResult
     public func applyRemoteBookAssetMetadata(id: String, modifiedAt: Date, systemFields: Data) throws -> Bool {
@@ -2408,6 +2485,8 @@ public nonisolated final class AppDatabase: Sendable {
                 // marked for sync — it is the same change arriving, not a new one.
                 try db.execute(sql: "UPDATE note SET spaceId = NULL WHERE spaceId = ?", arguments: [id])
                 _ = try NoteSpace.deleteOne(db, key: id)
+            case .feedSource:
+                _ = try FeedSubscription.deleteOne(db, key: id)
             case .bookAsset, .settings:
                 break
             }

@@ -404,6 +404,9 @@ public actor CloudSyncService: CKSyncEngineDelegate {
             case .space:
                 guard let space = try database.fetchSpaceForSync(id: key.id) else { return nil }
                 Self.populate(space: space, record: record)
+            case .feedSource:
+                guard let subscription = try database.fetchFeedSubscriptionForSync(id: key.id) else { return nil }
+                Self.populate(feedSource: subscription, record: record)
             case .settings:
                 let data = try await MainActor.run { try AppSettingsManager.shared.encodedSettings() }
                 record["payload"] = data as CKRecordValue
@@ -480,6 +483,20 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         record["sortIndex"] = NSNumber(value: space.sortIndex)
         record["createdAt"] = space.createdAt as CKRecordValue
         record["updatedAt"] = space.updatedAt as CKRecordValue
+    }
+
+    /// What a followed source is, and nothing about how this device last fared asking it.
+    /// Every key is written on every save, `nil` included, so a site that a later check found
+    /// travels, and an absent key on the receiving end always means `nil`.
+    private static func populate(feedSource subscription: FeedSubscription, record: CKRecord) {
+        record["feedURL"] = subscription.feedURL as CKRecordValue
+        record["siteURL"] = subscription.siteURL as CKRecordValue?
+        record["title"] = subscription.title as CKRecordValue
+        record["summary"] = subscription.summary as CKRecordValue?
+        record["seal"] = subscription.seal as CKRecordValue?
+        record["arxivFields"] = subscription.arxivFields as CKRecordValue?
+        record["addedAt"] = subscription.addedAt as CKRecordValue
+        record["updatedAt"] = subscription.updatedAt as CKRecordValue
     }
 
     // MARK: Tags on a record
@@ -719,6 +736,27 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 updatedAt: updatedAt
             )
             return try database.applyRemoteSpace(space, modifiedAt: modifiedAt, systemFields: systemFields)
+        case .feedSource:
+            guard let feedURL = record["feedURL"] as? String,
+                  let title = record["title"] as? String,
+                  let addedAt = record["addedAt"] as? Date
+            else { return true }
+            let subscription = FeedSubscription(
+                id: key.id,
+                feedURL: feedURL,
+                siteURL: record["siteURL"] as? String,
+                title: title,
+                summary: record["summary"] as? String,
+                seal: record["seal"] as? String,
+                arxivFields: record["arxivFields"] as? String,
+                addedAt: addedAt,
+                updatedAt: record["updatedAt"] as? Date ?? modifiedAt
+            )
+            return try database.applyRemoteFeedSubscription(
+                subscription,
+                modifiedAt: modifiedAt,
+                systemFields: systemFields
+            )
         case .settings:
             guard let payload = record["payload"] as? Data else { return true }
             guard try database.shouldAcceptRemoteChange(entity: .settings, id: "current", modifiedAt: modifiedAt) else {
@@ -958,6 +996,7 @@ public actor CloudSyncService: CKSyncEngineDelegate {
         case .bookmark: return "DipleBookmark"
         case .note: return "DipleNote"
         case .space: return "DipleSpace"
+        case .feedSource: return "DipleFeedSource"
         case .settings: return "DipleSettings"
         }
     }
