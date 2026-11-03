@@ -334,6 +334,8 @@ public struct ReaderContainerView: View {
                         targetLocator: viewModel.targetLocator,
                         preferences: viewModel.settings.pdfPreferences,
                         hasSelection: viewModel.currentSelection != nil,
+                        isLanguageLearningMode: viewModel.settings.isLanguageLearningMode,
+                        isOverlayVisible: viewModel.isOverlayVisible,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
                             ReaderIdleTimerKeeper.shared.poke()
@@ -345,6 +347,10 @@ public struct ReaderContainerView: View {
                         onDismissActions: dismissHighlightActionsIfShown,
                         onCenterTap: {
                             viewModel.toggleOverlay()
+                            ReaderIdleTimerKeeper.shared.poke()
+                        },
+                        onSentenceTapped: { sentence in
+                            presentSentenceTranslation(sentence)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onLinkJump: { originLocator in
@@ -372,6 +378,9 @@ public struct ReaderContainerView: View {
                         preferences: viewModel.epubPreferences,
                         rsProperties: viewModel.readiumCSSRSProperties,
                         hasSelection: viewModel.currentSelection != nil,
+                        isLanguageLearningMode: viewModel.settings.isLanguageLearningMode,
+                        isSentenceTranslationPresented: isTranslationPresented,
+                        isOverlayVisible: viewModel.isOverlayVisible,
                         onLocationChanged: { locator in
                             viewModel.saveLocation(locator)
                             ReaderIdleTimerKeeper.shared.poke()
@@ -416,6 +425,10 @@ public struct ReaderContainerView: View {
                         },
                         onCenterTap: {
                             viewModel.toggleOverlay()
+                            ReaderIdleTimerKeeper.shared.poke()
+                        },
+                        onSentenceTapped: { sentence in
+                            presentSentenceTranslation(sentence)
                             ReaderIdleTimerKeeper.shared.poke()
                         },
                         onFootnote: { id, content, referrer in
@@ -1336,6 +1349,23 @@ public struct ReaderContainerView: View {
         let quote = subject.quote
         return {
             translationText = quote
+            isTranslationPresented = true
+        }
+#endif
+    }
+
+    private func presentSentenceTranslation(_ sentence: String) {
+#if !targetEnvironment(macCatalyst)
+        let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if isTranslationPresented {
+            isTranslationPresented = false
+            Task { @MainActor in
+                translationText = trimmed
+                isTranslationPresented = true
+            }
+        } else {
+            translationText = trimmed
             isTranslationPresented = true
         }
 #endif

@@ -230,6 +230,9 @@ public struct ReaderSettings: Codable, Equatable {
     // one tap away for a reader who specifically wants true black.
     public var theme: ReaderPageTheme = .carbon
     public var readingMode: ReadingMode = .paginated
+    /// When enabled, a single tap on a sentence translates it through the system translator and
+    /// highlights the sentence on the page, while text selection remains on touch-and-hold.
+    public var isLanguageLearningMode: Bool = false
 
     /// Steps of leading either side of what the book's own script asks for.
     ///
@@ -276,7 +279,8 @@ public struct ReaderSettings: Codable, Equatable {
         theme: ReaderPageTheme = .carbon,
         readingMode: ReadingMode = .paginated,
         pageMargins: Double = ReaderSettings.defaultPageMargins,
-        lineHeightAdjustment: Double = 0
+        lineHeightAdjustment: Double = 0,
+        isLanguageLearningMode: Bool = false
     ) {
         self.lineHeightAdjustment = lineHeightAdjustment
         self.fontSizeScale = fontSizeScale
@@ -284,6 +288,7 @@ public struct ReaderSettings: Codable, Equatable {
         self.theme = theme
         self.readingMode = readingMode
         self.pageMargins = pageMargins
+        self.isLanguageLearningMode = isLanguageLearningMode
     }
 
     // MARK: - Step interface
@@ -404,6 +409,7 @@ public struct ReaderSettings: Codable, Equatable {
         case readingMode
         case pageMargins
         case lineHeightAdjustment
+        case isLanguageLearningMode
     }
 
     /// Readers who set a size under the old five-step ladder keep it: the stored index is
@@ -445,6 +451,7 @@ public struct ReaderSettings: Codable, Equatable {
         // Absent for everyone who set up their reader before leading was adjustable: no offset
         // is the honest reading of that, and it leaves the script's own baseline in charge.
         self.lineHeightAdjustment = try container.decodeIfPresent(Double.self, forKey: .lineHeightAdjustment) ?? 0
+        self.isLanguageLearningMode = try container.decodeIfPresent(Bool.self, forKey: .isLanguageLearningMode) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -455,6 +462,7 @@ public struct ReaderSettings: Codable, Equatable {
         try container.encode(readingMode, forKey: .readingMode)
         try container.encode(pageMargins, forKey: .pageMargins)
         try container.encode(lineHeightAdjustment, forKey: .lineHeightAdjustment)
+        try container.encode(isLanguageLearningMode, forKey: .isLanguageLearningMode)
     }
 
     // MARK: - Readium

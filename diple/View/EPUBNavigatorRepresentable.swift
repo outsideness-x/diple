@@ -26,6 +26,15 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     /// publication's own selection too, so dismissing the highlight bar takes the blue
     /// selection and the system edit menu with it.
     public let hasSelection: Bool
+    /// When enabled, a simple tap on prose extracts and highlights the sentence under the finger
+    /// and hands it to the system translator, while long-press continues to select text.
+    public let isLanguageLearningMode: Bool
+    /// Whether the system translation sheet raised from a sentence tap is currently on screen.
+    /// Dropping it clears the temporary sentence highlight on the page.
+    public let isSentenceTranslationPresented: Bool
+    /// Whether the reader's top and bottom bars are currently over the page. While they are up,
+    /// tapping the page puts them away first rather than opening the translator underneath them.
+    public let isOverlayVisible: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
     /// The page's own selection has collapsed. Readium reports a selection but never its
@@ -39,6 +48,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
     public let onLivingMarginActivated: (String) -> Void
     public let onLivingMarginsEdgeSwipe: () -> Void
     public let onCenterTap: () -> Void
+    public let onSentenceTapped: (String) -> Void
     /// Handed a tapped note: its address in the publication, its markup and the marker that led
     /// to it. Returns whether the app took it. `false` puts the tap back on Readium's own path,
     /// which is to follow the link — see `ReaderViewModel.openFootnote`.
@@ -63,6 +73,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         preferences: EPUBPreferences,
         rsProperties: CSSRSProperties = CSSRSProperties(),
         hasSelection: Bool = false,
+        isLanguageLearningMode: Bool = false,
+        isSentenceTranslationPresented: Bool = false,
+        isOverlayVisible: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
         onSelectionCleared: @escaping () -> Void = {},
@@ -71,6 +84,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         onLivingMarginActivated: @escaping (String) -> Void = { _ in },
         onLivingMarginsEdgeSwipe: @escaping () -> Void = {},
         onCenterTap: @escaping () -> Void,
+        onSentenceTapped: @escaping (String) -> Void = { _ in },
         onFootnote: @escaping (String, String, String?) -> Bool = { _, _, _ in false },
         onFigure: @escaping (String, String) -> Void = { _, _ in },
         onLinkJump: @escaping (Locator) -> Void = { _ in },
@@ -89,6 +103,9 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.preferences = preferences
         self.rsProperties = rsProperties
         self.hasSelection = hasSelection
+        self.isLanguageLearningMode = isLanguageLearningMode
+        self.isSentenceTranslationPresented = isSentenceTranslationPresented
+        self.isOverlayVisible = isOverlayVisible
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
         self.onSelectionCleared = onSelectionCleared
@@ -97,6 +114,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         self.onLivingMarginActivated = onLivingMarginActivated
         self.onLivingMarginsEdgeSwipe = onLivingMarginsEdgeSwipe
         self.onCenterTap = onCenterTap
+        self.onSentenceTapped = onSentenceTapped
         self.onFootnote = onFootnote
         self.onFigure = onFigure
         self.onLinkJump = onLinkJump
@@ -186,6 +204,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         
         context.coordinator.syncScrollTransition(for: uiViewController)
         context.coordinator.clearSelectionIfNeeded(hasSelection, in: uiViewController)
+        context.coordinator.clearSentenceHighlightIfNeeded(isSentenceTranslationPresented, in: uiViewController)
         context.coordinator.navigate(to: targetLink, or: targetLocator, in: uiViewController)
 
         if context.coordinator.lastHighlights != highlights {
@@ -258,6 +277,7 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
         var lastHighlights: [Highlight]? = nil
         var lastLivingMarginAnnotations: [LivingMarginAnnotation]? = nil
         private var didClearSelection = false
+        private var didClearSentenceHighlight = true
         /// When the page last reported its selection collapsing. Read once, by the touch that
         /// caused it — see `pageWasTapped`.
         private var selectionClearedAt: ContinuousClock.Instant?
@@ -497,6 +517,13 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
                     forMainFrameOnly: false
                 )
             )
+            userContentController.addUserScript(
+                WKUserScript(
+                    source: ReaderSentenceScript.source,
+                    injectionTime: .atDocumentStart,
+                    forMainFrameOnly: false
+                )
+            )
         }
 
         func figureTapped(source: String, alt: String) {
@@ -605,13 +632,34 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
 
             parent.onSelectionChanged(nil)
 
+            #if !targetEnvironment(macCatalyst)
+            if parent.isLanguageLearningMode,
+               !parent.isOverlayVisible,
+               touchBeganAt.duration(to: .now) < .milliseconds(450),
+               let navigator {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if await self.translateSentenceIfTapped(at: point, in: navigator) {
+                        return
+                    }
+                    self.performStandardPageTap(at: point, in: navigator)
+                }
+                return
+            }
+            #endif
+
+            guard let navigator else { return }
+            performStandardPageTap(at: point, in: navigator)
+        }
+
+        private func performStandardPageTap(at point: CGPoint, in navigator: EPUBNavigatorViewController) {
             // In continuous scroll mode, horizontal tap gestures MUST NOT turn pages.
             if parent.preferences.scroll == true {
                 parent.onCenterTap()
                 return
             }
 
-            guard let navigator, let view = navigator.view else { return }
+            guard let view = navigator.view else { return }
             let width = view.bounds.width
             guard width > 0 else { return }
 
@@ -627,6 +675,76 @@ public struct EPUBNavigatorRepresentable: UIViewControllerRepresentable {
             } else {
                 parent.onCenterTap()
             }
+        }
+
+        func clearSentenceHighlightIfNeeded(_ isPresented: Bool, in navigator: EPUBNavigatorViewController) {
+            guard !isPresented else {
+                didClearSentenceHighlight = false
+                return
+            }
+            guard !didClearSentenceHighlight else { return }
+            didClearSentenceHighlight = true
+            guard let rootView = navigator.view else { return }
+            for webView in Self.webViews(in: rootView) {
+                webView.evaluateJavaScript("window.__dipleClearSentenceHighlight && window.__dipleClearSentenceHighlight();", completionHandler: nil)
+            }
+        }
+
+        private func translateSentenceIfTapped(
+            at point: CGPoint,
+            in navigator: EPUBNavigatorViewController
+        ) async -> Bool {
+            guard let rootView = navigator.view,
+                  let webView = Self.activeWebView(at: point, in: rootView)
+            else {
+                return false
+            }
+
+            let localPoint = webView.convert(point, from: rootView)
+            let hitScript = "window.__dipleSentenceHitTest ? window.__dipleSentenceHitTest(\(localPoint.x), \(localPoint.y)) : null;"
+            guard let rawResult = try? await webView.evaluateJavaScript(hitScript),
+                  let dict = rawResult as? [String: Any],
+                  let blockText = dict["text"] as? String,
+                  let utf16Offset = dict["offset"] as? Int
+            else {
+                return false
+            }
+
+            let lang = dict["lang"] as? String
+            guard let match = SentenceTokenizer.sentence(
+                in: blockText,
+                atUTF16Offset: utf16Offset,
+                language: lang
+            ) else {
+                return false
+            }
+
+            let isNight = parent.markGround == .night
+            let highlightScript = "window.__dipleHighlightSentenceRange && window.__dipleHighlightSentenceRange(\(match.utf16Start), \(match.utf16End), \(isNight ? "true" : "false"));"
+            _ = try? await webView.evaluateJavaScript(highlightScript)
+            didClearSentenceHighlight = false
+
+            HapticManager.shared.selection()
+            parent.onSentenceTapped(match.text)
+            return true
+        }
+
+        private static func activeWebView(at point: CGPoint, in rootView: UIView) -> WKWebView? {
+            let candidates = webViews(in: rootView).filter { webView in
+                guard !webView.isHidden, webView.alpha > 0.01, webView.window != nil else {
+                    return false
+                }
+                let local = webView.convert(point, from: rootView)
+                return webView.bounds.contains(local)
+            }
+            return candidates.first
+        }
+
+        private static func webViews(in view: UIView) -> [WKWebView] {
+            if let webView = view as? WKWebView {
+                return [webView]
+            }
+            return view.subviews.flatMap { webViews(in: $0) }
         }
     }
 }

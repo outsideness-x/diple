@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PDFKit
 import OSLog
 import ReadiumShared
 import ReadiumNavigator
@@ -21,11 +22,14 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
     public let preferences: PDFPreferences
     /// See `EPUBNavigatorRepresentable.hasSelection`.
     public let hasSelection: Bool
+    public let isLanguageLearningMode: Bool
+    public let isOverlayVisible: Bool
     public let onLocationChanged: (Locator) -> Void
     public let onSelectionChanged: (Selection?) -> Void
     /// See `EPUBNavigatorRepresentable.onDismissActions`.
     public let onDismissActions: () -> Bool
     public let onCenterTap: () -> Void
+    public let onSentenceTapped: (String) -> Void
     public let onLinkJump: (Locator) -> Void
     public let onTargetHandled: () -> Void
     public let onOpenFailed: (String) -> Void
@@ -37,10 +41,13 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         targetLocator: Locator? = nil,
         preferences: PDFPreferences = PDFPreferences(),
         hasSelection: Bool = false,
+        isLanguageLearningMode: Bool = false,
+        isOverlayVisible: Bool = false,
         onLocationChanged: @escaping (Locator) -> Void,
         onSelectionChanged: @escaping (Selection?) -> Void,
         onDismissActions: @escaping () -> Bool = { false },
         onCenterTap: @escaping () -> Void,
+        onSentenceTapped: @escaping (String) -> Void = { _ in },
         onLinkJump: @escaping (Locator) -> Void = { _ in },
         onTargetHandled: @escaping () -> Void = {},
         onOpenFailed: @escaping (String) -> Void = { _ in }
@@ -51,10 +58,13 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
         self.targetLocator = targetLocator
         self.preferences = preferences
         self.hasSelection = hasSelection
+        self.isLanguageLearningMode = isLanguageLearningMode
+        self.isOverlayVisible = isOverlayVisible
         self.onLocationChanged = onLocationChanged
         self.onSelectionChanged = onSelectionChanged
         self.onDismissActions = onDismissActions
         self.onCenterTap = onCenterTap
+        self.onSentenceTapped = onSentenceTapped
         self.onLinkJump = onLinkJump
         self.onTargetHandled = onTargetHandled
         self.onOpenFailed = onOpenFailed
@@ -221,6 +231,17 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
 
             parent.onSelectionChanged(nil)
 
+            #if !targetEnvironment(macCatalyst)
+            if parent.isLanguageLearningMode,
+               !parent.isOverlayVisible,
+               let rootView = navigator.view,
+               let sentence = Self.extractPDFSentence(at: point, in: rootView) {
+                HapticManager.shared.selection()
+                parent.onSentenceTapped(sentence)
+                return
+            }
+            #endif
+
             if parent.preferences.scroll == true {
                 parent.onCenterTap()
                 return
@@ -242,6 +263,61 @@ public struct PDFNavigatorRepresentable: UIViewControllerRepresentable {
             } else {
                 parent.onCenterTap()
             }
+        }
+
+        private static func extractPDFSentence(at point: CGPoint, in rootView: UIView) -> String? {
+            guard let pdfView = firstPDFView(in: rootView) else { return nil }
+            let pdfPoint = pdfView.convert(point, from: rootView)
+            guard let page = pdfView.page(for: pdfPoint, nearest: false),
+                  let rawPageText = page.string,
+                  !rawPageText.isEmpty
+            else {
+                return nil
+            }
+
+            let pagePoint = pdfView.convert(pdfPoint, to: page)
+            let charIndex = page.characterIndex(at: pagePoint)
+            guard charIndex >= 0, charIndex < rawPageText.utf16.count else { return nil }
+
+            let charBounds = page.characterBounds(at: charIndex)
+            guard charBounds.insetBy(dx: -16, dy: -12).contains(pagePoint) else {
+                return nil
+            }
+
+            // Unwrap soft line breaks inside paragraphs while preserving double-newline breaks.
+            let unwrapped = unwrapPDFLineBreaks(in: rawPageText)
+            return SentenceTokenizer.sentence(in: unwrapped, atUTF16Offset: charIndex)?.text
+        }
+
+        /// Replaces single `\n` / `\r` characters with spaces while leaving double newlines intact,
+        /// preserving the exact UTF-16 length of the page string so `charIndex` still maps 1-to-1.
+        private static func unwrapPDFLineBreaks(in text: String) -> String {
+            var chars = Array(text.utf16)
+            let newline: UInt16 = 0x000A
+            let carriage: UInt16 = 0x000D
+            let space: UInt16 = 0x0020
+            let count = chars.count
+            for i in 0 ..< count {
+                guard chars[i] == newline || chars[i] == carriage else { continue }
+                let prevIsBreak = (i > 0) && (chars[i - 1] == newline || chars[i - 1] == carriage)
+                let nextIsBreak = (i + 1 < count) && (chars[i + 1] == newline || chars[i + 1] == carriage)
+                if !prevIsBreak && !nextIsBreak {
+                    chars[i] = space
+                }
+            }
+            return String(utf16CodeUnits: chars, count: chars.count)
+        }
+
+        private static func firstPDFView(in view: UIView) -> PDFView? {
+            if let pdfView = view as? PDFView {
+                return pdfView
+            }
+            for subview in view.subviews {
+                if let found = firstPDFView(in: subview) {
+                    return found
+                }
+            }
+            return nil
         }
     }
 }

@@ -100,10 +100,16 @@ public struct ReaderSettingsView: View {
             }
 
             picker(title: "Reading") {
-                HStack(spacing: DipleSpace.m) {
-                    ForEach(ReadingMode.allCases) { mode in
-                        readingModeButton(mode)
+                VStack(spacing: DipleSpace.m) {
+                    HStack(spacing: DipleSpace.m) {
+                        ForEach(ReadingMode.allCases) { mode in
+                            readingModeButton(mode)
+                        }
                     }
+
+                    #if !targetEnvironment(macCatalyst)
+                    languageLearningModeButton
+                    #endif
                 }
             }
 
@@ -349,6 +355,46 @@ public struct ReaderSettingsView: View {
         .buttonStyle(.readerControl)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
+
+    #if !targetEnvironment(macCatalyst)
+    /// The same tile as the two reading modes above it, with a glyph the way a theme tile has its
+    /// dot. What it does is said once, under it, rather than inside it: a card with its own icon,
+    /// caption and check mark was the only form row on a sheet made of specimens.
+    private var languageLearningModeButton: some View {
+        let isSelected = settings.isLanguageLearningMode
+        return VStack(alignment: .leading, spacing: DipleSpace.s) {
+            Button {
+                HapticManager.shared.selection()
+                settings.isLanguageLearningMode.toggle()
+            } label: {
+                HStack(spacing: DipleSpace.s) {
+                    Image(systemName: "translate")
+                        .dipleIcon(15, weight: .medium)
+                    Text("Language learning")
+                        .dipleType(.callout, weight: .medium)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, DipleSpace.m)
+                .dipleSelected(
+                    isSelected,
+                    in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous),
+                    resting: DipleColor.surfaceRaised
+                )
+            }
+            .buttonStyle(.readerControl)
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+            .accessibilityIdentifier("reader.settings.languageLearningMode")
+
+            Text("Tap any sentence to translate. Touch and hold to select.")
+                .dipleType(.footnote)
+                .foregroundStyle(DipleColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+    #endif
 }
 
 /// The swatch colours for the theme picker. Kept here rather than on `ReaderPageTheme` itself
