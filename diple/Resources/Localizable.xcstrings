@@ -16,6 +16,9 @@
     "«Пиранези» · 책을 읽는 · %@" : {
 
     },
+    "#" : {
+
+    },
     "#%@" : {
 
     },
@@ -37,6 +40,16 @@
     },
     "%@ · 책을 읽는 사람" : {
 
+    },
+    "%@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
     },
     "%@ %@" : {
       "localizations" : {
@@ -74,16 +87,6 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@, %2$lld"
-          }
-        }
-      }
-    },
-    "%@, %lld %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@, %2$lld %3$@"
           }
         }
       }
@@ -160,6 +163,9 @@
     "%lld percent read" : {
 
     },
+    "%lld ready to weave into a note" : {
+
+    },
     "%lld waiting" : {
 
     },
@@ -167,6 +173,12 @@
 
     },
     "+%lld" : {
+
+    },
+    "⌘N" : {
+
+    },
+    "⌘O" : {
 
     },
     "$ … $" : {
@@ -181,34 +193,31 @@
     "1 fragment" : {
       "comment" : "Second Read item count, singular"
     },
-    "8" : {
-
-    },
     "A" : {
 
     },
-    "A line that begins with - [ ] in any note is a task, and it collects here." : {
+    "A note written here is filed under this book and carries its name as a tag. It waits in Highlights, under Notes, with everything else you have written." : {
 
     },
-    "A note written here is filed under this book and tagged with its name, and it waits for you in Notes with everything else you have written." : {
+    "A note written here is filed under this book and tagged with its name, and it waits in Highlights, under Notes, with everything else you have written." : {
 
     },
-    "A note's tags are set under its title. Every word used on a note is listed here." : {
+    "A note written in a book lands here with the book’s name on it. One started with the pencil above can be linked to a book from its page." : {
 
     },
     "A place for what stays with you." : {
 
     },
-    "A quiet nudge to revisit a saved thought" : {
+    "A quiet feed" : {
 
     },
     "A tag is a shelf, not a folder — a source can sit on as many as you like." : {
 
     },
-    "Add" : {
+    "Abstract" : {
 
     },
-    "Add ${text} to Today" : {
+    "Add" : {
 
     },
     "Add a tag" : {
@@ -226,13 +235,10 @@
     "Add tags or a source" : {
 
     },
-    "Add to Today" : {
+    "Add to quote tray" : {
 
     },
     "Add to your library" : {
-
-    },
-    "Added to %@." : {
 
     },
     "Adding to your library" : {
@@ -241,7 +247,7 @@
     "Adding to your library…" : {
 
     },
-    "Adds a line to today’s page in diple without opening the app." : {
+    "Address of a site or its feed" : {
 
     },
     "Adjust to move through the book" : {
@@ -250,13 +256,13 @@
     "All" : {
 
     },
-    "All %lld notes here will be deleted and cannot be restored." : {
-
-    },
     "All sources and tags" : {
 
     },
     "All sources and tags, %lld more not shown" : {
+
+    },
+    "All woven in. Keep writing, or add more passages." : {
 
     },
     "Allow notifications for diple in iOS Settings to receive your daily passage." : {
@@ -265,10 +271,13 @@
     "Another" : {
 
     },
-    "Another paragraph leaves enough paper at the right edge for a small human trace." : {
+    "APPEARANCE" : {
 
     },
-    "APPEARANCE" : {
+    "Articles" : {
+
+    },
+    "arXiv fields" : {
 
     },
     "Author" : {
@@ -276,6 +285,9 @@
     },
     "Back" : {
       "comment" : "Second Read navigation back button"
+    },
+    "Back to the feed" : {
+
     },
     "Back to writing" : {
 
@@ -307,31 +319,43 @@
     "Change source" : {
 
     },
-    "CHAPTER" : {
-      "comment" : "Quiet heading above a chapter title in Second Read"
+    "Change source…" : {
+
+    },
+    "Chapter" : {
+
     },
     "Chapter %@" : {
       "comment" : "VoiceOver label for a Second Read chapter heading"
     },
-    "Chapter transition vibration" : {
+    "Check again" : {
 
     },
-    "Check Again" : {
-
-    },
-    "Check Now" : {
+    "Check now" : {
 
     },
     "Check the LaTeX syntax" : {
 
     },
-    "Choose a Diple JSON backup and review it before restoring" : {
+    "Checked %@" : {
+
+    },
+    "Checking your sources…" : {
+
+    },
+    "Choose a diple backup and review it before restoring" : {
 
     },
     "Choose a folder to write your highlights and notes into as Markdown" : {
 
     },
     "Choose a Kindle or Readwise export and review it before importing" : {
+
+    },
+    "Choose a note" : {
+
+    },
+    "Choose passages for your note" : {
 
     },
     "Clear" : {
@@ -367,6 +391,9 @@
     "Close search" : {
 
     },
+    "Collapse quote tray" : {
+
+    },
     "Collect into a note" : {
 
     },
@@ -382,7 +409,7 @@
     "COMMENT" : {
 
     },
-    "CONNECTIONS" : {
+    "Connections" : {
 
     },
     "CONTENT" : {
@@ -397,10 +424,25 @@
     "Continue" : {
 
     },
+    "Continue reading" : {
+
+    },
+    "CONTINUE READING" : {
+
+    },
+    "Continue reading (⌘↩)" : {
+
+    },
     "Copied" : {
 
     },
+    "Copy feed address" : {
+
+    },
     "Copy LaTeX" : {
+
+    },
+    "Copy link" : {
 
     },
     "Copy Markdown" : {
@@ -415,13 +457,7 @@
     "Copy text" : {
 
     },
-    "Create" : {
-
-    },
     "Creates a versioned JSON backup you can save or share" : {
-
-    },
-    "d" : {
 
     },
     "Daily passage" : {
@@ -430,34 +466,16 @@
     "Daily reflection template" : {
 
     },
-    "DAILY RESURFACING" : {
-
-    },
     "Data file error" : {
 
     },
-    "Default continuous scroll" : {
-
-    },
     "Delete" : {
-
-    },
-    "Delete “%@”?" : {
-
-    },
-    "Delete %lld" : {
-
-    },
-    "Delete %lld items?" : {
 
     },
     "Delete %lld sources?" : {
 
     },
     "Delete book?" : {
-
-    },
-    "Delete for good?" : {
 
     },
     "Delete highlight" : {
@@ -469,28 +487,16 @@
     "Delete note?" : {
 
     },
-    "Delete now" : {
-
-    },
     "Delete passage" : {
 
     },
     "Delete passage?" : {
 
     },
-    "Delete space…" : {
-
-    },
     "Delete this" : {
 
     },
-    "Delete this note" : {
-
-    },
     "Delete this?" : {
-
-    },
-    "Deleted notes stay here for thirty days, then go for good." : {
 
     },
     "Deselect all" : {
@@ -505,6 +511,9 @@
     "Details" : {
 
     },
+    "Details from %@ will appear here." : {
+
+    },
     "diple could not read the file that holds your books, highlights and notes. Nothing has been deleted — the file is still on this device exactly as it was." : {
 
     },
@@ -512,6 +521,9 @@
 
     },
     "diple." : {
+
+    },
+    "diple. on the Web" : {
 
     },
     "diple. version %@" : {
@@ -535,10 +547,19 @@
     "Double tap to skip the introduction" : {
 
     },
+    "Double-click to read" : {
+
+    },
+    "Drop to import" : {
+
+    },
+    "Each source keeps its three newest pieces. Older ones leave on their own." : {
+
+    },
     "Edit" : {
 
     },
-    "Edit Highlight" : {
+    "Edit highlight" : {
 
     },
     "Edit metadata" : {
@@ -556,22 +577,13 @@
     "EDITORIAL — LITERATA" : {
 
     },
-    "ELSEWHERE" : {
+    "Elsewhere" : {
 
     },
-    "Elsewhere in your reading" : {
+    "ELSEWHERE IN YOUR READING" : {
 
     },
     "Elsewhere in your reading: %@" : {
-
-    },
-    "Empty" : {
-
-    },
-    "Empty Recently deleted?" : {
-
-    },
-    "Enable haptics" : {
 
     },
     "Enter author name" : {
@@ -601,16 +613,22 @@
     "Evergreen idea template" : {
 
     },
-    "Every sitting since the log began, and when in the day you read" : {
-
-    },
-    "Everything you write collects here, by source and by tag. Passages you keep while reading are in Highlights." : {
-
-    },
     "Expand into a note" : {
 
     },
+    "Expand quote tray" : {
+
+    },
     "Exported %@. Review the merge before anything changes." : {
+
+    },
+    "Feed" : {
+
+    },
+    "Fetching the newest pieces…" : {
+
+    },
+    "Fields…" : {
 
     },
     "FILE IT AS" : {
@@ -632,22 +650,43 @@
     "Filter and sort" : {
 
     },
-    "Find a note" : {
+    "Find" : {
 
     },
     "Find every passage that mentions a word or phrase, and jump straight to it." : {
 
     },
-    "Find your notes, saved highlights, books and the text of imported articles in one place." : {
+    "Find in Book" : {
 
     },
     "Finish" : {
+
+    },
+    "Follow" : {
+
+    },
+    "Follow a blog, a journal or a newsletter. Its three newest pieces wait in the feed; older ones leave on their own." : {
+
+    },
+    "Follow a few writers and journals. Each keeps its three newest pieces here; older ones leave on their own, and nothing is ever counted." : {
+
+    },
+    "Follow your own — a blog, a newsletter, any feed" : {
+
+    },
+    "Following" : {
 
     },
     "Footnote" : {
 
     },
     "ƒx" : {
+
+    },
+    "Gather passages here, then tap their cards while writing. Your tray stays on this device." : {
+
+    },
+    "Go" : {
 
     },
     "Go back to where you were reading" : {
@@ -659,14 +698,8 @@
     "Group" : {
 
     },
-    "Haptic intensity" : {
+    "Hide context" : {
 
-    },
-    "HAPTICS & VIBRATION" : {
-
-    },
-    "Hide Context" : {
-      "comment" : "Collapses original prose around a highlighted passage"
     },
     "Highlight %@" : {
 
@@ -686,9 +719,6 @@
     "Highlights and thoughts from this book will become your Second Read." : {
       "comment" : "Second Read empty-state explanation"
     },
-    "How diple handles your library and iCloud sync" : {
-
-    },
     "https://" : {
 
     },
@@ -696,6 +726,9 @@
 
     },
     "iCloud sync" : {
+
+    },
+    "Import" : {
 
     },
     "Import a book" : {
@@ -710,10 +743,25 @@
     "Import highlights" : {
 
     },
+    "Import Publication…" : {
+
+    },
+    "Importing publication…" : {
+
+    },
     "IN FORCE" : {
 
     },
     "In progress" : {
+
+    },
+    "In quote tray" : {
+
+    },
+    "In your library" : {
+
+    },
+    "In your library · %lld%%" : {
 
     },
     "Inbox" : {
@@ -728,10 +776,16 @@
     "Insert a block" : {
 
     },
-    "INTERFACE — SANS" : {
+    "Insert at cursor" : {
 
     },
-    "It goes to Recently deleted in Notes for thirty days." : {
+    "Insert quotation" : {
+
+    },
+    "Insert this quotation and its source at the cursor." : {
+
+    },
+    "INTERFACE — SANS" : {
 
     },
     "It may have been deleted since the search was performed." : {
@@ -743,16 +797,19 @@
     "items returned to your library" : {
 
     },
-    "Its %lld notes move to the Inbox." : {
-
-    },
-    "Its note moves to the Inbox." : {
+    "Keep for later" : {
 
     },
     "Keep reading" : {
 
     },
     "Keep screen awake" : {
+
+    },
+    "Keep this passage beside your next note." : {
+
+    },
+    "Keeping…" : {
 
     },
     "Language learning" : {
@@ -764,9 +821,6 @@
     "Layout" : {
 
     },
-    "Leave in Inbox" : {
-
-    },
     "Library" : {
 
     },
@@ -776,13 +830,13 @@
     "Link a source" : {
 
     },
+    "Link a source…" : {
+
+    },
     "Link another note" : {
 
     },
     "List" : {
-
-    },
-    "Loading book…" : {
 
     },
     "Loading original context" : {
@@ -791,16 +845,13 @@
     "Local changes are queued safely until iCloud confirms them." : {
 
     },
-    "Look Up" : {
-
-    },
     "Mark a passage while reading and it collects here, by source, by tag and by the colour you marked it with." : {
 
     },
     "Mark as done" : {
 
     },
-    "Mark as Finished" : {
+    "Mark as finished" : {
 
     },
     "Mark as not done" : {
@@ -818,6 +869,9 @@
     "Merge tags?" : {
 
     },
+    "More for %@" : {
+
+    },
     "Most often around %@." : {
 
     },
@@ -827,28 +881,13 @@
     "Move %lld" : {
 
     },
-    "Move %lld notes" : {
-
-    },
-    "Move note" : {
-
-    },
     "Move to %@" : {
-
-    },
-    "Move to…" : {
-
-    },
-    "Name" : {
-
-    },
-    "Name and glyph…" : {
 
     },
     "Narrow to" : {
 
     },
-    "New Highlight" : {
+    "New highlight" : {
 
     },
     "New note" : {
@@ -857,13 +896,16 @@
     "New Note" : {
 
     },
-    "New space" : {
-
-    },
-    "New space…" : {
+    "new tag" : {
 
     },
     "New tag" : {
+
+    },
+    "New tag…" : {
+
+    },
+    "New Window" : {
 
     },
     "Next note" : {
@@ -875,10 +917,10 @@
     "No matches" : {
 
     },
-    "No notes match" : {
+    "No notes yet" : {
 
     },
-    "No notes yet" : {
+    "No passages found" : {
 
     },
     "No passages saved" : {
@@ -902,7 +944,7 @@
     "Notes" : {
 
     },
-    "Notes go to Recently deleted for thirty days. Passages and their comments are removed for good." : {
+    "Notes on" : {
 
     },
     "Notes, highlights and library" : {
@@ -923,16 +965,16 @@
     "Nothing in this view" : {
 
     },
-    "Nothing marked here yet." : {
-      "comment" : "Second Read empty-state title"
+    "Nothing marked here yet" : {
+
     },
     "Nothing marked yet" : {
 
     },
-    "Nothing to do" : {
+    "Nothing written down yet" : {
 
     },
-    "Nothing written down yet" : {
+    "Nothing yet. The newest pieces arrive here as your sources publish them." : {
 
     },
     "Notifications are off" : {
@@ -941,10 +983,13 @@
     "OK" : {
       "comment" : "Dismisses a Second Read error alert"
     },
-    "On this page" : {
+    "On the passage “%@”" : {
 
     },
-    "One at a time, into your spaces." : {
+    "ON THE TRAY" : {
+
+    },
+    "On this page" : {
 
     },
     "One at a time, with the words you use." : {
@@ -953,31 +998,40 @@
     "One local change is waiting for iCloud." : {
 
     },
-    "Open books in continuous vertical scrolling mode" : {
+    "Open" : {
 
     },
-    "Open in Book" : {
-      "comment" : "Opens a Second Read fragment at its original reader location"
-    },
-    "Open in Book unavailable" : {
-      "comment" : "VoiceOver label when the source file cannot be opened"
-    },
     "Open in the book" : {
+
+    },
+    "Open in the book unavailable" : {
+
+    },
+    "Open note" : {
+
+    },
+    "Open on arXiv" : {
+
+    },
+    "Open publication" : {
+
+    },
+    "Open the site" : {
+
+    },
+    "Open the website" : {
 
     },
     "Open this passage in %@" : {
 
     },
-    "Opens a blank page in diple’s Inbox." : {
+    "Opening %@" : {
 
     },
     "Opens at your last reading position" : {
 
     },
     "Opens that passage" : {
-
-    },
-    "Opens the note" : {
 
     },
     "Opens the privacy policy in your browser" : {
@@ -1019,16 +1073,10 @@
     "Photos" : {
 
     },
-    "Pin" : {
-
-    },
-    "PINNED" : {
-
-    },
     "Preparing search…" : {
 
     },
-    "Press + to start one. It waits in the Inbox until it has a place; a note you write inside a book is filed under that book." : {
+    "Preview rendered note" : {
 
     },
     "Previous note" : {
@@ -1043,22 +1091,31 @@
     "Privacy Policy" : {
 
     },
-    "PUT IT IN" : {
+    "Quote" : {
 
     },
-    "Quote" : {
+    "Quote tray" : {
+
+    },
+    "Read" : {
+
+    },
+    "Read full passage" : {
 
     },
     "Read the page" : {
 
     },
+    "Read the paper" : {
+
+    },
+    "Read the PDF" : {
+
+    },
     "Reader" : {
 
     },
-    "READER DEFAULTS" : {
-
-    },
-    "READING" : {
+    "Reading" : {
 
     },
     "Reading log" : {
@@ -1076,13 +1133,28 @@
     "Reading settings" : {
 
     },
+    "Ready" : {
+
+    },
+    "Refresh" : {
+
+    },
     "Reminder time" : {
+
+    },
+    "Remove #%@" : {
 
     },
     "Remove book %@" : {
 
     },
     "Remove comment" : {
+
+    },
+    "Remove from the tray. The highlight stays in your library." : {
+
+    },
+    "Remove from tray" : {
 
     },
     "Remove tag %@" : {
@@ -1100,9 +1172,6 @@
     "Reopening the app is worth trying first. If it keeps failing, you can start a new empty library; the unreadable file is kept beside it, so a future version may still be able to recover it." : {
 
     },
-    "Restore" : {
-
-    },
     "Restore backup" : {
 
     },
@@ -1112,19 +1181,16 @@
     "Restoring…" : {
 
     },
-    "Result Unavailable" : {
-
-    },
-    "Retire the label" : {
-
-    },
     "Retry" : {
 
     },
-    "Return to Book" : {
-      "comment" : "Second Read empty-state action"
+    "Return to book" : {
+
     },
-    "Return to one saved passage each day" : {
+    "Return to the tray. The text in your note stays." : {
+
+    },
+    "Return to tray" : {
 
     },
     "Run a check to confirm this device can reach your private iCloud database." : {
@@ -1142,22 +1208,19 @@
     "Save changes" : {
 
     },
-    "Save Changes" : {
-
-    },
     "Save highlight" : {
 
     },
-    "Save Highlight" : {
+    "Save Link…" : {
 
     },
-    "Save to Library" : {
+    "Save to library" : {
 
     },
     "Saved" : {
 
     },
-    "Screen dims after 10 minutes without page turns instead of after a few seconds" : {
+    "SAVED PASSAGE" : {
 
     },
     "Search" : {
@@ -1181,6 +1244,9 @@
     "Search library" : {
 
     },
+    "Search passages · #tag · @source" : {
+
+    },
     "Search scope" : {
 
     },
@@ -1192,9 +1258,6 @@
     },
     "Second Read" : {
       "comment" : "Feature title"
-    },
-    "SECOND READ" : {
-      "comment" : "Small editorial kicker in the Second Read header"
     },
     "Section" : {
 
@@ -1208,6 +1271,9 @@
     "Select all" : {
 
     },
+    "Select an item" : {
+
+    },
     "SELECTED PASSAGE" : {
 
     },
@@ -1215,6 +1281,12 @@
 
     },
     "Settings" : {
+
+    },
+    "Settings…" : {
+
+    },
+    "Share" : {
 
     },
     "Share all" : {
@@ -1232,13 +1304,22 @@
     "Show another highlight" : {
 
     },
-    "Show Context" : {
-      "comment" : "Expands original prose around a highlighted passage"
+    "Show context" : {
+
     },
     "Show note" : {
       "comment" : "VoiceOver action hint for a Living Margins marker"
     },
     "Show only this" : {
+
+    },
+    "Show or Hide Inspector" : {
+
+    },
+    "Shows every author" : {
+
+    },
+    "Shows the opening and the ways to read it" : {
 
     },
     "Sittings are recorded as you read. A page or two is enough for one to count; a book left open on the table is not reading and is not written down." : {
@@ -1247,7 +1328,13 @@
     "Sort" : {
 
     },
+    "Sort and group the board" : {
+
+    },
     "Sort Library" : {
+
+    },
+    "Sort the shelf" : {
 
     },
     "Sort these out" : {
@@ -1268,10 +1355,7 @@
     "Source unavailable" : {
       "comment" : "Shown when a Second Read fragment's book file is missing"
     },
-    "Space" : {
-
-    },
-    "Space options" : {
+    "Sources" : {
 
     },
     "Spaces" : {
@@ -1280,13 +1364,13 @@
     "Start a new library" : {
 
     },
-    "Start a New Library" : {
-
-    },
     "Start a new library?" : {
 
     },
     "Start reading" : {
+
+    },
+    "Start reading (⌘↩)" : {
 
     },
     "Start reading, then highlight a passage or write a note. Everything from this source will collect here." : {
@@ -1304,25 +1388,16 @@
     "Status" : {
 
     },
-    "Swipe right to restore" : {
-
-    },
     "Switch to covers" : {
 
     },
     "Switch to list" : {
 
     },
-    "Switches to %@" : {
-
-    },
-    "Sync your library, highlights and notes across your devices" : {
-
-    },
     "Tag" : {
 
     },
-    "Tag a Book" : {
+    "Tag a book" : {
 
     },
     "Tags" : {
@@ -1343,16 +1418,13 @@
     "TAP TO BEGIN" : {
 
     },
-    "TAP TO SKIP" : {
-
-    },
-    "Taps reaching the page: %lld" : {
-
-    },
-    "Text" : {
-
-    },
     "The backup was merged without deleting anything already on this device." : {
+
+    },
+    "The chosen notes will be deleted." : {
+
+    },
+    "The chosen passages and their comments will be removed." : {
 
     },
     "The file and your reading position are removed. Saved passages stay in Highlights." : {
@@ -1367,16 +1439,7 @@
     "The inbox is clear." : {
 
     },
-    "The Inbox is clear." : {
-
-    },
-    "The Inland Sea of Japan." : {
-
-    },
-    "The note here will be deleted and cannot be restored." : {
-
-    },
-    "The page remembers where the reader paused, and the words continue in their own quiet measure." : {
+    "The newest papers in any of these fields arrive in the feed, three at a time." : {
 
     },
     "The rest is back matter." : {
@@ -1385,25 +1448,16 @@
     "The saved passage and its comment will be removed." : {
 
     },
-    "The space is empty." : {
-
-    },
     "The word is added to each chosen row. Nothing already there is replaced." : {
 
     },
     "The word is added to each chosen source. Nothing already there is replaced." : {
 
     },
-    "There was nothing to add." : {
-
-    },
     "THIS IMPORT" : {
 
     },
-    "This note cannot be restored afterwards." : {
-
-    },
-    "This note will be removed permanently." : {
+    "This note will be deleted." : {
 
     },
     "This only happens once — search will be instant after." : {
@@ -1421,6 +1475,9 @@
     "THIS RESTORE" : {
 
     },
+    "Time" : {
+
+    },
     "Tip" : {
 
     },
@@ -1430,7 +1487,10 @@
     "Title, author or source" : {
 
     },
-    "Translate" : {
+    "Today" : {
+
+    },
+    "Try again" : {
 
     },
     "Try another title, author, source or reading status." : {
@@ -1445,19 +1505,31 @@
     "Type LaTeX or choose a building block" : {
 
     },
-    "Unpin" : {
+    "Unfollow" : {
+
+    },
+    "Unfollow %@" : {
+
+    },
+    "Unlink %@" : {
+
+    },
+    "Unread" : {
 
     },
     "Unsorted" : {
 
     },
+    "Untitled" : {
+
+    },
+    "Up to date" : {
+
+    },
     "Use standard LaTeX math syntax. Fractions, roots, matrices, limits, Greek letters and aligned equations render entirely on device." : {
 
     },
-    "Vibrate on interactions and events" : {
-
-    },
-    "Vibrate when moving to next chapter" : {
+    "Used" : {
 
     },
     "Welcome to diple. A place for what stays with you." : {
@@ -1466,14 +1538,17 @@
     "What is left keeps its place in Unsorted." : {
 
     },
-    "What is left waits in the Inbox." : {
-
-    },
-    "What should go on today’s page?" : {
-
-    },
     "What stayed with you." : {
       "comment" : "Short Second Read editorial subtitle"
+    },
+    "Workspace" : {
+
+    },
+    "Worth following" : {
+
+    },
+    "Write" : {
+
     },
     "Write a note" : {
 
@@ -1482,6 +1557,12 @@
 
     },
     "Write the first note" : {
+
+    },
+    "Write with quotes" : {
+
+    },
+    "Yesterday" : {
 
     },
     "Your book, made from what stayed with you." : {
@@ -1493,14 +1574,11 @@
     "Your library didn't open" : {
 
     },
-    "Your library is empty." : {
-
-    },
     "Your library is restored" : {
 
     },
-    "YOUR NOTE" : {
-      "comment" : "Label above the reader's thought attached to a highlight"
+    "Your note" : {
+
     },
     "YOUR READING" : {
 

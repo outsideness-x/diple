@@ -4590,6 +4590,41 @@
   приём новее/старее, удаление с другого устройства, первая выгрузка, переезд файла версии 1).
   UI-теста нет: лента — это сеть, а фикстуры здесь не пишутся.
 
+### Сквозная полировка типографики, поверхностей и светлой темы (2026-11-01)
+- **Лоток цитат (`QuoteTrayView`) приведён к общему словарю книги и доски:**
+  - Слова пассажей на карточках лотка (`QuoteTrayPanel.card`) и в выборщике (`QuoteTrayPicker`)
+    переведены с системного `.callout` на Literata (`.editorialExcerpt` / `.editorialQuote`) с
+    `readingLineSpacing(for:)`, а глиф `quote.opening` заменён на вертикальный штрих-капсулу
+    (`width: 2.5`) цвета пометки — тот же знак, который держит пассаж на доске, в заметке и в
+    быстром переходе Mac.
+  - Из `QuoteTrayPicker` убран системный `.searchable` в пользу `DipleSearchField`, а строка
+    выбора пассажа собрана с одним закрывающим правилом `DipleColor.separator` и переключателем
+    лотка в строке колофона (вместо `QuoteTrayToggleButton`, висевшего *ниже* разделителя
+    `PassageRowView`).
+  - Подложка `QuoteTrayPanel` переведена с холодного `.regularMaterial` на тёплый `DipleColor.surface`
+    с волосяной линией `DipleColor.separator`, чтобы карточки `surfaceRaised` лежали на ней как
+    бумага на столе в обеих темах.
+- **Контраст акцента в светлой теме (`DipleColor.accent` vs `DipleColor.accentInk`):**
+  - В `DipleMark`, `ReviewNote`, `MacRowSurface`, `MacSelectableCard`, `MacBookTile`,
+    `MacProgressLine`, `MacPublicationDrop` и `MacNoteInspector` тонкие линии, кольца выбора,
+    иконки и линейки прогресса переведены с `DipleColor.accent` (Vellum `#E6D4B5`, 1.32:1 на
+    бумаге) на `DipleColor.accentInk` (`#8A6B3E` в светлой теме).
+- **Слова произведения vs слова интерфейса в остальных экранах:**
+  - `HighlightRowView` избавлен от буквальных кавычек `“…”`, запрещённого `.italic()`, системного
+    `.readingBody` и цветной рамки вокруг карточки — теперь он повторяет композицию `QuoteCardView`
+    (3 pt капсула цвета пометки + `.editorialQuote` в Literata + `.craftSurface()`).
+  - `QuoteCommentEditorView` переведён с системного `Form` на `ScrollView` по `DipleColor.canvas`
+    с карточкой пассажа в `.editorialQuote` и секциями в регистре `HighlightEditorView`.
+  - В `ReadingLogView` названия прочитанных книг и статей переведены в `.editorialItem`, в
+    `BookQuotesView` заголовок книги — в `.editorialLead`, в `MarginaliaFilterSheet` названия
+    источников — в `.editorialItem`, в `BookCoverView` инициал тканевой обложки — в Literata
+    Semibold, в `BookTagPickerView` системный `.searchable` заменён на `DipleSearchField`.
+  - Сгруппированные карточки `AppSettingsView`, `DipleRestoreReviewView` и
+    `HighlightImportReviewView` получили подложку `DipleColor.separator` под межстрочный зазор
+    `spacing: 1` и внешний волосяной контур `DipleColor.hairline`, чтобы белые строки на тёплой
+    бумаге (`#F7F5F1`) держали чёткий край, а `ShareViewController` синхронизирован с бумажной
+    палитрой и знаком `>d.`.
+
 ### Режим чтения на изучаемом языке (`isLanguageLearningMode`, 2026-11-01)
 - **Переключатель в `ReaderSettingsView` (блок `Reading`):**
   - В `ReaderSettings` добавлено булево поле `isLanguageLearningMode` (сохраняется обратно-совместимо в

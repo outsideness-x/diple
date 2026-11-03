@@ -155,54 +155,93 @@ public struct QuoteCommentEditorView: View {
 
     public var body: some View {
         NavigationStack {
-            Form {
-                Section("Passage") {
-                    Text(quote.text)
-                        .dipleType(.readingCaption)
-                        .foregroundStyle(DipleColor.textSecondary)
-                        .lineLimit(4)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: DipleSpace.xl) {
+                    HStack(alignment: .top, spacing: DipleSpace.m) {
+                        Capsule()
+                            .fill(DipleColor.Highlight.color(forHex: quote.colorHex))
+                            .frame(width: 3)
 
-                Section("Comment") {
-                    TextField("Your thoughts about this passage", text: $comment, axis: .vertical)
-                        .lineLimit(4...12)
-                        .textInputAutocapitalization(.sentences)
-                }
+                        Text(quote.text)
+                            .dipleType(.editorialQuote)
+                            .readingLineSpacing(for: quote.text)
+                            .foregroundStyle(DipleColor.textPrimary)
+                            .lineLimit(5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(DipleSpace.m)
+                    .craftSurface()
 
-                Section("Tags") {
-                    TagField(tags: $tags, suggestions: suggestions, emptyPrompt: "File this passage")
-                        .padding(.vertical, DipleSpace.xs)
-                }
+                    VStack(alignment: .leading, spacing: DipleSpace.s) {
+                        Text("COMMENT")
+                            .dipleType(.nano)
+                            .foregroundStyle(DipleColor.textTertiary)
 
-                if !echoes.isEmpty {
-                    Section("Elsewhere in your reading") {
-                        ForEach(echoes) { echo in
-                            EchoRow(echo: echo)
+                        TextField("Your thoughts about this passage", text: $comment, axis: .vertical)
+                            .dipleType(.body)
+                            .foregroundStyle(DipleColor.textPrimary)
+                            .lineLimit(4...12)
+                            .textInputAutocapitalization(.sentences)
+                            .padding(DipleSpace.m)
+                            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
+                    }
+
+                    VStack(alignment: .leading, spacing: DipleSpace.s) {
+                        Text("TAGS")
+                            .dipleType(.nano)
+                            .foregroundStyle(DipleColor.textTertiary)
+
+                        TagField(tags: $tags, suggestions: suggestions, emptyPrompt: "File this passage")
+                            .padding(DipleSpace.m)
+                            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
+                    }
+
+                    if !echoes.isEmpty {
+                        VStack(alignment: .leading, spacing: DipleSpace.s) {
+                            Text("ELSEWHERE IN YOUR READING")
+                                .dipleType(.nano)
+                                .foregroundStyle(DipleColor.textTertiary)
+
+                            VStack(alignment: .leading, spacing: DipleSpace.m) {
+                                ForEach(echoes) { echo in
+                                    EchoRow(echo: echo)
+                                }
+                            }
+                            .padding(DipleSpace.m)
+                            .craftSurface()
                         }
                     }
-                }
 
-                if quote.comment != nil {
-                    Section {
+                    if quote.comment != nil {
                         // Removing the thought leaves the filing alone: they are separate
                         // things the reader added, and one button must not take both.
                         Button("Remove comment", role: .destructive) {
                             onSave("", tags)
                         }
+                        .dipleType(.callout, weight: .medium)
+                        .foregroundStyle(DipleColor.destructive)
+                        .padding(.top, DipleSpace.xs)
                     }
                 }
+                .padding(.horizontal, DipleSpace.l)
+                .padding(.vertical, DipleSpace.m)
             }
+            .background(DipleColor.canvas.ignoresSafeArea())
             .navigationTitle("Passage")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
+                        .dipleType(.body)
+                        .foregroundStyle(DipleColor.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         onSave(comment, tags)
                     }
-                    .fontWeight(.semibold)
+                    .dipleType(.body, weight: .semibold)
+                    .foregroundStyle(DipleColor.accentInk)
                 }
             }
         }
@@ -226,7 +265,8 @@ private struct EchoRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DipleSpace.xs) {
             Text(echo.passage.text)
-                .dipleType(.readingCaption)
+                .dipleType(.editorialExcerpt)
+                .readingLineSpacing(for: echo.passage.text)
                 .foregroundStyle(DipleColor.textSecondary)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -234,7 +274,7 @@ private struct EchoRow: View {
             HStack(spacing: DipleSpace.xs) {
                 if let title = echo.passage.bookTitle, !title.isEmpty {
                     Text(title)
-                        .dipleType(.nano, weight: .medium)
+                        .dipleType(.editorialItem)
                         .foregroundStyle(DipleColor.textTertiary)
                         .lineLimit(1)
                     Text("·")

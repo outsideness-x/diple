@@ -43,8 +43,7 @@ public struct AddBookmarkSheetView: View {
                             .dipleType(.body)
                             .foregroundStyle(DipleColor.textPrimary)
                             .diplePadding(.field)
-                            .background(DipleColor.surfaceRaised)
-                            .cornerRadius(DipleRadius.m)
+                            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
                     }
 
                     // Color Selector

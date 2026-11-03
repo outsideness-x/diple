@@ -29,9 +29,10 @@ struct ReadingLogView: View {
             .padding(.bottom, DipleSpace.scrollBottom)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(DipleColor.canvas)
+        .background(DipleColor.canvas.ignoresSafeArea())
         .navigationTitle("Reading log")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .task {
             guard !hasLoaded else { return }
             hasLoaded = true
@@ -174,7 +175,7 @@ struct ReadingLogView: View {
             ForEach(day.entries) { entry in
                 HStack(alignment: .firstTextBaseline) {
                     Text(entry.title)
-                        .dipleType(.callout)
+                        .dipleType(.editorialItem)
                         .foregroundStyle(DipleColor.textSecondary)
                         .lineLimit(2)
 

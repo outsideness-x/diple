@@ -181,12 +181,15 @@ struct PassageCardSheet: View {
                 .padding(.horizontal, DipleSpace.xl)
                 .padding(.bottom, DipleSpace.scrollBottom)
             }
-            .background(DipleColor.canvas)
+            .background(DipleColor.canvas.ignoresSafeArea())
             .navigationTitle("Share as a card")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
+                        .dipleType(.body, weight: .semibold)
+                        .foregroundStyle(DipleColor.accentInk)
                 }
 
                 ToolbarItem(placement: .primaryAction) {
@@ -197,6 +200,8 @@ struct PassageCardSheet: View {
                             preview: SharePreview(passage.highlight.text, image: image)
                         ) {
                             Image(systemName: "square.and.arrow.up")
+                                .dipleIcon(15, weight: .semibold)
+                                .foregroundStyle(DipleColor.accentInk)
                         }
                         .accessibilityLabel("Share the card")
                     }

@@ -17,57 +17,59 @@ public struct HighlightRowView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
-            HStack(spacing: DipleSpace.s) {
-                Circle()
-                    .fill(displayColor)
-                    .frame(width: 10, height: 10)
+        HStack(alignment: .top, spacing: DipleSpace.m) {
+            Capsule()
+                .fill(displayColor)
+                .frame(width: 3)
 
-                Text(formattedDate)
-                    .dipleType(.micro)
-                    .foregroundStyle(DipleColor.textTertiary)
-
-                Spacer()
-
+            VStack(alignment: .leading, spacing: DipleSpace.s) {
                 Button {
-                    onDelete()
+                    onSelect()
                 } label: {
-                    Image(systemName: "trash")
-                        .dipleIcon(12)
-                        .foregroundStyle(DipleColor.textTertiary)
+                    Text(highlight.text)
+                        .dipleType(.editorialQuote)
+                        .readingLineSpacing(for: highlight.text)
+                        .foregroundStyle(DipleColor.textPrimary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
+                .buttonStyle(.plain)
 
-            Button {
-                onSelect()
-            } label: {
-                Text("“\(highlight.text)”")
-                    .dipleType(.readingBody)
-                    .italic()
-                    .foregroundStyle(DipleColor.textPrimary)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(5)
-            }
-            .buttonStyle(.plain)
+                if let comment = highlight.comment, !comment.isEmpty {
+                    HStack(alignment: .top, spacing: DipleSpace.s) {
+                        Image(systemName: "bubble.left")
+                            .dipleIcon(11, weight: .medium)
+                            .foregroundStyle(DipleColor.textQuaternary)
 
-            if let comment = highlight.comment, !comment.isEmpty {
-                HStack(alignment: .top, spacing: DipleSpace.s) {
-                    Image(systemName: "bubble.left")
-                        .dipleIcon(10, weight: .medium)
+                        Text(comment)
+                            .dipleType(.callout)
+                            .foregroundStyle(DipleColor.textSecondary)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+
+                HStack(spacing: DipleSpace.s) {
+                    Text(formattedDate)
+                        .dipleType(.micro)
                         .foregroundStyle(DipleColor.textQuaternary)
 
-                    Text(comment)
-                        .dipleType(.caption)
-                        .foregroundStyle(DipleColor.textSecondary)
-                        .multilineTextAlignment(.leading)
+                    Spacer()
+
+                    Button {
+                        onDelete()
+                    } label: {
+                        Image(systemName: "trash")
+                            .dipleIcon(12)
+                            .foregroundStyle(DipleColor.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete highlight")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(DipleSpace.m)
         .craftSurface()
-        .overlay(
-            RoundedRectangle(cornerRadius: DipleRadius.m)
-                .stroke(displayColor.opacity(0.3), lineWidth: 1)
-        )
     }
 }

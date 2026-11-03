@@ -33,21 +33,36 @@ public struct BookTagPickerView: View {
                 DipleColor.canvas.ignoresSafeArea()
 
                 if books.isEmpty {
-                    Text("Your library is empty.")
-                        .dipleType(.callout)
-                        .foregroundStyle(DipleColor.textTertiary)
+                    DipleEmptyText(
+                        title: "Your library is empty",
+                        message: "Add a book or an article before linking a note to a source."
+                    )
                 } else {
                     ScrollView {
                         LazyVStack(spacing: DipleSpace.s) {
-                            ForEach(filteredBooks) { book in
-                                Button {
-                                    HapticManager.shared.impact(.light)
-                                    onSelect(book.id)
-                                    dismiss()
-                                } label: {
-                                    row(for: book)
+                            DipleSearchField(
+                                text: $query,
+                                prompt: "Search library",
+                                identifier: "bookTagPicker.search"
+                            )
+                            .padding(.bottom, DipleSpace.xs)
+
+                            if filteredBooks.isEmpty {
+                                DipleEmptyText(
+                                    title: "Nothing matches “\(query)”",
+                                    message: "Try another title or author."
+                                )
+                            } else {
+                                ForEach(filteredBooks) { book in
+                                    Button {
+                                        HapticManager.shared.impact(.light)
+                                        onSelect(book.id)
+                                        dismiss()
+                                    } label: {
+                                        row(for: book)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, DipleSpace.xl)
@@ -55,13 +70,13 @@ public struct BookTagPickerView: View {
                     }
                 }
             }
-            .searchable(text: $query, prompt: "Search library")
-            .navigationTitle("Tag a Book")
+            .navigationTitle("Tag a book")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") { dismiss() }
+                        .dipleType(.body)
                         .foregroundStyle(DipleColor.textTertiary)
                 }
 
@@ -72,6 +87,7 @@ public struct BookTagPickerView: View {
                             onSelect(nil)
                             dismiss()
                         }
+                        .dipleType(.body, weight: .semibold)
                         .foregroundStyle(DipleColor.accentInk)
                     }
                 }
@@ -80,7 +96,8 @@ public struct BookTagPickerView: View {
     }
 
     private func row(for book: Book) -> some View {
-        HStack(spacing: DipleSpace.m) {
+        let isSelected = book.id == selectedBookId
+        return HStack(spacing: DipleSpace.m) {
             BookCoverView(coverPath: book.coverPath, title: book.title, author: book.author, isCompact: true)
                 .frame(width: thumbnailWidth, height: thumbnailWidth * 1.5)
 
@@ -91,7 +108,7 @@ public struct BookTagPickerView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                Text(book.author ?? "Unknown Author")
+                Text(book.author ?? "Unknown author")
                     .dipleType(.micro, weight: .regular)
                     .foregroundStyle(DipleColor.textTertiary)
                     .lineLimit(1)
@@ -99,7 +116,7 @@ public struct BookTagPickerView: View {
 
             Spacer(minLength: 8)
 
-            if book.id == selectedBookId {
+            if isSelected {
                 Image(systemName: "checkmark")
                     .dipleIcon(13, weight: .semibold)
                     .foregroundStyle(DipleColor.accentInk)
@@ -107,5 +124,6 @@ public struct BookTagPickerView: View {
         }
         .padding(DipleSpace.m)
         .craftSurface()
+        .dipleSelected(isSelected, in: RoundedRectangle(cornerRadius: DipleRadius.m))
     }
 }

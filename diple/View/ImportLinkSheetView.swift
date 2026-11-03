@@ -157,7 +157,7 @@ public struct ImportLinkSheetView: View {
             .animation(DipleMotion.standard, value: stage)
         } else {
             Button(action: startImport) {
-                Text("Save to Library")
+                Text("Save to library")
                     .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.textOnAccent)
                     .frame(maxWidth: .infinity)

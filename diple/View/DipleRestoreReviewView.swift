@@ -127,7 +127,12 @@ public struct DipleRestoreReviewView: View {
                     )
                 }
             }
+            .background(DipleColor.separator)
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
+                    .strokeBorder(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+            }
         }
     }
 
@@ -199,9 +204,9 @@ public struct DipleRestoreReviewView: View {
     }
 
     private var restoreButtonTitle: String {
-        if candidate.preview.isNoOp { return "Nothing New to Restore" }
+        if candidate.preview.isNoOp { return "Nothing new to restore" }
         let count = candidate.preview.changeCount
-        return count == 1 ? "Restore 1 Item" : "Restore \(count) Items"
+        return count == 1 ? "Restore 1 item" : "Restore \(count) items"
     }
 
     private func beginRestore() {

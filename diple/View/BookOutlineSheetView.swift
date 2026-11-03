@@ -124,8 +124,9 @@ public struct BookOutlineSheetView: View {
             .padding(.horizontal, DipleSpace.xl)
             .padding(.top, DipleSpace.l)
 
-            Divider()
-                .background(DipleColor.surfaceOverlay)
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(height: DipleStroke.hairline)
 
             switch selectedTab {
             case .contents:
@@ -139,7 +140,7 @@ public struct BookOutlineSheetView: View {
                             .dipleIcon(32, weight: .thin)
                             .foregroundStyle(DipleColor.textTertiary)
                         Text("No passages saved")
-                            .dipleType(.body, weight: .semibold)
+                            .dipleType(.editorialTitle)
                             .foregroundStyle(DipleColor.textPrimary)
                         Text("Select a passage while you read and mark it in a colour.")
                             .dipleType(.footnote, weight: .regular)
@@ -180,13 +181,14 @@ public struct BookOutlineSheetView: View {
                             .dipleIcon(32, weight: .thin)
                             .foregroundStyle(DipleColor.textTertiary)
                         Text("No bookmarks saved")
-                            .dipleType(.body, weight: .semibold)
+                            .dipleType(.editorialTitle)
                             .foregroundStyle(DipleColor.textPrimary)
                         Text("Tap the bookmark icon in the reading controls overlay to save bookmarks with custom titles and color tags.")
                             .dipleType(.footnote, weight: .regular)
                             .foregroundStyle(DipleColor.textTertiary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, DipleSpace.xxxl)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer()
                     }
                 } else {
@@ -256,8 +258,8 @@ public struct BookOutlineSheetView: View {
                         .dipleIcon(32, weight: .thin)
                         .foregroundStyle(DipleColor.textTertiary)
                     Text("No table of contents")
-                        .dipleType(.body, weight: .medium)
-                        .foregroundStyle(DipleColor.textTertiary)
+                        .dipleType(.editorialTitle)
+                        .foregroundStyle(DipleColor.textPrimary)
                     Spacer()
                 }
             } else {
@@ -299,7 +301,7 @@ public struct BookOutlineSheetView: View {
                     .dipleIcon(32, weight: .thin)
                     .foregroundStyle(DipleColor.textTertiary)
                 Text("No notes yet")
-                    .dipleType(.body, weight: .semibold)
+                    .dipleType(.editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
                 Text("A note written here is filed under this book and tagged with its name, and it waits in Highlights, under Notes, with everything else you have written.")
                     .dipleType(.footnote, weight: .regular)
@@ -521,8 +523,7 @@ public struct BookmarkRowView: View {
             .buttonStyle(.plain)
         }
         .padding(DipleSpace.m)
-        .background(DipleColor.surfaceRaised)
-        .cornerRadius(DipleRadius.m)
+        .craftSurface()
     }
 }
 

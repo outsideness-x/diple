@@ -277,11 +277,14 @@ public struct GlobalSearchView: View {
     }
 
     private var unavailableResult: some View {
-        ContentUnavailableView(
-            "Result Unavailable",
-            systemImage: "questionmark.folder",
-            description: Text("It may have been deleted since the search was performed.")
-        )
+        ZStack {
+            DipleColor.canvas.ignoresSafeArea()
+            DipleEmptyText(
+                title: "Result unavailable",
+                message: "It may have been deleted since the search was performed."
+            )
+            .padding(.horizontal, DipleSpace.xxxl)
+        }
     }
 }
 

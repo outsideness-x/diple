@@ -113,9 +113,9 @@ public struct ReviewNote: View {
     public let icon: String
     public let title: String
     public let detail: String
-    public var colour: Color = DipleColor.accent
+    public var colour: Color = DipleColor.accentInk
 
-    public init(icon: String, title: String, detail: String, colour: Color = DipleColor.accent) {
+    public init(icon: String, title: String, detail: String, colour: Color = DipleColor.accentInk) {
         self.icon = icon
         self.title = title
         self.detail = detail

@@ -138,6 +138,7 @@ public struct SourceOverviewView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .dipleType(.body, weight: .semibold)
                         .foregroundStyle(DipleColor.accentInk)
                 }
             }

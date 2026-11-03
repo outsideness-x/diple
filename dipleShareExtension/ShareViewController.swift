@@ -149,24 +149,21 @@ private struct ShareExtensionView: View {
                         .stroke(SharePalette.hairline, lineWidth: 1)
                 }
 
-            VStack(spacing: 0) {
-                Text("d")
-                    .font(.system(size: 76, weight: .regular, design: .serif))
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text(">")
+                    .font(.system(size: 56, weight: .regular, design: .serif))
+                    .foregroundStyle(SharePalette.accentInk)
+                Text("d.")
+                    .font(.system(size: 56, weight: .semibold, design: .serif))
                     .foregroundStyle(SharePalette.textPrimary)
-                    .tracking(-3)
-                    .accessibilityHidden(true)
-
-                Capsule()
-                    .fill(SharePalette.accent)
-                    .frame(maxWidth: 46)
-                    .frame(height: 3)
-                    .offset(y: -10)
             }
+            .tracking(-2)
+            .accessibilityHidden(true)
 
             if case .saved = model.state {
                 Image(systemName: "checkmark")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(SharePalette.canvas)
+                    .foregroundStyle(SharePalette.textOnAccent)
                     .frame(width: 30, height: 30)
                     .background(SharePalette.accent, in: Circle())
                     .overlay { Circle().stroke(SharePalette.canvas, lineWidth: 4) }
@@ -184,28 +181,29 @@ private struct ShareExtensionView: View {
         switch model.state {
         case .reading, .saving:
             HStack(spacing: 12) {
-                ProgressView().tint(SharePalette.accent)
+                ProgressView().tint(SharePalette.accentInk)
                 Text("Saving to your inbox…")
                     .font(.system(.footnote, design: .default, weight: .semibold))
                     .foregroundStyle(SharePalette.textSecondary)
             }
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(SharePalette.surface, in: Capsule())
+            .overlay { Capsule().stroke(SharePalette.hairline, lineWidth: 1) }
 
         case .saved:
             Button(action: model.finish) {
                 Label("Done", systemImage: "checkmark")
                     .font(.system(.body, design: .default, weight: .semibold))
-                    .foregroundStyle(SharePalette.canvas)
+                    .foregroundStyle(SharePalette.textOnAccent)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .background(SharePalette.accent, in: Capsule())
             }
 
         case .failed:
             VStack(spacing: 10) {
-                Button("Try Again", action: model.begin)
+                Button("Try again", action: model.begin)
                     .font(.system(.body, design: .default, weight: .semibold))
-                    .foregroundStyle(SharePalette.canvas)
+                    .foregroundStyle(SharePalette.textOnAccent)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .background(SharePalette.accent, in: Capsule())
 
@@ -243,25 +241,39 @@ private struct ShareExtensionView: View {
 private enum SharePalette {
     static let canvas = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.043, green: 0.043, blue: 0.059, alpha: 1)
-            : UIColor(red: 0.957, green: 0.957, blue: 0.969, alpha: 1)
+            ? UIColor(red: 0.043, green: 0.043, blue: 0.051, alpha: 1)
+            : UIColor(red: 0.969, green: 0.961, blue: 0.945, alpha: 1)
     })
     static let surface = Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0.102, green: 0.102, blue: 0.129, alpha: 1)
+            ? UIColor(red: 0.078, green: 0.078, blue: 0.086, alpha: 1)
             : UIColor.white
     })
-    static let accent = Color(red: 0.784, green: 0.643, blue: 0.361)
+    static let accent = Color(red: 0.902, green: 0.831, blue: 0.710)
+    static let accentInk = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.902, green: 0.831, blue: 0.710, alpha: 1)
+            : UIColor(red: 0.541, green: 0.420, blue: 0.243, alpha: 1)
+    })
+    static let textOnAccent = Color(red: 0.098, green: 0.082, blue: 0.063)
     static let textPrimary = Color(uiColor: UIColor { traits in
-        UIColor(white: traits.userInterfaceStyle == .dark ? 1 : 0.05, alpha: 0.93)
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.949, green: 0.941, blue: 0.925, alpha: 1)
+            : UIColor(red: 0.086, green: 0.082, blue: 0.078, alpha: 1)
     })
     static let textSecondary = Color(uiColor: UIColor { traits in
-        UIColor(white: traits.userInterfaceStyle == .dark ? 1 : 0.05, alpha: 0.70)
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.949, green: 0.941, blue: 0.925, alpha: 0.72)
+            : UIColor(red: 0.086, green: 0.082, blue: 0.078, alpha: 0.68)
     })
     static let textTertiary = Color(uiColor: UIColor { traits in
-        UIColor(white: traits.userInterfaceStyle == .dark ? 1 : 0.05, alpha: 0.52)
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.949, green: 0.941, blue: 0.925, alpha: 0.50)
+            : UIColor(red: 0.086, green: 0.082, blue: 0.078, alpha: 0.48)
     })
     static let hairline = Color(uiColor: UIColor { traits in
-        UIColor(white: traits.userInterfaceStyle == .dark ? 1 : 0.05, alpha: 0.12)
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.949, green: 0.941, blue: 0.925, alpha: 0.10)
+            : UIColor(red: 0.086, green: 0.082, blue: 0.078, alpha: 0.10)
     })
 }

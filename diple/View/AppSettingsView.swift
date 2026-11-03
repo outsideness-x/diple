@@ -329,7 +329,7 @@ public struct AppSettingsView: View {
             "YOUR DATA",
             footer: "A backup holds positions, highlights and notes, not the books, and restoring one deletes nothing. Markdown writes a file per book and per note. Highlights import from Kindle’s My Clippings.txt or a Readwise CSV."
         ) {
-            dataAction("Export Backup") {
+            dataAction("Export backup") {
                 do {
                     exportDocument = DipleExportDocument(payload: try DipleExportPayload())
                     isExportPresented = true
@@ -341,7 +341,7 @@ public struct AppSettingsView: View {
             .accessibilityIdentifier("settings.data.export")
             .accessibilityHint("Creates a versioned JSON backup you can save or share")
 
-            dataAction("Restore Backup", showsProgress: isReadingRestore) {
+            dataAction("Restore backup", showsProgress: isReadingRestore) {
                 present(.restore)
             }
             .disabled(isReadingRestore)
@@ -355,7 +355,7 @@ public struct AppSettingsView: View {
             .accessibilityIdentifier("settings.data.markdown")
             .accessibilityHint("Choose a folder to write your highlights and notes into as Markdown")
 
-            dataAction("Import Highlights", showsProgress: isReadingImport) {
+            dataAction("Import highlights", showsProgress: isReadingImport) {
                 present(.importHighlights)
             }
             .disabled(isReadingImport)
@@ -392,7 +392,12 @@ public struct AppSettingsView: View {
             VStack(spacing: 1) {
                 rows()
             }
+            .background(DipleColor.separator)
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
+                    .strokeBorder(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+            }
 
             if let footer {
                 Text(footer)
@@ -517,7 +522,7 @@ public struct AppSettingsView: View {
                         Task { await CloudSyncService.shared.retry() }
                     } label: {
                         Label(
-                            snapshot.phase == .attention ? "Check Again" : "Check Now",
+                            snapshot.phase == .attention ? "Check again" : "Check now",
                             systemImage: "arrow.clockwise"
                         )
                         .dipleType(.footnote, weight: .semibold)
@@ -542,11 +547,11 @@ public struct AppSettingsView: View {
 
     private func syncStatusTitle(_ phase: CloudSyncSnapshot.Phase) -> String {
         switch phase {
-        case .disabled: return "Sync Off"
+        case .disabled: return "Sync off"
         case .checking: return "Checking iCloud"
         case .syncing: return "Syncing"
-        case .synced: return "Up to Date"
-        case .attention: return "Needs Attention"
+        case .synced: return "Up to date"
+        case .attention: return "Needs attention"
         }
     }
 

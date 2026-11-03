@@ -13,8 +13,8 @@
 		D071D70D301DE80000A3309A /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D071D709301DE80000A3309A /* GRDB */; };
 		D0A17C01301E0A0000A3309A /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = D0A17C00301E0A0000A3309A /* SwiftSoup */; };
 		D0E100013022100000A3309A /* dipleShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0E100033022100000A3309A /* dipleShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		D0F04A013022000000A3309A /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = D0F04A033022000000A3309A /* SwiftMath */; };
 		D0E200013022200000A3309A /* dipleWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D0E200033022200000A3309A /* dipleWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D0F04A013022000000A3309A /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = D0F04A033022000000A3309A /* SwiftMath */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -182,6 +182,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D02844E13089BE6D00919D2F /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				D0E200063022200000A3309A /* dipleWidget */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		D071D6D1301DE6DA00A3309A = {
 			isa = PBXGroup;
 			children = (
@@ -191,6 +199,7 @@
 				D071D6EA301DE6DD00A3309A /* dipleTests */,
 				D071D6F4301DE6DD00A3309A /* dipleUITests */,
 				D071D6DB301DE6DB00A3309A /* Products */,
+				D02844E13089BE6D00919D2F /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -354,10 +363,10 @@
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = D071D6D9301DE6DB00A3309A;
 					};
-					D0E200093022200000A3309A = {
+					D0E100093022100000A3309A = {
 						CreatedOnToolsVersion = 26.3;
 					};
-					D0E100093022100000A3309A = {
+					D0E200093022200000A3309A = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};

@@ -57,6 +57,7 @@ public struct MarginaliaFilingView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .dipleType(.body, weight: .semibold)
                         .foregroundStyle(DipleColor.accentInk)
                 }
             }
@@ -146,7 +147,7 @@ public struct MarginaliaFilingView: View {
 
                     if let title = passage.book?.title ?? passage.highlight.bookTitle {
                         Text(title)
-                            .dipleType(.caption)
+                            .dipleType(.editorialItem)
                             .foregroundStyle(DipleColor.textTertiary)
                     }
                 }

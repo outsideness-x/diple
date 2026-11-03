@@ -54,7 +54,7 @@ public struct DatabaseUnavailableView: View {
                                 HapticManager.shared.impact(.light)
                                 isConfirmingReset = true
                             } label: {
-                                Text("Start a New Library")
+                                Text("Start a new library")
                                     .dipleType(.callout, weight: .semibold)
                                     .foregroundStyle(DipleColor.textOnAccent)
                                     .frame(maxWidth: .infinity)
@@ -94,7 +94,7 @@ public struct DatabaseUnavailableView: View {
                     }
                     .padding(DipleSpace.l)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(DipleColor.surface, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                    .craftSurface(DipleColor.surface, radius: DipleRadius.m)
                 }
                 .padding(.horizontal, DipleSpace.xl)
                 .padding(.vertical, DipleSpace.xxxl)

@@ -37,6 +37,7 @@ struct QuoteTrayLibraryButton: View {
         Button { isPicking = true } label: {
             Label("Quote tray", systemImage: "rectangle.stack")
                 .labelStyle(.iconOnly)
+                .dipleIcon(15)
                 .foregroundStyle(DipleColor.accentInk)
         }
         .accessibilityLabel("Quote tray")
@@ -55,11 +56,15 @@ struct QuoteTrayLauncher: View {
         if !tray.pending.isEmpty {
             HStack(spacing: DipleSpace.m) {
                 Image(systemName: "rectangle.stack.fill")
+                    .dipleIcon(14, weight: .semibold)
                     .foregroundStyle(DipleColor.accentInk)
-                VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                    Text("Quote tray").dipleType(.footnote, weight: .semibold)
+                VStack(alignment: .leading, spacing: DipleSpace.hair) {
+                    Text("Quote tray")
+                        .dipleType(.footnote, weight: .semibold)
+                        .foregroundStyle(DipleColor.textPrimary)
                     Text("\(tray.pending.count) ready to weave into a note")
                         .dipleType(.caption)
+                        .monospacedDigit()
                         .foregroundStyle(DipleColor.textSecondary)
                 }
                 Spacer(minLength: 0)
@@ -67,19 +72,21 @@ struct QuoteTrayLauncher: View {
                     Label("Write", systemImage: "square.and.pencil")
                         .dipleType(.footnote, weight: .semibold)
                         .padding(.horizontal, DipleSpace.m)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: 36)
                         .background(DipleColor.accentSoft, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(DipleColor.accentInk.opacity(0.22), lineWidth: DipleStroke.hairline)
+                        }
+                        .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(DipleColor.accentInk)
                 .accessibilityIdentifier("quoteTray.write")
             }
-            .padding(DipleSpace.m)
-            .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.l))
-            .overlay {
-                RoundedRectangle(cornerRadius: DipleRadius.l)
-                    .stroke(DipleColor.accentInk.opacity(0.18), lineWidth: DipleStroke.hairline)
-            }
+            .padding(.horizontal, DipleSpace.l)
+            .padding(.vertical, DipleSpace.m)
+            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
         }
     }
 }
@@ -144,15 +151,23 @@ private struct QuoteTrayPanel: View {
                 } label: {
                     HStack(spacing: DipleSpace.s) {
                         Image(systemName: "rectangle.stack.fill")
-                        Text("Quote tray").dipleType(.footnote, weight: .semibold)
+                            .dipleIcon(13, weight: .semibold)
+                            .foregroundStyle(DipleColor.accentInk)
+                        Text("Quote tray")
+                            .dipleType(.footnote, weight: .semibold)
+                            .foregroundStyle(DipleColor.textPrimary)
                         Text("\(tray.pending.count)")
-                            .dipleType(.caption, weight: .semibold)
+                            .dipleType(.micro, weight: .semibold)
                             .monospacedDigit()
+                            .foregroundStyle(DipleColor.accentInk)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(DipleColor.accentSoft, in: Capsule())
                             .contentTransition(.numericText())
                         Image(systemName: isCollapsed ? "chevron.up" : "chevron.down")
                             .dipleIcon(10, weight: .semibold)
+                            .foregroundStyle(DipleColor.textTertiary)
                     }
-                    .foregroundStyle(DipleColor.accentInk)
                     .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
@@ -165,7 +180,7 @@ private struct QuoteTrayPanel: View {
 
             if !isCollapsed {
                 if !used.isEmpty {
-                    HStack(spacing: DipleSpace.m) {
+                    HStack(spacing: DipleSpace.l) {
                         tab("Ready", selected: !showsUsed) { showsUsed = false }
                         tab("Used", selected: showsUsed) { showsUsed = true }
                         Spacer()
@@ -205,35 +220,62 @@ private struct QuoteTrayPanel: View {
             }
             if isRail { Spacer(minLength: 0) }
         }
-        .background(.regularMaterial)
+        .background(DipleColor.surface)
         .overlay(alignment: isRail ? .leading : .top) {
-            Rectangle().fill(DipleColor.hairline)
+            Rectangle().fill(DipleColor.separator)
                 .frame(width: isRail ? DipleStroke.hairline : nil, height: isRail ? nil : DipleStroke.hairline)
         }
         .animation(motion, value: cards.map(\.id))
         .sheet(item: $preview) { clip in
             NavigationStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: DipleSpace.l) {
-                        Text(clip.text).dipleType(.editorialQuote).textSelection(.enabled)
-                        if let source = clip.source {
-                            Text(source).dipleType(.caption).foregroundStyle(DipleColor.textSecondary)
+                    HStack(alignment: .top, spacing: DipleSpace.m) {
+                        Capsule()
+                            .fill(DipleColor.Highlight.color(forHex: clip.colorHex))
+                            .frame(width: 3)
+                        VStack(alignment: .leading, spacing: DipleSpace.m) {
+                            Text(clip.text)
+                                .dipleType(.editorialQuote)
+                                .foregroundStyle(DipleColor.textPrimary)
+                                .readingLineSpacing(for: clip.text)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if let source = clip.source {
+                                Text(source)
+                                    .dipleType(.editorialItem)
+                                    .foregroundStyle(DipleColor.textSecondary)
+                            }
                         }
                     }
                     .padding(DipleSpace.xl)
                 }
-                .background(DipleColor.canvas)
+                .background(DipleColor.canvas.ignoresSafeArea())
                 .navigationTitle("Passage")
-                .toolbar { Button("Done") { preview = nil } }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(DipleColor.canvas, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { preview = nil }
+                            .dipleType(.body, weight: .semibold)
+                            .foregroundStyle(DipleColor.accentInk)
+                    }
+                }
             }
         }
     }
 
     private func tab(_ title: LocalizedStringKey, selected: Bool, action: @escaping () -> Void) -> some View {
         Button { withAnimation(motion, action) } label: {
-            Text(title).dipleType(.caption, weight: selected ? .semibold : .regular)
-                .foregroundStyle(selected ? DipleColor.accentInk : DipleColor.textTertiary)
-                .padding(.vertical, DipleSpace.s)
+            VStack(spacing: DipleSpace.xs) {
+                Text(title)
+                    .dipleType(.caption, weight: selected ? .semibold : .regular)
+                    .foregroundStyle(selected ? DipleColor.accentInk : DipleColor.textTertiary)
+                Rectangle()
+                    .fill(selected ? DipleColor.accentInk : Color.clear)
+                    .frame(height: 1.5)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.top, DipleSpace.xs)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -250,32 +292,31 @@ private struct QuoteTrayPanel: View {
         } label: {
             VStack(alignment: .leading, spacing: DipleSpace.s) {
                 HStack(alignment: .top, spacing: DipleSpace.s) {
-                    Image(systemName: "quote.opening")
-                        .foregroundStyle(DipleColor.Highlight.color(forHex: clip.colorHex))
+                    Capsule()
+                        .fill(DipleColor.Highlight.color(forHex: clip.colorHex))
+                        .frame(width: 2.5)
+                        .padding(.vertical, 2)
                     Text(clip.text)
-                        .dipleType(.callout)
+                        .dipleType(.editorialExcerpt)
                         .foregroundStyle(DipleColor.textPrimary)
+                        .readingLineSpacing(for: clip.text)
                         .lineLimit(isRail ? 6 : 2)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 HStack(spacing: DipleSpace.s) {
                     Text(clip.source ?? String(localized: "Passage"))
-                        .dipleType(.micro)
+                        .dipleType(.caption)
                         .foregroundStyle(DipleColor.textTertiary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     Image(systemName: showsUsed ? "arrow.uturn.backward" : "arrow.down.to.line")
+                        .dipleIcon(11, weight: .semibold)
                         .foregroundStyle(DipleColor.accentInk)
                 }
             }
             .padding(DipleSpace.m)
-            .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
-            // An edge, not a shadow: depth in this app is built from hairlines.
-            .overlay(alignment: .leading) {
-                RoundedRectangle(cornerRadius: DipleRadius.m)
-                    .stroke(DipleColor.hairline, lineWidth: DipleStroke.hairline)
-            }
+            .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
             .contentShape(RoundedRectangle(cornerRadius: DipleRadius.m))
         }
         .buttonStyle(.readerControl)
@@ -303,43 +344,126 @@ private struct QuoteTrayPicker: View {
                     Text("Gather passages here, then tap their cards while writing. Your tray stays on this device.")
                         .dipleType(.callout)
                         .foregroundStyle(DipleColor.textSecondary)
+
+                    DipleSearchField(
+                        text: $model.rawQuery,
+                        prompt: "Search passages · #tag · @source",
+                        identifier: "quoteTray.search"
+                    )
+
                     if !tray.pending.isEmpty {
-                        ForEach(tray.pending) { clip in
-                            HStack {
-                                VStack(alignment: .leading, spacing: DipleSpace.xs) {
-                                    Text(clip.text).lineLimit(2).dipleType(.callout)
-                                    if let source = clip.source { Text(source).dipleType(.caption).foregroundStyle(DipleColor.textTertiary) }
+                        VStack(alignment: .leading, spacing: DipleSpace.s) {
+                            Text("ON THE TRAY")
+                                .dipleType(.nano)
+                                .foregroundStyle(DipleColor.textTertiary)
+                                .padding(.top, DipleSpace.xs)
+
+                            ForEach(tray.pending) { clip in
+                                HStack(alignment: .top, spacing: DipleSpace.m) {
+                                    Capsule()
+                                        .fill(DipleColor.Highlight.color(forHex: clip.colorHex))
+                                        .frame(width: 2.5)
+                                        .padding(.vertical, 2)
+                                    VStack(alignment: .leading, spacing: DipleSpace.xs) {
+                                        Text(clip.text)
+                                            .dipleType(.editorialExcerpt)
+                                            .foregroundStyle(DipleColor.textPrimary)
+                                            .readingLineSpacing(for: clip.text)
+                                            .lineLimit(2)
+                                        if let source = clip.source {
+                                            Text(source)
+                                                .dipleType(.caption)
+                                                .foregroundStyle(DipleColor.textTertiary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer(minLength: 0)
+                                    Button { tray.remove(clip.id) } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .dipleIcon(16)
+                                            .foregroundStyle(DipleColor.textTertiary)
+                                            .frame(minWidth: 44, minHeight: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Remove from tray")
                                 }
-                                Spacer()
-                                Button { tray.remove(clip.id) } label: {
-                                    Image(systemName: "minus.circle").frame(minWidth: 44, minHeight: 44)
-                                }
-                                .accessibilityLabel("Remove from tray")
+                                .padding(DipleSpace.m)
+                                .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
                             }
-                            .padding(DipleSpace.m)
-                            .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
                         }
-                        Divider()
+
+                        Rectangle()
+                            .fill(DipleColor.separator)
+                            .frame(height: DipleStroke.hairline)
+                            .padding(.vertical, DipleSpace.xs)
                     }
+
                     ForEach(model.results) { entry in
                         if case .passage(let passage) = entry {
-                            VStack(alignment: .leading, spacing: 0) {
-                                PassageRowView(passage: passage)
-                                QuoteTrayToggleButton(passage: passage)
-                            }
+                            pickerPassageRow(passage)
                         }
                     }
+
                     if model.results.isEmpty {
-                        Text("No passages found").foregroundStyle(DipleColor.textTertiary)
+                        DipleEmptyText(
+                            title: "No passages found",
+                            message: "Try a different search, #tag, or @source."
+                        )
                     }
                 }
-                .padding(DipleSpace.l)
+                .padding(.horizontal, DipleSpace.l)
+                .padding(.vertical, DipleSpace.m)
             }
-            .background(DipleColor.canvas)
+            .background(DipleColor.canvas.ignoresSafeArea())
             .navigationTitle("Quote tray")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $model.rawQuery, prompt: "Search passages · #tag · @source")
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbarBackground(DipleColor.canvas, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .dipleType(.body, weight: .semibold)
+                        .foregroundStyle(DipleColor.accentInk)
+                }
+            }
+        }
+    }
+
+    private func pickerPassageRow(_ passage: PassageItem) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: DipleSpace.m) {
+                Capsule(style: .continuous)
+                    .fill(DipleColor.Highlight.color(forHex: passage.highlight.colorHex))
+                    .frame(width: 2.5)
+                    .padding(.vertical, 2)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: DipleSpace.s) {
+                    Text(passage.highlight.text)
+                        .dipleType(.editorialQuote)
+                        .foregroundStyle(DipleColor.textPrimary)
+                        .readingLineSpacing(for: passage.highlight.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(alignment: .center, spacing: DipleSpace.s) {
+                        if let title = passage.book?.title ?? passage.highlight.bookTitle {
+                            Text(title)
+                                .dipleType(.editorialItem)
+                                .foregroundStyle(DipleColor.textSecondary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: DipleSpace.s)
+
+                        QuoteTrayToggleButton(passage: passage)
+                    }
+                }
+            }
+            .padding(.vertical, DipleSpace.m)
+
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(height: DipleStroke.hairline)
         }
     }
 }

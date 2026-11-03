@@ -225,8 +225,8 @@ public struct SecondReadView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: DipleSpace.m) {
-            Text("Nothing marked here yet.")
-                .dipleType(.title)
+            Text("Nothing marked here yet")
+                .dipleType(.editorialTitle)
                 .foregroundStyle(palette.ink)
             Text("Highlights and thoughts from this book will become your Second Read.")
                 .modifier(SecondReadTextModifier(
@@ -238,7 +238,7 @@ public struct SecondReadView: View {
 
             if model.isSourceAvailable {
                 NavigationLink(value: SecondReadSourceRoute(book: model.book, locatorJSON: nil)) {
-                    SecondReadControlLabel(title: "Return to Book", palette: palette)
+                    SecondReadControlLabel(title: "Return to book", palette: palette)
                 }
                 .buttonStyle(.plain)
                 .padding(.top, DipleSpace.s)
@@ -389,7 +389,7 @@ private struct SecondReadItemView: View {
     @ViewBuilder
     private var actionControls: some View {
         if item.canShowContext {
-            SecondReadAction(title: isExpanded ? "Hide Context" : "Show Context", palette: palette) {
+            SecondReadAction(title: isExpanded ? "Hide context" : "Show context", palette: palette) {
                 onToggleContext()
             }
             .accessibilityIdentifier(isExpanded ? "secondRead.hideContext" : "secondRead.showContext")
@@ -397,7 +397,7 @@ private struct SecondReadItemView: View {
 
         if item.canOpenInBook {
             NavigationLink(value: SecondReadSourceRoute(book: book, locatorJSON: item.locatorJSON)) {
-                SecondReadControlLabel(title: "Open in Book", palette: palette)
+                SecondReadControlLabel(title: "Open in the book", palette: palette)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("secondRead.openInBook")
@@ -406,7 +406,7 @@ private struct SecondReadItemView: View {
                 .dipleType(.footnote)
                 .foregroundStyle(palette.quaternaryInk)
                 .frame(minHeight: 44)
-                .accessibilityLabel(Text("Open in Book unavailable"))
+                .accessibilityLabel(Text("Open in the book unavailable"))
         }
     }
 

@@ -68,7 +68,7 @@ public struct BookQuotesView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: DipleSpace.xs) {
             Text(summary.title)
-                .dipleType(.readingTitle)
+                .dipleType(.editorialLead)
                 .foregroundStyle(DipleColor.textPrimary)
 
             if let author = summary.author, !author.isEmpty {

@@ -123,7 +123,12 @@ public struct HighlightImportReviewView: View {
                     )
                 }
             }
+            .background(DipleColor.separator)
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
+                    .strokeBorder(DipleColor.hairline, lineWidth: DipleStroke.hairline)
+            }
         }
     }
 
@@ -189,9 +194,9 @@ public struct HighlightImportReviewView: View {
     }
 
     private var importButtonTitle: String {
-        if candidate.preview.isNoOp { return "Nothing New to Import" }
+        if candidate.preview.isNoOp { return "Nothing new to import" }
         let count = candidate.preview.passagesToAdd
-        return count == 1 ? "Import 1 Passage" : "Import \(count) Passages"
+        return count == 1 ? "Import 1 passage" : "Import \(count) passages"
     }
 
     private func beginImport() {

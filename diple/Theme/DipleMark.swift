@@ -46,7 +46,7 @@ public struct DipleMark: View {
 
             let lineWidth = max(1, size * 0.045)
             let shading = GraphicsContext.Shading.linearGradient(
-                Gradient(colors: [DipleColor.textSecondary, DipleColor.accent]),
+                Gradient(colors: [DipleColor.textSecondary, DipleColor.accentInk]),
                 startPoint: CGPoint(x: 0, y: 0),
                 endPoint: CGPoint(x: width, y: height)
             )
@@ -65,7 +65,7 @@ public struct DipleMark: View {
                         width: nodeDiameter,
                         height: nodeDiameter
                     )),
-                    with: .color(DipleColor.accent)
+                    with: .color(DipleColor.accentInk)
                 )
             }
         }

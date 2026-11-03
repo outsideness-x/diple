@@ -96,12 +96,13 @@ public struct HighlightEditorView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle(isExisting ? "Edit Highlight" : "New Highlight")
+            .navigationTitle(isExisting ? "Edit highlight" : "New highlight")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(DipleColor.canvas, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .dipleType(.body)
                         .foregroundStyle(DipleColor.textSecondary)
                 }
             }
@@ -351,7 +352,7 @@ public struct HighlightEditorView: View {
                         .dipleIcon(15, weight: .semibold)
                         .foregroundStyle(DipleColor.destructive)
                         .frame(width: 50, height: 50)
-                        .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
                 }
                 .buttonStyle(.readerControl)
                 .accessibilityLabel("Delete highlight")
@@ -372,7 +373,7 @@ public struct HighlightEditorView: View {
                     .dipleIcon(15, weight: .semibold)
                     .foregroundStyle(didCopy ? DipleColor.success : DipleColor.textSecondary)
                     .frame(width: 50, height: 50)
-                    .background(DipleColor.surfaceRaised, in: RoundedRectangle(cornerRadius: DipleRadius.m))
+                    .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
             }
             .buttonStyle(.readerControl)
             .accessibilityLabel(didCopy ? "Copied" : "Copy passage")
@@ -384,7 +385,7 @@ public struct HighlightEditorView: View {
                     Image(systemName: isSaving ? "checkmark.circle.fill" : "checkmark")
                         .dipleIcon(15, weight: .semibold)
                         .contentTransition(.symbolEffect(.replace))
-                    Text(isSaving ? "Saved" : (isExisting ? "Save Changes" : "Save Highlight"))
+                    Text(isSaving ? "Saved" : (isExisting ? "Save changes" : "Save highlight"))
                         .contentTransition(.opacity)
                 }
                 .dipleType(.footnote, weight: .semibold)

@@ -56,7 +56,7 @@ public struct BookActionsMenu: ViewModifier {
                 Button {
                     afterTheMenuCloses(onMarkAsFinished)
                 } label: {
-                    Label("Mark as Finished", systemImage: "checkmark.circle")
+                    Label("Mark as finished", systemImage: "checkmark.circle")
                 }
             }
 

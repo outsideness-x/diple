@@ -400,7 +400,7 @@ public struct MacRootView: View {
             HStack(spacing: DipleSpace.s) {
                 DipleMark(size: 22)
                 Text("diple.")
-                    .dipleType(.headline, weight: .semibold)
+                    .dipleType(.editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
                 Spacer()
                 MacIconButton(
@@ -1141,7 +1141,7 @@ struct MacRowSurface: ViewModifier {
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? DipleColor.accent : (isBordered ? DipleColor.hairline : Color.clear),
+                        isSelected ? DipleColor.accentInk : (isBordered ? DipleColor.hairline : Color.clear),
                         lineWidth: isSelected ? DipleStroke.selection : DipleStroke.hairline
                     )
             }
@@ -1180,7 +1180,7 @@ private struct MacSelectableCard<Content: View>: View {
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(
-                    isSelected ? DipleColor.accent : Color.clear,
+                    isSelected ? DipleColor.accentInk : Color.clear,
                     lineWidth: DipleStroke.selection
                 )
         }
@@ -1258,7 +1258,7 @@ private struct MacPublicationDrop: ViewModifier {
             .overlay {
                 if isTargeted {
                     RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
-                        .strokeBorder(DipleColor.accent, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+                        .strokeBorder(DipleColor.accentInk, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
                         .background(
                             DipleColor.accentSoft,
                             in: RoundedRectangle(cornerRadius: DipleRadius.l, style: .continuous)
@@ -1414,7 +1414,7 @@ private struct MacLibraryCollection: View {
                                             Button("Second Read") { onOpenSecondRead(book) }
                                         }
                                         if book.progress < 0.995 {
-                                            Button("Mark as Finished") { onMarkAsFinished(book) }
+                                            Button("Mark as finished") { onMarkAsFinished(book) }
                                         }
                                         Button("Tags…") { onEditTags(book) }
                                         Button("Edit metadata") { onEdit(book) }
@@ -1549,7 +1549,7 @@ private struct MacBookTile: View {
             .overlay {
                 RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
                     .strokeBorder(
-                        isSelected ? DipleColor.accent : Color.clear,
+                        isSelected ? DipleColor.accentInk : Color.clear,
                         lineWidth: DipleStroke.selection
                     )
             }
@@ -1578,7 +1578,7 @@ private struct MacProgressLine: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(DipleColor.surfaceOverlay)
                 Capsule()
-                    .fill(DipleColor.accent)
+                    .fill(DipleColor.accentInk)
                     .frame(width: proxy.size.width * min(max(progress, 0), 1))
             }
         }
@@ -2258,11 +2258,18 @@ private struct MacFeedCollection: View {
     @ViewBuilder
     private var foot: some View {
         let suggested = store.unfollowedRecommendations
-        Text("Each source keeps its three newest pieces. Older ones leave on their own.")
-            .dipleType(.micro, weight: .regular)
-            .foregroundStyle(DipleColor.textQuaternary)
-            .frame(maxWidth: .infinity)
-            .padding(.top, DipleSpace.xxxl)
+        VStack(spacing: DipleSpace.m) {
+            Rectangle()
+                .fill(DipleColor.separator)
+                .frame(width: 32, height: DipleStroke.hairline)
+
+            Text("Each source keeps its three newest pieces. Older ones leave on their own.")
+                .dipleType(.micro, weight: .regular)
+                .foregroundStyle(DipleColor.textQuaternary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, DipleSpace.xxxl)
         if !suggested.isEmpty {
             Text("Worth following")
                 .dipleSectionHeading()
@@ -2278,6 +2285,14 @@ private struct MacFeedCollection: View {
 private struct MacSearchResultRow: View {
     let result: GlobalSearchResult
 
+    private var detailStyle: DipleTextStyle {
+        switch result.kind {
+        case .book, .article: return .caption
+        case .note: return .readingCaption
+        case .highlight, .bookContent: return .editorialExcerpt
+        }
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: DipleSpace.m) {
             Image(systemName: result.kind.systemImage)
@@ -2288,13 +2303,16 @@ private struct MacSearchResultRow: View {
 
             VStack(alignment: .leading, spacing: DipleSpace.xs) {
                 Text(result.title)
-                    .dipleType(.footnote, weight: .semibold)
+                    .dipleType(result.kind == .note ? .footnote : .editorialItem,
+                               weight: result.kind == .note ? .semibold : nil)
                     .foregroundStyle(DipleColor.textPrimary)
                     .lineLimit(1)
 
                 if !result.snippet.isEmpty {
-                    Text(result.snippet)
-                        .dipleType(.readingCaption)
+                    let snippet = result.kind == .note ? NoteMarkdown.plainText(result.snippet) : result.snippet
+                    Text(snippet)
+                        .dipleType(detailStyle)
+                        .readingLineSpacing(for: snippet)
                         .foregroundStyle(DipleColor.textTertiary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -2354,7 +2372,7 @@ private struct MacBookInspector: View {
                 Button(action: onRead) {
                     HStack {
                         Image(systemName: book.progress > 0.001 ? "book.pages" : "book")
-                        Text(book.progress > 0.001 ? "Continue Reading" : "Start Reading")
+                        Text(book.progress > 0.001 ? "Continue reading" : "Start reading")
                         Spacer()
                         Image(systemName: "arrow.right")
                             .offset(x: isReadHovering ? 3 : 0)
@@ -2785,7 +2803,7 @@ struct MacNoteInspector: View {
         var color: SwiftUI.Color {
             switch self {
             case .saved: return DipleColor.textQuaternary
-            case .saving: return DipleColor.accent
+            case .saving: return DipleColor.accentInk
             case .failed: return DipleColor.destructive
             }
         }
@@ -3153,7 +3171,7 @@ struct MacNoteInspector: View {
                 }
         }
         .diplePadding(.chip)
-        .overlay(Capsule().stroke(DipleColor.accent, lineWidth: DipleStroke.selection))
+        .overlay(Capsule().stroke(DipleColor.accentInk, lineWidth: DipleStroke.selection))
         .onAppear { isTagFieldFocused = true }
         .onChange(of: isTagFieldFocused) { _, focused in
             guard !focused else { return }
@@ -3396,7 +3414,7 @@ private struct MacSearchInspector: View {
                     .foregroundStyle(DipleColor.accentInk)
 
                 Text(result.title)
-                    .dipleType(.readingTitle)
+                    .dipleType(result.kind == .note ? .title : .editorialTitle)
                     .foregroundStyle(DipleColor.textPrimary)
                     .textSelection(.enabled)
 
@@ -3408,8 +3426,10 @@ private struct MacSearchInspector: View {
                 }
 
                 if !result.snippet.isEmpty {
-                    Text(result.snippet)
-                        .dipleType(.readingBody)
+                    let snippet = result.kind == .note ? NoteMarkdown.plainText(result.snippet) : result.snippet
+                    Text(snippet)
+                        .dipleType(result.kind == .note ? .readingBody : .editorialQuote)
+                        .readingLineSpacing(for: snippet)
                         .foregroundStyle(DipleColor.textSecondary)
                         .textSelection(.enabled)
                         .padding(DipleSpace.l)
@@ -3417,11 +3437,13 @@ private struct MacSearchInspector: View {
                 }
 
                 if let note {
-                    Button("Open note") { onOpenNote(note) }
-                        .buttonStyle(.borderedProminent)
+                    MacSecondaryButton(title: "Open note", systemImage: "note.text") {
+                        onOpenNote(note)
+                    }
                 } else if let book {
-                    Button("Open publication") { onRead(book) }
-                        .buttonStyle(.borderedProminent)
+                    MacSecondaryButton(title: "Open publication", systemImage: "book") {
+                        onRead(book)
+                    }
                 }
             }
             .padding(DipleSpace.xxl)
@@ -3446,7 +3468,7 @@ private struct MacNotesPlaceholder: View {
                 .foregroundStyle(DipleColor.textQuaternary)
 
             Text("Choose a note")
-                .dipleType(.title, weight: .semibold)
+                .dipleType(.editorialTitle)
                 .foregroundStyle(DipleColor.textSecondary)
 
             VStack(alignment: .leading, spacing: DipleSpace.s) {
@@ -3487,7 +3509,7 @@ private struct MacInspectorPlaceholder: View {
             DipleMark(size: 34)
                 .opacity(0.55)
             Text("Select an item")
-                .dipleType(.headline)
+                .dipleType(.editorialTitle)
                 .foregroundStyle(DipleColor.textSecondary)
             Text("Details from \(sourceTitle.lowercased()) will appear here.")
                 .dipleType(.callout)
@@ -3534,7 +3556,7 @@ struct MacEmptyCollection: View {
                 .frame(width: 60, height: 60)
                 .background(DipleColor.accentSoft, in: RoundedRectangle(cornerRadius: DipleRadius.l))
             Text(title)
-                .dipleType(.headline)
+                .dipleType(.editorialTitle)
                 .foregroundStyle(DipleColor.textPrimary)
             Text(message)
                 .dipleType(.callout)

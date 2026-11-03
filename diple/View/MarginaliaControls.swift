@@ -324,6 +324,7 @@ public struct MarginaliaFilterSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .dipleType(.body, weight: .semibold)
                         .foregroundStyle(DipleColor.accentInk)
                 }
             }
@@ -566,8 +567,9 @@ public struct MarginaliaFilterSheet: View {
                 // author is not decoration: it is the other name this row answers to, and a
                 // finder that matches a word it never shows looks broken when it hits.
                 VStack(alignment: .leading, spacing: 1) {
+                    let isSource: Bool = if case .source = option.kind { true } else { false }
                     Text(label(for: option))
-                        .dipleType(.body)
+                        .dipleType(isSource ? .editorialItem : .body)
                         .foregroundStyle(DipleColor.textPrimary)
                         .lineLimit(1)
 

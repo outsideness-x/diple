@@ -55,8 +55,7 @@ public struct EditBookMetadataView: View {
                                     .foregroundStyle(DipleColor.accentInk)
                                     .padding(.horizontal, DipleSpace.m)
                                     .padding(.vertical, DipleSpace.s)
-                                    .background(DipleColor.surfaceOverlay)
-                                    .cornerRadius(DipleRadius.s)
+                                    .craftSurface(DipleColor.surfaceOverlay, radius: DipleRadius.s)
                                 }
 
                                 Button {
@@ -72,8 +71,7 @@ public struct EditBookMetadataView: View {
                                     .foregroundStyle(DipleColor.textSecondary)
                                     .padding(.horizontal, DipleSpace.m)
                                     .padding(.vertical, DipleSpace.s)
-                                    .background(DipleColor.surfaceOverlay)
-                                    .cornerRadius(DipleRadius.s)
+                                    .craftSurface(DipleColor.surfaceOverlay, radius: DipleRadius.s)
                                 }
                             }
                         }
@@ -97,8 +95,7 @@ public struct EditBookMetadataView: View {
                                         .dipleType(.body)
                                         .foregroundStyle(DipleColor.textPrimary)
                                         .diplePadding(.field)
-                                        .background(DipleColor.surfaceRaised)
-                                        .cornerRadius(DipleRadius.m)
+                                        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
                                 }
 
                                 // Author field
@@ -111,8 +108,7 @@ public struct EditBookMetadataView: View {
                                         .dipleType(.body)
                                         .foregroundStyle(DipleColor.textPrimary)
                                         .diplePadding(.field)
-                                        .background(DipleColor.surfaceRaised)
-                                        .cornerRadius(DipleRadius.m)
+                                        .craftSurface(DipleColor.surfaceRaised, radius: DipleRadius.m)
                                 }
                             }
                         }
@@ -148,7 +144,7 @@ public struct EditBookMetadataView: View {
                         }
                     }
                     .dipleType(.body, weight: .semibold)
-                    .foregroundColor(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray.opacity(0.4) : DipleColor.accentInk)
+                    .foregroundStyle(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? DipleColor.textQuaternary : DipleColor.accentInk)
                     .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }

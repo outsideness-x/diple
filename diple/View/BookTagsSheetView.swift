@@ -62,6 +62,7 @@ public struct BookTagsSheetView: View {
                         HapticManager.shared.selection()
                         dismiss()
                     }
+                    .dipleType(.body, weight: .semibold)
                     .foregroundStyle(DipleColor.accentInk)
                 }
             }

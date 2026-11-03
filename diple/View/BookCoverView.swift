@@ -161,7 +161,7 @@ public struct BookCoverView: View {
                     DipleCoverArt.gradient(for: title)
 
                     Text(DipleCoverArt.initial(for: title))
-                        .font(.system(size: initialSize(for: geometry), weight: .semibold))
+                        .font(.custom("Literata", size: initialSize(for: geometry)).weight(.semibold))
                         .foregroundStyle(DipleCoverArt.ink(for: title))
                         // The letter is a mark, not a word: it holds its size against Dynamic
                         // Type instead of outgrowing the cover it is printed on.
