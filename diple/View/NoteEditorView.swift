@@ -378,6 +378,7 @@ public struct NoteEditorView: UIViewRepresentable {
             for span in spans {
                 styling.apply(span, to: storage)
             }
+            styling.applyHangingIndents(spans, to: storage)
             for formula in formulas {
                 styling.setFormula(formula, in: storage)
             }

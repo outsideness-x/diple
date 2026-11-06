@@ -126,6 +126,38 @@ struct NoteSyntaxStyling {
         }
     }
 
+    /// Hangs every list item's wrapped lines under its words rather than under its bullet.
+    ///
+    /// The marker is part of the text here — `- `, `1. `, `- [x] ` — so a long item used to wrap
+    /// back to the margin and its second line stood under the bullet, which no list on a page
+    /// does and which the rendered note never did. The indent is the prefix measured as it is
+    /// actually set, after the spans have dressed it (the box is monospaced, the bullet is not),
+    /// so it holds at every type size and for nested items, whose leading spaces are part of the
+    /// prefix. Runs after `apply`, on the lines the caller just restyled.
+    func applyHangingIndents(_ spans: [NoteSyntaxSpan], to storage: NSTextStorage) {
+        let text = storage.mutableString as NSString
+        for (index, span) in spans.enumerated() where span.role == .listMarker {
+            var prefixEnd = span.range.location + span.range.length
+            if index + 1 < spans.count, case .task = spans[index + 1].role,
+               spans[index + 1].range.location <= prefixEnd + 1 {
+                prefixEnd = spans[index + 1].range.location + spans[index + 1].range.length
+            }
+            while prefixEnd < text.length, text.character(at: prefixEnd) == 32 { prefixEnd += 1 }
+
+            let line = text.lineRange(for: NSRange(location: span.range.location, length: 0))
+            guard prefixEnd > line.location, prefixEnd <= line.location + line.length else { continue }
+            let prefix = NSRange(location: line.location, length: prefixEnd - line.location)
+            let width = ceil(storage.attributedSubstring(from: prefix).size().width)
+
+            let current = (storage.attribute(.paragraphStyle, at: line.location, effectiveRange: nil) as? NSParagraphStyle)
+                ?? NSParagraphStyle.default
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.setParagraphStyle(current)
+            paragraph.headIndent = current.firstLineHeadIndent + width
+            storage.addAttributes([.paragraphStyle: paragraph], range: line)
+        }
+    }
+
     /// Sets a formula in place of its source, without touching a character of it.
     ///
     /// The source stays in the text — the note is still the Markdown it was — drawn in a font too
