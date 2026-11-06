@@ -23,22 +23,26 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     /// invalidating what is already stored on readers' devices.
     public var title: String {
         switch self {
-        case .serif: return "New York"
+        case .serif: return "Literata"
         case .sanFrancisco: return "San Francisco"
         case .atkinson: return "Hyperlegible"
         case .openDyslexic: return "Dyslexic"
         }
     }
 
-    /// The value handed to Readium as the `fontFamily` preference. For the two system faces
-    /// this is not the face's own name — WebKit does not resolve `"New York"`/`"SF Pro"` by name
-    /// at all (see CLAUDE.md) — it is the bare guard family declared for it in
-    /// `ReaderFontDeclarations`, which is what actually carries Hangul and CJK in front of the
-    /// system keyword.
+    /// The value handed to Readium as the `fontFamily` preference. For San Francisco this is
+    /// not the face's own name — WebKit does not resolve `"SF Pro"` by name at all (see
+    /// CLAUDE.md) — it is the bare guard family declared for it in `ReaderFontDeclarations`,
+    /// which is what actually carries Hangul and CJK in front of the system keyword.
+    ///
+    /// **"Serif" is Literata since 2026-11-06**, set from the bundled files under a bare family
+    /// name of its own, with the New York guard family (Hangul, kana, han, then `ui-serif`)
+    /// standing behind it as its fallback. The raw value stays `"Serif"`: it is what readers'
+    /// devices have stored, and a new case would fail to decode on an older build.
     public var fontFamily: FontFamily {
         switch self {
         case .serif:
-            return FontFamily(rawValue: "DipleNewYork")
+            return FontFamily(rawValue: "DipleLiterata")
         case .sanFrancisco:
             return FontFamily(rawValue: "DipleSanFrancisco")
         case .atkinson:
@@ -56,18 +60,19 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     /// resolves them to the real New York / San Francisco instead of falling through.
     var systemFallbackKeyword: String? {
         switch self {
-        case .serif: return "ui-serif"
         case .sanFrancisco: return "-apple-system"
-        case .atkinson, .openDyslexic: return nil
+        case .serif, .atkinson, .openDyslexic: return nil
         }
     }
 
-    /// The family name UIKit knows this face by, for the picker's own label. `nil` for the two
-    /// options that are CSS generics rather than shipped files — there is no app-side font to
-    /// name, and the label falls back to a system face.
+    /// The family name UIKit knows this face by, for the picker's own label. `nil` for San
+    /// Francisco, the one option that is a CSS generic rather than a shipped file — there is no
+    /// app-side font to name, and the label falls back to the system face. Literata is the
+    /// interface's own editorial face too, registered through `UIAppFonts`.
     public var registeredFamilyName: String? {
         switch self {
-        case .serif, .sanFrancisco: return nil
+        case .sanFrancisco: return nil
+        case .serif: return "Literata"
         case .atkinson: return "Atkinson Hyperlegible"
         case .openDyslexic: return "OpenDyslexic"
         }
@@ -115,11 +120,9 @@ public enum ReaderFont: String, CaseIterable, Identifiable, Codable {
     /// paragraph in no face at all is a blank screen.
     public func proseFont(size: CGFloat) -> Font {
         switch self {
-        case .serif:
-            return .system(size: size, weight: .regular, design: .serif)
         case .sanFrancisco:
             return .system(size: size, weight: .regular, design: .default)
-        case .atkinson, .openDyslexic:
+        case .serif, .atkinson, .openDyslexic:
             guard let family = registeredFamilyName else {
                 return .system(size: size, weight: .regular, design: .default)
             }

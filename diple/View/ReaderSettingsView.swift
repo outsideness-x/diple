@@ -289,19 +289,15 @@ public struct ReaderSettingsView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
-    /// A specimen of the family it selects. New York and San Francisco are system faces with no
-    /// app-side family name to pass to `Font.custom` — `registeredFamilyName` is `nil` for both —
-    /// so they are named by design instead, which resolves to the same two faces the page gets
-    /// through `ui-serif` and `-apple-system`. The shipped ones are named through `UIAppFonts`,
+    /// A specimen of the family it selects. San Francisco is a system face with no app-side
+    /// family name to pass to `Font.custom` — `registeredFamilyName` is `nil` for it — so it is
+    /// named by design instead, which resolves to the same face the page gets through
+    /// `-apple-system`. The shipped ones, Literata among them, are named through `UIAppFonts`,
     /// which is a separate registration from the one Readium performs for the page itself.
     private func fontOptionLabel(_ fontOption: ReaderFont) -> Text {
         guard let family = fontOption.registeredFamilyName else {
             return Text(fontOption.title)
-                .font(.system(
-                    .subheadline,
-                    design: fontOption == .serif ? .serif : .default,
-                    weight: .medium
-                ))
+                .font(.system(.subheadline, design: .default, weight: .medium))
         }
         return Text(fontOption.title).font(.custom(family, size: 15, relativeTo: .subheadline))
     }

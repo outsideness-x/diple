@@ -694,23 +694,71 @@ final class DipleTests: XCTestCase {
         let bundled = ReaderFont.allCases.filter { !$0.bundledFaces.isEmpty }
         XCTAssertEqual(bundled.map(\.rawValue), ["Atkinson Hyperlegible", "OpenDyslexic"])
 
-        // New York and San Francisco have no files of their own — they resolve through a guard
-        // family in ReaderFontDeclarations instead of a bundled fontFaces list — but every one
-        // of the four options the picker offers is still genuinely backed by a declaration.
+        // San Francisco has no files of its own and Literata's are declared by a type of their
+        // own rather than a bundled `.otf` list — but every one of the four options the picker
+        // offers is still genuinely backed by a declaration, plus the New York guard that
+        // stands behind Literata.
         XCTAssertTrue(ReaderFont.serif.bundledFaces.isEmpty)
         XCTAssertTrue(ReaderFont.sanFrancisco.bundledFaces.isEmpty)
         XCTAssertNil(ReaderFont.sanFrancisco.registeredFamilyName)
-        XCTAssertEqual(ReaderFontDeclarations.all.count, ReaderFont.allCases.count)
+        XCTAssertEqual(ReaderFont.serif.registeredFamilyName, "Literata")
+        XCTAssertEqual(ReaderFontDeclarations.all.count, ReaderFont.allCases.count + 1)
+
+        XCTAssertNotNil(
+            Bundle.main.url(forResource: ReaderFontDeclarations.literataUpright, withExtension: "ttf"),
+            "Literata's upright is missing from the bundle"
+        )
+        for italic in ReaderFontDeclarations.literataItalics {
+            XCTAssertNotNil(
+                Bundle.main.url(forResource: italic.file, withExtension: "woff2"),
+                "\(italic.file).woff2 is missing from the bundle"
+            )
+        }
     }
 
-    /// The guard mechanism only works if New York and San Francisco produce genuinely different
-    /// stacks: the same guard family for both would mean picking either one sets the identical
-    /// Readium preference, and the page could not tell the two choices apart.
+    /// The page face: Literata's upright and both italic subsets reach the page as files the
+    /// web view can fetch, each italic limited to the characters it carries, and the stack runs
+    /// on into the New York guard so Hangul and kana still find a face.
+    func testLiterataSetsThePageWithItsItalicAndTheGuardBehindIt() throws {
+        let literata = try XCTUnwrap(
+            ReaderFontDeclarations.all.first { $0.fontFamily == ReaderFont.serif.fontFamily },
+            "No declaration for Literata"
+        )
+        XCTAssertEqual(literata.fontFamily.rawValue, "DipleLiterata")
+        XCTAssertFalse(literata.fontFamily.rawValue.contains(" "))
+        XCTAssertEqual(literata.alternates, [ReaderFontDeclarations.newYorkGuardFamily])
+
+        let html = "<html><head><title>x</title></head><body></body></html>"
+        var served: [String] = []
+        let injected = try literata.inject(in: html) { file in
+            served.append(file.url.lastPathComponent)
+            return try XCTUnwrap(AnyURL(string: "https://reader.local/fonts/\(file.url.lastPathComponent)")?.absoluteURL)
+        }
+
+        XCTAssertEqual(
+            served.sorted(),
+            ["Literata-Italic-Cyrillic.woff2", "Literata-Italic-Latin.woff2", "Literata-Variable.ttf"]
+        )
+        XCTAssertEqual(injected.components(separatedBy: "@font-face").count - 1, 3)
+        XCTAssertEqual(injected.components(separatedBy: "font-style: italic").count - 1, 2)
+        XCTAssertEqual(injected.components(separatedBy: "unicode-range").count - 1, 2)
+        XCTAssertTrue(injected.contains("font-weight: 200 900"))
+        XCTAssertTrue(injected.contains("rel=\"preload\" href=\"https://reader.local/fonts/Literata-Variable.ttf\""))
+        XCTAssertNotNil(injected.range(of: "</style></head>", options: .caseInsensitive))
+        // A chapter is XHTML: anything spliced into it has to be well-formed XML, or the web
+        // view prints its parser error instead of the page.
+        let parser = XMLParser(data: Data(injected.utf8))
+        XCTAssertTrue(parser.parse(), "The injected head is not well-formed XML: \(String(describing: parser.parserError))")
+    }
+
+    /// The guard mechanism only works if the New York guard (Literata's fallback) and San
+    /// Francisco produce genuinely different stacks: the same guard family for both would mean
+    /// a serif page and a sans page fell back to the identical face.
     func testSystemFontGuardsResolveToDistinctStacks() throws {
         let declarations = ReaderFontDeclarations.all
 
         let newYork = try XCTUnwrap(
-            declarations.first { $0.fontFamily == ReaderFont.serif.fontFamily },
+            declarations.first { $0.fontFamily == ReaderFontDeclarations.newYorkGuardFamily },
             "No declaration for the New York guard family"
         )
         let sanFrancisco = try XCTUnwrap(
@@ -736,7 +784,7 @@ final class DipleTests: XCTestCase {
     func testSystemFontGuardInjectsStyleBeforeHeadClose() throws {
         let declarations = ReaderFontDeclarations.all
         let newYork = try XCTUnwrap(
-            declarations.first { $0.fontFamily == ReaderFont.serif.fontFamily }
+            declarations.first { $0.fontFamily == ReaderFontDeclarations.newYorkGuardFamily }
         )
 
         let html = "<html><head><title>x</title></head><body></body></html>"
@@ -745,7 +793,7 @@ final class DipleTests: XCTestCase {
             throw CocoaError(.fileNoSuchFile)
         }
         XCTAssertTrue(injected.contains("@font-face"))
-        XCTAssertTrue(injected.contains(ReaderFont.serif.fontFamily.rawValue))
+        XCTAssertTrue(injected.contains(ReaderFontDeclarations.newYorkGuardFamily.rawValue))
         XCTAssertNotNil(injected.range(of: "</style></head>", options: .caseInsensitive))
 
         let malformed = "<html><body>no head here</body></html>"
