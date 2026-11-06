@@ -297,7 +297,34 @@ private struct GlobalSearchResultRow: View {
         // syntax still in it — a result reading `keep it.**memory**` while the note itself and
         // its card on the board both read `memory`. Stripping happens here rather than in the
         // index because the index is what the query matches against.
-        return result.kind == .note ? NoteMarkdown.plainText(text) : text
+        return result.kind == .note ? NoteMarkdown.plainText(Self.healingCutTaskMarks(text)) : text
+    }
+
+    /// FTS5 cuts a snippet at word tokens, and to its tokenizer the `x` of a ticked box is a word
+    /// while the brackets are not — so `- [x] Burke` can arrive as `… - [x` at the end of a
+    /// snippet or as `x] Burke …` at its start, halves no Markdown parser reads as a task. The
+    /// hit printed `Four moves [x …`. The halves go; the words on either side stay.
+    private static func healingCutTaskMarks(_ snippet: String) -> String {
+        snippet
+            .replacingOccurrences(
+                of: #"(?:[-*+]\s*)?\[[ xX]?(?=\s*…?\s*$)"#,
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"^(\s*…\s*)?[xX ]?\]\s*"#,
+                with: "$1",
+                options: .regularExpression
+            )
+    }
+
+    /// The reader's own leading is for words meant to be read at length — a note, which the
+    /// board sets the same way. A passage or a match inside a book is evidence in a column of
+    /// entries and keeps the editorial face's own leading, as passages do on the board
+    /// (`PassageRowView`): opened out to reading leading, one hit stood half again as tall as
+    /// the same passage one tab away.
+    private var detailLineSpacing: CGFloat {
+        result.kind == .note ? ReaderScript.detect(in: detail).swiftUILineSpacing : 0
     }
 
     /// The line under the title: a byline for a source, the reader's own words for a note, and
@@ -330,7 +357,7 @@ private struct GlobalSearchResultRow: View {
                 if !detail.isEmpty {
                     Text(detail)
                         .dipleType(detailStyle)
-                        .readingLineSpacing(for: detail)
+                        .lineSpacing(detailLineSpacing)
                         .foregroundStyle(DipleColor.textSecondary)
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
