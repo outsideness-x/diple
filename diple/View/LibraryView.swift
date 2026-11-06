@@ -337,25 +337,24 @@ public struct LibraryView: View {
     /// control rows move *inside* it — a `List` nested in a `ScrollView` scrolls against
     /// itself — with their list chrome stripped off so they still read as part of the page
     /// rather than as rows of it.
+    ///
+    /// The head of the page stands exactly where the grid's does: the same 16 pt above the
+    /// masthead and the same 32 pt between masthead, rubric and the shelf's tools. They used to
+    /// share one 8 pt inset, so the layout toggle moved the masthead 8 pt and the toggle itself
+    /// about 25 pt — the button left from under the finger that had just pressed it.
     private var listBrowser: some View {
         List {
-            Group {
-                masthead
-                browseControls
-                shelfHeader
+            masthead
+                .pageRow(top: DipleSpace.l, bottom: DipleSpace.l)
+            browseControls
+                .pageRow(top: DipleSpace.l, bottom: DipleSpace.l)
+            shelfHeader
+                .pageRow(top: DipleSpace.l, bottom: DipleSpace.s)
 
-                if visibleBooks.isEmpty {
-                    emptyShelf
-                }
+            if visibleBooks.isEmpty {
+                emptyShelf
+                    .pageRow(top: DipleSpace.s, bottom: DipleSpace.s)
             }
-            .listRowInsets(EdgeInsets(
-                top: DipleSpace.s,
-                leading: DipleSpace.xl,
-                bottom: DipleSpace.s,
-                trailing: DipleSpace.xl
-            ))
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
 
             ForEach(visibleBooks) { book in
                 listRow(book)
@@ -373,6 +372,9 @@ public struct LibraryView: View {
             }
         }
         .listStyle(.plain)
+        // Rows here set their own height. The system's 44 pt floor stretched the rubric's row
+        // by a couple of points, enough to leave the shelf's tools lower than in the grid.
+        .environment(\.defaultMinListRowHeight, 0)
         .scrollContentBackground(.hidden)
         .contentMargins(.bottom, DipleSpace.scrollBottom, for: .scrollContent)
         .tracksTabBarCollapse()
@@ -772,8 +774,7 @@ public struct LibraryView: View {
                 }
             }
         } label: {
-            Image(systemName: isSearchFieldShown || !searchText.isEmpty ? "xmark" : "magnifyingglass")
-                .dipleIcon(11, weight: .semibold)
+            ShelfToolGlyph(systemName: isSearchFieldShown || !searchText.isEmpty ? "xmark" : "magnifyingglass")
                 .foregroundStyle(DipleColor.textSecondary)
                 .diplePadding(.chip)
                 .background(DipleColor.surfaceOverlay, in: Capsule())
@@ -800,8 +801,7 @@ public struct LibraryView: View {
                 layout = layout == .grid ? .list : .grid
             }
         } label: {
-            Image(systemName: layout == .grid ? "list.bullet" : "square.grid.2x2")
-                .dipleIcon(11, weight: .semibold)
+            ShelfToolGlyph(systemName: layout == .grid ? "list.bullet" : "square.grid.2x2")
                 .foregroundStyle(DipleColor.textSecondary)
                 .diplePadding(.chip)
                 .background(DipleColor.surfaceOverlay, in: Capsule())
@@ -1000,5 +1000,41 @@ public struct LibraryView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DipleSpace.xxxl)
+    }
+}
+
+/// A glyph-only chip on the shelf's tool row, set in a box the height of the chip words beside
+/// it (`Recent`, `Filtered`) and of one fixed width.
+///
+/// A bare symbol sized by its font is as tall as its own drawing: `list.bullet` came out 3 pt
+/// shorter than `square.grid.2x2`, both shorter than the words' capsule, and the row — aligned
+/// on baselines, which a symbol puts at its bottom — sat 3 pt lower in one layout than in the
+/// other. The toggle that swaps those two symbols moved under the finger that pressed it. A
+/// hidden letter of the chip's own style lends the box its height and its baseline, so every
+/// capsule on the row is one height on one line, at every text size.
+private struct ShelfToolGlyph: View {
+    let systemName: String
+    @ScaledMetric(relativeTo: .caption2) private var width: CGFloat = 14
+
+    var body: some View {
+        Text(verbatim: "R")
+            .dipleType(.micro, weight: .semibold)
+            .hidden()
+            .frame(width: width)
+            .overlay {
+                Image(systemName: systemName)
+                    .dipleIcon(11, weight: .semibold)
+            }
+    }
+}
+
+private extension View {
+    /// A row of the list browser that belongs to the page rather than to the shelf: the
+    /// masthead, the rubric, the tools. No list chrome, the page's own gutter, and its own
+    /// vertical rhythm — see `listBrowser`.
+    func pageRow(top: CGFloat, bottom: CGFloat) -> some View {
+        listRowInsets(EdgeInsets(top: top, leading: DipleSpace.xl, bottom: bottom, trailing: DipleSpace.xl))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
     }
 }

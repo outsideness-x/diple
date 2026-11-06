@@ -404,7 +404,11 @@ private struct MarginaliaBoardPage: View {
     private var workspace: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                // The 16 pt every other place puts above its masthead (Home's column, the
+                // library's grid and list). Without it the name of this room stood 16 pt higher
+                // than the name of the room next door, and the head jumped on every tab switch.
                 masthead
+                    .padding(.top, DipleSpace.l)
                     .padding(.bottom, DipleSpace.l)
 
                 if !model.isSelecting {
