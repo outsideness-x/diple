@@ -83,6 +83,10 @@ public nonisolated enum BookContentExtractor {
 
     private static func extractEPUBChunks(publication: Publication) async throws -> [BookContentChunk] {
         var chunks: [BookContentChunk] = []
+        // The contents name the chapters; reading-order links mostly do not (see
+        // `titlesByResource`).
+        let contents = (try? await publication.tableOfContents().get()) ?? publication.manifest.tableOfContents
+        let contentsTitles = contents.titlesByResource()
         for link in publication.readingOrder {
             try Task.checkCancellation()
             guard let resource = publication.get(link),
@@ -94,7 +98,9 @@ public nonisolated enum BookContentExtractor {
             let paragraphs = extractParagraphs(from: document)
             guard !paragraphs.isEmpty else { continue }
 
-            let chapterTitle = link.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let ownTitle = link.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let resourceKey = String(link.href.split(separator: "#", maxSplits: 1).first ?? "")
+            let chapterTitle = ownTitle.isEmpty ? (contentsTitles[resourceKey] ?? "") : ownTitle
             chunks.append(contentsOf: chunkParagraphs(
                 paragraphs,
                 href: link.url(),

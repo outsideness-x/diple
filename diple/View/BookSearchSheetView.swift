@@ -15,8 +15,12 @@ public struct BookSearchSheetView: View {
 
     public let onSelect: (BookSearchHit) -> Void
 
-    public init(book: Book, onSelect: @escaping (BookSearchHit) -> Void) {
-        self._viewModel = StateObject(wrappedValue: ReaderSearchViewModel(book: book))
+    public init(
+        book: Book,
+        chapterTitles: [String: String] = [:],
+        onSelect: @escaping (BookSearchHit) -> Void
+    ) {
+        self._viewModel = StateObject(wrappedValue: ReaderSearchViewModel(book: book, chapterTitles: chapterTitles))
         self.onSelect = onSelect
     }
 
@@ -113,42 +117,29 @@ public struct BookSearchSheetView: View {
         }
     }
 
+    /// In words, like the library-wide search (`DipleEmptyText`): a magnifying glass over a
+    /// search field is the platform's stock picture, and title case was the only place the
+    /// reader's sheets spoke in it.
     private var invitationState: some View {
-        VStack(spacing: DipleSpace.xl) {
+        VStack {
             Spacer()
-
-            Image(systemName: "magnifyingglass")
-                .dipleIcon(30, weight: .light)
-                .foregroundStyle(DipleColor.accentInk)
-
-            VStack(spacing: DipleSpace.s) {
-                Text(viewModel.invitationTitle)
-                    .dipleType(.title)
-                    .foregroundStyle(DipleColor.textPrimary)
-
-                Text("Find every passage that mentions a word or phrase, and jump straight to it.")
-                    .dipleType(.callout)
-                    .foregroundStyle(DipleColor.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, DipleSpace.xxxl)
-            }
-
+            DipleEmptyText(
+                title: viewModel.invitationTitle,
+                message: "Find every passage that mentions a word or phrase, and jump straight to it."
+            )
+            .padding(.horizontal, DipleSpace.xxxl)
             Spacer()
         }
     }
 
     private var noResultsState: some View {
-        VStack(spacing: DipleSpace.m) {
+        VStack {
             Spacer()
-            Image(systemName: "text.magnifyingglass")
-                .dipleIcon(28, weight: .light)
-                .foregroundStyle(DipleColor.textQuaternary)
-            Text("Nothing found")
-                .dipleType(.headline)
-                .foregroundStyle(DipleColor.textPrimary)
-            Text("Try fewer words or a different spelling.")
-                .dipleType(.callout)
-                .foregroundStyle(DipleColor.textTertiary)
+            DipleEmptyText(
+                title: "Nothing for “\(trimmedQuery)”",
+                message: "Try fewer words or a different spelling."
+            )
+            .padding(.horizontal, DipleSpace.xxxl)
             Spacer()
         }
     }
@@ -158,14 +149,11 @@ public struct BookSearchSheetView: View {
             Spacer()
             ProgressView()
                 .tint(DipleColor.accentInk)
-            Text("Preparing search…")
-                .dipleType(.headline)
-                .foregroundStyle(DipleColor.textPrimary)
-            Text("This only happens once — search will be instant after.")
-                .dipleType(.callout)
-                .foregroundStyle(DipleColor.textTertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DipleSpace.xxxl)
+            DipleEmptyText(
+                title: "Preparing search…",
+                message: "This only happens once — search will be instant after."
+            )
+            .padding(.horizontal, DipleSpace.xxxl)
             Spacer()
         }
     }

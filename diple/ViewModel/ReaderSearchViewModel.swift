@@ -13,17 +13,22 @@ public final class ReaderSearchViewModel: ObservableObject {
     @Published public private(set) var isIndexed: Bool?
 
     private let book: Book
+    /// The open book's own contents, by resource: what a group is headed with. The index may
+    /// have been written before it knew to ask the contents, and its "Untitled" is then all it
+    /// has; the reader always has the real name.
+    private let chapterTitles: [String: String]
     private var searchTask: Task<Void, Never>?
     private var indexingTask: Task<Void, Never>?
 
-    public init(book: Book) {
+    public init(book: Book, chapterTitles: [String: String] = [:]) {
         self.book = book
+        self.chapterTitles = chapterTitles
         ensureIndexed()
     }
 
     public var sourceTitle: String { book.isArticle ? "Search in Article" : "Search in Book" }
     public var searchPrompt: String { book.isArticle ? "Find in this article" : "Find in this book" }
-    public var invitationTitle: String { book.isArticle ? "Search This Article" : "Search This Book" }
+    public var invitationTitle: String { book.isArticle ? "Search this article" : "Search this book" }
 
     /// Groups results by the chapter they were found in, in the order they first appear —
     /// reading order, the same order `searchBookContent` already returns them in, not a
@@ -36,7 +41,8 @@ public final class ReaderSearchViewModel: ObservableObject {
             let key = hit.href.isEmpty ? hit.chapterTitle : hit.href
             if buckets[key] == nil {
                 order.append(key)
-                titles[key] = hit.chapterTitle
+                let resource = String(hit.href.split(separator: "#", maxSplits: 1).first ?? "")
+                titles[key] = chapterTitles[resource] ?? hit.chapterTitle
             }
             buckets[key, default: []].append(hit)
         }

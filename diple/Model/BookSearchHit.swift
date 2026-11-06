@@ -124,3 +124,28 @@ struct SnippetSegment: Sendable, Hashable {
     let text: String
     let isMatch: Bool
 }
+
+public extension Array where Element == ReadiumShared.Link {
+    /// Each resource's first title in this table of contents, keyed by the resource's href with
+    /// any fragment taken off — the same key a search hit carries.
+    ///
+    /// A reading-order link rarely has a title of its own: in most EPUBs, Standard Ebooks among
+    /// them, a chapter is named only in the contents. Read from the reading order alone, every
+    /// group of a search came back headed "Untitled". The first entry wins because a file that
+    /// holds several sections is still entered at the first one.
+    nonisolated func titlesByResource() -> [String: String] {
+        var titles: [String: String] = [:]
+        func visit(_ links: [ReadiumShared.Link]) {
+            for link in links {
+                let key = String(link.href.split(separator: "#", maxSplits: 1).first ?? "")
+                let title = link.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !key.isEmpty, !title.isEmpty, titles[key] == nil {
+                    titles[key] = title
+                }
+                visit(link.children)
+            }
+        }
+        visit(self)
+        return titles
+    }
+}

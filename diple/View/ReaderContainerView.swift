@@ -816,7 +816,10 @@ public struct ReaderContainerView: View {
             )
         }
         .sheet(isPresented: $viewModel.isSearchPresented) {
-            BookSearchSheetView(book: viewModel.book) { hit in
+            BookSearchSheetView(
+                book: viewModel.book,
+                chapterTitles: viewModel.tableOfContents.titlesByResource()
+            ) { hit in
                 if let locator = hit.parsedLocator {
                     viewModel.navigateToLocator(locator)
                 }

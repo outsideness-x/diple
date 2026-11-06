@@ -751,6 +751,24 @@ final class DipleTests: XCTestCase {
         XCTAssertTrue(parser.parse(), "The injected head is not well-formed XML: \(String(describing: parser.parserError))")
     }
 
+    /// A reading-order link rarely carries a title; the contents do. Search groups are headed
+    /// from the contents by resource, fragment taken off, the first entry for a file winning.
+    func testContentsTitlesAreKeyedByResourceWithTheFirstEntryWinning() {
+        let contents = [
+            ReadiumShared.Link(href: "epub/text/introduction.xhtml", title: " Introduction "),
+            ReadiumShared.Link(href: "epub/text/volume-1.xhtml", title: "Volume I", children: [
+                ReadiumShared.Link(href: "epub/text/chapter-1.xhtml#chapter-1", title: "Chapter I"),
+                ReadiumShared.Link(href: "epub/text/chapter-1.xhtml#a-letter", title: "A Letter"),
+                ReadiumShared.Link(href: "epub/text/chapter-2.xhtml", title: ""),
+            ]),
+        ]
+        let titles = contents.titlesByResource()
+        XCTAssertEqual(titles["epub/text/introduction.xhtml"], "Introduction")
+        XCTAssertEqual(titles["epub/text/volume-1.xhtml"], "Volume I")
+        XCTAssertEqual(titles["epub/text/chapter-1.xhtml"], "Chapter I")
+        XCTAssertNil(titles["epub/text/chapter-2.xhtml"], "An empty title names nothing")
+    }
+
     /// The guard mechanism only works if the New York guard (Literata's fallback) and San
     /// Francisco produce genuinely different stacks: the same guard family for both would mean
     /// a serif page and a sans page fell back to the identical face.
