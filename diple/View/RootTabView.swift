@@ -56,6 +56,11 @@ public struct RootTabView: View {
 
     @State private var selection: Tab = .home
     @State private var isBarHidden = false
+    /// The software keyboard is on screen. The bar stands in a `ZStack` that keeps to the
+    /// keyboard's safe area, so it used to ride up on the keyboard and float over the very
+    /// results being typed for — a third of a search hit under glass. A system tab bar is
+    /// covered by the keyboard; this one steps away while it is up.
+    @State private var isKeyboardShown = false
     @State private var tabBarState = DipleTabBarState()
 
     public init() {}
@@ -64,7 +69,7 @@ public struct RootTabView: View {
         ZStack(alignment: .bottom) {
             tabContent
 
-            if !isBarHidden {
+            if !isBarHidden && !isKeyboardShown {
                 CollapsingTabBar(selection: $selection, state: tabBarState)
                     .padding(.bottom, DipleSpace.s)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -72,6 +77,12 @@ public struct RootTabView: View {
         }
         .onDipleTabBarHiddenChange { hidden in
             withAnimation(DipleMotion.gentle) { isBarHidden = hidden }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            withAnimation(DipleMotion.gentle) { isKeyboardShown = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(DipleMotion.gentle) { isKeyboardShown = false }
         }
         .environment(\.dipleTabBarState, tabBarState)
         .tint(DipleColor.accentInk)
