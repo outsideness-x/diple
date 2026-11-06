@@ -81,6 +81,11 @@ extension Notification.Name {
     /// A screen asked for Settings. The shell presents it, because the shell is the only place
     /// that outlives an accent change — see `dipleApp`.
     static let dipleOpenSettings = Notification.Name("diple.openSettings")
+    /// One more book's text is in the search index, and with it the length every reading
+    /// estimate is computed from. Posted by `BookContentIndexer` per book, from whatever thread
+    /// it indexed on; the shelves reread their counts so "time left" appears while the backfill
+    /// is still walking the library instead of after the next tab switch.
+    nonisolated static let dipleBookContentDidIndex = Notification.Name("diple.bookContentDidIndex")
 }
 
 extension Notification {

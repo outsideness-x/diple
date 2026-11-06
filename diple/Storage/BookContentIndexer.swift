@@ -66,6 +66,7 @@ public nonisolated final class BookContentIndexer: Sendable {
         do {
             let chunks = try await BookContentExtractor.extractChunks(from: book)
             try AppDatabase.shared.indexBookContent(book: book, chunks: chunks)
+            NotificationCenter.default.post(name: .dipleBookContentDidIndex, object: nil)
             return true
         } catch {
             failedBookIDs.insert(book.id)

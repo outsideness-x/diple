@@ -480,6 +480,18 @@ public nonisolated final class AppDatabase: Sendable {
             }
         }
 
+        /// The book-text index is rebuilt once (2026-11-06): it had been written with every
+        /// container block counted twice — a blockquote of paragraphs indexed whole and then
+        /// paragraph by paragraph — and with no chapter names, so in-book search returned twin
+        /// hits under "Untitled" and the reading estimates of letter-and-diary books ran at more
+        /// than double. Derived, local and free to drop: the search root's backfill
+        /// (`GlobalSearchViewModel.init`) indexes the library again on the launch that runs
+        /// this, and the estimates come back as it reaches each book.
+        migrator.registerMigration("v23_rebuildBookContentIndex") { db in
+            try db.execute(sql: "DELETE FROM bookContent")
+            try db.execute(sql: "DELETE FROM bookContentIndex")
+        }
+
         return migrator
     }
 

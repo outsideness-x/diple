@@ -121,9 +121,16 @@ public nonisolated enum BookContentExtractor {
         let selector = "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, dd, figcaption"
         if let blocks = try? document.select(selector) {
             let texts = blocks.array().compactMap { element -> String? in
-                guard let text = try? element.text().trimmingCharacters(in: .whitespacesAndNewlines),
-                      !text.isEmpty
-                else { return nil }
+                // A container whose own blocks are selected too — a letter set as a blockquote
+                // of paragraphs, a list item holding paragraphs — gives only the words that are
+                // its own. Taken whole, it was indexed twice, once entire and once paragraph by
+                // paragraph: every hit inside Walton's closing letters came back twice, and
+                // Dracula, letters and diaries end to end, counted 2.2 million characters for
+                // under one, which put "25 h left" on a book with twelve to go.
+                let nestedBlocks = (try? element.select(selector).count) ?? 1
+                let raw = nestedBlocks > 1 ? element.ownText() : ((try? element.text()) ?? "")
+                let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
                 return text
             }
             if !texts.isEmpty { return texts }

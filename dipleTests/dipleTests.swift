@@ -4,6 +4,7 @@ import GRDB
 import ReadiumNavigator
 import ReadiumShared
 import SwiftUI
+import SwiftSoup
 @testable import diple
 
 @MainActor
@@ -767,6 +768,29 @@ final class DipleTests: XCTestCase {
         XCTAssertEqual(titles["epub/text/volume-1.xhtml"], "Volume I")
         XCTAssertEqual(titles["epub/text/chapter-1.xhtml"], "Chapter I")
         XCTAssertNil(titles["epub/text/chapter-2.xhtml"], "An empty title names nothing")
+    }
+
+    /// A container whose own blocks are selected too gives only its own words, so a letter set
+    /// as a blockquote of paragraphs is indexed once, not once whole and once by paragraph.
+    func testParagraphsInsideABlockquoteAreExtractedOnce() throws {
+        let html = """
+        <html><body>
+        <h2>Letter IV</h2>
+        <blockquote><p>My dear sister,</p><p>I write a few lines in haste.</p></blockquote>
+        <ul><li><p>First</p></li><li>Second</li></ul>
+        <blockquote>A line of its own<p>and a paragraph.</p></blockquote>
+        </body></html>
+        """
+        let paragraphs = BookContentExtractor.extractParagraphs(from: try SwiftSoup.parse(html))
+        XCTAssertEqual(paragraphs, [
+            "Letter IV",
+            "My dear sister,",
+            "I write a few lines in haste.",
+            "First",
+            "Second",
+            "A line of its own",
+            "and a paragraph.",
+        ])
     }
 
     /// The guard mechanism only works if the New York guard (Literata's fallback) and San

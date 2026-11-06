@@ -108,6 +108,15 @@ public final class LibraryViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.loadBooks() }
             .store(in: &observers)
+        // Only the lengths: the rows themselves did not change, and reloading them would
+        // re-sort a shelf under the reader once per book the backfill reaches.
+        NotificationCenter.default.publisher(for: .dipleBookContentDidIndex)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let counts = try? AppDatabase.shared.contentCharacterCounts() else { return }
+                self?.charactersByBook = counts
+            }
+            .store(in: &observers)
     }
 
     /// The unfinished book the reader touched most recently. The library remains the source of
