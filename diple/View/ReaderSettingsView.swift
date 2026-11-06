@@ -19,6 +19,14 @@ public struct ReaderSettingsView: View {
     @Binding public var settings: ReaderSettings
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// One height for every tile on the sheet — themes, typefaces, reading modes.
+    ///
+    /// The tiles took their height from their own label, and a specimen is set in the face it
+    /// names: OpenDyslexic's tall line box made `Dyslexic` 6 pt taller than `Hyperlegible` beside
+    /// it in the same row, and every row of the grid came out a different height from the next.
+    /// A sheet of specimens is read as a type case, and a type case has one size of drawer.
+    /// Scaled with the callout the theme and mode tiles are set in, so it grows with them.
+    @ScaledMetric(relativeTo: .callout) private var tileHeight: CGFloat = 44
 
     public init(settings: Binding<ReaderSettings>) {
         self._settings = settings
@@ -247,6 +255,10 @@ public struct ReaderSettingsView: View {
     /// wash of accent over the Paper swatch would show the reader a paper they are not about
     /// to get. So the swatch keeps its page colour under every state and takes the ring alone,
     /// at the same `DipleStroke.selection` weight as everything else.
+    ///
+    /// Unchosen, it keeps a hairline. A swatch is the colour of a page, and one of the four is
+    /// always nearly the colour of the sheet it lies on — Paper on the light sheet, Carbon on the
+    /// dark one — and without an edge that one was a word floating on nothing.
     private func themeButton(_ pageTheme: ReaderPageTheme) -> some View {
         let isSelected = settings.theme == pageTheme
         return Button {
@@ -262,12 +274,15 @@ public struct ReaderSettingsView: View {
                     .foregroundColor(pageTheme.swatchInk)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, DipleSpace.m)
+            .frame(height: tileHeight)
             .background(pageTheme.swatchBackground)
             .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
-                    .stroke(isSelected ? DipleColor.accentInk : Color.clear, lineWidth: DipleStroke.selection)
+                    .stroke(
+                        isSelected ? DipleColor.accentInk : DipleColor.hairlineStrong,
+                        lineWidth: isSelected ? DipleStroke.selection : DipleStroke.hairline
+                    )
             }
         }
         .buttonStyle(.readerControl)
@@ -318,14 +333,14 @@ public struct ReaderSettingsView: View {
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, DipleSpace.s)
-                .padding(.vertical, DipleSpace.m)
+                .frame(height: tileHeight)
                 .background(settings.theme.swatchBackground)
                 .clipShape(RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous)
                         .stroke(
-                            isSelected ? DipleColor.accentInk : Color.clear,
-                            lineWidth: DipleStroke.selection
+                            isSelected ? DipleColor.accentInk : DipleColor.hairlineStrong,
+                            lineWidth: isSelected ? DipleStroke.selection : DipleStroke.hairline
                         )
                 }
         }
@@ -345,7 +360,7 @@ public struct ReaderSettingsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, DipleSpace.m)
+                .frame(height: tileHeight)
                 .dipleSelected(
                     isSelected,
                     in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous),
@@ -377,7 +392,7 @@ public struct ReaderSettingsView: View {
                 }
                 .foregroundStyle(isSelected ? DipleColor.accentInk : DipleColor.textSecondary)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, DipleSpace.m)
+                .frame(height: tileHeight)
                 .dipleSelected(
                     isSelected,
                     in: RoundedRectangle(cornerRadius: DipleRadius.m, style: .continuous),
