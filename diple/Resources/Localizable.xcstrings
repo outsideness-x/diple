@@ -208,13 +208,7 @@
     "A place for what stays with you." : {
 
     },
-    "A quiet feed" : {
-
-    },
     "A tag is a shelf, not a folder — a source can sit on as many as you like." : {
-
-    },
-    "Abstract" : {
 
     },
     "Add" : {
@@ -247,9 +241,6 @@
     "Adding to your library…" : {
 
     },
-    "Address of a site or its feed" : {
-
-    },
     "Adjust to move through the book" : {
 
     },
@@ -277,17 +268,11 @@
     "Articles" : {
 
     },
-    "arXiv fields" : {
-
-    },
     "Author" : {
 
     },
     "Back" : {
       "comment" : "Second Read navigation back button"
-    },
-    "Back to the feed" : {
-
     },
     "Back to writing" : {
 
@@ -335,12 +320,6 @@
 
     },
     "Check the LaTeX syntax" : {
-
-    },
-    "Checked %@" : {
-
-    },
-    "Checking your sources…" : {
 
     },
     "Choose a diple backup and review it before restoring" : {
@@ -436,13 +415,7 @@
     "Copied" : {
 
     },
-    "Copy feed address" : {
-
-    },
     "Copy LaTeX" : {
-
-    },
-    "Copy link" : {
 
     },
     "Copy Markdown" : {
@@ -553,9 +526,6 @@
     "Drop to import" : {
 
     },
-    "Each source keeps its three newest pieces. Older ones leave on their own." : {
-
-    },
     "Edit" : {
 
     },
@@ -622,15 +592,6 @@
     "Exported %@. Review the merge before anything changes." : {
 
     },
-    "Feed" : {
-
-    },
-    "Fetching the newest pieces…" : {
-
-    },
-    "Fields…" : {
-
-    },
     "FILE IT AS" : {
 
     },
@@ -660,21 +621,6 @@
 
     },
     "Finish" : {
-
-    },
-    "Follow" : {
-
-    },
-    "Follow a blog, a journal or a newsletter. Its three newest pieces wait in the feed; older ones leave on their own." : {
-
-    },
-    "Follow a few writers and journals. Each keeps its three newest pieces here; older ones leave on their own, and nothing is ever counted." : {
-
-    },
-    "Follow your own — a blog, a newsletter, any feed" : {
-
-    },
-    "Following" : {
 
     },
     "Footnote" : {
@@ -758,9 +704,6 @@
     "In quote tray" : {
 
     },
-    "In your library" : {
-
-    },
     "In your library · %lld%%" : {
 
     },
@@ -797,9 +740,6 @@
     "items returned to your library" : {
 
     },
-    "Keep for later" : {
-
-    },
     "Keep reading" : {
 
     },
@@ -807,9 +747,6 @@
 
     },
     "Keep this passage beside your next note." : {
-
-    },
-    "Keeping…" : {
 
     },
     "Language learning" : {
@@ -867,9 +804,6 @@
 
     },
     "Merge tags?" : {
-
-    },
-    "More for %@" : {
 
     },
     "Most often around %@." : {
@@ -974,9 +908,6 @@
     "Nothing written down yet" : {
 
     },
-    "Nothing yet. The newest pieces arrive here as your sources publish them." : {
-
-    },
     "Notifications are off" : {
 
     },
@@ -1010,16 +941,7 @@
     "Open note" : {
 
     },
-    "Open on arXiv" : {
-
-    },
     "Open publication" : {
-
-    },
-    "Open the site" : {
-
-    },
-    "Open the website" : {
 
     },
     "Open this passage in %@" : {
@@ -1104,12 +1026,6 @@
 
     },
     "Read the page" : {
-
-    },
-    "Read the paper" : {
-
-    },
-    "Read the PDF" : {
 
     },
     "Reader" : {
@@ -1316,12 +1232,6 @@
     "Show or Hide Inspector" : {
 
     },
-    "Shows every author" : {
-
-    },
-    "Shows the opening and the ways to read it" : {
-
-    },
     "Sittings are recorded as you read. A page or two is enough for one to count; a book left open on the table is not reading and is not written down." : {
 
     },
@@ -1354,9 +1264,6 @@
     },
     "Source unavailable" : {
       "comment" : "Shown when a Second Read fragment's book file is missing"
-    },
-    "Sources" : {
-
     },
     "Spaces" : {
 
@@ -1439,9 +1346,6 @@
     "The inbox is clear." : {
 
     },
-    "The newest papers in any of these fields arrive in the feed, three at a time." : {
-
-    },
     "The rest is back matter." : {
 
     },
@@ -1505,12 +1409,6 @@
     "Type LaTeX or choose a building block" : {
 
     },
-    "Unfollow" : {
-
-    },
-    "Unfollow %@" : {
-
-    },
     "Unlink %@" : {
 
     },
@@ -1544,9 +1442,6 @@
     "Workspace" : {
 
     },
-    "Worth following" : {
-
-    },
     "Write" : {
 
     },
@@ -1560,9 +1455,6 @@
 
     },
     "Write with quotes" : {
-
-    },
-    "Yesterday" : {
 
     },
     "Your book, made from what stayed with you." : {
