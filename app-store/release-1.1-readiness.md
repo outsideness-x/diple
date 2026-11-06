@@ -1,5 +1,7 @@
 # diple. 1.1 — release readiness (iOS + macOS)
 
+> **1.1 shipped on 2026-09-16 (build 2). The next release is 1.2 — see `release-1.2-readiness.md`.**
+
 Audited 2026-09-14 against `main` at `5a245d4`. Method as in `readiness-report.md`: build real
 Release archives and inspect the products, run the unit tests, then walk the built app. Read that
 report first — what it verified (no tracking SDKs, ATS, font licences, export compliance) is not
