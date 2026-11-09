@@ -28,6 +28,8 @@ enum MacCommand: String, Sendable, CaseIterable {
     /// The Notes shelf — the phone's second half of Highlights.
     case goNotes
     case goSearch
+    /// The year in reading — a page, not a shelf, but reached the way the shelves are.
+    case goStatistics
     /// Put the caret in whatever field narrows the column that is open. Distinct from
     /// `goSearch`, which is a *place*: ⌘F on the shelf must not throw away the shelf.
     case findInColumn
@@ -151,6 +153,8 @@ struct DipleMacCommands: Commands {
                 .keyboardShortcut("6", modifiers: .command)
             Button("Search Everything") { MacCommand.goSearch.post() }
                 .keyboardShortcut("7", modifiers: .command)
+            Button("Statistics") { MacCommand.goStatistics.post() }
+                .keyboardShortcut("8", modifiers: .command)
 
             Divider()
 

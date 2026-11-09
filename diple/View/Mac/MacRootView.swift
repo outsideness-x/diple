@@ -33,6 +33,7 @@ public struct MacRootView: View {
         case highlights
         case notes
         case search
+        case statistics
 
         var id: Self { self }
 
@@ -45,6 +46,7 @@ public struct MacRootView: View {
             case .highlights: return "Highlights"
             case .notes: return "Notes"
             case .search: return "Search"
+            case .statistics: return "Statistics"
             }
         }
 
@@ -57,6 +59,7 @@ public struct MacRootView: View {
             case .highlights: return "quote.opening"
             case .notes: return "note.text"
             case .search: return "magnifyingglass"
+            case .statistics: return "chart.bar"
             }
         }
 
@@ -71,6 +74,7 @@ public struct MacRootView: View {
             case .highlights: return "5"
             case .notes: return "6"
             case .search: return "7"
+            case .statistics: return "8"
             }
         }
 
@@ -83,7 +87,7 @@ public struct MacRootView: View {
             case .unread: return (.all, .unread)
             case .reading: return (.all, .reading)
             case .articles: return (.articles, .any)
-            case .highlights, .notes, .search: return nil
+            case .highlights, .notes, .search, .statistics: return nil
             }
         }
 
@@ -96,6 +100,7 @@ public struct MacRootView: View {
             case .goHighlights: return .highlights
             case .goNotes: return .notes
             case .goSearch: return .search
+            case .goStatistics: return .statistics
             default: return nil
             }
         }
@@ -299,7 +304,7 @@ public struct MacRootView: View {
         case .refresh:
             reloadAll()
 
-        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes, .goSearch:
+        case .goLibrary, .goUnread, .goReading, .goArticles, .goHighlights, .goNotes, .goSearch, .goStatistics:
             guard !isReading, let destination = Source.forCommand(command) else { return }
             source = destination
             if destination == .search { searchFocusRequest = .search }
@@ -314,6 +319,8 @@ public struct MacRootView: View {
             case .highlights: searchFocusRequest = .highlights
             case .notes: searchFocusRequest = .notes
             case .search, .none: searchFocusRequest = .search
+            // A page of figures has nothing to narrow.
+            case .statistics: break
             }
 
         case .findInBook:
@@ -321,8 +328,9 @@ public struct MacRootView: View {
             break
 
         case .toggleInspector:
-            // The Notes shelf has no inspector: its third column is the page being written.
-            guard !isReading, source != .notes else { return }
+            // The Notes shelf has no inspector: its third column is the page being written. The
+            // statistics have none either — there is nothing on that page to inspect.
+            guard !isReading, source != .notes, source != .statistics else { return }
             withAnimation(DipleMotion.snappy) { isInspectorShown.toggle() }
 
         case .quickOpen:
@@ -369,6 +377,7 @@ public struct MacRootView: View {
                 sourceRow(.highlights, badge: marginalia.totalSaved)
                 sourceRow(.notes, badge: notesBoard.totalWritten)
                 sourceRow(.search)
+                sourceRow(.statistics)
             } header: {
                 Text("Workspace")
             }
@@ -474,6 +483,16 @@ public struct MacRootView: View {
                 notesEditor
                     .navigationSplitViewColumnWidth(min: 420, ideal: 680)
             }
+        } else if source == .statistics {
+            // A page, not a collection: nothing in it is selected, so there is no inspector to
+            // describe a selection, and the page takes the room. Its own stack, so the journal
+            // opens inside the column rather than over the window.
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                sidebar
+                    .navigationSplitViewColumnWidth(min: 196, ideal: 232, max: 300)
+            } detail: {
+                collection
+            }
         } else {
             NavigationSplitView(columnVisibility: $columnVisibility) {
                 sidebar
@@ -572,6 +591,11 @@ public struct MacRootView: View {
         case .notes:
             // Drawn by the three-column layout (`splitView`), which puts the page beside it.
             notesCollection
+
+        case .statistics:
+            NavigationStack {
+                ReadingStatisticsView()
+            }
 
         case .search:
             MacSearchCollection(
