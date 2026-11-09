@@ -1,12 +1,16 @@
 import SwiftUI
 
-/// What was read, and when.
+/// What was read, and when — every sitting, a day to a line.
 ///
 /// **A ledger, not a scoreboard.** There is no streak, no goal, no badge and no comparison with
 /// last week, and their absence is the design rather than a stage it has not reached yet: this
 /// app already removed a memory-scoring layer once (migration v13) because rating a reader is
 /// not what a reading app is for. What is left is the thing a diary is for — being able to look
 /// back and see that you read in the evenings, and that you spent October inside one book.
+///
+/// Since 2026-11-09 this is the **Journal**, one page in from `ReadingStatisticsView`: the year
+/// at a glance moved there, together with the hours-of-the-day strip and the summary that used
+/// to head this page, and what stays here is the ledger they are drawn from.
 ///
 /// Every figure is measured rather than clocked. `ReadingSession` records the reason.
 struct ReadingLogView: View {
@@ -19,18 +23,17 @@ struct ReadingLogView: View {
                 if log.isEmpty {
                     empty
                 } else {
-                    summary
-                    hours
                     ledger
                 }
             }
             .padding(.horizontal, DipleSpace.xl)
             .padding(.top, DipleSpace.l)
             .padding(.bottom, DipleSpace.scrollBottom)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 680, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
         .background(DipleColor.canvas.ignoresSafeArea())
-        .navigationTitle("Reading log")
+        .navigationTitle("Journal")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(DipleColor.canvas, for: .navigationBar)
         .task {
@@ -52,92 +55,6 @@ struct ReadingLogView: View {
         var titles = Dictionary(remembered.map { ($0.bookId, $0.title) }, uniquingKeysWith: { first, _ in first })
         for book in books { titles[book.id] = book.title }
         log = ReadingLog.make(from: sessions, titles: titles)
-    }
-
-    // MARK: - The head of the page
-
-    private var summary: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.xs) {
-            Text(ReadingEstimate.format(minutes: log.totalMinutes))
-                .dipleType(.hero)
-                .foregroundStyle(DipleColor.textPrimary)
-                .monospacedDigit()
-
-            Text(summaryLine)
-                .dipleType(.footnote, weight: .regular)
-                .foregroundStyle(DipleColor.textTertiary)
-                .monospacedDigit()
-        }
-    }
-
-    private var summaryLine: String {
-        let sittings = log.sittingCount == 1 ? "1 sitting" : "\(log.sittingCount) sittings"
-        let books = log.bookCount == 1 ? "1 source" : "\(log.bookCount) sources"
-        return "\(sittings) · \(books)"
-    }
-
-    /// When the reader sits down, drawn rather than written — the same choice the resting
-    /// progress line makes. Twenty-four bars is a shape you read in one glance and a table you
-    /// would never read at all.
-    @ViewBuilder
-    private var hours: some View {
-        VStack(alignment: .leading, spacing: DipleSpace.m) {
-            sectionHeading("When you read")
-
-            let peak = log.hoursOfDay.max() ?? 0
-            if peak > 0 {
-                HStack(alignment: .bottom, spacing: 2) {
-                    ForEach(0 ..< 24, id: \.self) { hour in
-                        let share = log.hoursOfDay[hour] / peak
-                        RoundedRectangle(cornerRadius: 1, style: .continuous)
-                            // The accent, filling to a measured share — the one role the budget
-                            // allows it here, the same one the progress line spends it on.
-                            .fill(share > 0 ? DipleColor.accentInk : DipleColor.separator)
-                            .frame(height: max(2, 44 * share))
-                    }
-                }
-                .frame(height: 44, alignment: .bottom)
-                .accessibilityElement()
-                .accessibilityLabel(hoursAccessibilityLabel)
-
-                HStack {
-                    hourTick("00")
-                    Spacer()
-                    hourTick("06")
-                    Spacer()
-                    hourTick("12")
-                    Spacer()
-                    hourTick("18")
-                    Spacer()
-                    hourTick("24")
-                }
-
-                if let settled = log.settledHour {
-                    Text("Most often around \(hourLabel(settled)).")
-                        .dipleType(.caption)
-                        .foregroundStyle(DipleColor.textTertiary)
-                        .padding(.top, DipleSpace.xs)
-                }
-            }
-        }
-    }
-
-    private func hourTick(_ text: String) -> some View {
-        Text(text)
-            .dipleType(.nano)
-            .foregroundStyle(DipleColor.textQuaternary)
-            .monospacedDigit()
-    }
-
-    private func hourLabel(_ hour: Int) -> String {
-        let components = DateComponents(hour: hour)
-        guard let date = Calendar.current.date(from: components) else { return "\(hour)" }
-        return date.formatted(.dateTime.hour())
-    }
-
-    private var hoursAccessibilityLabel: String {
-        guard let settled = log.settledHour else { return "When you read" }
-        return "When you read. Most often around \(hourLabel(settled))."
     }
 
     // MARK: - The ledger

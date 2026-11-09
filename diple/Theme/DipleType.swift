@@ -248,6 +248,26 @@ public struct DipleTextStyle: Sendable {
         )
     }
 
+    /// 52 — the figure a statistics page is about: the hours of a year's reading.
+    ///
+    /// On the list because it is that page's headline, in the slot the lead's title holds on
+    /// Home: the one thing the page exists to say, set the way an almanac sets its year's
+    /// figure. Regular rather than medium — at this size Literata's medium figures turn black
+    /// and blunt, and the regular ones keep the hairline contrast that makes a serif numeral
+    /// worth setting large. Units stay in the system face beside it, a size down; they are
+    /// labels, not part of the figure.
+    public static let editorialFigure = DipleTextStyle(
+        size: 52, weight: .regular, family: .editorial,
+        metrics: .largeTitle, trackingRatio: -0.03
+    )
+
+    /// 24 — the counts that stand under that figure: days, sources, finished. The same face, so
+    /// the page's numerals read as one set, at the size of the lead's headline.
+    public static let editorialCount = DipleTextStyle(
+        size: 24, weight: .regular, family: .editorial,
+        metrics: .title2, trackingRatio: -0.01
+    )
+
     // MARK: - Note roles (system sans)
     //
     // The body of a note stays San Francisco deliberately. A note is what the reader wrote, not

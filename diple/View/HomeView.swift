@@ -25,6 +25,8 @@ public struct HomeView: View {
     /// dead. One path here also lets a callback-driven card push the same route a
     /// `NavigationLink` uses, instead of needing a parallel binding for the same type.
     @State private var path = NavigationPath()
+    /// Minutes read this year, for the imprint. See `foot`.
+    @State private var minutesThisYear = 0
     @Namespace private var readingNamespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -230,27 +232,71 @@ public struct HomeView: View {
     ///
     /// One line of facts, no streak and no badge. It reports what is here; it does not grade
     /// the reader on it.
+    ///
+    /// **The imprint is also the front page's one way into the statistics (2026-11-09).** Once
+    /// the year has measured reading in it, the line adds the year's hours and the whole imprint
+    /// opens `ReadingStatisticsView`. It costs the page no row: the line was already printed,
+    /// and the figure it gains is one more fact about the volume, not a score. Before the first
+    /// sitting it stays a plain line — there is nothing behind it to open.
+    @ViewBuilder
     private var foot: some View {
+        Group {
+            if minutesThisYear > 0 {
+                NavigationLink {
+                    ReadingStatisticsView()
+                } label: {
+                    footContent(showsWayIn: true)
+                }
+                .buttonStyle(.readerControl)
+                .accessibilityHint("Opens your reading statistics")
+                .accessibilityIdentifier("home.statistics")
+            } else {
+                footContent(showsWayIn: false)
+            }
+        }
+        .task { refreshReadingTime() }
+    }
+
+    private func footContent(showsWayIn: Bool) -> some View {
         VStack(spacing: DipleSpace.m) {
             Rectangle()
                 .fill(DipleColor.hairline)
                 .frame(width: 32, height: DipleStroke.hairline)
 
-            Text(footLine)
-                .dipleType(.micro, weight: .regular)
-                .foregroundStyle(DipleColor.textQuaternary)
-                .monospacedDigit()
-                .multilineTextAlignment(.center)
+            HStack(alignment: .firstTextBaseline, spacing: DipleSpace.xs) {
+                Text(footLine)
+                    .dipleType(.micro, weight: .regular)
+                    .monospacedDigit()
+                    .multilineTextAlignment(.center)
+
+                if showsWayIn {
+                    Image(systemName: "chevron.right")
+                        .dipleIcon(9, weight: .semibold)
+                }
+            }
+            .foregroundStyle(DipleColor.textQuaternary)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, DipleSpace.xxl)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 
-    /// What this workshop holds. Notes are counted in their own.
+    /// What this workshop holds, and how long this year has been spent in it. Notes are
+    /// counted in their own.
     private var footLine: String {
-        let sources = library.books.count
-        return sources == 1 ? "1 source" : "\(sources) sources"
+        let count = library.books.count
+        let sources = count == 1 ? "1 source" : "\(count) sources"
+        guard minutesThisYear > 0 else { return sources }
+        let year = String(Calendar.current.component(.year, from: Date()))
+        return "\(sources) · \(ReadingEstimate.format(minutes: minutesThisYear)) read in \(year)"
+    }
+
+    private func refreshReadingTime() {
+        let calendar = Calendar.current
+        guard let startOfYear = calendar.date(from: calendar.dateComponents([.year], from: Date())) else { return }
+        let seconds = (try? AppDatabase.shared.readingSeconds(since: startOfYear)) ?? 0
+        minutesThisYear = Int((seconds / 60).rounded())
     }
 
     private var firstStep: some View {
@@ -290,6 +336,7 @@ public struct HomeView: View {
 
     private func reload() {
         library.loadBooks()
+        refreshReadingTime()
     }
 
     @ViewBuilder

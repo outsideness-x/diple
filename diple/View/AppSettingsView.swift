@@ -302,25 +302,27 @@ public struct AppSettingsView: View {
         }
     }
 
-    /// The way to the log, and the only one.
+    /// The way to the statistics, and to the journal one page further in.
     ///
     /// Settings rather than a tab or a row on Home, and not for want of anywhere better: the
     /// front page was deliberately cut back to reading and the next move, the shelf is for
-    /// choosing, and a ledger is looked at a few times a year. A rare, reflective screen costs
-    /// nothing here and would cost a permanent row of a page anywhere else. That it sits above
+    /// choosing, and a year in review is looked at a few times a year. A rare, reflective screen
+    /// costs nothing here and would cost a permanent row of a page anywhere else — Home's only
+    /// way in is its imprint, which already reported what the volume holds. That it sits above
     /// `YOUR DATA` is the argument for the placement — it is a record of the reader, kept beside
     /// the export that would carry it away.
     private var readingSection: some View {
         settingsSection(
             "YOUR READING",
-            footer: "Every sitting since the log began, and when in the day you read."
+            footer: "Your year in reading: the days, the books finished, where the time went and when you read. Every sitting is kept in the journal."
         ) {
             NavigationLink {
-                ReadingLogView()
+                ReadingStatisticsView()
             } label: {
-                settingsRowLabel("Reading log")
+                settingsRowLabel("Reading statistics")
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.statistics")
         }
     }
 

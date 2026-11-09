@@ -537,6 +537,18 @@ public nonisolated final class AppDatabase: Sendable {
         }
     }
 
+    /// Seconds read since `date`, summed in SQLite. For Home's imprint, which prints one figure
+    /// and has no use for the rows behind it.
+    public func readingSeconds(since date: Date) throws -> Double {
+        try writer.read { db in
+            try Double.fetchOne(
+                db,
+                sql: "SELECT COALESCE(SUM(seconds), 0) FROM readingSession WHERE endedAt >= ?",
+                arguments: [date]
+            ) ?? 0
+        }
+    }
+
     /// Everything the log remembers about sources, live and deleted. A handful of rows — one
     /// per source ever finished or deleted after being read — read whole, like the sittings.
     public func fetchReadingLogSources() throws -> [ReadingLogSource] {
