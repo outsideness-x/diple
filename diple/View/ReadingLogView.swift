@@ -46,7 +46,11 @@ struct ReadingLogView: View {
     private func load() {
         let sessions = (try? AppDatabase.shared.fetchReadingSessions()) ?? []
         let books = (try? AppDatabase.shared.fetchAllBooks()) ?? []
-        let titles = Dictionary(books.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+        // A deleted source is printed under the title the log kept for it; a book on the shelf
+        // under its own, which may have been edited since.
+        let remembered = (try? AppDatabase.shared.fetchReadingLogSources()) ?? []
+        var titles = Dictionary(remembered.map { ($0.bookId, $0.title) }, uniquingKeysWith: { first, _ in first })
+        for book in books { titles[book.id] = book.title }
         log = ReadingLog.make(from: sessions, titles: titles)
     }
 

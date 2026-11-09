@@ -492,6 +492,22 @@ public nonisolated final class AppDatabase: Sendable {
             try db.execute(sql: "DELETE FROM bookContentIndex")
         }
 
+        /// The reading log's own memory of a source (2026-11-09): the title, byline and cover a
+        /// sitting is printed under once its book has been deleted, and the date a book was
+        /// finished. Additive and local, like `readingSession`. No backfill: books deleted
+        /// before today took their titles and covers with them, and every finish before today
+        /// is dated at read time from `lastOpenedAt` — see `ReadingLogSource`.
+        migrator.registerMigration("v24_createReadingLogSource") { db in
+            try db.create(table: "readingLogSource") { t in
+                t.column("bookId", .text).primaryKey()
+                t.column("title", .text).notNull()
+                t.column("author", .text)
+                t.column("sourceKind", .text).notNull()
+                t.column("coverPath", .text)
+                t.column("finishedAt", .datetime)
+            }
+        }
+
         return migrator
     }
 
@@ -518,6 +534,81 @@ public nonisolated final class AppDatabase: Sendable {
                 .order(Column("endedAt").desc)
                 .limit(limit)
                 .fetchAll(db)
+        }
+    }
+
+    /// Everything the log remembers about sources, live and deleted. A handful of rows — one
+    /// per source ever finished or deleted after being read — read whole, like the sittings.
+    public func fetchReadingLogSources() throws -> [ReadingLogSource] {
+        try writer.read { db in
+            try ReadingLogSource.fetchAll(db)
+        }
+    }
+
+    /// Where a just-deleted source's cover should be kept, if the log means to keep it.
+    ///
+    /// Asked by whoever removes the book's folder, after `deleteBook` (or a deletion from
+    /// iCloud) has written the snapshot: the decision is the database's — it knows whether the
+    /// log has anything to say about the source — and the copying is the file system's.
+    public func keptCoverPath(forBookId bookId: String) throws -> String? {
+        try writer.read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT coverPath FROM readingLogSource WHERE bookId = ?",
+                arguments: [bookId]
+            )
+        }
+    }
+
+    /// Freezes what the log will need once `book` is gone. Runs inside the transaction that
+    /// deletes the book, before the row disappears.
+    ///
+    /// Only for a source the log has something to say about — a sitting with it, a recorded
+    /// finish, or a finished position. A source deleted unread leaves nothing behind: the log
+    /// is a record of reading, not of the shelf, and keeping its cover would be a file nobody
+    /// could ever be shown.
+    ///
+    /// A finished book with no recorded date is dated here, once, by the same inference used
+    /// for a live one (`ReadingLogSource.inferredFinishDate`) — after deletion the fields that
+    /// inference reads are gone.
+    private static func rememberForReadingLog(_ book: Book, in db: Database) throws {
+        let existing = try ReadingLogSource.fetchOne(db, key: book.id)
+        let lastSitting = try Date.fetchOne(
+            db,
+            sql: "SELECT MAX(endedAt) FROM readingSession WHERE bookId = ?",
+            arguments: [book.id]
+        )
+        let isFinished = book.progress >= 0.995
+
+        guard existing != nil || lastSitting != nil || isFinished else { return }
+
+        let finishedAt = existing?.finishedAt
+            ?? (isFinished ? ReadingLogSource.inferredFinishDate(of: book, lastSitting: lastSitting) : nil)
+
+        try ReadingLogSource(
+            bookId: book.id,
+            title: book.title,
+            author: book.author,
+            sourceKind: book.sourceKind,
+            coverPath: book.coverPath == nil ? nil : ReadingLogSource.keptCoverPath(forBookId: book.id),
+            finishedAt: finishedAt
+        ).save(db)
+    }
+
+    /// Dates a finish. `finishedAt` is the one fact here that nothing else in the database
+    /// holds — `progress = 1` says that a book was finished, never when.
+    private static func rememberFinish(of book: Book, at date: Date, in db: Database) throws {
+        if var existing = try ReadingLogSource.fetchOne(db, key: book.id) {
+            existing.finishedAt = date
+            try existing.update(db)
+        } else {
+            try ReadingLogSource(
+                bookId: book.id,
+                title: book.title,
+                author: book.author,
+                sourceKind: book.sourceKind,
+                finishedAt: date
+            ).insert(db)
         }
     }
 
@@ -573,12 +664,17 @@ public nonisolated final class AppDatabase: Sendable {
     /// Both the shelf action and the reader colophon come through this method so completion
     /// cannot acquire two subtly different meanings. In particular, a stale `Book` value held
     /// by either view is never allowed to replace the locator currently stored in SQLite.
+    /// The finish is also dated for the reading log, in the same transaction — see
+    /// `ReadingLogSource.finishedAt`. Every caller (the shelf's menu, the colophon) has already
+    /// established that the book was not finished a moment ago, so each call is a finish and a
+    /// reread finished again moves the date to the newer one.
     public func markBookAsFinished(id: String, lastOpenedAt: Date = Date()) throws {
         try writeReadingProgress(
             id: id,
             progress: 1,
             locator: .preserve,
-            lastOpenedAt: lastOpenedAt
+            lastOpenedAt: lastOpenedAt,
+            recordsFinish: true
         )
     }
 
@@ -591,7 +687,8 @@ public nonisolated final class AppDatabase: Sendable {
         id: String,
         progress: Double,
         locator: ReadingLocatorUpdate,
-        lastOpenedAt: Date
+        lastOpenedAt: Date,
+        recordsFinish: Bool = false
     ) throws {
         try writer.write { db in
             if var book = try Book.filter(Column("id") == id).fetchOne(db) {
@@ -605,6 +702,9 @@ public nonisolated final class AppDatabase: Sendable {
                 book.lastOpenedAt = lastOpenedAt
                 try book.update(db)
                 try markLocalSave(.book, id: id, at: lastOpenedAt, in: db)
+                if recordsFinish {
+                    try Self.rememberFinish(of: book, at: lastOpenedAt, in: db)
+                }
             }
         }
         signalSyncIfNeeded()
@@ -730,6 +830,9 @@ public nonisolated final class AppDatabase: Sendable {
                     sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'highlight' AND bookID = ?",
                     arguments: [book.title, subtitle, id]
                 )
+                // The sittings outlive the book the same way, and now so does what they are
+                // printed under. The cover itself is kept by whoever removes the folder.
+                try Self.rememberForReadingLog(book, in: db)
             }
 
             // Notes are the user's own writing and survive the book they referenced;
@@ -2405,6 +2508,10 @@ public nonisolated final class AppDatabase: Sendable {
                         sql: "UPDATE searchIndex SET title = ?, subtitle = ? WHERE entityType = 'highlight' AND bookID = ?",
                         arguments: [book.title, subtitle, id]
                     )
+                    // The same trail as a local deletion, for the same reason as the passages
+                    // above: otherwise the device that deleted the book would remember it in
+                    // its reading log and the one that heard about it would not.
+                    try Self.rememberForReadingLog(book, in: db)
                 }
                 try db.execute(sql: "UPDATE note SET bookId = NULL WHERE bookId = ?", arguments: [id])
                 try db.execute(

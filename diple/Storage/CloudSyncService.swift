@@ -541,7 +541,10 @@ public actor CloudSyncService: CKSyncEngineDelegate {
                 let applied = try database.applyRemoteDeletion(entity: key.entity, id: key.id)
                 if applied {
                     if key.entity == .book {
-                        try? BookStorageService.shared.deleteBookFolder(id: key.id)
+                        try? BookStorageService.shared.deleteBookFolder(
+                            id: key.id,
+                            keepingCoverAt: try? database.keptCoverPath(forBookId: key.id)
+                        )
                     }
                     changed = true
                 } else {

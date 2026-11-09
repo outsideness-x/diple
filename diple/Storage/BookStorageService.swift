@@ -1,4 +1,6 @@
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 /// File-system access is independent of the UI actor. `FileManager` provides its own
 /// thread-safe operations, while callers coordinate writes through unique book directories.
@@ -135,13 +137,90 @@ public nonisolated final class BookStorageService: Sendable {
         return "Books/\(bookId)/\(fileName)"
     }
 
-    /// Deletes the book directory Documents/Books/<uuid>
-    public func deleteBookFolder(id: String) throws {
+    /// Deletes the book directory Documents/Books/<uuid>.
+    ///
+    /// `keptCoverPath` is where the reading log wants the cover kept (see `ReadingLogSource`),
+    /// or `nil` when it has nothing to say about the source. The cover is kept **before** the
+    /// folder goes and a failure to keep it never stops the deletion: the reader asked for the
+    /// book to be removed, and a statistics page drawing a cloth cover instead of the artwork
+    /// is a much smaller fault than a book that would not delete.
+    public func deleteBookFolder(id: String, keepingCoverAt keptCoverPath: String? = nil) throws {
         let booksURL = try booksDirectory()
         let folderURL = booksURL.appendingPathComponent(id, isDirectory: true)
-        if fileManager.fileExists(atPath: folderURL.path) {
-            try fileManager.removeItem(at: folderURL)
+        guard fileManager.fileExists(atPath: folderURL.path) else { return }
+        if let keptCoverPath {
+            keepCover(from: folderURL, at: keptCoverPath)
         }
+        try fileManager.removeItem(at: folderURL)
+    }
+
+    /// The longest side of a kept cover, in pixels. The largest place the log draws a cover is a
+    /// shelf tile about 120 pt wide — 360 px on a 3× phone, 540 px tall — so this keeps every
+    /// pixel the page can show and drops the rest. A publisher's cover arrives as a PNG of a
+    /// megabyte or more; the thumbnail is a few dozen kilobytes.
+    static let keptCoverMaxPixelSize = 600
+
+    /// Copies the book's cover out of its folder as a JPEG thumbnail at `relativePath`.
+    ///
+    /// The folder is searched for `cover.*` rather than handed `Book.coverPath`: a deletion that
+    /// arrived from iCloud has already removed the row that held the path, and every writer of a
+    /// cover — the importer, the metadata editor, the sync — names it `cover.<ext>`.
+    ///
+    /// ImageIO rather than `UIImage`: this runs off the main actor, and a thumbnail is what
+    /// `CGImageSourceCreateThumbnailAtIndex` exists to make without decoding the full image. If
+    /// the image cannot be re-encoded, the original bytes are copied as they are — `UIImage`
+    /// decodes by content, not by extension, so the `.jpg` name does no harm.
+    private func keepCover(from folderURL: URL, at relativePath: String) {
+        let contents = (try? fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: nil)) ?? []
+        guard let coverURL = contents.first(where: {
+            $0.deletingPathExtension().lastPathComponent == "cover"
+        }) else { return }
+
+        let targetURL = absoluteURL(for: relativePath)
+        do {
+            try fileManager.createDirectory(
+                at: targetURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            if fileManager.fileExists(atPath: targetURL.path) {
+                try fileManager.removeItem(at: targetURL)
+            }
+        } catch {
+            return
+        }
+
+        if let data = Self.thumbnailJPEG(of: coverURL, maxPixelSize: Self.keptCoverMaxPixelSize) {
+            try? data.write(to: targetURL, options: .atomic)
+        } else {
+            try? fileManager.copyItem(at: coverURL, to: targetURL)
+        }
+    }
+
+    static func thumbnailJPEG(of url: URL, maxPixelSize: Int) -> Data? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data as CFMutableData,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ) else { return nil }
+        CGImageDestinationAddImage(
+            destination,
+            image,
+            [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return data as Data
     }
 
     /// Returns absolute URL for a given relative path inside Documents

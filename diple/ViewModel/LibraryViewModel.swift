@@ -359,7 +359,10 @@ public final class LibraryViewModel: ObservableObject {
             for book in books {
                 try AppDatabase.shared.deleteBook(id: book.id)
                 do {
-                    try BookStorageService.shared.deleteBookFolder(id: book.id)
+                    try BookStorageService.shared.deleteBookFolder(
+                        id: book.id,
+                        keepingCoverAt: try? AppDatabase.shared.keptCoverPath(forBookId: book.id)
+                    )
                 } catch {
                     cleanupFailed = true
                 }
@@ -430,7 +433,12 @@ public final class LibraryViewModel: ObservableObject {
             loadBooks()
 
             do {
-                try BookStorageService.shared.deleteBookFolder(id: book.id)
+                // The reading log decided in that transaction whether it remembers this book;
+                // if it does, the cover is kept before the folder goes. See `ReadingLogSource`.
+                try BookStorageService.shared.deleteBookFolder(
+                    id: book.id,
+                    keepingCoverAt: try? AppDatabase.shared.keptCoverPath(forBookId: book.id)
+                )
             } catch {
                 self.errorMessage = "The book was removed, but its files could not be cleaned up: \(error.localizedDescription)"
                 self.showErrorAlert = true
